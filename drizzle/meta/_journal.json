@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789968390412,
+      "tag": "0000_clumsy_echo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789988553146,
+      "tag": "0001_illegal_molly_hayes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790835841851,
+      "tag": "0002_peaceful_agent_brand",
+      "breakpoints": true
+    }
+  ]
+}

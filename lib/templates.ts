@@ -1,0 +1,6 @@
+import {blank, type Scope} from './scope';
+export const templates: {id:string;name:string;content:Scope}[] = [
+ {id:'brand',name:'Brand identity',content:{...blank,title:'Brand identity',deliverables:'Primary logo and two variations\nColor palette and typography\nBrand guidelines document',exclusions:'Website design, print production, and additional brand applications.',notes:'Confirm the fee, client, and exact quantities before saving. Feedback is consolidated into one list per revision round.'}},
+ {id:'website',name:'Website project',content:{...blank,title:'Website design and build',deliverables:'Responsive website design\nAgreed pages implemented\nHandover and launch checklist',exclusions:'Hosting fees, paid assets, copywriting, ongoing maintenance, and integrations unless listed above.',notes:'Replace “agreed pages” with an exact list. Confirm browser support, responsibilities, payment terms, fee and client before saving.'}},
+ {id:'content',name:'Content package',content:{...blank,title:'Content creation package',deliverables:'Content plan\nAgreed content pieces\nFinal files in agreed formats',exclusions:'Paid distribution, community management, and additional versions unless listed above.',notes:'Specify the exact number of pieces, formats, and delivery channels. Confirm usage rights, fee and client before saving.'}},
+];

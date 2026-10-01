@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+const base='http://localhost:5173';
+const auth=await fetch(base+'/signin-with-chatgpt?return_to=%2F',{redirect:'manual'});
+const cookie=auth.headers.get('set-cookie')?.split(';')[0];assert.ok(cookie,'Local sign-in cookie');
+let checks=0;
+async function call(path,method='GET',data,authenticated=true,extra={}){const r=await fetch(base+path,{method,headers:{...(authenticated?{cookie}:{}),...(data?{'Content-Type':'application/json'}:{}),...extra},body:data?JSON.stringify(data):undefined});const text=await r.text();let value;try{value=JSON.parse(text)}catch{value={error:text}}return {status:r.status,value};}
+function status(r,n){assert.equal(r.status,n,JSON.stringify(r.value));checks++;}
+const s={title:'Automated local QA '+Date.now(),client:'Example Test Client',deliverables:'One test design\nOne test revision',exclusions:'All real-world work; test only',fee:100,currency:'USD',revisions:1,due:'',notes:'Disposable local test record.'};
+status(await call('/api/scopes','GET',null,false),401);
+status(await call('/api/scopes','POST',{...s,fee:-1}),400);
+status(await call('/api/scopes','POST',s,true,{Origin:'https://untrusted.example'}),403);
+const first=await call('/api/scopes','POST',s);status(first,201);const v=first.value.scope;
+const read=await call('/api/review/'+v.token,'GET',null,false);status(read,200);assert.equal(read.value.scope.content.title,s.title);checks++;
+status(await call('/api/scopes/'+v.project_id,'GET',null,false),401);
+status(await call('/api/review/'+v.token,'POST',{decision:'changes_requested',signer:'Test Reviewer',comment:'',version:1},false),400);
+status(await call('/api/review/'+v.token,'POST',{decision:'changes_requested',signer:'Test Reviewer',comment:'Add a test page',version:1},false),200);
+status(await call('/api/review/'+v.token,'POST',{decision:'approved',signer:'Test Reviewer',comment:'',version:1},false),409);
+const second=await call('/api/scopes/'+v.project_id,'POST',{expected_version:1,content:{...s,fee:150}});status(second,201);
+status(await call('/api/scopes/'+v.project_id,'POST',{expected_version:1,content:s}),409);
+status(await call('/api/review/'+second.value.scope.token,'POST',{decision:'approved',signer:'Test Reviewer',comment:'Test approval',version:2},false),200);
+const history=await call('/api/scopes/'+v.project_id);status(history,200);assert.equal(history.value.versions.length,2);assert.equal(history.value.versions[1].content.fee,100);assert.equal(history.value.versions[0].status,'approved');checks+=3;
+const third=await call('/api/scopes','POST',{...s,title:'Superseded pending QA'});status(third,201);
+status(await call('/api/scopes/'+third.value.scope.project_id,'POST',{expected_version:1,content:{...s,fee:200}}),201);
+status(await call('/api/review/'+third.value.scope.token,'POST',{decision:'approved',signer:'Test Reviewer',comment:'',version:1},false),409);
+const key=await call('/api/key','POST');status(key,200);
+status(await call('/api/scopes','GET',null,false,{Authorization:'Bearer '+key.value.token}),200);
+status(await call('/api/key','DELETE'),200);
+status(await call('/api/scopes','GET',null,false,{Authorization:'Bearer '+key.value.token}),401);
+status(await call('/api/review/not-valid','GET',null,false),404);
+console.log(JSON.stringify({passed:checks,scopeCreation:true,immutableVersions:true,approval:true,staleDecisionBlocked:true,apiRevocation:true}));
