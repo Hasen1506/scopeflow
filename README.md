@@ -1,10 +1,10 @@
 # Scopeflow early beta
 
-Client scope approvals for freelancers: immutable versions, bearer review links, client decisions, version history, account-scoped API tokens, and a staging-only WebMCP draft tool, scope templates, project search and status filters, project JSON export, review-link revocation/replacement, and five authenticated MCP tools.
+Client scope approvals for freelancers: immutable versions, bearer review links, client decisions, version history, account-scoped API tokens, and a staging-only WebMCP draft tool, scope templates, project search and status filters, project JSON export, review-link revocation/replacement, and five authenticated MCP tools. Scopes can be reused as new drafts; unsaved work warns before replacement and browser creation retries use idempotency keys.
 
 ## Status
 
-Built for functional and security review, not certified for production or millions of users. Muse approval, live end-to-end Muse testing, production capacity validation, billing, monitoring/alerting, automated account deletion and operational recovery drills are pending. Proposed pricing: Solo $9/month and Studio $19/month. Billing is disabled.
+Built for functional and security review, not certified for production or millions of users. Muse approval, live end-to-end Muse testing, production capacity validation, billing, monitoring/alerting, automated account deletion and operational recovery drills are pending. Proposed Solo pricing: $4/month or $36/year, with a free first-project tier. See docs/pricing-economics.md for modeled costs and margins. Billing is disabled.
 
 Public routes: /, /connect, /reviewer-guide, /privacy, /terms, /plans, /api, /api/openapi and bearer review links. Account data requires platform sign-in or an account-scoped token. Review URLs authorize reading and one decision; share deliberately. Names are self-reported, not verified signatures.
 

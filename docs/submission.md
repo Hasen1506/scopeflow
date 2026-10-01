@@ -1,6 +1,6 @@
 # Scopeflow connector review package
 
-Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.2.0.
+Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.2.1.
 
 ## Use cases and tools
 
@@ -30,8 +30,8 @@ The OpenAI submission portal requires an authenticated developer session and pub
 
 ## Release notes
 
-Added scope templates, project search and status filtering, JSON project export, review-link revocation/replacement, support and data-control pages, idempotent scope creation, and five MCP tools. Added local integration tests for transport, OAuth identity requirements, raw API tenant isolation, idempotency, input validation, link lifecycle, and stale revisions. Local results do not establish independent security certification or production capacity.
+Added scope reuse as a new draft, browser creation retry protection and unsaved-draft warnings. Added scope templates, project search and status filtering, JSON project export, review-link revocation/replacement, support and data-control pages, idempotent scope creation, and five MCP tools. Added local integration tests for transport, OAuth identity requirements, raw API tenant isolation, idempotency, input validation, link lifecycle, and stale revisions. Local results do not establish independent security certification or production capacity.
 
 ## Commercial scope
 
-Free early beta. Proposed monthly prices are $9 Solo and $19 Studio. Billing and team workspaces are not enabled. Reviewer names are self-reported; approvals do not collect payment or verify a legal signature. Millions of users have not been validated.
+Free early beta. Proposed Solo pricing is $4/month or $36/year, with a free first-project tier. Team packages remain future work. Billing and team workspaces are not enabled. Reviewer names are self-reported; approvals do not collect payment or verify a legal signature. Millions of users have not been validated.
