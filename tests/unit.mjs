@@ -3,6 +3,7 @@ import './support/ts-resolve.mjs';
 import assert from 'node:assert/strict';
 const {scopeSchema,itemsOf,sample}=await import('../lib/scope.ts');
 const {semanticDiff,describeChange}=await import('../lib/diff.ts');
+const {lintScope}=await import('../lib/lint.ts');
 let passed=0;
 function test(name,fn){fn();passed++;}
 const legacy={title:'Legacy scope',client:'Client Co',deliverables:'Logo\nGuidelines',exclusions:'',fee:100,currency:'USD',revisions:1,due:'',notes:''};
@@ -37,4 +38,24 @@ test('diff: client inputs',()=>{
  const a={...sample,client_inputs:[{id:'c1',title:'Copy',due:''}]},b={...sample,client_inputs:[{id:'c1',title:'Copy',due:'2026-11-01'},{id:'c2',title:'Logins',due:''}]};
  assert.deepEqual(semanticDiff(a,b).map(c=>c.kind),['input_changed','input_added']);
 });
+
+const rules=s=>lintScope(scopeSchema.parse(s),'2026-10-01').issues.map(i=>i.rule);
+test('lint: vague language and unlimited',()=>{
+ const r=lintScope(scopeSchema.parse({...legacy,deliverables:'Logo etc.',notes:'Unlimited revisions and minor tweaks as needed'}),'2026-10-01');
+ assert.equal(r.issues[0].severity,'error');assert.ok(r.issues.filter(i=>i.rule==='vague-language').length>=3);assert.ok(r.score<70);
+});
+test('lint: fee mismatch when every item is priced',()=>{assert.ok(rules({...legacy,items:[{id:'a',title:'Logo',price:50},{id:'b',title:'Guide',price:20}]}).includes('fee-mismatch'));});
+test('lint: no fee mismatch when items sum to fee',()=>{assert.ok(!rules({...legacy,items:[{id:'a',title:'Logo',price:60},{id:'b',title:'Guide',price:40}]}).includes('fee-mismatch'));});
+test('lint: website projects should exclude hosting',()=>{
+ const r=lintScope(scopeSchema.parse({...legacy,title:'Website build',exclusions:'Print'}),'2026-10-01');
+ const c=r.issues.find(i=>i.rule==='category-exclusions');assert.match(c.message,/hosting/);
+ assert.ok(!lintScope(scopeSchema.parse({...legacy,deliverables:'Five page designs',title:'Website build',exclusions:'Hosting, domain, maintenance, copywriting, SEO'}),'2026-10-01').issues.some(i=>i.rule==='category-exclusions'));
+});
+test('lint: plural title with qty 1',()=>{assert.ok(rules({...legacy,items:[{id:'a',title:'Social posts'}]}).includes('missing-quantity'));assert.ok(!rules({...legacy,items:[{id:'a',title:'Social posts',qty:12}]}).includes('missing-quantity'));});
+test('lint: dates',()=>{const r=rules({...legacy,due:'2026-09-01',client_inputs:[{id:'c',title:'Copy',due:'2026-09-05'}]});assert.ok(r.includes('past-due'));assert.ok(r.includes('client-input-after-due'));});
+test('lint: a well-specified scope is clear',()=>{
+ const r=lintScope(scopeSchema.parse({title:'Brand identity',client:'Acme',deliverables:'',items:[{id:'a',title:'Logo suite',acceptance:'SVG and PNG',price:1000},{id:'b',title:'Brand guidelines',qty:12,unit:'pages',acceptance:'PDF',price:800}],client_inputs:[{id:'c',title:'Questionnaire',due:'2026-10-10'}],exclusions:'Print production, website design, trademark searches',fee:1800,currency:'USD',revisions:2,due:'2026-11-01',notes:'One round is one consolidated feedback list. 50% deposit, balance on delivery.'}),'2026-10-01');
+ assert.deepEqual(r.issues,[]);assert.equal(r.score,100);assert.equal(r.grade,'clear');
+});
+test('lint: open-ended exclusions are fine',()=>{assert.ok(!rules({...legacy,exclusions:'Ongoing maintenance, hosting etc.'}).includes('vague-language'));});
 console.log(JSON.stringify({passed,suite:'unit'}));

@@ -59,10 +59,10 @@ client can check.
 - [x] MCP + OpenAPI schemas accept optional `items`/`client_inputs`.
 - [x] `tests/unit.mjs` for pure libs; core tests still green.
 
-### Phase 2 — Scope linter
-- [ ] `lib/lint.ts`: vague language, missing quantities/acceptance, priced items ≠ fee, missing category exclusions (website→hosting etc.), no exclusions, unlimited revisions, client inputs without dates. Returns issues + clarity score 0–100.
-- [ ] Live lint panel in editor (`app/lint-panel.tsx`).
-- [ ] MCP tool `lint_scope` (no auth, pure).
+### Phase 2 — Scope linter ✅
+- [x] `lib/lint.ts`: vague language, missing quantities/acceptance, priced items ≠ fee, missing category exclusions (website→hosting etc.), no exclusions, unlimited revisions, client inputs without dates. Returns issues + clarity score 0–100.
+- [x] Live lint panel in editor (`app/lint-panel.tsx`).
+- [x] MCP tool `lint_scope` (no auth, pure).
 
 ### Phase 3 — Scope ledger (change orders, rounds, delays, goodwill)
 - [ ] Migration: `ledger_entries` (id, project_id, seq, kind, baseline_version, payload, ref, prev_hash, hash, actor, created) + unique (project_id, seq), unique (project_id, ref).
@@ -99,3 +99,4 @@ Baseline lint has 17 pre-existing errors in old files; new files must be clean
 ## Log
 - Phase 0 done. Baseline core tests 25/25.
 - Phase 1 done. Canonicalisation lives in the `scopeSchema` transform, so every write path (API, MCP, WebMCP, import) gets it without route changes. Unit 11/11, core 25/25. Visual check via Playwright (global install at /opt/node-tools/node_modules/playwright).
+- Phase 2 done. `lint_scope` is a public MCP tool (`publicTools` in lib/mcp.ts). Exclusions are not scanned for vague words (open-ended exclusions protect the freelancer). Unit 19/19. TODO at release: tests/integration.mjs asserts the MCP tool count (currently 5), so update it once Phase 4 tools land.

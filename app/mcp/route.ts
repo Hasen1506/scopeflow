@@ -1,6 +1,6 @@
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {body,json,safeOrigin} from '@/lib/server';
-import {mcpTools,toolExists,validateTool,runTool} from '@/lib/mcp';
+import {mcpTools,publicTools,toolExists,validateTool,runTool} from '@/lib/mcp';
 const protocols=['2025-11-25','2025-06-18','2025-03-26'];
 const rpcError=(id:unknown,code:number,message:string,status=200)=>json({jsonrpc:'2.0',id:id??null,error:{code,message}},status);
 export async function GET(request:Request){if(!safeOrigin(request))return rpcError(null,-32600,'Origin not allowed.',403);return new Response(null,{status:405,headers:{Allow:'POST'}});}
@@ -19,6 +19,6 @@ export async function POST(request:Request){
  if(msg.method!=='tools/call')return rpcError(msg.id,-32601,'Method not found.');
  const name=msg.params?.name;if(typeof name!=='string'||!toolExists(name))return rpcError(msg.id,-32602,'Unknown tool.');
  const parsed=validateTool(name,msg.params.arguments??{});if(!parsed?.success)return rpcError(msg.id,-32602,'Invalid tool arguments.');
- if(name!=='list_scope_templates'&&!await getChatGPTUser())return rpcError(msg.id,-32001,'Connect your Scopeflow account before using this tool.',401);
+ if(!publicTools.has(name)&&!await getChatGPTUser())return rpcError(msg.id,-32001,'Connect your Scopeflow account before using this tool.',401);
  try{return reply(await runTool(name,parsed.data,request));}catch{return reply({isError:true,content:[{type:'text',text:'Scopeflow is temporarily unavailable. Read the current project state before retrying a save.'}]});}
 }
