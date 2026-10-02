@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 const {scopeSchema,itemsOf,sample}=await import('../lib/scope.ts');
 const {semanticDiff,describeChange}=await import('../lib/diff.ts');
 const {lintScope}=await import('../lib/lint.ts');
+const {checkRequest,exclusionClauses}=await import('../lib/check.ts');
+const {computeAgreement}=await import('../lib/ledger.ts');
 let passed=0;
 function test(name,fn){fn();passed++;}
 const legacy={title:'Legacy scope',client:'Client Co',deliverables:'Logo\nGuidelines',exclusions:'',fee:100,currency:'USD',revisions:1,due:'',notes:''};
@@ -58,4 +60,19 @@ test('lint: a well-specified scope is clear',()=>{
  assert.deepEqual(r.issues,[]);assert.equal(r.score,100);assert.equal(r.grade,'clear');
 });
 test('lint: open-ended exclusions are fine',()=>{assert.ok(!rules({...legacy,exclusions:'Ongoing maintenance, hosting etc.'}).includes('vague-language'));});
+
+const brand=scopeSchema.parse({title:'Brand identity',client:'Acme',deliverables:'',items:[{id:'logo',title:'Logo suite',acceptance:'SVG'},{id:'guide',title:'Brand guidelines',qty:12,unit:'pages'},{id:'posts',title:'Launch social posts',qty:6,unit:'posts'}],exclusions:'Website design, print production, and paid ads.',fee:1800,currency:'USD',revisions:2,due:'',notes:''});
+const ag=(used=0)=>({...computeAgreement(brand,1,[]),revisions_used:used});
+const verdict=(m,used)=>checkRequest(m,brand,ag(used));
+test('check: exclusion clauses',()=>{assert.deepEqual(exclusionClauses(brand.exclusions).map(c=>c.text),['Website design','print production','paid ads']);});
+test('check: excluded work',()=>{const r=verdict('Could you also design the website homepage?');assert.equal(r.verdict,'out_of_scope');assert.equal(r.matched_exclusions[0].text,'Website design');assert.ok(r.change_order.request_quote);assert.equal(r.change_order.add_items.length,1);});
+test('check: printing synonyms',()=>{assert.equal(verdict('Can you handle printing the business cards?').verdict,'out_of_scope');});
+test('check: more than agreed quantity',()=>{const r=verdict('Hi! Love it. Could you also do 10 Instagram posts for the launch week?');assert.equal(r.verdict,'out_of_scope');assert.match(r.reasons[0],/6 posts/);assert.equal(r.change_order.title,'10 Instagram posts for the launch week');const i=r.change_order.add_items[0];assert.deepEqual([i.title,i.qty,i.unit],['Additional launch social posts',4,'posts']);});
+test('check: title skips pleasantries',()=>{assert.equal(verdict('Thanks so much for the drafts. Can you make a pitch deck template as well?').change_order.title,'A pitch deck template as well');});
+test('check: another of a deliverable',()=>{assert.equal(verdict('Could we get another logo option?').verdict,'out_of_scope');});
+test('check: brand-new work',()=>{assert.equal(verdict('Can you also make a pitch deck template?').verdict,'out_of_scope');});
+test('check: revision with rounds left',()=>{const r=verdict('Can you make the logo a bit darker?');assert.equal(r.verdict,'revision');assert.equal(r.change_order,null);assert.match(r.reply,/round 1 of 2/);});
+test('check: revision with no rounds left',()=>{const r=verdict('Can you tweak the logo colours again?',2);assert.equal(r.verdict,'revision');assert.equal(r.change_order.revisions_delta,1);});
+test('check: in scope',()=>{assert.equal(verdict('When will the brand guidelines be ready?').verdict,'in_scope');});
+test('check: ambiguous',()=>{const r=verdict('What do you think about the meeting on Tuesday?');assert.equal(r.verdict,'ambiguous');assert.equal(r.confidence,'low');});
 console.log(JSON.stringify({passed,suite:'unit'}));

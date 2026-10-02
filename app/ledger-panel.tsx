@@ -4,6 +4,7 @@ import {FilePlus2, Gift, Inbox, RefreshCw, RotateCcw, ShieldCheck, ShieldAlert} 
 import {coSummary, describeEntry, type Agreement, type ChangeOrder, type LedgerEntry} from '@/lib/ledger';
 import {formatMoney, label, type Item, type Scope} from '@/lib/scope';
 import {ItemsEditor} from './items-editor';
+import {ScopeCheck} from './scope-check';
 import {api, post} from './ui';
 
 export type LedgerView = {
@@ -12,11 +13,11 @@ export type LedgerView = {
   agreement: Agreement | null; entries: LedgerEntry[];
   chain: {intact: true; head: string; count: number} | {intact: false; at: number; reason: string};
 };
-export type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'fee_delta' | 'days_delta' | 'revisions_delta'>>;
+type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'fee_delta' | 'days_delta' | 'revisions_delta'>>;
 type Form = null | 'change_order' | 'revision_round' | 'client_input' | 'goodwill';
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function LedgerPanel({projectId, reviewUrl, prefill, onPrefillUsed}: {projectId: string; reviewUrl: string | null; prefill?: CoPrefill | null; onPrefillUsed?: () => void}) {
+export function LedgerPanel({projectId, reviewUrl}: {projectId: string; reviewUrl: string | null}) {
   const [view, setView] = useState<LedgerView | null>(null);
   const [form, setForm] = useState<Form>(null);
   const [coSeed, setCoSeed] = useState<CoPrefill>({});
@@ -33,11 +34,6 @@ export function LedgerPanel({projectId, reviewUrl, prefill, onPrefillUsed}: {pro
     api(`/api/scopes/${projectId}/ledger`).then(v => { if (live) setView(v); }, e => { if (live) setError((e as Error).message); });
     return () => { live = false; };
   }, [projectId]);
-  useEffect(() => {
-    if (!prefill) return;
-    // A request checked elsewhere in the workspace arrives as a change-order draft.
-    queueMicrotask(() => { setCoSeed(prefill); setForm('change_order'); onPrefillUsed?.(); });
-  }, [prefill, onPrefillUsed]);
 
   async function submit(kind: string, payload: unknown, requestId?: string) {
     if (!view?.baseline) return false;
@@ -83,6 +79,7 @@ export function LedgerPanel({projectId, reviewUrl, prefill, onPrefillUsed}: {pro
             </div>
           )}
           {a.pending > 0 && <p className="fine">{a.pending} change order{a.pending > 1 ? 's' : ''} awaiting the client{reviewUrl ? ' on ' : '.'}{reviewUrl && <a className="help-link" href={reviewUrl} target="_blank" rel="noreferrer">their review link</a>}</p>}
+          <ScopeCheck scope={base} agreement={a} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => void submit('revision_round', {feedback_date: today(), note})} />
           <div className="actions section-gap">
             <button className={form === 'change_order' ? 'primary' : 'secondary'} disabled={busy} onClick={() => openForm('change_order')}><FilePlus2 size={16} />Change order</button>
             <button className={form === 'revision_round' ? 'primary' : 'secondary'} disabled={busy} onClick={() => openForm('revision_round')}><RotateCcw size={16} />Revision round</button>

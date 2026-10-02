@@ -17,13 +17,14 @@ const content={title:'Disposable deletion QA '+randomUUID(),client:'Fictional Cl
 const created=await call('/api/scopes','POST',content);status(created,201);
 const project=created.value.scope.project_id,version=created.value.scope.id,token=created.value.scope.token;
 status(await call('/api/review/'+token,'POST',{decision:'approved',signer:'Fictional Reviewer',comment:'Local QA',version:1},false),200);
+status(await call('/api/scopes/'+project+'/ledger','POST',{kind:'goodwill',baseline_version:1,payload:{title:'Fictional goodwill',value:5}}),201);
 const key=await call('/api/key','POST');status(key,200);
 const ownBearer={Authorization:'Bearer '+key.value.token};
 const otherOwner='local_deletion_other_'+randomUUID(),otherProject=randomUUID(),otherVersion=randomUUID(),otherToken='sf_'+randomUUID(),otherReview=createHash('sha256').update(randomUUID()).digest('hex');
 const otherHash=createHash('sha256').update(otherToken).digest('hex');
 const quote=s=>"'"+s.replaceAll("'","''")+"'";
 const ownOwner=sql(`SELECT owner FROM projects WHERE id=${quote(project)}`)[0].results[0].owner;
-sql(`INSERT INTO projects (id,owner,latest,created) VALUES (${quote(otherProject)},${quote(otherOwner)},1,'2026-10-01'); INSERT INTO versions (id,project_id,version,token,content,status,created) VALUES (${quote(otherVersion)},${quote(otherProject)},1,${quote(otherReview)},${quote(JSON.stringify(content))},'pending','2026-10-01'); INSERT INTO api_keys (hash,owner,expires,created) VALUES (${quote(otherHash)},${quote(otherOwner)},'2099-01-01','2026-10-01'); INSERT INTO rate_limits (id,window,hits) VALUES (${quote('owner:'+otherOwner)},1,1),(${quote('key:'+otherOwner)},1,1),(${quote('review:'+otherVersion)},1,1);`);
+sql(`INSERT INTO projects (id,owner,latest,created) VALUES (${quote(otherProject)},${quote(otherOwner)},1,'2026-10-01'); INSERT INTO versions (id,project_id,version,token,content,status,created) VALUES (${quote(otherVersion)},${quote(otherProject)},1,${quote(otherReview)},${quote(JSON.stringify(content))},'pending','2026-10-01'); INSERT INTO ledger_entries (id,project_id,seq,kind,baseline_version,actor,payload,ref,prev_hash,hash,created) VALUES (${quote(randomUUID())},${quote(otherProject)},1,'goodwill',1,'owner','{}',NULL,'0','0','2026-10-01'); INSERT INTO api_keys (hash,owner,expires,created) VALUES (${quote(otherHash)},${quote(otherOwner)},'2099-01-01','2026-10-01'); INSERT INTO rate_limits (id,window,hits) VALUES (${quote('owner:'+otherOwner)},1,1),(${quote('key:'+otherOwner)},1,1),(${quote('review:'+otherVersion)},1,1);`);
 const otherBearer={Authorization:'Bearer '+otherToken},origin={Origin:base};
 status(await call('/api/account','GET',undefined,false),401);
 status(await call('/api/account','GET',undefined,false,ownBearer),401);
@@ -39,9 +40,10 @@ status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,{...origi
 status(await call('/api/scopes/'+project),200);
 // Inject a failure late in the transaction and prove earlier deletions roll back.
 sql(`CREATE TRIGGER deletion_qa_abort BEFORE DELETE ON projects WHEN OLD.id=${quote(project)} BEGIN SELECT RAISE(ABORT,'fictional test failure'); END;`);
-try{status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),503);status(await call('/api/review/'+token,'GET',undefined,false),200);status(await call('/api/scopes','GET',undefined,false,ownBearer),200);eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id=${quote('review:'+version)}`)[0].results[0].n,1);}finally{sql('DROP TRIGGER deletion_qa_abort;');}
+try{status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),503);status(await call('/api/review/'+token,'GET',undefined,false),200);status(await call('/api/scopes','GET',undefined,false,ownBearer),200);eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id=${quote('review:'+version)}`)[0].results[0].n,1);eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(project)}`)[0].results[0].n,1);}finally{sql('DROP TRIGGER deletion_qa_abort;');}
 status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),200);
-eq((await call('/api/account')).value,{projects:0,versions:0});
+eq((await call('/api/account')).value,{projects:0,versions:0,ledger_entries:0});
+eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(project)}`)[0].results[0].n,0);
 eq((await call('/api/scopes')).value.scopes,[]);
 status(await call('/api/scopes/'+project),404);
 status(await call('/api/review/'+token,'GET',undefined,false),404);
@@ -52,7 +54,8 @@ eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id IN (${quote('owner:'+ownO
 eq(sql(`SELECT COUNT(*) AS n FROM api_keys WHERE owner=${quote(ownOwner)}`)[0].results[0].n,0);
 status(await call('/api/scopes/'+otherProject,'GET',undefined,false,otherBearer),200);
 status(await call('/api/review/'+otherReview,'GET',undefined,false),200);
+eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(otherProject)}`)[0].results[0].n,1);
 eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id IN (${quote('owner:'+otherOwner)},${quote('key:'+otherOwner)},${quote('review:'+otherVersion)})`)[0].results[0].n,3);
 status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),200);
 status(await call('/api/scopes','POST',content),201);
-console.log(JSON.stringify({passed,selfServiceDeletion:true,confirmationAndBrowserAuth:true,transactionRollback:true,otherAccountPreserved:true,linksAndTokenInvalidated:true,freshStart:true}));
+console.log(JSON.stringify({passed,selfServiceDeletion:true,confirmationAndBrowserAuth:true,transactionRollback:true,otherAccountPreserved:true,linksAndTokenInvalidated:true,ledgerDeleted:true,freshStart:true}));

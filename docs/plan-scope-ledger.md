@@ -74,10 +74,10 @@ client can check.
 - [x] Account deletion removes ledger entries; counts include them.
 - [x] `tests/ledger.mjs` integration test.
 
-### Phase 4 — "Is this in scope?"
-- [ ] `lib/check.ts`: heuristic classifier → verdict (in_scope | out_of_scope | revision | ambiguous), citations to item ids / exclusion clauses, suggested reply, prefilled change order.
-- [ ] Workspace panel (`app/scope-check.tsx`) → "Draft change order from this".
-- [ ] MCP tools: `get_agreement` (structured baseline + ledger), `check_request` (heuristic + baseline for the agent), `propose_change_order` (user_confirmed, request_id idempotent).
+### Phase 4 — "Is this in scope?" ✅
+- [x] `lib/check.ts`: heuristic classifier → verdict (in_scope | out_of_scope | revision | ambiguous), citations to item ids / exclusion clauses, suggested reply, prefilled change order.
+- [x] Workspace panel (`app/scope-check.tsx`) → "Draft change order from this".
+- [x] MCP tools: `get_agreement` (structured baseline + ledger), `check_request` (heuristic + baseline for the agent), `propose_change_order` (user_confirmed, request_id idempotent).
 
 ### Phase 5 — Insights + docs + release
 - [ ] `GET /api/insights`: rounds used vs sold, change-order revenue, goodwill absorbed, per-client creep.
@@ -102,3 +102,4 @@ Baseline lint has 17 pre-existing errors in old files; new files must be clean
 - Phase 2 done. `lint_scope` is a public MCP tool (`publicTools` in lib/mcp.ts). Exclusions are not scanned for vague words (open-ended exclusions protect the freelancer). Unit 19/19. TODO at release: tests/integration.mjs asserts the MCP tool count (currently 5), so update it once Phase 4 tools land.
 - Phase 3 backend done (commit 'Add append-only scope ledger API'). Server helpers in lib/ledger-server.ts (`loadLedger`, `appendEntry` with conditional INSERT…WHERE EXISTS). Hidden goodwill is sent to clients as payload=null + payload_hash. tests/ledger.mjs 54/54. Next: workspace ledger panel + review agreement view.
 - Phase 3 UI done. Workspace `LedgerPanel` (app/ledger-panel.tsx) accepts `prefill` (CoPrefill) — workspace already holds `coPrefill` state + `clearPrefill`, ready for the Phase 4 scope check to call `setCoPrefill`. Review page `AgreementView` (app/review/[token]/agreement.tsx) verifies the chain in-browser. Browser E2E (scratchpad e2e-ledger.mjs) passes, no console errors.
+- Phase 4 done. Scope check lives inside LedgerPanel (removed the workspace-level prefill plumbing). MCP ledger tools in lib/mcp-ledger.ts; tool count now 9 (integration test updated). Deletion test now covers ledger rows. Running suites back to back can hit the 30 writes/min account limit — wait a minute between core/ledger/integration.
