@@ -65,14 +65,14 @@ client can check.
 - [x] MCP tool `lint_scope` (no auth, pure).
 
 ### Phase 3 — Scope ledger (change orders, rounds, delays, goodwill)
-- [ ] Migration: `ledger_entries` (id, project_id, seq, kind, baseline_version, payload, ref, prev_hash, hash, actor, created) + unique (project_id, seq), unique (project_id, ref).
-- [ ] `lib/ledger.ts`: payload schemas per kind, `computeAgreement(baseline, entries)`, hashing helpers (isomorphic WebCrypto).
-- [ ] API: `GET/POST /api/scopes/[id]/ledger` (owner): change_order, withdraw, goodwill, revision_round, client_input.
-- [ ] API: `GET /api/review/[token]` includes ledger + agreement when the version is the approved baseline; `POST /api/review/[token]/change-order` client decision.
+- [x] Migration: `ledger_entries` (id, project_id, seq, kind, baseline_version, payload, ref, prev_hash, hash, actor, created) + unique (project_id, seq), unique (project_id, ref).
+- [x] `lib/ledger.ts`: payload schemas per kind, `computeAgreement(baseline, entries)`, hashing helpers (isomorphic WebCrypto).
+- [x] API: `GET/POST /api/scopes/[id]/ledger` (owner): change_order, withdraw, goodwill, revision_round, client_input.
+- [x] API: `GET /api/review/[token]` includes ledger + agreement when the version is the approved baseline; `POST /api/review/[token]/change-order` client decision.
 - [ ] Workspace ledger panel (`app/ledger-panel.tsx`): current agreement summary, entries timeline, forms; "extra round → change order" prompt when rounds exhausted.
 - [ ] Review page: agreement summary + pending change orders to approve/decline + chain verification.
-- [ ] Account deletion removes ledger entries; counts include them.
-- [ ] `tests/ledger.mjs` integration test.
+- [x] Account deletion removes ledger entries; counts include them.
+- [x] `tests/ledger.mjs` integration test.
 
 ### Phase 4 — "Is this in scope?"
 - [ ] `lib/check.ts`: heuristic classifier → verdict (in_scope | out_of_scope | revision | ambiguous), citations to item ids / exclusion clauses, suggested reply, prefilled change order.
@@ -100,3 +100,4 @@ Baseline lint has 17 pre-existing errors in old files; new files must be clean
 - Phase 0 done. Baseline core tests 25/25.
 - Phase 1 done. Canonicalisation lives in the `scopeSchema` transform, so every write path (API, MCP, WebMCP, import) gets it without route changes. Unit 11/11, core 25/25. Visual check via Playwright (global install at /opt/node-tools/node_modules/playwright).
 - Phase 2 done. `lint_scope` is a public MCP tool (`publicTools` in lib/mcp.ts). Exclusions are not scanned for vague words (open-ended exclusions protect the freelancer). Unit 19/19. TODO at release: tests/integration.mjs asserts the MCP tool count (currently 5), so update it once Phase 4 tools land.
+- Phase 3 backend done (commit 'Add append-only scope ledger API'). Server helpers in lib/ledger-server.ts (`loadLedger`, `appendEntry` with conditional INSERT…WHERE EXISTS). Hidden goodwill is sent to clients as payload=null + payload_hash. tests/ledger.mjs 54/54. Next: workspace ledger panel + review agreement view.

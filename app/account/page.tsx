@@ -22,7 +22,7 @@ export default function Account(){
   <h2>API access</h2><p>Tokens expire after 30 days. Revoking your token disconnects every integration using it.</p>
   <button className="secondary section-gap" disabled={busy||!summary} onClick={async()=>{setBusy(true);setError('');try{await api('/api/key',{method:'DELETE'});setMessage('API token revoked.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}>Revoke API token</button>
   <h2>Delete your Scopeflow data</h2>
-  <p>Permanently remove all your projects, versions, reviewer decisions, review links, API tokens, and associated activity limits. Export anything you want to keep first.</p>
+  <p>Permanently remove all your projects, versions, reviewer decisions, change orders and other ledger records, review links, API tokens, and associated activity limits. Export anything you want to keep first.</p>
   {summary&&<p className="quiet">{summary.projects} {summary.projects===1?'project':'projects'} · {summary.versions} saved {summary.versions===1?'version':'versions'}</p>}
   <p>This deletes your data in Scopeflow. Your ChatGPT account stays active, and you can start fresh here afterward. Copies you have exported or shared elsewhere are outside Scopeflow.</p>
   <button className="secondary danger section-gap" disabled={busy||!summary} onClick={()=>{setConfirmation('');setError('');setConfirmOpen(true);}}>Delete all Scopeflow data</button>
@@ -33,7 +33,7 @@ export default function Account(){
  <Dialog open={confirmOpen} onOpenChange={open=>{if(!busy){setConfirmOpen(open);setConfirmation('');}}}>
   <DialogContent showCloseButton={!busy} onEscapeKeyDown={e=>{if(busy)e.preventDefault();}} onPointerDownOutside={e=>{if(busy)e.preventDefault();}}>
    <DialogTitle>Delete all your Scopeflow data?</DialogTitle>
-   <DialogDescription>This permanently deletes {summary?.projects??0} {summary?.projects===1?'project':'projects'} and {summary?.versions??0} {summary?.versions===1?'version':'versions'}, including reviewer names, comments, and decisions. Every review link and API token will stop working. You cannot undo this.</DialogDescription>
+   <DialogDescription>This permanently deletes {summary?.projects??0} {summary?.projects===1?'project':'projects'} and {summary?.versions??0} {summary?.versions===1?'version':'versions'}, including reviewer names, comments, decisions, change orders and ledger records. Every review link and API token will stop working. You cannot undo this.</DialogDescription>
    <p className="fine">Export your projects first. Your ChatGPT account will remain active. Provider backups and logs follow the retention practices described in our <a href="/privacy">privacy policy</a>.</p>
    <label>Type DELETE to confirm<input value={confirmation} onChange={e=>setConfirmation(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy}/></label>
    {error&&<p className="error" role="alert">{error}</p>}

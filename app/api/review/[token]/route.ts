@@ -1,8 +1,12 @@
 import { z } from 'zod';
 import {db,json,body,safeOrigin,allowWrite,parseRow,failure} from '@/lib/server';
+import {loadLedger} from '@/lib/ledger-server';
 type Ctx={params:Promise<{token:string}>};
 async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<any>();}
-export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=?').bind(row.project_id,row.version-1).first<{content:string}>();const {token:_,...scope}=parseRow(row);return json({scope,previous:previous?JSON.parse(previous.content):null});}catch(e){return failure(e);}}
+export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=?').bind(row.project_id,row.version-1).first<{content:string}>();const {token:_,...scope}=parseRow(row);
+ // The approved latest version doubles as the client's view of the post-approval ledger.
+ let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head};}
+ return json({scope,previous:previous?JSON.parse(previous.content):null,ledger});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
  if(!await allowWrite('review:'+row.id,10))return json({error:'Too many attempts. Try again in a minute.'},429);

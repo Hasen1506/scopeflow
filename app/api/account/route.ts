@@ -9,7 +9,7 @@ async function browserUser(request:Request){
 }
 export async function GET(request:Request){try{
  const user=await browserUser(request);if(!user)return json({error:'Sign in to manage your Scopeflow data.'},401);
- const r=await db().prepare('SELECT (SELECT COUNT(*) FROM projects WHERE owner=?) AS projects, (SELECT COUNT(*) FROM versions WHERE project_id IN (SELECT id FROM projects WHERE owner=?)) AS versions').bind(user.userId,user.userId).first();
+ const r=await db().prepare('SELECT (SELECT COUNT(*) FROM projects WHERE owner=?) AS projects, (SELECT COUNT(*) FROM versions WHERE project_id IN (SELECT id FROM projects WHERE owner=?)) AS versions, (SELECT COUNT(*) FROM ledger_entries WHERE project_id IN (SELECT id FROM projects WHERE owner=?)) AS ledger_entries').bind(user.userId,user.userId,user.userId).first();
  return json(r);
 }catch(e){return failure(e);}}
 export async function DELETE(request:Request){try{
@@ -22,6 +22,7 @@ export async function DELETE(request:Request){try{
  // D1 batches are transactional. Resolve ownership in each statement; remove dependent rows first.
  await database.batch([
   database.prepare("DELETE FROM rate_limits WHERE id IN (?,?) OR id IN (SELECT 'review:'||v.id FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=?)").bind('owner:'+id,'key:'+id,id),
+  database.prepare('DELETE FROM ledger_entries WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM versions WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM projects WHERE owner=?').bind(id),
   database.prepare('DELETE FROM api_keys WHERE owner=?').bind(id),
