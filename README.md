@@ -29,3 +29,5 @@ Run `node tests/integration.mjs` against a running local preview after local mig
 ## Deployment
 
 Use the Sites skills and the existing project_id in .openai/hosting.json. Do not create another site. Generate schema migrations before packaging. Never include local test data, credentials, .wrangler, node_modules, or environment files in source commits. Use a branded custom hostname before directory submission, per the owner's requirement.
+
+Run `node scripts/dev-migrate.mjs` after loading the local preview, then `node tests/run-local.mjs` to run all workflow and regression suites against fictional localhost data. This test run clears local request counters and deletes the local test account data. Project exports now contain every scope version and all ledger entries, including private goodwill notes. Store them securely.

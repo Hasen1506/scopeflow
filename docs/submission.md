@@ -1,6 +1,6 @@
 # Scopeflow connector review package
 
-Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.3.0.
+Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.3.1.
 
 ## Use cases and tools
 
@@ -34,10 +34,14 @@ The OpenAI submission portal requires an authenticated developer session and pub
 
 ## Release notes
 
-0.3.0: Structured deliverables (stable ids, quantities, units, prices, acceptance criteria) and client inputs; plain-language diffs between versions; a scope linter with a clarity score; an append-only, hash-chained agreement ledger after approval (change orders approved by the client on the existing review link, revision rounds used, late client inputs that move the delivery date, logged goodwill); an in-app and MCP "Is this in scope?" check; cross-project insights. Four new MCP tools (nine total). Account deletion covers ledger records.
+0.3.1: Structured deliverables (stable ids, quantities, units, prices, acceptance criteria) and client inputs; plain-language diffs between versions; a scope linter with a clarity score; an append-only, hash-chained agreement ledger after approval (change orders approved by the client on the existing review link, revision rounds used, late client inputs that move the delivery date, logged goodwill); an in-app and MCP "Is this in scope?" check; cross-project insights. Four new MCP tools (nine total). Account deletion covers ledger records.
 
 Earlier: Added self-service account-data deletion with typed confirmation and local isolation/rollback tests. Added scope reuse as a new draft, browser creation retry protection and unsaved-draft warnings. Added scope templates, project search and status filtering, JSON project export, review-link revocation/replacement, support and data-control pages, idempotent scope creation, and five MCP tools. Added local integration tests for transport, OAuth identity requirements, raw API tenant isolation, idempotency, input validation, link lifecycle, and stale revisions. Local results do not establish independent security certification or production capacity.
 
 ## Commercial scope
 
 Free early beta. Proposed Solo pricing is $4/month or $36/year, with a free first-project tier. Team packages remain future work. Billing and team workspaces are not enabled. Reviewer names are self-reported; approvals do not collect payment or verify a legal signature. Millions of users have not been validated.
+
+## 0.3.1 verification fixes
+
+Ledger appends require the same head used for validation; baseline and ledger reads share a database snapshot. Project JSON export includes all ledger entries and private owner notes. Client agreement totals are reconstructed from the ledger in the browser, and decisions wait for successful verification. Printing includes the agreement and record. Draft replies and change-order buttons no longer imply an email was sent. The local migration helper supports Windows, pre-existing preview schemas and transactional rollback.

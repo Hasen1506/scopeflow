@@ -26,6 +26,7 @@ const quote=s=>"'"+s.replaceAll("'","''")+"'";
 const ownOwner=sql(`SELECT owner FROM projects WHERE id=${quote(project)}`)[0].results[0].owner;
 sql(`INSERT INTO projects (id,owner,latest,created) VALUES (${quote(otherProject)},${quote(otherOwner)},1,'2026-10-01'); INSERT INTO versions (id,project_id,version,token,content,status,created) VALUES (${quote(otherVersion)},${quote(otherProject)},1,${quote(otherReview)},${quote(JSON.stringify(content))},'pending','2026-10-01'); INSERT INTO ledger_entries (id,project_id,seq,kind,baseline_version,actor,payload,ref,prev_hash,hash,created) VALUES (${quote(randomUUID())},${quote(otherProject)},1,'goodwill',1,'owner','{}',NULL,'0','0','2026-10-01'); INSERT INTO api_keys (hash,owner,expires,created) VALUES (${quote(otherHash)},${quote(otherOwner)},'2099-01-01','2026-10-01'); INSERT INTO rate_limits (id,window,hits) VALUES (${quote('owner:'+otherOwner)},1,1),(${quote('key:'+otherOwner)},1,1),(${quote('review:'+otherVersion)},1,1);`);
 const otherBearer={Authorization:'Bearer '+otherToken},origin={Origin:base};
+status(await call('/api/scopes/'+project+'/export','GET',undefined,false,otherBearer),404);
 status(await call('/api/account','GET',undefined,false),401);
 status(await call('/api/account','GET',undefined,false,ownBearer),401);
 status(await call('/api/account','DELETE',{confirmation:'DELETE'},false,origin),401);

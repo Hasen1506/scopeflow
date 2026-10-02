@@ -61,6 +61,19 @@ eq(a.fee,2200);eq(a.due,'2026-11-10');eq(a.days_shift,9);eq([a.revisions_allowed
 eq(a.items.map(i=>i.id),['logo','guide','social']);eq(a.change_orders.map(c=>c.status),['approved','withdrawn']);
 eq(a.goodwill_value,200);eq(a.delays[0].days_late,4);eq(owner.value.chain.intact,true);
 
+// Exercise all four new MCP tools through the actual transport and identity boundary.
+const rpc=(name,args={},authenticated=true,headers={})=>call('/mcp','POST',{jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}},authenticated,headers);
+const lint=await rpc('lint_scope',{content:s},false);status(lint,200);assert.equal(typeof lint.value.result.structuredContent.score,'number');passed++;
+status(await rpc('get_agreement',{project_id:project},false),401);
+const apiKey=await call('/api/key','POST');status(apiKey,200);
+status(await rpc('get_agreement',{project_id:project},false,{Authorization:'Bearer '+apiKey.value.token}),401);
+const agreement=await rpc('get_agreement',{project_id:project});status(agreement,200);eq(agreement.value.result.structuredContent.fee,2200);
+const checked=await rpc('check_request',{project_id:project,message:'Can you also print the business cards?'});status(checked,200);eq(checked.value.result.structuredContent.heuristic.verdict,'out_of_scope');
+const proposal={project_id:project,baseline_version:1,change_order:{title:'MCP extra round',revisions_delta:1},request_id:randomUUID(),user_confirmed:true};
+eq((await rpc('propose_change_order',{...proposal,user_confirmed:false})).value.error.code,-32602);
+const proposed=await rpc('propose_change_order',proposal);status(proposed,200);eq(proposed.value.result.structuredContent.seq,10);
+eq((await rpc('propose_change_order',proposal)).value.result.structuredContent.replayed,true);
+
 // Client view hides private goodwill but the chain still verifies in a "browser".
 const review=await call('/api/review/'+token,'GET',undefined,false);status(review,200);
 const ledger=review.value.ledger;assert.ok(ledger);
@@ -72,8 +85,15 @@ const tampered=structuredClone(ledger.entries);tampered[0].payload.fee_delta=1;e
 const reanchored=await anchorHash({project_id:sc.project_id,version:sc.version,content:{...sc.content,fee:1},signer:sc.signer,decided:sc.decided});eq((await verifyChain(ledger.entries,{1:reanchored})).intact,false);
 
 // A new version closes the ledger for the old baseline.
-status(await call('/api/scopes/'+project,'POST',{expected_version:1,content:{...s,fee:2200}}),201);
-const after=await call(L);eq(after.value.open,false);eq(after.value.entries.length,9);
+const revised=await call('/api/scopes/'+project,'POST',{expected_version:1,content:{...s,fee:2200}});status(revised,201);
+const after=await call(L);eq(after.value.open,false);eq(after.value.entries.length,10);
+const exported=await call('/api/scopes/'+project+'/export');status(exported,200);
+eq(exported.value.versions.length,2);eq(exported.value.ledger_entries.length,10);
+eq(exported.value.ledger_entries.find(e=>e.kind==='goodwill'&&e.payload.visible===false).payload.title,'Private rush fix');
+status(await call('/api/scopes/'+project+'/export','GET',undefined,false),401);
+status(await call('/api/scopes/missing-local-fixture/export'),404);
 status(await call(L,'POST',{kind:'goodwill',baseline_version:1,payload:{title:'Late',value:1}}),409);
 status(await call(RC,'POST',{seq:1,decision:'approved',signer:'Fictional Reviewer',comment:''},false),409);
+status(await call('/api/review/'+revised.value.scope.token,'POST',{decision:'approved',signer:'Fictional Reviewer',comment:'',version:2},false),200);
+status(await call(L,'POST',{kind:'change_order',baseline_version:2,payload:co,request_id:rid}),409);
 console.log(JSON.stringify({passed,suite:'ledger',changeOrders:true,clientDecisions:true,hashChain:true,privacy:true,staleBaselineBlocked:true}));

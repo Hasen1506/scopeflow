@@ -31,7 +31,7 @@ export async function POST(request: Request, ctx: Ctx) {
     const problem = checkEntry('settle', payload, ledger.content, ledger.agreement, 'client');
     if (problem) return json({error: problem}, /already|no longer|not found/.test(problem) ? 409 : 400);
     try {
-      await appendEntry({baseline: ledger.baseline, kind: 'settle', payload, actor: 'client', ref: 'settle:' + payload.ref_seq});
+      await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind: 'settle', payload, actor: 'client', ref: 'settle:' + payload.ref_seq});
     } catch (e) {
       if (e instanceof LedgerConflict) return json({error: e.message}, 409);
       throw e;

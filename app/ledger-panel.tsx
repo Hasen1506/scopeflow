@@ -1,5 +1,5 @@
 'use client';
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {FilePlus2, Gift, Inbox, RefreshCw, RotateCcw, ShieldCheck, ShieldAlert} from 'lucide-react';
 import {coSummary, describeEntry, type Agreement, type ChangeOrder, type LedgerEntry} from '@/lib/ledger';
 import {formatMoney, label, type Item, type Scope} from '@/lib/scope';
@@ -24,6 +24,7 @@ export function LedgerPanel({projectId, reviewUrl}: {projectId: string; reviewUr
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const pendingWrite = useRef<{signature:string;id:string}|null>(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -36,10 +37,13 @@ export function LedgerPanel({projectId, reviewUrl}: {projectId: string; reviewUr
   }, [projectId]);
 
   async function submit(kind: string, payload: unknown, requestId?: string) {
-    if (!view?.baseline) return false;
+    if (!view?.baseline || busy) return false;
+    const signature=JSON.stringify({kind,baseline_version:view.baseline.version,payload});
+    if(pendingWrite.current?.signature!==signature)pendingWrite.current={signature,id:requestId??crypto.randomUUID()};
     setBusy(true); setError(''); setNotice('');
     try {
-      const result = await api(`/api/scopes/${projectId}/ledger`, post({kind, baseline_version: view.baseline.version, payload, ...(requestId ? {request_id: requestId} : {})}));
+      const result = await api(`/api/scopes/${projectId}/ledger`, post({kind, baseline_version: view.baseline.version, payload, request_id:pendingWrite.current.id}));
+      pendingWrite.current=null;
       setView(result); setForm(null);
       setNotice(kind === 'change_order' ? `CO-${result.seq} recorded. The client can approve it on their review link.` : 'Recorded on the ledger.');
       return true;
@@ -150,7 +154,7 @@ function ChangeOrderForm({seed, agreement, busy, onSubmit, onCancel}: {seed: CoP
       </div>
       {itemTotal > 0 && Number(fee) !== itemTotal && <p className="fine">Added deliverables are priced at {formatMoney(itemTotal, cur)}. <button type="button" className="link-button" onClick={() => setFee(String(itemTotal))}>Use as fee change</button></p>}
       <p className="muted-box">Client will see: <strong>{title || 'Untitled'}</strong>{coSummary(payload, cur, agreement.items) ? ' · ' + coSummary(payload, cur, agreement.items) : ''}. New fee {formatMoney(agreement.fee + payload.fee_delta, cur)}.</p>
-      <div className="actions"><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Record and send to client'}</button><button type="button" className="secondary" onClick={onCancel}>Cancel</button></div>
+      <div className="actions"><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Record for client review'}</button><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancel</button></div>
     </form>
   );
 }

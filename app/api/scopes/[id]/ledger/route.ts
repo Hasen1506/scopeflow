@@ -61,16 +61,16 @@ export async function POST(request: Request, ctx: Ctx) {
 
     const ref = kind === 'settle' ? 'settle:' + (parsed.data as {ref_seq: number}).ref_seq : request_id ? 'req:' + request_id : null;
     if (request_id) {
-      const prior = await db().prepare('SELECT seq,kind,payload FROM ledger_entries WHERE project_id=? AND ref=?').bind(id, ref).first<{seq: number; kind: string; payload: string}>();
+      const prior = await db().prepare('SELECT seq,kind,payload,baseline_version FROM ledger_entries WHERE project_id=? AND ref=?').bind(id, ref).first<{seq: number; kind: string; payload: string; baseline_version:number}>();
       if (prior) {
-        if (prior.kind !== kind || prior.payload !== JSON.stringify(parsed.data)) return json({error: 'That request_id was already used with different content.'}, 409);
+        if (prior.kind !== kind || prior.baseline_version !== baseline_version || prior.payload !== JSON.stringify(parsed.data)) return json({error: 'That request_id was already used with different content or a different approved baseline.'}, 409);
         return json({replayed: true, seq: prior.seq, ...(await view(id))}, 200);
       }
     }
     const problem = checkEntry(kind, parsed.data, ledger.content, ledger.agreement, 'owner');
     if (problem) return json({error: problem}, kind === 'settle' && /already/.test(problem) ? 409 : 400);
     try {
-      const entry = await appendEntry({baseline: ledger.baseline, kind, payload: parsed.data, actor: 'owner', ref});
+      const entry = await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind, payload: parsed.data, actor: 'owner', ref});
       return json({seq: entry.seq, ...(await view(id))}, 201);
     } catch (e) {
       if (e instanceof LedgerConflict) return json({error: e.message}, e.message.includes('supports') ? 429 : 409);

@@ -116,8 +116,8 @@ export function checkRequest(message: string, scope: Scope, agreement: Pick<Agre
     in_scope: `Thanks! That’s part of what we agreed${top ? ` (“${top.title}”)` : ''}, so I’ll take care of it.`,
     revision: rounds_left
       ? `Thanks for the feedback. I’ll treat this as revision round ${agreement.revisions_used + 1} of ${agreement.revisions_allowed}. Is there anything else you’d like included in this round? Then I’ll make all the changes together.`
-      : `Thanks for the feedback. We’ve used the ${agreement.revisions_allowed} revision round${agreement.revisions_allowed === 1 ? '' : 's'} included in our agreement, so I’ve sent a short change order for an additional round. Once you approve it, I’ll get started.`,
-    out_of_scope: `Happy to help with this! It’s outside what we agreed${exclusionHits[0] && verdict === 'out_of_scope' && reasons[0].startsWith('Matches') ? ` (our scope lists “${exclusionHits[0].c.text}” as excluded)` : ''}, so I’ve sent a change order with the cost and timing. Once you approve it, I’ll add it to the plan.`,
+      : `Thanks for the feedback. We’ve used the ${agreement.revisions_allowed} revision round${agreement.revisions_allowed === 1 ? '' : 's'} included in our agreement. I can prepare a change order for an additional round so we can agree on the cost and timing before I start.`,
+    out_of_scope: `Happy to help with this! It’s outside what we agreed${exclusionHits[0] && verdict === 'out_of_scope' && reasons[0].startsWith('Matches') ? ` (our scope lists “${exclusionHits[0].c.text}” as excluded)` : ''}. I can prepare a change order so we can agree on the cost and timing before adding it to the plan.`,
     ambiguous: 'Thanks! Could you tell me a bit more about what you have in mind? Then I can confirm whether it’s covered by our current agreement.',
   }[verdict];
 
