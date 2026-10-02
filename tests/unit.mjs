@@ -6,6 +6,7 @@ const {semanticDiff,describeChange}=await import('../lib/diff.ts');
 const {lintScope}=await import('../lib/lint.ts');
 const {checkRequest,exclusionClauses}=await import('../lib/check.ts');
 const {computeAgreement}=await import('../lib/ledger.ts');
+const {computeInsights}=await import('../lib/insights.ts');
 let passed=0;
 function test(name,fn){fn();passed++;}
 const legacy={title:'Legacy scope',client:'Client Co',deliverables:'Logo\nGuidelines',exclusions:'',fee:100,currency:'USD',revisions:1,due:'',notes:''};
@@ -75,4 +76,14 @@ test('check: revision with rounds left',()=>{const r=verdict('Can you make the l
 test('check: revision with no rounds left',()=>{const r=verdict('Can you tweak the logo colours again?',2);assert.equal(r.verdict,'revision');assert.equal(r.change_order.revisions_delta,1);});
 test('check: in scope',()=>{assert.equal(verdict('When will the brand guidelines be ready?').verdict,'in_scope');});
 test('check: ambiguous',()=>{const r=verdict('What do you think about the meeting on Tuesday?');assert.equal(r.verdict,'ambiguous');assert.equal(r.confidence,'low');});
+
+test('insights: aggregates agreements and flags patterns',()=>{
+ const e=(seq,kind,payload)=>({seq,kind,baseline_version:1,actor:'owner',created:'2026-10-01',payload,payload_hash:'',prev_hash:'',hash:''});
+ const one=computeAgreement(brand,1,[e(1,'change_order',{title:'Extra',add_items:[],remove_item_ids:[],fee_delta:300,days_delta:0,revisions_delta:0,reason:'',request_quote:''}),e(2,'settle',{ref_seq:1,outcome:'approved',signer:'D',comment:''}),e(3,'revision_round',{feedback_date:'2026-10-02',note:''}),e(4,'revision_round',{feedback_date:'2026-10-03',note:''}),e(5,'revision_round',{feedback_date:'2026-10-04',note:''}),e(6,'goodwill',{title:'Gift',value:50,hours:1,note:'',visible:false})]);
+ const two=computeAgreement({...brand,currency:'EUR'},1,[e(1,'revision_round',{feedback_date:'2026-10-02',note:''}),e(2,'revision_round',{feedback_date:'2026-10-03',note:''}),e(3,'revision_round',{feedback_date:'2026-10-04',note:''})]);
+ const r=computeInsights([{project_id:'a',title:'A',client:'Acme',agreement:one},{project_id:'b',title:'B',client:' acme ',agreement:two}]);
+ assert.deepEqual(r.fee_now,{USD:2100,EUR:1800});assert.deepEqual(r.change_order_value,{USD:300});assert.equal(r.change_orders.approval_rate,1);
+ assert.equal(r.revision_rounds.projects_over,2);assert.equal(r.clients.length,1);assert.equal(r.clients[0].projects,2);
+ assert.ok(r.observations.some(o=>/use 3 revision rounds on average but you include 2/.test(o)));assert.ok(r.observations.some(o=>/Acme/.test(o)));
+});
 console.log(JSON.stringify({passed,suite:'unit'}));

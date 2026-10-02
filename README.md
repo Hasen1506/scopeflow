@@ -2,6 +2,12 @@
 
 Client scope approvals for freelancers: immutable versions, bearer review links, client decisions, version history, account-scoped API tokens, and a staging-only WebMCP draft tool, scope templates, project search and status filters, project JSON export, review-link revocation/replacement, self-service deletion of account data, and five authenticated MCP tools. Scopes can be reused as new drafts; unsaved work warns before replacement and browser creation retries use idempotency keys.
 
+## Scope ledger (0.3.0)
+
+Scopes are made of structured deliverables with stable ids, so versions show plain-language diffs and a linter scores clarity before saving. Once the client approves the latest version, it becomes the baseline of an append-only ledger: change orders (approved or declined by the client on the review link they already have), revision rounds used, late client inputs that move the delivery date, and logged goodwill. Each entry is hash-chained to the previous one and anchored to the approved scope; the review page recomputes the chain in the client's browser. "Is this in scope?" is a transparent keyword heuristic that cites deliverables and exclusion clauses; MCP tools give the user's own agent the structured agreement to judge. See docs/plan-scope-ledger.md for the design.
+
+Run `node tests/unit.mjs` (no server) and `node tests/ledger.mjs` against a local preview. `node scripts/dev-migrate.mjs` applies migrations to the `npm run dev` database. The account write limit (30/minute) can trip when suites run back to back; wait a minute between them.
+
 ## Status
 
 Built for functional and security review, not certified for production or millions of users. Muse approval, live end-to-end Muse testing, production capacity validation, billing, monitoring/alerting, operational recovery drills are pending. Proposed Solo pricing: $4/month or $36/year, with a free first-project tier. See docs/pricing-economics.md for modeled costs and margins. Billing is disabled.

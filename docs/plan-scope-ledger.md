@@ -79,10 +79,10 @@ client can check.
 - [x] Workspace panel (`app/scope-check.tsx`) → "Draft change order from this".
 - [x] MCP tools: `get_agreement` (structured baseline + ledger), `check_request` (heuristic + baseline for the agent), `propose_change_order` (user_confirmed, request_id idempotent).
 
-### Phase 5 — Insights + docs + release
-- [ ] `GET /api/insights`: rounds used vs sold, change-order revenue, goodwill absorbed, per-client creep.
-- [ ] README, OpenAPI, submission.md tool list, connect page notes, version bump 0.3.0.
-- [ ] Full test pass; lint clean for new files; push; draft PR.
+### Phase 5 — Insights + docs + release ✅
+- [x] `GET /api/insights`: rounds used vs sold, change-order revenue, goodwill absorbed, per-client creep.
+- [x] README, OpenAPI, submission.md tool list, connect page notes, version bump 0.3.0.
+- [x] Full test pass; lint clean for new files; push; draft PR.
 
 ## How to resume
 
@@ -103,3 +103,4 @@ Baseline lint has 17 pre-existing errors in old files; new files must be clean
 - Phase 3 backend done (commit 'Add append-only scope ledger API'). Server helpers in lib/ledger-server.ts (`loadLedger`, `appendEntry` with conditional INSERT…WHERE EXISTS). Hidden goodwill is sent to clients as payload=null + payload_hash. tests/ledger.mjs 54/54. Next: workspace ledger panel + review agreement view.
 - Phase 3 UI done. Workspace `LedgerPanel` (app/ledger-panel.tsx) accepts `prefill` (CoPrefill) — workspace already holds `coPrefill` state + `clearPrefill`, ready for the Phase 4 scope check to call `setCoPrefill`. Review page `AgreementView` (app/review/[token]/agreement.tsx) verifies the chain in-browser. Browser E2E (scratchpad e2e-ledger.mjs) passes, no console errors.
 - Phase 4 done. Scope check lives inside LedgerPanel (removed the workspace-level prefill plumbing). MCP ledger tools in lib/mcp-ledger.ts; tool count now 9 (integration test updated). Deletion test now covers ledger rows. Running suites back to back can hit the 30 writes/min account limit — wait a minute between core/ledger/integration.
+- Phase 5 done. Insights tab + GET /api/insights; README, OpenAPI (ledger + insights paths), connect page, reviewer guide, submission.md updated; version 0.3.0. WebMCP stage_scope_draft accepts items/client_inputs.
