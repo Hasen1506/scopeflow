@@ -1,14 +1,18 @@
 # Scopeflow connector review package
 
-Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.2.2.
+Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.3.0.
 
 ## Use cases and tools
 
 - list_scope_templates: stage an outline without saving.
+- lint_scope: check a draft for ambiguity (vague wording, missing quantities or acceptance criteria, fee mismatches, commonly assumed work not excluded). Saves nothing; no account needed.
 - list_scopes: find current scopes in the authenticated account; review-link tokens are omitted.
 - get_scope_history: inspect immutable versions and recorded decisions in the authenticated account.
 - create_scope: save the complete scope after user review; return a bearer review URL without sending it. Requires request_id for idempotent retries and user_confirmed=true.
 - revise_scope: read latest history, show changes, obtain user authorization, and save with expected_version. The agent cannot make a client decision.
+- get_agreement: read the approved baseline plus approved change orders, with deliverable ids, numbered exclusion clauses, revision rounds used and pending change orders.
+- check_request: compare a client message with the agreement; returns a cited keyword-heuristic first read, a draft reply and a draft change order. The agent must judge for itself and show the user.
+- propose_change_order: record a change order after user review (user_confirmed=true, idempotent request_id). It applies only after the client approves it on their review link; the agent cannot approve or decline it.
 
 ## Authentication and runtime
 
@@ -30,7 +34,9 @@ The OpenAI submission portal requires an authenticated developer session and pub
 
 ## Release notes
 
-Added self-service account-data deletion with typed confirmation and local isolation/rollback tests. Added scope reuse as a new draft, browser creation retry protection and unsaved-draft warnings. Added scope templates, project search and status filtering, JSON project export, review-link revocation/replacement, support and data-control pages, idempotent scope creation, and five MCP tools. Added local integration tests for transport, OAuth identity requirements, raw API tenant isolation, idempotency, input validation, link lifecycle, and stale revisions. Local results do not establish independent security certification or production capacity.
+0.3.0: Structured deliverables (stable ids, quantities, units, prices, acceptance criteria) and client inputs; plain-language diffs between versions; a scope linter with a clarity score; an append-only, hash-chained agreement ledger after approval (change orders approved by the client on the existing review link, revision rounds used, late client inputs that move the delivery date, logged goodwill); an in-app and MCP "Is this in scope?" check; cross-project insights. Four new MCP tools (nine total). Account deletion covers ledger records.
+
+Earlier: Added self-service account-data deletion with typed confirmation and local isolation/rollback tests. Added scope reuse as a new draft, browser creation retry protection and unsaved-draft warnings. Added scope templates, project search and status filtering, JSON project export, review-link revocation/replacement, support and data-control pages, idempotent scope creation, and five MCP tools. Added local integration tests for transport, OAuth identity requirements, raw API tenant isolation, idempotency, input validation, link lifecycle, and stale revisions. Local results do not establish independent security certification or production capacity.
 
 ## Commercial scope
 
