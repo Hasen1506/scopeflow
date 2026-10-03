@@ -10,7 +10,7 @@ import {GET as getLedger, POST as postLedger} from '@/app/api/scopes/[id]/ledger
 const itemInput = {type: 'object', properties: {id: {type: 'string', pattern: '^[A-Za-z0-9_-]{1,40}$', description: 'New id, not used before in this project'}, title: {type: 'string', minLength: 2, maxLength: 200}, qty: {type: 'integer', minimum: 1, maximum: 10000}, unit: {type: 'string', maxLength: 40}, price: {type: ['number', 'null'], minimum: 0}, acceptance: {type: 'string', maxLength: 1000}}, required: ['id', 'title'], additionalProperties: false};
 const projectId = {type: 'string', minLength: 1, maxLength: 100};
 const outputSchema = {type: 'object', additionalProperties: true};
-const securitySchemes = [{type: 'oauth2', scopes: ['openid', 'email']}];
+const securitySchemes = [{type: 'http', scheme: 'bearer'}];
 const readonly = {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false};
 
 export const ledgerTools = [
@@ -46,14 +46,17 @@ const fail = (status: number, error: string) => ({isError: true, content: [{type
 
 export async function runLedgerTool(name: string, args: {project_id: string; message?: string; baseline_version?: number; change_order?: unknown; request_id?: string}, request: Request) {
   const url = new URL(`/api/scopes/${encodeURIComponent(args.project_id)}/ledger`, request.url);
+  const headers: Record<string, string> = {'Content-Type': 'application/json'};
+  const authorization = request.headers.get('authorization');
+  if (authorization) headers.Authorization = authorization;
   const context = {params: Promise.resolve({id: args.project_id})};
   if (name === 'propose_change_order') {
-    const response = await postLedger(new Request(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kind: 'change_order', baseline_version: args.baseline_version, payload: args.change_order, request_id: args.request_id})}), context);
+    const response = await postLedger(new Request(url, {method: 'POST', headers, body: JSON.stringify({kind: 'change_order', baseline_version: args.baseline_version, payload: args.change_order, request_id: args.request_id})}), context);
     const value = await response.json() as LedgerResponse;
     if (!response.ok) return fail(response.status, value.error || 'Unable to record the change order.');
     return ok({seq: value.seq, change_order: 'CO-' + value.seq, replayed: !!value.replayed, status: 'proposed', note: 'Recorded. It applies only after the client approves it on the review link already shared for this version.', agreement: compact(value)});
   }
-  const response = await getLedger(new Request(url), context);
+  const response = await getLedger(new Request(url, {headers}), context);
   const value = await response.json() as LedgerResponse;
   if (!response.ok) return fail(response.status, value.error || 'Unable to read the agreement.');
   const agreement = compact(value);

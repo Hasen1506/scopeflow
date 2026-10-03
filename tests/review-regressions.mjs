@@ -3,7 +3,7 @@ import {registerHooks} from 'node:module';
 import {DatabaseSync} from 'node:sqlite';
 import {mkdirSync,mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import {applyMigrations} from '../scripts/dev-migrate.mjs';
+import {applyMigrations} from '../scripts/legacy-d1-migrate.mjs';
 const {sample}=await import('../lib/scope.ts');
 const {GENESIS}=await import('../lib/ledger.ts');
 let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed++;};

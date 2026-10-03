@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: scopeflow
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev --include=optional && npm run build
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: NEON_AUTH_BASE_URL
+        sync: false
+      - key: NEON_AUTH_COOKIE_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false

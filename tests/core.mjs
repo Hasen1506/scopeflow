@@ -1,7 +1,8 @@
+import {signIn} from './support/local.mjs';
 import assert from 'node:assert/strict';
-const base='http://localhost:5173';
-const auth=await fetch(base+'/signin-with-chatgpt?return_to=%2F',{redirect:'manual'});
-const cookie=auth.headers.get('set-cookie')?.split(';')[0];assert.ok(cookie,'Local sign-in cookie');
+const base=process.env.SCOPEFLOW_TEST_URL||'http://localhost:5173';
+assert.equal(new URL(base).hostname,'localhost');
+const cookie=await signIn(base);
 let checks=0;
 async function call(path,method='GET',data,authenticated=true,extra={}){const r=await fetch(base+path,{method,headers:{...(authenticated?{cookie}:{}),...(data?{'Content-Type':'application/json'}:{}),...extra},body:data?JSON.stringify(data):undefined});const text=await r.text();let value;try{value=JSON.parse(text)}catch{value={error:text}}return {status:r.status,value};}
 function status(r,n){assert.equal(r.status,n,JSON.stringify(r.value));checks++;}

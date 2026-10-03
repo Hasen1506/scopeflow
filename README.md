@@ -2,32 +2,57 @@
 
 Client scope approvals for freelancers: immutable versions, bearer review links, client decisions, version history, account-scoped API tokens, and a staging-only WebMCP draft tool, scope templates, project search and status filters, project JSON export, review-link revocation/replacement, self-service deletion of account data, and five authenticated MCP tools. Scopes can be reused as new drafts; unsaved work warns before replacement and browser creation retries use idempotency keys.
 
-## Scope ledger (0.3.0)
+## Render and Neon
 
-Scopes are made of structured deliverables with stable ids, so versions show plain-language diffs and a linter scores clarity before saving. Once the client approves the latest version, it becomes the baseline of an append-only ledger: change orders (approved or declined by the client on the review link they already have), revision rounds used, late client inputs that move the delivery date, and logged goodwill. Each entry is hash-chained to the previous one and anchored to the approved scope; the review page recomputes the chain in the client's browser. "Is this in scope?" is a transparent keyword heuristic that cites deliverables and exclusion clauses; MCP tools give the user's own agent the structured agreement to judge. See docs/plan-scope-ledger.md for the design.
+The app runs on Node 24 with Next.js. Neon PostgreSQL stores application data;
+Neon Auth handles signup, login, logout, and password recovery. Clients review
+scopes using their private links without creating accounts. Cloudflare and
+OpenAI Sites authentication are no longer runtime requirements.
 
-Run `node tests/unit.mjs` (no server) and `node tests/ledger.mjs` against a local preview. `node scripts/dev-migrate.mjs` applies migrations to the `npm run dev` database. The account write limit (30/minute) can trip when suites run back to back; wait a minute between them.
+See [the deployment guide](docs/render-deployment.md) for the Render Blueprint,
+Neon setup, required environment variables, and live checks.
 
-## Status
+```sh
+npm ci --include=dev --include=optional
+# Copy .env.example to .env.local and configure a Neon development branch.
+npm run db:migrate
+npm run dev
+```
 
-Built for functional and security review, not certified for production or millions of users. Muse approval, live end-to-end Muse testing, production capacity validation, billing, monitoring/alerting, operational recovery drills are pending. Proposed Solo pricing: $4/month or $36/year, with a free first-project tier. See docs/pricing-economics.md for modeled costs and margins. Billing is disabled.
+## Validation
 
-Public routes: /, /connect, /reviewer-guide, /privacy, /terms, /plans, /api, /api/openapi and bearer review links. Account data requires platform sign-in or an account-scoped token. Review URLs authorize reading and one decision; share deliberately. Names are self-reported, not verified signatures.
+`npm run build` generates the Next.js production build; `npm start` listens on
+Render's `PORT`. `npm run typecheck` checks types. Pure logic tests run with
+`node tests/unit.mjs`. For auth, storage, account isolation, immutable versions,
+review links, MCP tools, and ledger checks, follow the guide's disposable local
+PostgreSQL/auth fixture setup and run `npm run test:local`. These suites refuse
+remote database targets and must not run on production data.
+
+The repository's existing lint findings are separate from deployment setup.
+Run `npm run lint` to inspect them. Billing remains disabled. Live Neon email
+verification/recovery, Render deployment, operational monitoring, and connector
+directory approval require external setup and verification.
 
 ## Storage and limits
 
-Cloudflare D1 through Sites DB binding. Drizzle migrations are in drizzle/. Tokens are hashed at rest and expire after 30 days. One active API token per account. Caps: 100 projects/account, 100 versions/project, 24 KB input bodies, 30 scope write attempts/account/minute, 10 key generations/account/minute, 10 decision attempts/review/minute. These are beta controls, not a complete abuse prevention system. Authenticated rate checks themselves consume DB writes.
+PostgreSQL migrations are in `db/migrations`. Legacy SQLite migrations in
+`drizzle` are retained for historical regression tests. API tokens are hashed
+at rest, expire after 30 days, and can be revoked. Account ownership checks,
+transactional writes, immutable versions, link revocation, self-service deletion,
+and beta caps remain in place. The application uses a private `scopeflow`
+database schema and never exposes its database connection string to the browser.
 
-## Verification
+## Scope ledger
 
-Local API smoke tests cover auth requirements, validation, origin protection, create/revise/history, immutable versions, stale and duplicate decisions, token issuance and revocation. These are functional checks, not an independent penetration test or a scalability benchmark. Local integration tests additionally verify API authorization across two account identities, MCP discovery/auth and creates/revisions, idempotent retries, oversized input, and revoked/replaced URLs. Production two-account isolation and real ChatGPT/Muse connection testing still need completion.
+Scopes use structured deliverables with stable IDs, plain-language version
+diffs, and a clarity linter. After approval, the append-only hash-chained ledger
+tracks change orders, revision rounds, late client inputs, and goodwill. The
+client review page verifies the chain. The scope checker uses a transparent
+keyword heuristic; it does not call an AI model or collect payment.
 
-Run `node tests/account-deletion.mjs` to verify confirmed browser-only deletion, transaction rollback, account isolation, link and token invalidation, and starting fresh. This deletes fictional data in the local test account only.
+The REST API and `/mcp` accept account-scoped Scopeflow API tokens. Neon website
+sessions also authorize browser requests. OpenAI Sites managed OAuth no longer
+applies to Render hosting. Do not use trusted-user request headers as login.
 
-Run `node tests/integration.mjs` against a running local preview after local migrations. The script refuses non-localhost targets and creates fictional disposable fixtures. Run `node tests/core.mjs` for the original workflow smoke tests.
-
-## Deployment
-
-Use the Sites skills and the existing project_id in .openai/hosting.json. Do not create another site. Generate schema migrations before packaging. Never include local test data, credentials, .wrangler, node_modules, or environment files in source commits. Use a branded custom hostname before directory submission, per the owner's requirement.
-
-Run `node scripts/dev-migrate.mjs` after loading the local preview, then `node tests/run-local.mjs` to run all workflow and regression suites against fictional localhost data. This test run clears local request counters and deletes the local test account data. Project exports now contain every scope version and all ledger entries, including private goodwill notes. Store them securely.
+Existing deployed D1 data and account identities are not automatically moved
+by this change. See the deployment guide before migrating existing customers.

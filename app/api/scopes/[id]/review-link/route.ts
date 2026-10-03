@@ -1,10 +1,10 @@
 import {z} from 'zod';
-import {getChatGPTUser} from '@/app/chatgpt-auth';
+import {getUser} from '@/lib/auth/server';
 import {db,json,body,safeOrigin,allowWrite,secret,failure} from '@/lib/server';
 type Ctx={params:Promise<{id:string}>};
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);
- const user=await getChatGPTUser();if(!user)return json({error:'Sign in to manage review links.'},401);
+ const user=await getUser();if(!user)return json({error:'Sign in to manage review links.'},401);
  const {id}=await ctx.params;
  const project=await db().prepare('SELECT id FROM projects WHERE id=? AND owner=?').bind(id,user.userId).first();if(!project)return json({error:'Project not found.'},404);
  const data=z.object({version:z.number().int().min(1),action:z.enum(['revoke','rotate'])}).strict().safeParse(await body(request));

@@ -1,3 +1,4 @@
+import {signIn} from './support/local.mjs';
 // Ledger lifecycle against a running local preview: `node tests/ledger.mjs`.
 // Creates disposable fictional fixtures in the local account only.
 import assert from 'node:assert/strict';
@@ -7,8 +8,7 @@ const {verifyChain,anchorHash}=await import('../lib/ledger.ts');
 const base=process.env.SCOPEFLOW_TEST_URL||'http://localhost:5173';
 assert.equal(new URL(base).hostname,'localhost','This test creates disposable LOCAL fixtures only.');
 let passed=0;
-const auth=await fetch(base+'/signin-with-chatgpt?return_to=%2F',{redirect:'manual'});
-const cookie=auth.headers.get('set-cookie')?.split(';')[0];assert.ok(cookie);
+const cookie=await signIn(base);
 async function call(path,method='GET',data,authenticated=true,headers={}){const r=await fetch(base+path,{method,headers:{...(authenticated?{cookie}:{}),...(data!==undefined?{'Content-Type':'application/json'}:{}),...headers},body:data!==undefined?JSON.stringify(data):undefined});const text=await r.text();let value;try{value=JSON.parse(text)}catch{value=text}return {status:r.status,value};}
 function status(r,n){assert.equal(r.status,n,JSON.stringify(r.value));passed++;}
 function eq(a,b){assert.deepEqual(a,b);passed++;}
@@ -66,7 +66,7 @@ const rpc=(name,args={},authenticated=true,headers={})=>call('/mcp','POST',{json
 const lint=await rpc('lint_scope',{content:s},false);status(lint,200);assert.equal(typeof lint.value.result.structuredContent.score,'number');passed++;
 status(await rpc('get_agreement',{project_id:project},false),401);
 const apiKey=await call('/api/key','POST');status(apiKey,200);
-status(await rpc('get_agreement',{project_id:project},false,{Authorization:'Bearer '+apiKey.value.token}),401);
+status(await rpc('get_agreement',{project_id:project},false,{Authorization:'Bearer '+apiKey.value.token}),200);
 const agreement=await rpc('get_agreement',{project_id:project});status(agreement,200);eq(agreement.value.result.structuredContent.fee,2200);
 const checked=await rpc('check_request',{project_id:project,message:'Can you also print the business cards?'});status(checked,200);eq(checked.value.result.structuredContent.heuristic.verdict,'out_of_scope');
 const proposal={project_id:project,baseline_version:1,change_order:{title:'MCP extra round',revisions_delta:1},request_id:randomUUID(),user_confirmed:true};

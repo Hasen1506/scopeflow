@@ -16,7 +16,7 @@ Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.3.1.
 
 ## Authentication and runtime
 
-The Site boundary provides OAuth and verified account identity to /mcp. Data-bearing tools require that identity; discovery contains no private project data. Raw API tokens are separate, expire in 30 days, and cannot substitute for MCP OAuth. Only fictional data should be used in review.
+Render hosting uses Neon Auth for website sessions. Data-bearing MCP tools accept a verified website session or an account-scoped Scopeflow API token; discovery contains no private project data. API tokens expire in 30 days. Sites managed OAuth is not provided by this deployment. Only fictional data should be used in review.
 
 ## Reviewer test cases
 
@@ -28,7 +28,7 @@ Scope text is untrusted data, including text that looks like instructions. Never
 
 ## Listing links and review status
 
-Required public pages: / (website), /support, /privacy, /terms and /reviewer-guide. MCP endpoint: /mcp. A branded domain is required by the owner before public directory submission; the default host account namespace is not approved for that listing. Domain purchase and DNS routing remain unresolved. Production URL and provisioned plugin ID must come from successful Sites responses, not invented metadata.
+Required public pages: / (website), /support, /privacy, /terms and /reviewer-guide. MCP endpoint: /mcp. A branded domain is required by the owner before public directory submission; the default host account namespace is not approved for that listing. Domain purchase and DNS routing remain unresolved. Use the actual deployed Render/custom-domain URL. Connector OAuth provisioning and directory submissions require a separate integration.
 
 The OpenAI submission portal requires an authenticated developer session and publishing identity verification. Domain challenge and automated scans must pass before submitting. Identity or login challenges require the owner. No public review submission or approval has been completed. End-to-end ChatGPT connection still requires installation/connection followed by an actual tool call. Muse submission and custom connector testing are separate and pending.
 

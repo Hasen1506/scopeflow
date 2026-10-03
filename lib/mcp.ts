@@ -12,7 +12,7 @@ const empty={type:'object',properties:{},additionalProperties:false};
 const readonly={readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false};
 const writes={readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false};
 const outputSchema={type:'object',additionalProperties:true};
-const securitySchemes=[{type:'oauth2',scopes:['openid','email']}];
+const securitySchemes=[{type:'http',scheme:'bearer'}];
 export const mcpTools=[
  {name:'list_scope_templates',title:'List scope templates',description:'Get starter outlines for branding, websites, and content packages. Templates do not invent a client or fee and are not saved.',inputSchema:empty,outputSchema,annotations:readonly,securitySchemes:[{type:'noauth'}]},
  {name:'lint_scope',title:'Check a scope for ambiguity',description:'Find vague wording, missing quantities or acceptance criteria, item prices that do not match the fee, and commonly assumed adjacent work that is not excluded. Returns a 0-100 clarity score and fixes. Saves nothing. Run it before create_scope and show the user the serious issues.',inputSchema:{type:'object',properties:{content:scopeInput},required:['content'],additionalProperties:false},outputSchema,annotations:readonly,securitySchemes:[{type:'noauth'}]},
@@ -33,9 +33,10 @@ export async function runTool(name:string,args:any,request:Request){
  if(name==='lint_scope'){const result=lintScope(args.content);return {content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result};}
  if(name==='list_scope_templates')return {content:[{type:'text',text:'Choose an outline, then fill in exact deliverables, client, fee, and terms.'}],structuredContent:{templates}};
  const headers=new Headers({'Content-Type':'application/json'});
+ if(request.headers.has('authorization'))headers.set('authorization',request.headers.get('authorization')!);
  if(name==='create_scope')headers.set('Idempotency-Key',args.request_id);
- // OAuth has been validated at the Sites boundary. Do not interpret its bearer
- // token as the separate raw-API token or forward it to another service.
+ // Forward an API token only to the internal Scopeflow route. Browser sessions
+ // are verified by Neon Auth through the current request's cookies.
  const internal=new Request(new URL('/api/scopes',request.url),{method:['create_scope','revise_scope'].includes(name)?'POST':'GET',headers,...(['create_scope','revise_scope'].includes(name)?{body:JSON.stringify(name==='create_scope'?args.content:{content:args.content,expected_version:args.expected_version})}:{})});
  const context={params:Promise.resolve({id:args.project_id})};
  const response=name==='list_scopes'?await listScopes(internal):name==='get_scope_history'?await getHistory(internal,context):name==='create_scope'?await createScope(internal):await reviseScope(internal,context);

@@ -1,3 +1,3 @@
-import {getChatGPTUser} from '@/app/chatgpt-auth';
+import {getUser} from '@/lib/auth/server';
 import {json} from '@/lib/server';
-export async function GET(){const user=await getChatGPTUser();return json({signedIn:!!user});}
+export async function GET(){const user=await getUser();return json({signedIn:!!user});}

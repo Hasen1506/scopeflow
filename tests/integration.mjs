@@ -1,11 +1,10 @@
+import {signIn,localSql} from './support/local.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
-import {spawnSync} from 'node:child_process';
 const base=process.env.SCOPEFLOW_TEST_URL||'http://localhost:5173';
 assert.equal(new URL(base).hostname,'localhost','This test creates disposable LOCAL fixtures only.');
 let passed=0;
-const auth=await fetch(base+'/signin-with-chatgpt?return_to=%2F',{redirect:'manual'});
-const cookie=auth.headers.get('set-cookie')?.split(';')[0];assert.ok(cookie);
+const cookie=await signIn(base);
 const s={title:'Local MCP and link QA '+Date.now(),client:'Fictional QA Client',deliverables:'One test design\nOne test revision',exclusions:'All real-world work',fee:100,currency:'USD',revisions:1,due:'',notes:'Disposable local test fixture.'};
 async function call(path,method='GET',data,authenticated=true,headers={}){const r=await fetch(base+path,{method,headers:{...(authenticated?{cookie}:{}),...(data!==undefined?{'Content-Type':'application/json'}:{}),...headers},body:data!==undefined?JSON.stringify(data):undefined});const text=await r.text();let value;try{value=JSON.parse(text)}catch{value=text}return {status:r.status,value};}
 function eq(value,expected){assert.deepEqual(value,expected);passed++;}
@@ -23,7 +22,7 @@ status(await call('/api/review/'+v.token,'GET',undefined,false),404);
 status(await call('/api/review/'+replacement.value.review_path.split('/').at(-1),'GET',undefined,false),200);
 const history=await call('/api/scopes/'+v.project_id);eq(history.value.versions[0].content,s);eq(history.value.versions[0].revoked,0);
 const otherToken='sf_local_disposable_'+randomUUID();const hash=createHash('sha256').update(otherToken).digest('hex');
-const seeded=spawnSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','d1','execute','DB','--local','--config','dist/server/wrangler.json','--persist-to','.wrangler/state','--command',`INSERT INTO api_keys (hash,owner,expires,created) VALUES ('${hash}','local_disposable_other','2099-01-01T00:00:00.000Z','${new Date().toISOString()}')`],{encoding:'utf8'});assert.equal(seeded.status,0,seeded.stderr);
+localSql(`INSERT INTO api_keys (hash,owner,expires,created) VALUES ('${hash}','local_disposable_other','2099-01-01T00:00:00.000Z','${new Date().toISOString()}')`);
 const otherHeaders={Authorization:'Bearer '+otherToken};
 const otherList=await call('/api/scopes','GET',undefined,false,otherHeaders);status(otherList,200);eq(otherList.value.scopes,[]);
 status(await call('/api/scopes/'+v.project_id,'GET',undefined,false,otherHeaders),404);
@@ -38,7 +37,7 @@ const init=await rpc('initialize',{protocolVersion:'2025-11-25',capabilities:{},
 const tools=await rpc('tools/list',{},false);status(tools,200);eq(tools.value.result.tools.length,9);assert.ok(tools.value.result.tools.every(t=>t.outputSchema&&t.annotations));passed++;
 status(await rpc('tools/call',{name:'list_scopes',arguments:{}},false),401);
 status(await rpc('tools/call',{name:'list_scopes',arguments:{}},false,{'oai-authenticated-user-id':'spoofed','oai-authenticated-user-email':'spoofed@example.com'}),401);
-status(await rpc('tools/call',{name:'list_scopes',arguments:{}},false,otherHeaders),401);
+const otherTools=await rpc('tools/call',{name:'list_scopes',arguments:{}},false,otherHeaders);status(otherTools,200);eq(otherTools.value.result.structuredContent.scopes,[]);
 const listed=await rpc('tools/call',{name:'list_scopes',arguments:{}});status(listed,200);assert.ok(listed.value.result.structuredContent.scopes.every(x=>!('token' in x)));passed++;
 const templates=await rpc('tools/call',{name:'list_scope_templates',arguments:{}},false);eq(templates.value.result.structuredContent.templates.length,3);
 const invalid=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:randomUUID(),user_confirmed:false}});eq(invalid.value.error.code,-32602);
