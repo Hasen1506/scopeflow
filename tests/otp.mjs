@@ -39,7 +39,7 @@ const S = '/api/scopes/' + project_id;
 {
   const noEmail = await call(S, {method: 'PATCH', cookie, body: {require_otp: true}});
   eq(noEmail.status, 400); eq(noEmail.data.code, 'otp_needs_email');
-  eq((await call(S, {method: 'PATCH', cookie, body: {client_email: 'ada.client@example.test', require_otp: true}})).data.project, {id: project_id, archived: null, client_email: 'ada.client@example.test', require_otp: true});
+  eq((await call(S, {method: 'PATCH', cookie, body: {client_email: 'ada.client@example.test', require_otp: true}})).data.project, {id: project_id, archived: null, client_email: 'ada.client@example.test', timezone: null, require_otp: true});
   eq((await call(S, {cookie})).data.project.require_otp, true);
   const clear = await call(S, {method: 'PATCH', cookie, body: {client_email: ''}});
   eq(clear.status, 400); // cannot remove the address the code is sent to while the check is on
