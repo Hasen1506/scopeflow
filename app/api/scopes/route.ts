@@ -1,8 +1,9 @@
 import { scopeSchema } from '@/lib/scope';
 import { lockKey } from '@/db/client';
+import { applyRetention } from '@/lib/retention';
 import { db,json,ownerAuth,body,safeOrigin,allowWrite,allowRead,parseRow,secret,hash,failure } from '@/lib/server';
 const LINK_HINT='Review links are shown only in the signed-in Scopeflow workspace, so an API token or connector can never act as the client.';
-export async function GET(request:Request){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in or provide a valid API token.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const r=await db().prepare('SELECT v.*,p.archived,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=? AND p.latest=v.version ORDER BY p.created DESC LIMIT 100').bind(auth.user).all();return json({scopes:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'}))});}catch(e){return failure(e);}}
+export async function GET(request:Request){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in or provide a valid API token.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);await applyRetention(auth.user).catch(()=>{/* retention retries on the next visit */});const r=await db().prepare('SELECT v.*,p.archived,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=? AND p.latest=v.version ORDER BY p.created DESC LIMIT 100').bind(auth.user).all();return json({scopes:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'}))});}catch(e){return failure(e);}}
 export async function POST(request:Request){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);
  const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in or provide a valid API token.'},401);

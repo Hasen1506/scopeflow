@@ -67,6 +67,9 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
     add({rule: 'fee-mismatch', severity: 'warn', field: 'fee', message: `Item prices add up to ${formatMoney(total, s.currency)} but the fee is ${formatMoney(s.fee, s.currency)}.`, fix: s.fee < total ? 'If this is a discount, say so in the working terms.' : 'Price every deliverable or explain the difference.'});
   else if (priced.length && total > s.fee + 0.005)
     add({rule: 'fee-mismatch', severity: 'warn', field: 'fee', message: `Priced items already exceed the fee (${formatMoney(total, s.currency)} > ${formatMoney(s.fee, s.currency)}).`});
+  // PR C: payment terms that need each other.
+  if ((s.deposit_pct ?? 0) > 0 && !s.payment_terms) add({rule: 'deposit-no-terms', severity: 'info', field: 'payment_terms', message: `A ${s.deposit_pct}% deposit is set but no payment terms say when the balance is due.`, fix: 'Add payment terms, e.g. “Balance due within 15 days of delivery”.'});
+  if (s.tax_pct !== undefined && s.tax_pct > 0 && !s.tax_label) add({rule: 'tax-no-label', severity: 'info', field: 'tax_label', message: 'A tax rate is set without a name.', fix: 'Name the tax (GST, VAT, sales tax) so the client knows what it is.'});
   if (s.fee === 0) add({rule: 'no-fee', severity: 'warn', field: 'fee', message: 'The fee is zero.', fix: 'Record the agreed fee, even if it is paid elsewhere.'});
 
   if (!s.exclusions.trim()) add({rule: 'no-exclusions', severity: 'warn', field: 'exclusions', message: 'Nothing is listed as outside this scope.', fix: 'Name the adjacent work the client might assume is included.'});

@@ -8,8 +8,8 @@ type Sql = {
 type Result<T> = { results: T[]; meta: { changes: number } };
 // bypassImmutability: true = account deletion (may remove decided versions and ledger entries);
 // 'drafts' = single-project deletion, which the triggers still limit to pending versions.
-type BatchOptions = { lock?: string | null; bypassImmutability?: boolean | 'drafts' };
-const tables = 'projects|versions|api_keys|rate_limits|ledger_entries|oauth_clients|oauth_codes|oauth_tokens|templates';
+type BatchOptions = { lock?: string | null; bypassImmutability?: boolean | 'drafts'; redact?: boolean };
+const tables = 'projects|versions|api_keys|rate_limits|ledger_entries|oauth_clients|oauth_codes|oauth_tokens|templates|payments|account_settings|review_otps';
 
 // Existing application SQL uses positional ? parameters. Translate only outside
 // quoted strings, and keep all application tables in a private database schema.
@@ -89,6 +89,8 @@ const database = {
       // Audited bypass of the immutability triggers, used only by account deletion.
       if (writes && options.bypassImmutability) await tx.unsafe("SELECT set_config('scopeflow.allow_delete', 'on', true)");
       if (writes && options.bypassImmutability === true) await tx.unsafe("SELECT set_config('scopeflow.account_delete', 'on', true)");
+      // Retention: the triggers then accept replacing ip/user_agent with "redacted", and nothing else.
+      if (writes && options.redact) await tx.unsafe("SELECT set_config('scopeflow.redact', 'on', true)");
       const results: Result<T>[] = [];
       for (const statement of statements) results.push(await statement.execute<T>(tx));
       return results;

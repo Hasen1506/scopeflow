@@ -42,12 +42,24 @@ export const clientInputSchema = z.object({
   note: z.string().trim().max(2000).default(''),
 }).strict();
 
+// PR F: a deposit paid through the payment provider. Appended only by the verified webhook
+// (never by an owner or client request), so it is evidence that the money arrived.
+export const paymentSchema = z.object({
+  provider: z.literal('razorpay'),
+  purpose: z.literal('deposit'),
+  order_id: z.string().min(1).max(64),
+  payment_id: z.string().min(1).max(64),
+  amount: z.number().finite().min(0),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+}).strict();
+
 export const payloadSchemas = {
   change_order: changeOrderSchema,
   settle: settleSchema,
   goodwill: goodwillSchema,
   revision_round: revisionRoundSchema,
   client_input: clientInputSchema,
+  payment: paymentSchema,
 } as const;
 export type EntryKind = keyof typeof payloadSchemas;
 export const entryKinds = Object.keys(payloadSchemas) as EntryKind[];
@@ -56,6 +68,7 @@ export type Settle = z.infer<typeof settleSchema>;
 export type Goodwill = z.infer<typeof goodwillSchema>;
 export type RevisionRound = z.infer<typeof revisionRoundSchema>;
 export type ClientInputReceived = z.infer<typeof clientInputSchema>;
+export type Payment = z.infer<typeof paymentSchema>;
 
 /** A stored entry. `payload` is null when hidden from the client; `payload_hash` still commits to it. */
 export type LedgerEntry = {
@@ -237,6 +250,7 @@ export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = 
     case 'settle': { const s = e.payload as Settle; return `CO-${s.ref_seq} ${s.outcome}${s.signer ? ' by ' + s.signer : ''}${s.comment ? ': “' + s.comment + '”' : ''}`; }
     case 'goodwill': { const g = e.payload as Goodwill; return `Goodwill: ${g.title} (${formatMoney(g.value, currency)}${g.hours ? `, ${g.hours}h` : ''} not billed)`; }
     case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${r.feedback_date}${r.note ? ': ' + r.note : ''}`; }
+    case 'payment': { const p = e.payload as Payment; return `Deposit received: ${formatMoney(p.amount, p.currency)} via Razorpay (payment ${p.payment_id})`; }
     case 'client_input': { const c = e.payload as ClientInputReceived; return `Received from client: ${inputs.find(i => i.id === c.input_id)?.title ?? c.input_id} on ${c.received}`; }
   }
 }

@@ -27,9 +27,26 @@ const oneLine = (value: string, max: number) => value.replace(/[\r\n\t]+/g, ' ')
 
 export type SignatureEmail = {subject: string; text: string; html: string};
 
-/** The message sent to the client. Pure, so it is unit tested. */
-export function signatureEmail({title, client, version, reviewUrl}: {title: string; client: string; version: number; reviewUrl: string}): SignatureEmail {
+export type EmailTemplate = {subject?: string; body?: string};
+/** Fills {client} {title} {version} {link} in owner-written wording. */
+export function fillTemplate(template: string, values: {client: string; title: string; version: number; link: string}) {
+  return template.replace(/\{(client|title|version|link)\}/g, (_, k: keyof typeof values) => String(values[k]));
+}
+
+/** The message sent to the client. Pure, so it is unit tested. Owner wording (account settings) replaces the defaults. */
+export function signatureEmail({title, client, version, reviewUrl, template}: {title: string; client: string; version: number; reviewUrl: string; template?: EmailTemplate}): SignatureEmail {
   const t = oneLine(title, 160), c = oneLine(client, 120);
+  if (template?.subject || template?.body) {
+    const values = {client: c, title: t, version, link: reviewUrl};
+    const subject = template.subject ? oneLine(fillTemplate(template.subject, {...values, link: ''}), 200) : `Please review and approve: ${t} (version ${version})`;
+    const body = template.body ? fillTemplate(template.body, values) : null;
+    if (body) {
+      const text = body + '\n\nSent with Scopeflow';
+      const html = body.split(/\n{2,}/).map(p => `<p>${escapeHtml(p).replaceAll(escapeHtml(reviewUrl), `<a href="${escapeHtml(reviewUrl)}">${escapeHtml(reviewUrl)}</a>`).replace(/\n/g, '<br>')}</p>`).join('') + '<p style="color:#666;font-size:13px">Sent with Scopeflow</p>';
+      return {subject, text, html};
+    }
+    return {...signatureEmail({title, client, version, reviewUrl}), subject};
+  }
   const subject = `Please review and approve: ${t} (version ${version})`;
   const text = [
     `Hi ${c},`,
