@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { scopeSchema } from '@/lib/scope';
 import { clientEmailSchema } from '@/lib/mail';
 import { validTimeZone } from '@/lib/time';
+import { otpAvailable } from '@/lib/otp';
 import { getUser } from '@/lib/auth/server';
 import { lockKey } from '@/db/client';
 import { db,json,ownerAuth,body,safeOrigin,allowWrite,allowRead,parseRow,secret,failure,hash } from '@/lib/server';
 type Ctx={params:Promise<{id:string}>};
 const LINK_HINT='Review links are shown only in the signed-in Scopeflow workspace, so an API token or connector can never act as the client.';
-export async function GET(request:Request,ctx:Ctx){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const {id}=await ctx.params;const p=await db().prepare('SELECT latest,archived,client_email,timezone FROM projects WHERE id=? AND owner=?').bind(id,auth.user).first<{latest:number;archived:string|null;client_email:string|null;timezone:string|null}>();if(!p)return json({error:'Project not found.'},404);const r=await db().prepare('SELECT * FROM versions WHERE project_id=? ORDER BY version DESC').bind(id).all();return json({versions:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'})),project:{archived:p.archived??null,client_email:p.client_email??'',timezone:p.timezone??null}});}catch(e){return failure(e);}}
+export async function GET(request:Request,ctx:Ctx){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const {id}=await ctx.params;const p=await db().prepare('SELECT latest,archived,client_email,timezone,require_otp FROM projects WHERE id=? AND owner=?').bind(id,auth.user).first<{latest:number;archived:string|null;client_email:string|null;timezone:string|null;require_otp:boolean}>();if(!p)return json({error:'Project not found.'},404);const r=await db().prepare('SELECT * FROM versions WHERE project_id=? ORDER BY version DESC').bind(id).all();return json({versions:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'})),project:{archived:p.archived??null,client_email:p.client_email??'',timezone:p.timezone??null,require_otp:!!p.require_otp}});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);const user=auth.user,session=auth.via==='session';const {id}=await ctx.params;
  const p=await db().prepare('SELECT latest,archived FROM projects WHERE id=? AND owner=?').bind(id,user).first<{latest:number;archived:string|null}>();if(!p)return json({error:'Project not found.'},404);
@@ -34,7 +35,7 @@ export async function POST(request:Request,ctx:Ctx){try{
 
 // Project metadata the owner can change without a new version: archive state and the
 // client email used by "Send for signature". Nothing here touches signed content.
-const patchSchema=z.object({archived:z.boolean().optional(),client_email:clientEmailSchema.optional(),timezone:z.union([z.literal(''),z.string().max(64).refine(validTimeZone,'Use an IANA time zone such as Asia/Kolkata')]).optional()}).strict().refine(x=>x.archived!==undefined||x.client_email!==undefined||x.timezone!==undefined,'Provide archived, client_email or timezone.');
+const patchSchema=z.object({archived:z.boolean().optional(),client_email:clientEmailSchema.optional(),timezone:z.union([z.literal(''),z.string().max(64).refine(validTimeZone,'Use an IANA time zone such as Asia/Kolkata')]).optional(),require_otp:z.boolean().optional()}).strict().refine(x=>x.archived!==undefined||x.client_email!==undefined||x.timezone!==undefined||x.require_otp!==undefined,'Provide archived, client_email, timezone or require_otp.');
 export async function PATCH(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);
  const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);
@@ -43,14 +44,24 @@ export async function PATCH(request:Request,ctx:Ctx){try{
  if(!await allowWrite('owner:'+auth.user))return json({error:'Write limit reached. Try again in a minute.'},429);
  let raw;try{raw=await body(request);}catch{return json({error:'Provide valid JSON under 24 KB.'},400);}
  const input=patchSchema.safeParse(raw);if(!input.success)return json({error:input.error.issues.map(i=>i.message).join('; ')},400);
+ // PR B: requiring an email code needs a client email to send it to and a way to deliver it.
+ if(input.data.require_otp!==undefined||input.data.client_email===''){
+  const current=await db().prepare('SELECT client_email,require_otp FROM projects WHERE id=? AND owner=?').bind(id,auth.user).first<{client_email:string|null;require_otp:boolean}>();
+  if(!current)return json({error:'Project not found.'},404);
+  const email=input.data.client_email!==undefined?input.data.client_email:(current.client_email??'');
+  const requireOtp=input.data.require_otp??current.require_otp;
+  if(requireOtp&&!email)return json({error:'Add the client’s email first: the one-time code is sent there.',code:'otp_needs_email'},400);
+  if(input.data.require_otp===true&&!otpAvailable())return json({error:'Email delivery is not configured on this server, so a one-time code cannot be sent. Set RESEND_API_KEY and SCOPEFLOW_MAIL_FROM first.',code:'otp_unavailable'},409);
+ }
  const now=new Date().toISOString();
- const sets:string[]=[],values:(string|null)[]=[];
+ const sets:string[]=[],values:(string|boolean|null)[]=[];
  if(input.data.archived!==undefined){sets.push('archived=?');values.push(input.data.archived?now:null);}
  if(input.data.client_email!==undefined){sets.push('client_email=?');values.push(input.data.client_email||null);}
  if(input.data.timezone!==undefined){sets.push('timezone=?');values.push(input.data.timezone||null);}
- const row=await db().prepare(`UPDATE projects SET ${sets.join(',')} WHERE id=? AND owner=? RETURNING archived,client_email,timezone`).bind(...values,id,auth.user).first<{archived:string|null;client_email:string|null;timezone:string|null}>();
+ if(input.data.require_otp!==undefined){sets.push('require_otp=?');values.push(input.data.require_otp);}
+ const row=await db().prepare(`UPDATE projects SET ${sets.join(',')} WHERE id=? AND owner=? RETURNING archived,client_email,timezone,require_otp`).bind(...values,id,auth.user).first<{archived:string|null;client_email:string|null;timezone:string|null;require_otp:boolean}>();
  if(!row)return json({error:'Project not found.'},404);
- return json({project:{id,archived:row.archived??null,client_email:row.client_email??'',timezone:row.timezone??null}});
+ return json({project:{id,archived:row.archived??null,client_email:row.client_email??'',timezone:row.timezone??null,require_otp:!!row.require_otp}});
 }catch(e){return failure(e);}}
 
 // Deleting one project. Signed client evidence must stay consistent with the SF-04
