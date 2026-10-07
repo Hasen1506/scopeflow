@@ -6,7 +6,9 @@ type Sql = {
   begin<T>(callback: (transaction: Sql) => Promise<T>, mode?: string): Promise<T>;
 };
 type Result<T> = { results: T[]; meta: { changes: number } };
-type BatchOptions = { lock?: string | null; bypassImmutability?: boolean };
+// bypassImmutability: true = account deletion (may remove decided versions and ledger entries);
+// 'drafts' = single-project deletion, which the triggers still limit to pending versions.
+type BatchOptions = { lock?: string | null; bypassImmutability?: boolean | 'drafts' };
 const tables = 'projects|versions|api_keys|rate_limits|ledger_entries|oauth_clients|oauth_codes|oauth_tokens';
 
 // Existing application SQL uses positional ? parameters. Translate only outside
@@ -77,6 +79,7 @@ const database = {
       if (writes && options.lock) await scopedLock(tx, options.lock);
       // Audited bypass of the immutability triggers, used only by account deletion.
       if (writes && options.bypassImmutability) await tx.unsafe("SELECT set_config('scopeflow.allow_delete', 'on', true)");
+      if (writes && options.bypassImmutability === true) await tx.unsafe("SELECT set_config('scopeflow.account_delete', 'on', true)");
       const results: Result<T>[] = [];
       for (const statement of statements) results.push(await statement.execute<T>(tx));
       return results;

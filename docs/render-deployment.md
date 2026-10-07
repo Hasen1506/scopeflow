@@ -62,6 +62,9 @@ Set these values securely in the Render service:
 | `PG_POOL_MAX` | Optional. PostgreSQL client pool size (default 15, 2-100). Use Neon's pooled connection string. |
 | `OAUTH_CIMD_HOSTS` | Optional. Comma-separated hosts whose OAuth Client ID Metadata Documents are trusted (default `chatgpt.com`). Set to an empty string to rely on dynamic client registration only. |
 | `NODE_ENV` | `production`; set by the Blueprint |
+| `RESEND_API_KEY` | Optional. A [Resend](https://resend.com) API key (secret). Together with `SCOPEFLOW_MAIL_FROM` it lets **Send for signature** email the review link to the client email saved on a project. Without both, nothing is emailed and the workspace offers **Copy link** and **Open in mail app** (`mailto:`) instead. |
+| `SCOPEFLOW_MAIL_FROM` | Optional. The sender, on a domain verified in Resend, for example `Scopeflow <scopes@your-domain>`. Required with `RESEND_API_KEY`. |
+| `SCOPEFLOW_MAIL_REPLY_TO` | Optional. Reply-To address for those emails (for example your own inbox), so client replies reach you. |
 
 ### Why APP_URL matters (the "Origin not allowed" outage)
 
@@ -99,6 +102,29 @@ migrations in `drizzle` are retained only for historical regression tests.
 `npm run db:generate` writes PostgreSQL schema suggestions to `db/generated`;
 review and transfer a new SQL migration into `db/migrations` before deploying.
 Do not edit an already-applied migration.
+
+## Projects: archive, delete and client email
+
+* **Archive** (owner, confirmed in a dialog) hides a project from the list and
+  blocks new versions and ledger entries until it is restored. Nothing a client
+  signed changes: versions, decisions, signatures, ledger entries and review
+  links stay as they were, so receipts keep verifying. `PATCH /api/scopes/{id}`
+  with `{"archived": true|false}`.
+* **Delete project** (signed-in website owner only, type `DELETE` to confirm) is
+  allowed only while the project carries no client evidence: every version is
+  still awaiting review and there are no ledger entries. Projects a client has
+  approved or answered can only be archived (full account deletion still removes
+  everything). Migration `0002` enforces the same rule in the SF-04 triggers: the
+  per-project bypass can remove only pending versions and never ledger entries;
+  only account deletion (which also sets `scopeflow.account_delete`) can remove
+  decided versions and ledger entries. `DELETE /api/scopes/{id}` with
+  `{"confirmation":"DELETE"}`; it answers 409 `has_client_evidence` otherwise.
+* **Client email** is optional project metadata, private to the owner. It is not
+  part of the signed scope content, so correcting it never creates a version.
+  **Send for signature** (`POST /api/scopes/{id}/send` with `{"version": n}`,
+  website session only, like review links) emails the latest pending version's
+  link when `RESEND_API_KEY` and `SCOPEFLOW_MAIL_FROM` are set, and otherwise
+  returns the link plus a `mailto:` URL for the copy-link / mail-app fallback.
 
 ## Verify the deployed app
 

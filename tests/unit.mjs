@@ -136,4 +136,44 @@ test('SF-12: no delivery shift without a baseline due date',()=>{
  assert.equal(check('change_order',{title:'Later',reason:'',request_quote:'',add_items:[],remove_item_ids:[],fee_delta:0,days_delta:3,revisions_delta:0},{...sample,due:'2026-12-01'},computeAgreement({...sample,due:'2026-12-01'},1,[]),'owner'),null);
 });
 
+// Change-order form regression (QA: the toolbar "Change order" button closed the open form and discarded it silently).
+const {nextForm,changeOrderProblems}=await import('../lib/ledger-form.ts');
+test('toolbar button never closes or discards the open form',()=>{
+ let asked=0;const no=()=>{asked++;return false;},yes=()=>{asked++;return true;};
+ assert.deepEqual(nextForm('change_order','change_order',{dirty:true,confirmDiscard:no}),{form:'change_order',reset:false});
+ assert.deepEqual(nextForm('change_order','change_order',{dirty:false,confirmDiscard:no}),{form:'change_order',reset:false});
+ assert.equal(asked,0);
+ assert.deepEqual(nextForm(null,'change_order',{dirty:false,confirmDiscard:no}),{form:'change_order',reset:true});
+ assert.deepEqual(nextForm('change_order','goodwill',{dirty:true,confirmDiscard:no}),{form:'change_order',reset:false});
+ assert.deepEqual(nextForm('change_order','goodwill',{dirty:true,confirmDiscard:yes}),{form:'goodwill',reset:true});
+ assert.deepEqual(nextForm('change_order','change_order',{dirty:false,reseed:true,confirmDiscard:no}),{form:'change_order',reset:true});
+});
+test('change order problems are explained before sending',()=>{
+ const ok={title:'Instagram templates',reason:'',request_quote:'',add_items:[],remove_item_ids:[],fee_delta:400,days_delta:0,revisions_delta:0};
+ assert.deepEqual(changeOrderProblems(ok),[]);
+ assert.match(changeOrderProblems({...ok,title:'x'}).join(' '),/Change order title/);
+ assert.match(changeOrderProblems({...ok,fee_delta:0}).join(' '),/must change deliverables, fee/);
+ assert.match(changeOrderProblems({...ok,add_items:[{id:'n1',title:'',qty:1,unit:'',price:null,acceptance:''}]}).join(' '),/Added deliverable 1: title/);
+ // "Why this is a change" and the client's words are optional on the server too.
+ assert.deepEqual(changeOrderProblems({title:'Extra round',revisions_delta:1}),[]);
+});
+const mail=await import('../lib/mail.ts');
+test('email delivery is configured only with RESEND_API_KEY and SCOPEFLOW_MAIL_FROM',()=>{
+ assert.equal(mail.mailConfigured({}),false);
+ assert.equal(mail.mailConfigured({RESEND_API_KEY:'re_x'}),false);
+ assert.equal(mail.mailConfigured({SCOPEFLOW_MAIL_FROM:'a@b.co'}),false);
+ assert.deepEqual(mail.mailConfig({RESEND_API_KEY:' re_x ',SCOPEFLOW_MAIL_FROM:'Scopeflow <s@b.co>'}),{apiKey:'re_x',from:'Scopeflow <s@b.co>',replyTo:null});
+});
+test('signature email escapes content and the mailto fallback carries the link',()=>{
+ const m=mail.signatureEmail({title:'Logo <b>\r\nBcc: x@evil.test',client:'Ana & Co',version:2,reviewUrl:'https://app.example/review/'+'a'.repeat(64)});
+ assert.ok(!/[\r\n]/.test(m.subject));assert.match(m.subject,/version 2/);
+ assert.ok(m.html.includes('Logo &lt;b&gt;'));assert.ok(m.html.includes('Ana &amp; Co'));assert.ok(!m.html.includes('<b>'));
+ assert.ok(m.text.includes('https://app.example/review/'));
+ const link=mail.mailtoLink('client@example.test',m);
+ assert.ok(link.startsWith('mailto:client%40example.test?subject='));assert.ok(decodeURIComponent(link).includes('/review/'+'a'.repeat(64)));
+ assert.equal(mail.clientEmailSchema.safeParse('not-an-email').success,false);
+ assert.equal(mail.clientEmailSchema.parse(' Client@Example.test '),'client@example.test');
+ assert.equal(mail.clientEmailSchema.parse(''),'');
+});
+
 console.log(JSON.stringify({passed,suite:'unit'}));

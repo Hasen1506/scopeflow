@@ -16,9 +16,9 @@ function unsalted(payload: string) { const {salt: _salt, ...rest} = JSON.parse(p
 async function ownedProject(request: Request, id: string) {
   const user = await owner(request);
   if (!user) return {error: json({error: 'Sign in or provide a valid API token.'}, 401)};
-  const project = await db().prepare('SELECT id FROM projects WHERE id=? AND owner=?').bind(id, user).first();
+  const project = await db().prepare('SELECT id,archived FROM projects WHERE id=? AND owner=?').bind(id, user).first<{id: string; archived: string | null}>();
   if (!project) return {error: json({error: 'Project not found.'}, 404)};
-  return {user};
+  return {user, archived: !!project.archived};
 }
 async function view(id: string) {
   const ledger = await loadLedger(id);
@@ -49,6 +49,7 @@ export async function POST(request: Request, ctx: Ctx) {
     const {id} = await ctx.params;
     const access = await ownedProject(request, id);
     if (access.error) return access.error;
+    if (access.archived) return json({error: 'This project is archived. Restore it before adding to its ledger.', code: 'archived'}, 409);
     if (!await allowWrite('owner:' + access.user)) return json({error: 'Write limit reached. Try again in a minute.'}, 429);
     let raw;
     try { raw = await body(request); } catch { return json({error: 'Provide valid JSON under 24 KB.'}, 400); }
