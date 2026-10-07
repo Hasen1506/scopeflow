@@ -1,4 +1,4 @@
-import {signIn} from './support/local.mjs';
+import {signIn,ack} from './support/local.mjs';
 import assert from 'node:assert/strict';
 const base=process.env.SCOPEFLOW_TEST_URL||'http://localhost:5173';
 assert.equal(new URL(base).hostname,'localhost');
@@ -13,16 +13,16 @@ status(await call('/api/scopes','POST',s,true,{Origin:'https://untrusted.example
 const first=await call('/api/scopes','POST',s);status(first,201);const v=first.value.scope;
 const read=await call('/api/review/'+v.token,'GET',null,false);status(read,200);assert.equal(read.value.scope.content.title,s.title);checks++;
 status(await call('/api/scopes/'+v.project_id,'GET',null,false),401);
-status(await call('/api/review/'+v.token,'POST',{decision:'changes_requested',signer:'Test Reviewer',comment:'',version:1},false),400);
-status(await call('/api/review/'+v.token,'POST',{decision:'changes_requested',signer:'Test Reviewer',comment:'Add a test page',version:1},false),200);
-status(await call('/api/review/'+v.token,'POST',{decision:'approved',signer:'Test Reviewer',comment:'',version:1},false),409);
+status(await call('/api/review/'+v.token,'POST',await ack(base,v.token,{decision:'changes_requested',signer:'Test Reviewer',comment:'',version:1}),false),400);
+status(await call('/api/review/'+v.token,'POST',await ack(base,v.token,{decision:'changes_requested',signer:'Test Reviewer',comment:'Add a test page',version:1}),false),200);
+status(await call('/api/review/'+v.token,'POST',await ack(base,v.token,{decision:'approved',signer:'Test Reviewer',comment:'',version:1}),false),409);
 const second=await call('/api/scopes/'+v.project_id,'POST',{expected_version:1,content:{...s,fee:150}});status(second,201);
 status(await call('/api/scopes/'+v.project_id,'POST',{expected_version:1,content:s}),409);
-status(await call('/api/review/'+second.value.scope.token,'POST',{decision:'approved',signer:'Test Reviewer',comment:'Test approval',version:2},false),200);
+status(await call('/api/review/'+second.value.scope.token,'POST',await ack(base,second.value.scope.token,{decision:'approved',signer:'Test Reviewer',comment:'Test approval',version:2}),false),200);
 const history=await call('/api/scopes/'+v.project_id);status(history,200);assert.equal(history.value.versions.length,2);assert.equal(history.value.versions[1].content.fee,100);assert.equal(history.value.versions[0].status,'approved');checks+=3;
 const third=await call('/api/scopes','POST',{...s,title:'Superseded pending QA'});status(third,201);
 status(await call('/api/scopes/'+third.value.scope.project_id,'POST',{expected_version:1,content:{...s,fee:200}}),201);
-status(await call('/api/review/'+third.value.scope.token,'POST',{decision:'approved',signer:'Test Reviewer',comment:'',version:1},false),409);
+status(await call('/api/review/'+third.value.scope.token,'POST',await ack(base,third.value.scope.token,{decision:'approved',signer:'Test Reviewer',comment:'',version:1}),false),409);
 const key=await call('/api/key','POST');status(key,200);
 status(await call('/api/scopes','GET',null,false,{Authorization:'Bearer '+key.value.token}),200);
 status(await call('/api/key','DELETE'),200);
