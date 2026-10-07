@@ -5,7 +5,7 @@ const {scopeSchema,itemsOf,sample}=await import('../lib/scope.ts');
 const {semanticDiff,describeChange}=await import('../lib/diff.ts');
 const {lintScope}=await import('../lib/lint.ts');
 const {checkRequest,exclusionClauses}=await import('../lib/check.ts');
-const {computeAgreement}=await import('../lib/ledger.ts');
+const ledgerModule=await import('../lib/ledger.ts');const {computeAgreement}=ledgerModule;
 const {computeInsights}=await import('../lib/insights.ts');
 let passed=0;
 function test(name,fn){fn();passed++;}
@@ -86,4 +86,54 @@ test('insights: aggregates agreements and flags patterns',()=>{
  assert.equal(r.revision_rounds.projects_over,2);assert.equal(r.clients.length,1);assert.equal(r.clients[0].projects,2);
  assert.ok(r.observations.some(o=>/use 3 revision rounds on average but you include 2/.test(o)));assert.ok(r.observations.some(o=>/Acme/.test(o)));
 });
+
+// ---- Regression tests for the 2026-10-07 audit fixes ----
+const origin=await import('../lib/origin.ts');
+const editor=await import('../lib/editor.ts');
+const req=(url,headers={})=>new Request(url,{headers});
+test('SF-03: return paths that normalise to protocol-relative URLs are rejected',()=>{
+ for(const bad of ['/.//evil.example','/a/..//evil.example','/./\\evil.example','//evil.example','/\\evil.example','https://evil.example','/%2F%2Fevil.example/..//x','/.//evil.example?x=1','/auth/sign-in','/api/auth/x'])assert.ok(!origin.safeReturnPath(bad).startsWith('//'),bad);
+ assert.equal(origin.safeReturnPath('/.//evil.example'),'/');assert.equal(origin.safeReturnPath('/a/..//evil.example'),'/');
+ assert.equal(origin.safeReturnPath('/account?tab=1#x'),'/account?tab=1#x');assert.equal(origin.safeReturnPath('/oauth/authorize?client_id=a&state=b'),'/oauth/authorize?client_id=a&state=b');
+});
+test('Origin blocker: forwarded public origin is used when APP_URL is unset (Render, bound to 0.0.0.0)',()=>{
+ const saved=process.env.APP_URL;delete process.env.APP_URL;
+ try{
+  const r=req('http://0.0.0.0:10000/api/key',{host:'scopeflow-qnng.onrender.com','x-forwarded-proto':'https',origin:'https://scopeflow-qnng.onrender.com'});
+  assert.equal(origin.requestOrigin(r),'https://scopeflow-qnng.onrender.com');assert.equal(origin.appOrigin(r),'https://scopeflow-qnng.onrender.com');assert.equal(origin.safeOrigin(r),true);
+  assert.equal(origin.publicUrl(r,'/review/x'),'https://scopeflow-qnng.onrender.com/review/x');
+  assert.equal(origin.safeOrigin(req('http://0.0.0.0:10000/api/key',{host:'scopeflow-qnng.onrender.com','x-forwarded-proto':'https',origin:'https://evil.example'})),false);
+  assert.equal(origin.safeOrigin(req('http://0.0.0.0:10000/api/key',{host:'scopeflow-qnng.onrender.com',origin:'null'})),false);
+  assert.equal(origin.requestOrigin(req('http://0.0.0.0:10000/',{host:'bad host/x','x-forwarded-proto':'javascript'})),'http://0.0.0.0:10000');
+  assert.equal(origin.requestOrigin(req('http://0.0.0.0:10000/',{'x-forwarded-host':'a.example, b.example','x-forwarded-proto':'https, http',host:'c.example'})),'https://a.example');
+ }finally{if(saved===undefined)delete process.env.APP_URL;else process.env.APP_URL=saved;}
+});
+test('Origin blocker: APP_URL is canonical; same-origin requests still pass if APP_URL is mis-set',()=>{
+ const saved=process.env.APP_URL;process.env.APP_URL='https://scopeflow-qnng.onrender.com/';
+ try{
+  const r=req('http://0.0.0.0:10000/x',{host:'scopeflow-qnng.onrender.com','x-forwarded-proto':'https',origin:'https://scopeflow-qnng.onrender.com'});
+  assert.equal(origin.appOrigin(r),'https://scopeflow-qnng.onrender.com');assert.equal(origin.safeOrigin(r),true);
+  process.env.APP_URL='https://old-name.onrender.com';
+  assert.equal(origin.safeOrigin(r),true);
+  assert.equal(origin.safeOrigin(req('http://0.0.0.0:10000/x',{host:'scopeflow-qnng.onrender.com','x-forwarded-proto':'https',origin:'https://attacker.example'})),false);
+  assert.equal(origin.safeOrigin(req('http://0.0.0.0:10000/x',{host:'scopeflow-qnng.onrender.com'})),true,'no Origin header (server-to-server) passes as before');
+ }finally{if(saved===undefined)delete process.env.APP_URL;else process.env.APP_URL=saved;}
+});
+test('BUG-1/2/13/14: editor helpers',()=>{
+ assert.equal(editor.clampNumber(-500,0,10000000),0);assert.equal(editor.clampNumber(-1,0,50),0);assert.ok(Number.isNaN(editor.clampNumber(NaN,0,5)));
+ assert.equal(editor.numberProblems({fee:-500,revisions:2}).fee,'The fee cannot be negative.');assert.ok(editor.numberProblems({fee:5,revisions:-1}).revisions);assert.deepEqual(editor.numberProblems({fee:0,revisions:0}),{});
+ assert.match(editor.saveBlockReason({busy:false,signedIn:false,editingSaved:false,changed:false}),/Sign in/);
+ assert.match(editor.saveBlockReason({busy:false,signedIn:true,editingSaved:true,changed:false}),/No changes/);
+ assert.equal(editor.saveBlockReason({busy:false,signedIn:true,editingSaved:false,changed:false}),null);
+ const draft={...sample,title:'Unsaved work'};const raw=editor.serializeDraft(draft,1000);
+ assert.deepEqual(editor.restoreDraft(raw,2000),draft);assert.equal(editor.restoreDraft(raw,1000+15*86400000),null);assert.equal(editor.restoreDraft('{bad',0),null);assert.equal(editor.restoreDraft(JSON.stringify({v:1,saved_at:0,draft:{title:1}}),0),null);
+ assert.equal(editor.meaningfulDraft(sample,sample,{...sample,title:''}),false);assert.equal(editor.meaningfulDraft(draft,sample,{...sample,title:''}),true);
+});
+test('SF-12: no delivery shift without a baseline due date',()=>{
+ const {checkEntry:check}=ledgerModule;const base={...sample,due:''};const a=computeAgreement(base,1,[{seq:1,kind:'change_order',baseline_version:1,actor:'owner',created:'2026-10-01',payload:{title:'Later',reason:'',request_quote:'',add_items:[],remove_item_ids:[],fee_delta:0,days_delta:5,revisions_delta:0},payload_hash:'',prev_hash:'',hash:''},{seq:2,kind:'settle',baseline_version:1,actor:'client',created:'2026-10-02',payload:{ref_seq:1,outcome:'approved',signer:'C',comment:''},payload_hash:'',prev_hash:'',hash:''}]);
+ assert.equal(a.days_shift,0);assert.equal(a.due,'');
+ assert.match(check('change_order',{title:'Later',reason:'',request_quote:'',add_items:[],remove_item_ids:[],fee_delta:0,days_delta:3,revisions_delta:0},base,computeAgreement(base,1,[]),'owner'),/no delivery date/);
+ assert.equal(check('change_order',{title:'Later',reason:'',request_quote:'',add_items:[],remove_item_ids:[],fee_delta:0,days_delta:3,revisions_delta:0},{...sample,due:'2026-12-01'},computeAgreement({...sample,due:'2026-12-01'},1,[]),'owner'),null);
+});
+
 console.log(JSON.stringify({passed,suite:'unit'}));
