@@ -22,6 +22,9 @@ jobs:
       NEON_AUTH_BASE_URL: http://localhost:55433
       NEON_AUTH_COOKIE_SECRET: ci-only-cookie-secret-0123456789abcdef0123
       APP_URL: http://localhost:5173
+      # PR F: test-only webhook secret so tests/payments.mjs exercises the verified webhook path.
+      # No RAZORPAY_KEY_ID/SECRET: online deposits stay disabled, which the suite also asserts.
+      RAZORPAY_WEBHOOK_SECRET: ci-only-razorpay-webhook-secret
       # PR B: no mail provider in CI, so one-time codes are logged to this file instead of emailed
       # (dev mode is refused unless APP_URL is localhost). tests/otp.mjs reads them from here.
       SCOPEFLOW_OTP_DEV: '1'
