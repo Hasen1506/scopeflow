@@ -9,6 +9,8 @@ const {GENESIS}=await import('../lib/ledger.ts');
 let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed++;};
 const db=new DatabaseSync(':memory:');
 eq(applyMigrations(db,'drizzle').length,4);eq(applyMigrations(db,'drizzle'),[]);
+// Columns added by db/migrations/0001 (signatures and decision context) for this SQLite harness.
+for(const sql of ['ALTER TABLE versions ADD COLUMN signature TEXT','ALTER TABLE versions ADD COLUMN decision_context TEXT','ALTER TABLE ledger_entries ADD COLUMN signature TEXT','ALTER TABLE ledger_entries ADD COLUMN context TEXT'])db.exec(sql);
 db.prepare('INSERT INTO projects VALUES (?,?,1,?)').run('project','fictional-owner','2026-10-02');
 db.prepare('INSERT INTO versions (id,project_id,version,token,content,status,signer,created,decided) VALUES (?,?,1,?,?,?, ?,?,?)').run('v','project','a'.repeat(64),JSON.stringify(sample),'approved','Fictional Reviewer','2026-10-02','2026-10-02');
 // An upgraded local preview may have the old schema but no helper journal.
