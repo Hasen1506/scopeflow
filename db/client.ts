@@ -22,6 +22,14 @@ export function postgresQuery(query: string) {
   }).join('');
 }
 
+// Values PostgreSQL cannot store or compare (a NUL character in text, an integer outside
+// int4, an invalid number or date literal) are bad client input, not a server fault.
+// Routes report them as 400 through lib/server.ts failure() instead of a 5xx.
+const INVALID_INPUT = new Set(['22003', '22021', '22P05', '22P02', '22007', '22008', '54000']);
+export class InvalidInputError extends Error {
+  constructor(cause: unknown) { super('The input contains a value that cannot be stored.', { cause }); this.name = 'InvalidInputError'; }
+}
+
 function mutation(query: string) { return /^\s*(INSERT|UPDATE|DELETE)\b/i.test(query); }
 
 // SF-05: there is no longer one global lock for every write and read batch.
@@ -48,6 +56,7 @@ class Statement {
       if (error instanceof Error && 'code' in error && error.code === '23505') {
         throw new Error('UNIQUE constraint violation', { cause: error });
       }
+      if (error instanceof Error && 'code' in error && INVALID_INPUT.has(String(error.code))) throw new InvalidInputError(error);
       throw error;
     }
   }

@@ -1,0 +1,181 @@
+{
+  "anchor": "b76ede642e17a85cde615e76e93b579197418b4ab388037416d65ee2deb57904",
+  "head": "489c266228bd18dd20eec84283337110dd19ca7278d560e2a6f5f26cd58ebfc7",
+  "entries": [
+    {
+      "seq": 1,
+      "kind": "change_order",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:01:00.000Z",
+      "payload_hash": "60bab722c009e38917bdb5367a1a5deb36cf56ce6dad395cb8cd4fa71e2d20c9",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "payload": {
+        "title": "Instagram templates",
+        "reason": "Social media templates are excluded",
+        "request_quote": "Could you also do 6 Instagram templates?",
+        "add_items": [
+          {
+            "id": "co_insta",
+            "title": "Instagram templates",
+            "qty": 6,
+            "unit": "templates",
+            "price": 400,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 400,
+        "days_delta": 5,
+        "revisions_delta": 0
+      },
+      "hash": "b08cbc879c5bdbe0644ec2777ad7f3c4101944ab509a407d088e41969e157fff",
+      "signature": "d229274fdc7f9fe5.jf0yXbxB1j2DWfnirebLABbDoe3PntLY1t-4DS5Q4BWMtobrGaaEZ11HMcaEy6zMTukbVGQkMAznSkz7kayaCQ"
+    },
+    {
+      "seq": 2,
+      "kind": "settle",
+      "baseline_version": 1,
+      "actor": "client",
+      "created": "2026-10-07T09:02:00.000Z",
+      "payload_hash": "2fb806a39fd0e474fcf3f93d17d9e90f888f51d39bd3ba8085fe578c37cb030f",
+      "prev_hash": "b08cbc879c5bdbe0644ec2777ad7f3c4101944ab509a407d088e41969e157fff",
+      "payload": {
+        "ref_seq": 1,
+        "outcome": "approved",
+        "signer": "Ada Client",
+        "comment": ""
+      },
+      "hash": "729bd0f9e383a5af481dddedaeef30af2d5af7dc957518f85aea3072c4325391",
+      "signature": "d229274fdc7f9fe5._xpBiher1JeP-MMoIVERRzHR3TB56UFHePvPVS9PnoVWbuguzPscqel8L8pmhVH9YW6EPAkpTunziq0XXgOFBw"
+    },
+    {
+      "seq": 3,
+      "kind": "goodwill",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:03:00.000Z",
+      "payload_hash": "e442dead27478e4c18ebf436ce30091157024b03595151561b3b44020f5a2b43",
+      "prev_hash": "729bd0f9e383a5af481dddedaeef30af2d5af7dc957518f85aea3072c4325391",
+      "payload": {
+        "title": "Favicon set",
+        "value": 80,
+        "hours": 1,
+        "note": "",
+        "visible": false,
+        "salt": "00000000-0000-4000-8000-000000000000"
+      },
+      "hash": "ddf481b060b26a58f5b86f5ab382555db883f23513e39829553313d140b3e0e0",
+      "signature": "d229274fdc7f9fe5.i8p4W-YHhFpooT_aQvgitVn88Uq1JKp2KNenztf2oy2QkMSU0aZntswXxJShCy0HzXUtQXsjfeXuscXgP3biBw"
+    },
+    {
+      "seq": 4,
+      "kind": "revision_round",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:04:00.000Z",
+      "payload_hash": "4f952fe6be5672609c0bf1fefbe59ba3a427bc8357a259cda9f0be8d5d0492d3",
+      "prev_hash": "ddf481b060b26a58f5b86f5ab382555db883f23513e39829553313d140b3e0e0",
+      "payload": {
+        "feedback_date": "2026-10-08",
+        "note": "Logo colour feedback"
+      },
+      "hash": "489c266228bd18dd20eec84283337110dd19ca7278d560e2a6f5f26cd58ebfc7",
+      "signature": "d229274fdc7f9fe5.qkhiUlMb0y3XGNejWQL5QGuV6qHyWSeZAo5ZrSCzgeCfehWXqZcSk6BwLscC-IHyFyH4v6ancqaF31OslyxuCQ"
+    }
+  ],
+  "agreement": {
+    "baseline_version": 1,
+    "currency": "USD",
+    "items": [
+      {
+        "id": "i_logo",
+        "title": "Primary logo and two variations",
+        "qty": 1,
+        "unit": "logo suite",
+        "price": 900,
+        "acceptance": "Delivered as SVG, PNG and PDF in colour and mono",
+        "source": "baseline"
+      },
+      {
+        "id": "i_palette",
+        "title": "Colour palette and typography",
+        "qty": 1,
+        "unit": "",
+        "price": 300,
+        "acceptance": "",
+        "source": "baseline"
+      },
+      {
+        "id": "i_guide",
+        "title": "Brand guidelines",
+        "qty": 12,
+        "unit": "pages",
+        "price": 600,
+        "acceptance": "Print-ready PDF",
+        "source": "baseline"
+      },
+      {
+        "id": "co_insta",
+        "title": "Instagram templates",
+        "qty": 6,
+        "unit": "templates",
+        "price": 400,
+        "acceptance": "",
+        "source": 1
+      }
+    ],
+    "removed": [],
+    "fee_base": 1800,
+    "fee": 2200,
+    "due_base": "2026-12-15",
+    "due": "2026-12-20",
+    "days_shift": 5,
+    "revisions_allowed": 2,
+    "revisions_used": 1,
+    "rounds_over": 0,
+    "change_orders": [
+      {
+        "title": "Instagram templates",
+        "reason": "Social media templates are excluded",
+        "request_quote": "Could you also do 6 Instagram templates?",
+        "add_items": [
+          {
+            "id": "co_insta",
+            "title": "Instagram templates",
+            "qty": 6,
+            "unit": "templates",
+            "price": 400,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 400,
+        "days_delta": 5,
+        "revisions_delta": 0,
+        "seq": 1,
+        "created": "2026-10-07T09:01:00.000Z",
+        "status": "approved",
+        "settled_by": "Ada Client",
+        "settled_at": "2026-10-07T09:02:00.000Z",
+        "comment": ""
+      }
+    ],
+    "pending": 0,
+    "goodwill": [
+      {
+        "title": "Favicon set",
+        "value": 80,
+        "hours": 1,
+        "note": "",
+        "visible": false,
+        "salt": "00000000-0000-4000-8000-000000000000",
+        "seq": 3,
+        "created": "2026-10-07T09:03:00.000Z"
+      }
+    ],
+    "goodwill_value": 80,
+    "goodwill_hours": 1,
+    "delays": []
+  }
+}

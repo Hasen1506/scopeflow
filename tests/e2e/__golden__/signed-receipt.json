@@ -1,0 +1,17 @@
+{
+  "project_id": "<id>",
+  "version": 1,
+  "signer": "Ada Client",
+  "decided": "<timestamp>",
+  "content_sha256": "c698fe9bb92dabad7163423afb762585d0f622a09b954d91a20828ac9522acf3",
+  "anchor": "<chain-hash>",
+  "signature": "<ed25519-signature>",
+  "key": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "<public-key>",
+    "kid": "<key-id>",
+    "alg": "EdDSA",
+    "use": "sig"
+  }
+}

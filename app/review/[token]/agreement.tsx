@@ -1,31 +1,21 @@
 'use client';
 import {useEffect, useState} from 'react';
 import {ShieldAlert, ShieldCheck} from 'lucide-react';
-import {anchorHash, coSummary, computeAgreement, describeEntry, verifyChain, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
+import {coSummary, computeAgreement, describeEntry, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
+import {checkClientRecord, type RecordCheck, type SealState} from '@/lib/record-check';
 import {formatMoney, type Version} from '@/lib/scope';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 
-type SealState = 'valid' | 'invalid' | 'unsigned';
 export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}};
-type Check = {state: 'checking'} | {state: 'ok'; head: string; count: number; signed?: boolean} | {state: 'failed'; detail: string};
+type Check = {state: 'checking'} | RecordCheck;
 
-/** Recomputes the record's fingerprints locally, so the client does not have to trust our server's word. */
+/** Recomputes the record's fingerprints locally (lib/record-check.ts), so the client does not have to trust our server's word. */
 function useVerification(scope: Version, ledger: ClientLedger): Check {
   const [check, setCheck] = useState<Check>({state: 'checking'});
   useEffect(() => {
     let live = true;
-    (async () => {
-      const own = await anchorHash({project_id: scope.project_id, version: scope.version, content: scope.content, signer: scope.signer, decided: scope.decided});
-      if (own !== ledger.anchors[scope.version]) return {state: 'failed', detail: 'The approved scope does not match the record it is anchored to.'} as Check;
-      const result = await verifyChain(ledger.entries, {...ledger.anchors, [scope.version]: own});
-      if(result.intact&&result.head!==ledger.head)return {state:'failed',detail:'The record does not reach its stated fingerprint.'} as Check;
-      if (!result.intact) return {state: 'failed', detail: `Entry #${result.at}: ${result.reason}.`} as Check;
-      // SF-04: recomputed hashes alone cannot prove the record was not rewritten in the
-      // database; the server's signatures (keyed outside the database) must also hold.
-      if (ledger.seal?.state === 'invalid') return {state: 'failed', detail: 'The record’s signatures do not match its contents, so it was changed after it was recorded.'} as Check;
-      return {state: 'ok', head: result.head, count: result.count, signed: ledger.seal?.state === 'valid'} as Check;
-    })().then(c => { if (live) setCheck(c); }, () => { if (live) setCheck({state: 'failed', detail: 'This browser could not run the check.'}); });
+    checkClientRecord(scope, ledger).then(c => { if (live) setCheck(c); }, () => { if (live) setCheck({state: 'failed', detail: 'This browser could not run the check.'}); });
     return () => { live = false; };
   }, [scope, ledger]);
   return check;
@@ -41,7 +31,9 @@ export function AgreementView({token, scope, ledger, onChanged}: {token: string;
     <section className="editor agreement-view" style={{marginTop: 24}}>
       <p className="eyebrow">AFTER APPROVAL</p>
       <div className="small-title"><h2>Current agreement</h2>
-        {check.state === 'ok' && <span className="chain ok" title={check.head}><ShieldCheck size={14} />Verified in your browser</span>}
+        {check.state === 'ok' && check.signed && <span className="chain ok" title={check.head}><ShieldCheck size={14} />Verified in your browser</span>}
+        {/* Fingerprints match but the record carries no Scopeflow signatures (legacy records, or signatures removed): say so instead of claiming full verification. */}
+        {check.state === 'ok' && !check.signed && <span className="chain unsigned" title={check.head}><ShieldAlert size={14} />Fingerprints match · not signed</span>}
         {check.state === 'failed' && <span className="chain bad"><ShieldAlert size={14} />Record check failed</span>}
       </div>
       <p className="quiet section-gap">Version {scope.version} is the approved baseline. Change orders need your approval before they apply. The creator also records revision rounds, received inputs, delivery shifts, and goodwill here.</p>

@@ -1,0 +1,38 @@
+{
+  "title": "Brand identity for Northwind",
+  "client": "Northwind Studio",
+  "deliverables": "Logo suite\nSocial launch templates\nBrand guidelines (12 pages)",
+  "items": [
+    {
+      "id": "i_64ebc901",
+      "title": "Logo suite",
+      "qty": 1,
+      "unit": "",
+      "price": 900,
+      "acceptance": "SVG, PNG and PDF in colour and mono"
+    },
+    {
+      "id": "i_2a364a68",
+      "title": "Social launch templates",
+      "qty": 1,
+      "unit": "",
+      "price": 300,
+      "acceptance": ""
+    },
+    {
+      "id": "i_d19b2738",
+      "title": "Brand guidelines",
+      "qty": 12,
+      "unit": "pages",
+      "price": 600,
+      "acceptance": ""
+    }
+  ],
+  "client_inputs": [],
+  "exclusions": "Website design, social media management, print production.",
+  "fee": 1800,
+  "currency": "USD",
+  "revisions": 2,
+  "due": "2026-12-15",
+  "notes": "Feedback is consolidated into one list per round."
+}
