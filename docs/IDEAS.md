@@ -46,6 +46,12 @@ candidate, not a commitment; nothing here is built. Roughly ordered by value for
 - **Email forwarding into the radar** (Resend inbound or Gmail) and an MCP tool that runs the full radar.
 - **AI rewrite suggestions for lint issues** ("replace 'minor tweaks' with ...") and a domain-specific vocabulary pack.
 - **Template marketplace / shared team templates** with versioning and tags.
+- **Evaluate `gpt-6-luna` as the OpenAI default** (D + E): cheaper than `gpt-4o-mini` and current, but a reasoning
+  model; needs the Chat Completions request re-verified (`max_completion_tokens`, no `temperature`) against a live key.
+- **Model-lifecycle guard**: a scheduled check of the provider deprecation pages (or the Models APIs) that warns before
+  the configured model retires (Claude Haiku 4.5 is listed "not sooner than 15 Oct 2026"); today a test pins known
+  retired ids only.
+- **Show the active model on the AI controls** and let the owner pick a quality tier (fast vs careful) per request.
 
 ## Product and operations
 - **Retention per project with legal hold**, and an automatic expiry for archived drafts.
