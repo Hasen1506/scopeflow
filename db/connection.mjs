@@ -6,6 +6,11 @@ pg.types.setTypeParser(20, value => {
   return number;
 });
 
+function poolSize() {
+  const value = Number(process.env.PG_POOL_MAX || 15);
+  return Number.isInteger(value) && value >= 2 && value <= 100 ? value : 15;
+}
+
 export function createPool(url = process.env.DATABASE_URL) {
   if (!url) throw new Error('DATABASE_URL is required');
   const destination = new URL(url);
@@ -20,8 +25,10 @@ export function createPool(url = process.env.DATABASE_URL) {
     connectionString: destination.href,
     ssl: local ? false : { rejectUnauthorized: true },
     enableChannelBinding: true,
-    max: 5,
-    connectionTimeoutMillis: 15000,
+    // SF-05: 5 slots starved every tenant behind one slow transaction. Neon's pooled
+    // endpoint multiplexes server-side, so a larger client pool is safe.
+    max: poolSize(),
+    connectionTimeoutMillis: 10000,
     idleTimeoutMillis: 20000,
   });
   pool.on('error', () => console.error('An idle PostgreSQL connection was closed; new requests will reconnect.'));
@@ -37,10 +44,10 @@ function executor(connection, pool) {
   const sql = (parts, ...values) => unsafe(parts.reduce((query, part, i) => query + (i ? '$' + i : '') + part, ''), values);
   sql.unsafe = unsafe;
   sql.end = () => pool.end();
-  sql.begin = async callback => {
+  sql.begin = async (callback, mode) => {
     const connection = await pool.connect();
     try {
-      await connection.query('BEGIN');
+      await connection.query(mode === 'ISOLATION LEVEL REPEATABLE READ READ ONLY' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
       const result = await callback(executor(connection, pool));
       await connection.query('COMMIT');
       return result;
