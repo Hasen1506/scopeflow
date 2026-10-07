@@ -1,6 +1,6 @@
 # Scopeflow connector review package
 
-Publisher: VijeyaHasen. Contact: hasenhamesh15@gmail.com. Version: 0.3.1.
+Publisher: VijeyaHasen. Contact: the support address configured in NEXT_PUBLIC_SUPPORT_EMAIL. Version: 0.3.1.
 
 ## Use cases and tools
 
