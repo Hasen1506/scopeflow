@@ -1,4 +1,5 @@
 import type {Agreement} from './ledger';
+import {formatMoney} from './currency';
 
 // Cross-project patterns from the creator's own records. Money is grouped by
 // currency because projects can be priced in different currencies.
@@ -61,8 +62,8 @@ export function computeInsights(rows: ProjectAgreement[]): Insights {
   if (rows.length >= 2 && r.average_used !== null && r.average_included !== null && r.average_used > r.average_included)
     o.push(`Clients use ${r.average_used} revision rounds on average but you include ${r.average_included}. Consider pricing in another round.`);
   if (r.projects_over) o.push(`${r.projects_over} of ${rows.length} projects went over their revision allowance.`);
-  for (const [currency, value] of Object.entries(out.change_order_value)) if (value > 0) o.push(`Change orders added ${new Intl.NumberFormat('en-US', {style: 'currency', currency}).format(value)} that would otherwise have been unbilled.`);
-  for (const [currency, value] of Object.entries(out.goodwill_value)) if (value > 0) o.push(`You absorbed ${new Intl.NumberFormat('en-US', {style: 'currency', currency}).format(value)} of goodwill work${out.goodwill_hours ? ` (${out.goodwill_hours}h)` : ''}.`);
+  for (const [currency, value] of Object.entries(out.change_order_value)) if (value > 0) o.push(`Change orders added ${formatMoney(value, currency)} that would otherwise have been unbilled.`);
+  for (const [currency, value] of Object.entries(out.goodwill_value)) if (value > 0) o.push(`You absorbed ${formatMoney(value, currency)} of goodwill work${out.goodwill_hours ? ` (${out.goodwill_hours}h)` : ''}.`);
   if (out.client_delays.count) o.push(`Late client inputs moved delivery dates by ${out.client_delays.days} days in total.`);
   const repeat = out.clients.find(c => c.projects > 1 && c.change_orders + c.rounds_over >= c.projects);
   if (repeat) o.push(`${repeat.client} has needed change orders or extra rounds on most of their projects. Scope their next project more tightly.`);
