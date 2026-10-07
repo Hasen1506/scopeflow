@@ -1,6 +1,9 @@
 import { z } from 'zod';
+import {currencyCodes, formatMoney} from './currency';
+export {formatMoney} from './currency';
 
-export const currencies = ['USD', 'INR', 'GBP', 'EUR'] as const;
+/** Configured currency codes (config/currencies.ts). */
+export const currencies = currencyCodes;
 const stableId = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/, 'Use 1–40 letters, numbers, dashes or underscores');
 export const dateString = z.string().refine(
   x => !x || (/^\d{4}-\d{2}-\d{2}$/.test(x) && !Number.isNaN(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x),
@@ -38,9 +41,12 @@ export const scopeSchema = z.object({
   revisions: z.number().int().min(0).max(50),
   due: dateString,
   notes: z.string().trim().max(3000),
-  // PR F: deposit due on signature, % of the fee. Optional and omitted when unset, so content signed
-  // before it existed keeps its exact canonical form (and hash).
+  // PR C: commercial terms. Optional and omitted when unset, so content signed before they
+  // existed keeps its exact canonical form (and hash).
+  tax_label: z.string().trim().min(1).max(24).optional(),
+  tax_pct: z.number().finite().min(0).max(100).optional(),
   deposit_pct: z.number().finite().min(0).max(100).optional(),
+  payment_terms: z.string().trim().min(1).max(500).optional(),
 }).strict().superRefine((s, ctx) => {
   if (!s.items?.length && s.deliverables.length < 5) ctx.addIssue({code: 'custom', path: ['deliverables'], message: 'Add at least one deliverable'});
   const unique = (list: {id: string}[] | undefined, path: string) => {
@@ -82,9 +88,6 @@ export const sample: Scope = {
 };
 export const blank: Scope = {title: '', client: '', deliverables: '', items: [], client_inputs: [], exclusions: '', fee: 0, currency: 'USD', revisions: 2, due: '', notes: ''};
 
-export function formatMoney(amount: number, currency: string) {
-  return new Intl.NumberFormat('en-US', {style: 'currency', currency, maximumFractionDigits: 2}).format(amount);
-}
 export function money(s: Pick<Scope, 'fee' | 'currency'>) { return formatMoney(s.fee, s.currency); }
 export function label(status: string) {
   return ({pending: 'Awaiting review', approved: 'Approved', changes_requested: 'Changes requested', proposed: 'Awaiting client', declined: 'Declined', withdrawn: 'Withdrawn', superseded: 'Superseded'} as Record<string, string>)[status] || status;

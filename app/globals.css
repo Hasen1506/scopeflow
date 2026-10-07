@@ -20,3 +20,5 @@ select{font:inherit;width:100%;border:1px solid #cbd5e4;background:#fff;border-r
 .error-text{display:block;margin-top:6px;font-size:13px;font-weight:500;color:#a01628}input[aria-invalid=true]{border-color:#d9475a}
 .secondary.selected{border-color:#2549e8;box-shadow:inset 0 0 0 1px #2549e8;color:#2549e8}.tag.status-archived{background:#eceff3;color:#4a5568}.send-box{border:1px solid var(--border);border-radius:8px;padding:4px 16px 16px;margin:18px 0;background:#fbfcfe}
 .deposit-box{margin-top:24px}.timeline li.kind-payment{border-left-color:#1e8a52}
+.warn-text{display:block;margin-top:6px;font-size:13px;font-weight:500;color:#7a5410}.terms-line{display:flex;justify-content:space-between;font-size:14px;margin-top:6px}.terms-line strong{font-weight:600}
+.verify-details{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:14px 0;font-size:14px}.verify-details dt{color:#536277}.verify-details dd{margin:0;word-break:break-all}

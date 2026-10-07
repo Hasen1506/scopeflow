@@ -32,6 +32,12 @@ const MAX_AGE = 14 * 86400_000;
 export function serializeDraft(draft: Scope, now = Date.now()) {
   return JSON.stringify({v: 1, saved_at: now, draft});
 }
+const isRecord = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
+const validItem = (x: unknown) => isRecord(x) && typeof x.id === 'string' && typeof x.title === 'string';
+const validInput = (x: unknown) => isRecord(x) && typeof x.id === 'string' && typeof x.title === 'string';
+function normalizeItem(i: Record<string, unknown>) {
+  return {id: i.id as string, title: i.title as string, qty: typeof i.qty === 'number' && Number.isFinite(i.qty) ? i.qty : 1, unit: typeof i.unit === 'string' ? i.unit : '', price: typeof i.price === 'number' && Number.isFinite(i.price) ? i.price : null, acceptance: typeof i.acceptance === 'string' ? i.acceptance : ''};
+}
 export function restoreDraft(raw: string | null, now = Date.now()): Scope | null {
   if (!raw || raw.length > 200_000) return null;
   try {
@@ -43,8 +49,10 @@ export function restoreDraft(raw: string | null, now = Date.now()): Scope | null
       ...d,
       fee: typeof d.fee === 'number' ? d.fee : 0,
       revisions: typeof d.revisions === 'number' ? d.revisions : 0,
-      items: Array.isArray(d.items) ? d.items : [],
-      client_inputs: Array.isArray(d.client_inputs) ? d.client_inputs : [],
+      // QoL: a draft saved by an older build or edited by hand may hold malformed rows; keep only
+      // rows the editor can render instead of crashing it on load.
+      items: Array.isArray(d.items) ? d.items.filter(validItem).map(normalizeItem) : [],
+      client_inputs: Array.isArray(d.client_inputs) ? d.client_inputs.filter(validInput).map((c: {id: string; title: string; due?: unknown}) => ({id: c.id, title: c.title, due: typeof c.due === 'string' ? c.due : ''})) : [],
     } as Scope;
   } catch {
     return null;

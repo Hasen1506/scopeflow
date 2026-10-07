@@ -4,6 +4,7 @@ import {ShieldAlert, ShieldCheck} from 'lucide-react';
 import {coSummary, computeAgreement, describeEntry, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
 import {checkClientRecord, type RecordCheck, type SealState} from '@/lib/record-check';
 import {formatMoney, type Version} from '@/lib/scope';
+import {formatInZone} from '@/lib/time';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 
@@ -21,7 +22,7 @@ function useVerification(scope: Version, ledger: ClientLedger): Check {
   return check;
 }
 
-export function AgreementView({token, scope, ledger, onChanged}: {token: string; scope: Version; ledger: ClientLedger; onChanged: () => Promise<void>}) {
+export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged}: {token: string; scope: Version; ledger: ClientLedger; timeZone?: string; onChanged: () => Promise<void>}) {
   const a = computeAgreement(scope.content,scope.version,ledger.entries.filter(e=>e.baseline_version===scope.version)), cur = a.currency;
   const check = useVerification(scope, ledger);
   const pending = a.change_orders.filter(c => c.status === 'proposed');
@@ -53,7 +54,7 @@ export function AgreementView({token, scope, ledger, onChanged}: {token: string;
         <>
           <h3 className="section-gap">Record</h3>
           <ol className="timeline">
-            {[...visible].reverse().map(e => <li key={e.seq} className={'kind-' + e.kind}>#{e.seq} · {describeEntry(e, cur, allItems, scope.content.client_inputs ?? [])}<span className="fine">{new Date(e.created).toLocaleString()}</span></li>)}
+            {[...visible].reverse().map(e => <li key={e.seq} className={'kind-' + e.kind}>#{e.seq} · {describeEntry(e, cur, allItems, scope.content.client_inputs ?? [])}<span className="fine">{formatInZone(e.created, timeZone)}</span></li>)}
           </ol>
         </>
       )}

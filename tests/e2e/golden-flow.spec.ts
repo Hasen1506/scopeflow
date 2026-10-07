@@ -199,7 +199,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   expect((await refused.json()).code).toBe('has_client_evidence');
   // Regression: a closing dialog keeps its own wording. While the archive dialog's exit animation ran,
   // its copy fell through to "Restore this project?" / "Restore project", so a quick "Restore project"
-  // click landed on the closing dialog and no restore dialog opened (red e2e on PR F). The exit
+  // click landed on the closing dialog and no restore dialog opened (red e2e on PRs F and G). The exit
   // animation is stretched to 2s so the closing state is observed deterministically.
   const slowClose = await page.addStyleTag({content: '[role="dialog"][data-state="closed"]{animation-duration:2s!important}'});
   await page.getByRole('button', {name: 'Archive project'}).click();
