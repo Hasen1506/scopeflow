@@ -100,7 +100,7 @@ export function LedgerPanel({projectId, reviewUrl}: {projectId: string; reviewUr
             </div>
           )}
           {a.pending > 0 && <p className="fine">{a.pending} change order{a.pending > 1 ? 's' : ''} awaiting the client{reviewUrl ? ' on ' : '.'}{reviewUrl && <a className="help-link" href={reviewUrl} target="_blank" rel="noreferrer">their review link</a>}</p>}
-          <ScopeCheck scope={base} agreement={a} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => void submit('revision_round', {feedback_date: today(), note})} />
+          <ScopeCheck projectId={projectId} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => void submit('revision_round', {feedback_date: today(), note})} />
           <div className="actions section-gap">
             <button type="button" className={toggle('change_order')} aria-pressed={form === 'change_order'} disabled={busy} onClick={() => openForm('change_order')}><FilePlus2 size={16} />Change order</button>
             <button type="button" className={toggle('revision_round')} aria-pressed={form === 'revision_round'} disabled={busy} onClick={() => openForm('revision_round')}><RotateCcw size={16} />Revision round</button>
