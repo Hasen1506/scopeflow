@@ -1,0 +1,128 @@
+{
+  "exported_at": "<timestamp>",
+  "format_version": 1,
+  "project_id": "<id>",
+  "versions": [
+    {
+      "id": "<id>",
+      "project_id": "<id>",
+      "version": 1,
+      "revoked": 0,
+      "content": {
+        "title": "Brand identity for Northwind",
+        "client": "Northwind Studio",
+        "deliverables": "Logo suite\nSocial launch templates\nBrand guidelines (12 pages)",
+        "items": [
+          {
+            "id": "i_64ebc901",
+            "title": "Logo suite",
+            "qty": 1,
+            "unit": "",
+            "price": 900,
+            "acceptance": "SVG, PNG and PDF in colour and mono"
+          },
+          {
+            "id": "i_2a364a68",
+            "title": "Social launch templates",
+            "qty": 1,
+            "unit": "",
+            "price": 300,
+            "acceptance": ""
+          },
+          {
+            "id": "i_d19b2738",
+            "title": "Brand guidelines",
+            "qty": 12,
+            "unit": "pages",
+            "price": 600,
+            "acceptance": ""
+          }
+        ],
+        "client_inputs": [],
+        "exclusions": "Website design, social media management, print production.",
+        "fee": 1800,
+        "currency": "USD",
+        "revisions": 2,
+        "due": "2026-12-15",
+        "notes": "Feedback is consolidated into one list per round."
+      },
+      "status": "approved",
+      "signer": "Ada Client",
+      "comment": "",
+      "created": "<timestamp>",
+      "decided": "<timestamp>",
+      "sealed": true,
+      "decision_context": {
+        "channel": "review_link",
+        "ip": "<ip>",
+        "user_agent": "<user-agent>",
+        "owner_session": false,
+        "via_api": false,
+        "acknowledged": true,
+        "content_sha256": "c698fe9bb92dabad7163423afb762585d0f622a09b954d91a20828ac9522acf3"
+      },
+      "token": "<review-token>"
+    }
+  ],
+  "ledger_entries": [
+    {
+      "id": "<id>",
+      "project_id": "<id>",
+      "seq": 1,
+      "kind": "change_order",
+      "baseline_version": 1,
+      "actor": "owner",
+      "payload": {
+        "title": "Instagram templates",
+        "reason": "Social media templates are outside this scope",
+        "request_quote": "Could you also design 6 Instagram templates?",
+        "add_items": [
+          {
+            "id": "i_b19326d8",
+            "title": "Instagram templates",
+            "qty": 6,
+            "unit": "",
+            "price": 400,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 400,
+        "days_delta": 0,
+        "revisions_delta": 0
+      },
+      "ref": "req:<request-id>",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "hash": "<chain-hash>",
+      "created": "<timestamp>",
+      "signature": "<ed25519-signature>",
+      "context": null
+    },
+    {
+      "id": "<id>",
+      "project_id": "<id>",
+      "seq": 2,
+      "kind": "settle",
+      "baseline_version": 1,
+      "actor": "client",
+      "payload": {
+        "ref_seq": 1,
+        "outcome": "approved",
+        "signer": "Ada Client",
+        "comment": ""
+      },
+      "ref": "settle:1",
+      "prev_hash": "<chain-hash>",
+      "hash": "<chain-hash>",
+      "created": "<timestamp>",
+      "signature": "<ed25519-signature>",
+      "context": {
+        "channel": "review_link",
+        "ip": "<ip>",
+        "user_agent": "<user-agent>",
+        "owner_session": false,
+        "via_api": false
+      }
+    }
+  ]
+}
