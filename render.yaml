@@ -15,5 +15,16 @@ services:
         sync: false
       - key: NEON_AUTH_COOKIE_SECRET
         generateValue: true
+      # Canonical public origin, exactly as browsers see it (no path). Used for
+      # workspace links and as the OAuth issuer. If unset, the app falls back to
+      # the proxy's X-Forwarded-Proto + Host of each request.
       - key: APP_URL
+        value: https://scopeflow-qnng.onrender.com
+      # Ed25519 signing seed for decision receipts and ledger signatures. Generate
+      # once and keep it stable (put old values in SCOPEFLOW_SIGNING_SECRET_PREVIOUS
+      # when rotating).
+      - key: SCOPEFLOW_SIGNING_SECRET
+        generateValue: true
+      # Public support role address shown in the UI (build time).
+      - key: NEXT_PUBLIC_SUPPORT_EMAIL
         sync: false
