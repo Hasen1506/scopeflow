@@ -41,6 +41,15 @@ transactional writes, immutable versions, link revocation, self-service deletion
 and beta caps remain in place. The application uses a private `scopeflow`
 database schema and never exposes its database connection string to the browser.
 
+## Projects and sending
+
+Each project can be archived (hidden and locked, signed record untouched) or, while
+no client has decided anything on it, deleted; approved projects are archive-only so
+signed evidence stays consistent with the immutability triggers. An optional, private
+client email powers **Send for signature**, which emails the review link when
+`RESEND_API_KEY` and `SCOPEFLOW_MAIL_FROM` are set and otherwise falls back to copy
+link / `mailto:`. See the deployment guide for details.
+
 ## Scope ledger
 
 Scopes use structured deliverables with stable IDs, plain-language version
