@@ -1,7 +1,8 @@
 import {z} from 'zod';
 import {appOrigin} from '@/lib/origin';
 import {getUser} from '@/lib/auth/server';
-import {db,json,body,failure} from '@/lib/server';
+import {db,json,body,failure,hash} from '@/lib/server';
+import {lockKey} from '@/db/client';
 
 // Account destruction is available only to the signed-in website user, never an API token.
 async function browserUser(request:Request){
@@ -27,6 +28,10 @@ export async function DELETE(request:Request){try{
   database.prepare('DELETE FROM versions WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM projects WHERE owner=?').bind(id),
   database.prepare('DELETE FROM api_keys WHERE owner=?').bind(id),
- ]);
+  database.prepare('DELETE FROM oauth_codes WHERE owner=?').bind(id),
+  database.prepare('DELETE FROM oauth_tokens WHERE owner=?').bind(id),
+ ],{lock:lockKey('owner',id),bypassImmutability:true});
+ // SF-04: the only path allowed past the immutability triggers; leave an audit line.
+ console.warn('Scopeflow account data deleted by its owner',JSON.stringify({owner_hash:(await hash(id)).slice(0,16),at:new Date().toISOString()}));
  return json({deleted:true});
 }catch{console.error('Scopeflow account deletion failed.');return json({error:'Deletion could not be completed. Please try again.'},503);}}
