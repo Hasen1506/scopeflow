@@ -232,6 +232,20 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   const mailto = await fallback.getByRole('link', {name: 'Open in mail app'}).getAttribute('href');
   expect(mailto).toMatch(/^mailto:client%40example\.test\?|^mailto:client@example\.test\?/);
   expect(decodeURIComponent(mailto!)).toContain('/review/');
+  // Regression: the review-link dialog keeps its own wording while it closes. After a revocation its
+  // exit animation fell back to "Replace this review link?" / "Confirm replacement" (the same bug the
+  // archive dialog had). The exit animation is stretched to 2s so the closing state is observed
+  // deterministically.
+  const slowLinkClose = await page.addStyleTag({content: '[role="dialog"][data-state="closed"]{animation-duration:2s!important}'});
+  await page.getByRole('button', {name: 'Revoke review link', exact: true}).click();
+  await expect(page.getByRole('dialog')).toContainText('Revoke review access?');
+  await page.getByRole('dialog').getByRole('button', {name: 'Confirm revocation'}).click();
+  await expect(page.locator('[role="dialog"][data-state="closed"]')).toHaveCount(1);
+  const closingLink = await page.locator('[role="dialog"][data-state="closed"]').innerText();
+  expect(closingLink).toContain('Revoke review access?');
+  expect(closingLink).not.toContain('Replace');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await slowLinkClose.evaluate(e => (e as Element).remove());
   await page.getByRole('button', {name: 'Delete project'}).click();
   const confirmDelete = page.getByRole('dialog');
   await expect(confirmDelete.getByRole('button', {name: 'Delete project'})).toBeDisabled();
