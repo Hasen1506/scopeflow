@@ -31,7 +31,9 @@ export function AgreementView({token, scope, ledger, onChanged}: {token: string;
     <section className="editor agreement-view" style={{marginTop: 24}}>
       <p className="eyebrow">AFTER APPROVAL</p>
       <div className="small-title"><h2>Current agreement</h2>
-        {check.state === 'ok' && <span className="chain ok" title={check.head}><ShieldCheck size={14} />Verified in your browser</span>}
+        {check.state === 'ok' && check.signed && <span className="chain ok" title={check.head}><ShieldCheck size={14} />Verified in your browser</span>}
+        {/* Fingerprints match but the record carries no Scopeflow signatures (legacy records, or signatures removed): say so instead of claiming full verification. */}
+        {check.state === 'ok' && !check.signed && <span className="chain unsigned" title={check.head}><ShieldAlert size={14} />Fingerprints match · not signed</span>}
         {check.state === 'failed' && <span className="chain bad"><ShieldAlert size={14} />Record check failed</span>}
       </div>
       <p className="quiet section-gap">Version {scope.version} is the approved baseline. Change orders need your approval before they apply. The creator also records revision rounds, received inputs, delivery shifts, and goodwill here.</p>
