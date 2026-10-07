@@ -63,4 +63,4 @@ export function parseRow(row:Record<string,unknown>,{withToken=true}:{withToken?
  if(withToken)parsed.token=token;
  return parsed;
 }
-export function failure(e:unknown){console.error('Scopeflow request failed',e instanceof Error?e.message:'unknown');return json({error:'Unable to complete this request. Your input is preserved; please try again.'},503);}
+export function failure(e:unknown){if(e instanceof Error&&e.name==='InvalidInputError')return json({error:'Some input could not be stored: remove control characters (such as NUL) and use whole numbers within range.'},400);console.error('Scopeflow request failed',e instanceof Error?e.message:'unknown');return json({error:'Unable to complete this request. Your input is preserved; please try again.'},503);}
