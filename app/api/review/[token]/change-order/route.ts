@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {db, json, body, safeOrigin, allowWrite, failure} from '@/lib/server';
 import {settleSchema, checkEntry} from '@/lib/ledger';
 import {loadLedger, appendEntry, LedgerConflict} from '@/lib/ledger-server';
+import {decisionContext} from '@/lib/decision';
 type Ctx = {params: Promise<{token: string}>};
 
 const decisionSchema = z.object({
@@ -17,7 +18,7 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
     const {token} = await ctx.params;
     if (!/^[a-f0-9]{64}$/.test(token)) return json({error: 'This review link was not found.'}, 404);
-    const row = await db().prepare('SELECT id,project_id FROM versions WHERE token=? AND revoked=0').bind(token).first<{id: string; project_id: string}>();
+    const row = await db().prepare('SELECT v.id,v.project_id,p.owner FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<{id: string; project_id: string; owner: string}>();
     if (!row) return json({error: 'This review link was not found.'}, 404);
     if (!await allowWrite('review:' + row.id, 10)) return json({error: 'Too many attempts. Try again in a minute.'}, 429);
     let raw;
@@ -31,11 +32,11 @@ export async function POST(request: Request, ctx: Ctx) {
     const problem = checkEntry('settle', payload, ledger.content, ledger.agreement, 'client');
     if (problem) return json({error: problem}, /already|no longer|not found/.test(problem) ? 409 : 400);
     try {
-      await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind: 'settle', payload, actor: 'client', ref: 'settle:' + payload.ref_seq});
+      const entry = await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind: 'settle', payload, actor: 'client', ref: 'settle:' + payload.ref_seq, context: await decisionContext(request, row.owner)});
+      return json({status: input.data.decision, seq: input.data.seq, receipt: {entry_seq: entry.seq, hash: entry.hash, signature: entry.signature}});
     } catch (e) {
       if (e instanceof LedgerConflict) return json({error: e.message}, 409);
       throw e;
     }
-    return json({status: input.data.decision, seq: input.data.seq});
   } catch (e) { return failure(e); }
 }
