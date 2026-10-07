@@ -4,6 +4,7 @@ import {loadLedger, anchorOf} from '@/lib/ledger-server';
 import {sha256} from '@/lib/ledger';
 import {anchorMessage, signRecord, publicSigningKey} from '@/lib/signing';
 import {decisionContext} from '@/lib/decision';
+import {depositView} from '@/lib/deposit-server';
 type Ctx={params:Promise<{token:string}>};
 type ReviewRow=Record<string,unknown>&{id:string;project_id:string;version:number;latest:number;owner:string;status:string;content:string;token:string;signature:string|null;decision_context:string|null};
 async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest,p.owner FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<ReviewRow>();}
@@ -13,7 +14,9 @@ export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.p
  const {owner:_owner,decision_context:_context,...rest}=row;const {token:_,...scope}=parseRow(rest,{withToken:false}) as Record<string,unknown>;
  // The approved latest version doubles as the client's view of the post-approval ledger.
  let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures};}
- return json({scope:{...scope,signature:row.signature??null},previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey()});}catch(e){return failure(e);}}
+ // PR F: the deposit due on signature, once approved (null when the scope has none).
+ const deposit=row.status==='approved'&&row.version===row.latest?await depositView(row.project_id,row.version,JSON.parse(row.content)):null;
+ return json({scope:{...scope,signature:row.signature??null},previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey(),...(deposit?{deposit}:{})});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
  if(!await allowWrite('review:'+row.id,10))return json({error:'Too many attempts. Try again in a minute.'},429);
