@@ -1,0 +1,17 @@
+{
+  "project_id": "golden-project-0001",
+  "version": 1,
+  "signer": "Ada Client",
+  "decided": "2026-10-07T09:00:00.000Z",
+  "content_sha256": "fb43375304eb4e19a9e0571dee0ec5545681d7c4aa2ff2201856576dce79f6a5",
+  "anchor": "b76ede642e17a85cde615e76e93b579197418b4ab388037416d65ee2deb57904",
+  "signature": "d229274fdc7f9fe5.iDrrsslQNHPkP0vpJv5LdJ9cHbX4Z90rzoMzFhGqe7_e_sTLNkU9gUDyGd2Ydicq0IszxA6f3je2FldWDhffCg",
+  "key": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "Ad22XzwgDcmBw_m2UUol-LuPm9ykCBKyZmTKtHdQrzk",
+    "kid": "d229274fdc7f9fe5",
+    "alg": "EdDSA",
+    "use": "sig"
+  }
+}
