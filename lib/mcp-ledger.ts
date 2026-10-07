@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {changeOrderSchema, coSummary, type Agreement} from './ledger';
-import {checkRequest, exclusionClauses} from './check';
+import {exclusionClauses} from './check';
+import {keywordRadar} from './radar';
 import type {Scope} from './scope';
 import {GET as getLedger, POST as postLedger} from '@/app/api/scopes/[id]/ledger/route';
 import {asInternal, type Auth} from '@/lib/server';
@@ -62,6 +63,7 @@ export async function runLedgerTool(name: string, args: {project_id: string; mes
   const agreement = compact(value);
   if (name === 'get_agreement') return ok(agreement);
   if (!value.agreement || !value.baseline) return fail(409, value.reason || 'There is no approved agreement yet.');
-  const heuristic = checkRequest(args.message ?? '', value.baseline.content, value.agreement);
+  // PR E: the keyword verdict now cites numbered clauses (D = deliverable, X = exclusion, T = term, R = revisions).
+  const heuristic = keywordRadar(args.message ?? '', value.baseline.content, value.agreement);
   return ok({heuristic, guidance: 'The heuristic matches keywords only. Decide from the agreement yourself, cite deliverable or exclusion ids, and get the user\'s confirmation before propose_change_order.', agreement});
 }
