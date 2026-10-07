@@ -3,10 +3,11 @@ import { getConnection } from './connection.mjs';
 type Value = string | number | boolean | null;
 type Sql = {
   unsafe(query: string, values?: Value[]): Promise<Record<string, unknown>[] & { count: number }>;
-  begin<T>(callback: (transaction: Sql) => Promise<T>): Promise<T>;
+  begin<T>(callback: (transaction: Sql) => Promise<T>, mode?: string): Promise<T>;
 };
 type Result<T> = { results: T[]; meta: { changes: number } };
-const tables = 'projects|versions|api_keys|rate_limits|ledger_entries';
+type BatchOptions = { lock?: string | null; bypassImmutability?: boolean };
+const tables = 'projects|versions|api_keys|rate_limits|ledger_entries|oauth_clients|oauth_codes|oauth_tokens';
 
 // Existing application SQL uses positional ? parameters. Translate only outside
 // quoted strings, and keep all application tables in a private database schema.
@@ -20,15 +21,23 @@ export function postgresQuery(query: string) {
 }
 
 function mutation(query: string) { return /^\s*(INSERT|UPDATE|DELETE)\b/i.test(query); }
-// Preserve the original ledger's ordering between revision, review, and ledger
-// writes. This transaction-scoped lock is released automatically on rollback.
-async function writeLock(sql: Sql) { await sql.unsafe('SELECT pg_advisory_xact_lock(1935896439)'); }
+
+// SF-05: there is no longer one global lock for every write and read batch.
+// Single statements are atomic and correctness rests on conditional INSERT/UPDATEs
+// plus unique constraints. Multi-statement writes that must be ordered against each
+// other take a transaction-scoped lock keyed by what they touch (a project or an
+// owner), so unrelated tenants never wait on each other.
+export function lockKey(kind: 'project' | 'owner', id: string) { return `scopeflow:${kind}:${id}`; }
+async function scopedLock(sql: Sql, key: string) { await sql.unsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [key]); }
 
 class Statement {
   readonly query: string;
   readonly values: Value[];
-  constructor(query: string, values: Value[] = []) { this.query = query; this.values = values; }
-  bind(...values: Value[]) { return new Statement(this.query, values); }
+  readonly lockOn: string | null;
+  constructor(query: string, values: Value[] = [], lockOn: string | null = null) { this.query = query; this.values = values; this.lockOn = lockOn; }
+  bind(...values: Value[]) { return new Statement(this.query, values, this.lockOn); }
+  /** Serialize this write against other writes holding the same key. */
+  lock(key: string) { return new Statement(this.query, this.values, key); }
   async execute<T>(sql: Sql): Promise<Result<T>> {
     try {
       const rows = await sql.unsafe(postgresQuery(this.query), this.values);
@@ -42,9 +51,10 @@ class Statement {
   }
   async all<T = Record<string, unknown>>(): Promise<Result<T>> {
     const sql = getConnection() as unknown as Sql;
-    if (!mutation(this.query)) return this.execute<T>(sql);
+    if (!mutation(this.query) || !this.lockOn) return this.execute<T>(sql);
+    const key = this.lockOn;
     return sql.begin(async transaction => {
-      await writeLock(transaction as unknown as Sql);
+      await scopedLock(transaction as unknown as Sql, key);
       return this.execute<T>(transaction as unknown as Sql);
     }) as Promise<Result<T>>;
   }
@@ -54,16 +64,23 @@ class Statement {
 
 const database = {
   prepare(query: string) { return new Statement(query); },
-  async batch<T = Record<string, unknown>>(statements: Statement[]): Promise<Result<T>[]> {
-    return (getConnection() as unknown as Sql).begin(async transaction => {
-      const sql = transaction as unknown as Sql;
-      // Read batches (baseline + ledger) must also see a coherent state while
-      // revisions or client decisions arrive concurrently.
-      await writeLock(sql);
+  /**
+   * Runs statements in one transaction. Read-only batches use a REPEATABLE READ
+   * READ ONLY snapshot (coherent, lock-free). Write batches use READ COMMITTED and
+   * take the optional scoped lock first.
+   */
+  async batch<T = Record<string, unknown>>(statements: Statement[], options: BatchOptions = {}): Promise<Result<T>[]> {
+    const writes = statements.some(statement => mutation(statement.query));
+    const sql = getConnection() as unknown as Sql;
+    return sql.begin(async transaction => {
+      const tx = transaction as unknown as Sql;
+      if (writes && options.lock) await scopedLock(tx, options.lock);
+      // Audited bypass of the immutability triggers, used only by account deletion.
+      if (writes && options.bypassImmutability) await tx.unsafe("SELECT set_config('scopeflow.allow_delete', 'on', true)");
       const results: Result<T>[] = [];
-      for (const statement of statements) results.push(await statement.execute<T>(sql));
+      for (const statement of statements) results.push(await statement.execute<T>(tx));
       return results;
-    }) as Promise<Result<T>[]>;
+    }, writes ? undefined : 'ISOLATION LEVEL REPEATABLE READ READ ONLY') as Promise<Result<T>[]>;
   },
 };
 export function getDatabase() { return database; }

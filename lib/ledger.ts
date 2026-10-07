@@ -160,10 +160,11 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
       const due = input?.due ?? '';
       const late = due ? Math.max(0, daysBetween(due, c.received)) : 0;
       if (c.shift && late) shift += late;
-      delays.push({seq: e.seq, input_id: c.input_id, title: input?.title ?? c.input_id, due, received: c.received, days_late: late, shifted: c.shift && late > 0});
+      delays.push({seq: e.seq, input_id: c.input_id, title: input?.title ?? c.input_id, due, received: c.received, days_late: late, shifted: !!baseline.due && c.shift && late > 0});
     }
   }
-  const days = codays + shift;
+  // SF-12: with no baseline due date there is nothing to move; never report a shift.
+  const days = baseline.due ? codays + shift : 0;
   return {
     baseline_version: baselineVersion, currency: baseline.currency,
     items, removed, fee_base: baseline.fee, fee: Math.round(fee * 100) / 100,
@@ -186,6 +187,7 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
     const clash = co.add_items.filter(i => everUsed.has(i.id));
     if (clash.length) return `Deliverable id already used: ${clash.map(i => i.id).join(', ')}. Use new ids for added work.`;
     if (new Set(co.add_items.map(i => i.id)).size !== co.add_items.length) return 'Added deliverables need unique ids.';
+    if (co.days_delta && !baseline.due) return 'The approved scope has no delivery date, so a timeline change cannot apply. Set days_delta to 0, or revise the scope with a delivery date first.';
     if (agreement.fee + co.fee_delta < 0) return 'The fee cannot go below zero.';
     if (agreement.revisions_allowed + co.revisions_delta < 0) return 'Revision rounds cannot go below zero.';
     return null;

@@ -1,21 +1,36 @@
 import { z } from 'zod';
-import {db,json,body,safeOrigin,allowWrite,parseRow,failure} from '@/lib/server';
-import {loadLedger} from '@/lib/ledger-server';
+import {db,json,body,safeOrigin,allowWrite,allowRead,parseRow,failure,ipKey} from '@/lib/server';
+import {loadLedger, anchorOf} from '@/lib/ledger-server';
+import {sha256} from '@/lib/ledger';
+import {anchorMessage, signRecord, publicSigningKey} from '@/lib/signing';
+import {decisionContext} from '@/lib/decision';
 type Ctx={params:Promise<{token:string}>};
-async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<any>();}
-export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=?').bind(row.project_id,row.version-1).first<{content:string}>();const {token:_,...scope}=parseRow(row);
+type ReviewRow=Record<string,unknown>&{id:string;project_id:string;version:number;latest:number;owner:string;status:string;content:string;token:string;signature:string|null;decision_context:string|null};
+async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest,p.owner FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<ReviewRow>();}
+export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.params;if(!await allowRead('review-ip:'+await ipKey(request),300))return json({error:'Too many requests. Try again in a minute.'},429);const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
+ // SF-11: a revoked version's content is not disclosed through the next version's link.
+ const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=? AND revoked=0').bind(row.project_id,row.version-1).first<{content:string}>();
+ const {owner:_owner,decision_context:_context,...rest}=row;const {token:_,...scope}=parseRow(rest,{withToken:false}) as Record<string,unknown>;
  // The approved latest version doubles as the client's view of the post-approval ledger.
- let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head};}
- return json({scope,previous:previous?JSON.parse(previous.content):null,ledger});}catch(e){return failure(e);}}
+ let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures};}
+ return json({scope:{...scope,signature:row.signature??null},previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey()});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
  if(!await allowWrite('review:'+row.id,10))return json({error:'Too many attempts. Try again in a minute.'},429);
  let raw;try{raw=await body(request);}catch{return json({error:'Provide valid JSON under 24 KB.'},400);}
- const input=z.object({decision:z.enum(['approved','changes_requested']),signer:z.string().trim().min(2).max(120),comment:z.string().trim().max(3000),version:z.number().int()}).strict().safeParse(raw);
- if(!input.success)return json({error:'Enter your name and a valid decision.'},400);
+ // SF-15: the reviewer's acknowledgement and the exact content they saw are required and recorded.
+ const input=z.object({decision:z.enum(['approved','changes_requested']),signer:z.string().trim().min(2).max(120),comment:z.string().trim().max(3000),version:z.number().int(),acknowledged:z.literal(true),content_sha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict().safeParse(raw);
+ if(!input.success)return json({error:'Enter your name, confirm you reviewed this version, and choose a decision.'},400);
  if(input.data.decision==='changes_requested'&&!input.data.comment)return json({error:'Please describe the changes you need.'},400);
  if(input.data.version!==row.version)return json({error:'Version mismatch. Reload this review.'},409);
- const r=await db().prepare("UPDATE versions SET status=?,signer=?,comment=?,decided=? WHERE id=? AND token=? AND revoked=0 AND status='pending' AND version=(SELECT latest FROM projects WHERE id=versions.project_id)").bind(input.data.decision,input.data.signer,input.data.comment,new Date().toISOString(),row.id,token).run();
+ const contentHash=await sha256(JSON.stringify(JSON.parse(row.content)));
+ if(input.data.content_sha256!==contentHash)return json({error:'This version changed or did not load completely. Reload this review before deciding.'},409);
+ const decided=new Date().toISOString();
+ const anchor=await anchorOf({project_id:row.project_id,version:row.version,content:row.content,signer:input.data.signer,decided});
+ const signature=signRecord(anchorMessage(anchor));
+ const context=await decisionContext(request,row.owner,{acknowledged:true,content_sha256:contentHash});
+ const r=await db().prepare("UPDATE versions SET status=?,signer=?,comment=?,decided=?,signature=?,decision_context=? WHERE id=? AND token=? AND revoked=0 AND status='pending' AND version=(SELECT latest FROM projects WHERE id=versions.project_id)").bind(input.data.decision,input.data.signer,input.data.comment,decided,signature,JSON.stringify(context),row.id,token).lock('scopeflow:project:'+row.project_id).run();
  if(!r.meta.changes)return json({error:'This version already has a decision or has been replaced. Ask the creator for the latest link.'},409);
- return json({status:input.data.decision});
+ // SF-04: a receipt the client can keep; it lets them detect any later rewrite.
+ return json({status:input.data.decision,receipt:{project_id:row.project_id,version:row.version,signer:input.data.signer,decided,content_sha256:contentHash,anchor,signature,key:publicSigningKey()}});
 }catch(e){return failure(e);}}

@@ -6,7 +6,6 @@ export async function GET() {
   try {
     if (!authConfigured()) throw new Error('Auth configuration is missing');
     getAuth();
-    if (process.env.RENDER && !process.env.APP_URL) throw new Error('APP_URL is required on Render');
     await getDatabase().prepare('SELECT id FROM projects LIMIT 1').all();
     return Response.json({ status: 'ok' }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {

@@ -1,4 +1,4 @@
-import {signIn} from './support/local.mjs';
+import {signIn,ack} from './support/local.mjs';
 // Ledger lifecycle against a running local preview: `node tests/ledger.mjs`.
 // Creates disposable fictional fixtures in the local account only.
 import assert from 'node:assert/strict';
@@ -23,7 +23,7 @@ const co={title:'Social templates',reason:'Requested on call',request_quote:'Cou
 const closed=await call(L);status(closed,200);eq(closed.value.open,false);
 status(await call(L,'POST',{kind:'change_order',baseline_version:1,payload:co}),409);
 status(await call(L,'GET',undefined,false),401);
-status(await call('/api/review/'+token,'POST',{decision:'approved',signer:'Fictional Reviewer',comment:'',version:1},false),200);
+status(await call('/api/review/'+token,'POST',await ack(base,token,{decision:'approved',signer:'Fictional Reviewer',comment:'',version:1}),false),200);
 
 // Owner writes.
 status(await call(L,'POST',{kind:'change_order',baseline_version:2,payload:co}),409);
@@ -81,11 +81,14 @@ eq(ledger.agreement.goodwill_value,150);eq(ledger.entries.filter(e=>e.payload===
 const sc=review.value.scope;const anchor=await anchorHash({project_id:sc.project_id,version:sc.version,content:sc.content,signer:sc.signer,decided:sc.decided});
 eq(anchor,ledger.anchors[1]);
 eq((await verifyChain(ledger.entries,{1:anchor})).intact,true);
+eq(ledger.seal.state,'valid');assert.ok(ledger.entries.every(e=>typeof e.signature==='string'));passed++;
 const tampered=structuredClone(ledger.entries);tampered[0].payload.fee_delta=1;eq((await verifyChain(tampered,{1:anchor})).intact,false);
 const reanchored=await anchorHash({project_id:sc.project_id,version:sc.version,content:{...sc.content,fee:1},signer:sc.signer,decided:sc.decided});eq((await verifyChain(ledger.entries,{1:reanchored})).intact,false);
 
 // A new version closes the ledger for the old baseline.
-const revised=await call('/api/scopes/'+project,'POST',{expected_version:1,content:{...s,fee:2200}});status(revised,201);
+// SF-06: replacing an approved agreement that has ledger entries needs explicit confirmation.
+const blocked=await call('/api/scopes/'+project,'POST',{expected_version:1,content:{...s,fee:2200}});status(blocked,409);eq(blocked.value.code,'agreement_has_ledger');
+const revised=await call('/api/scopes/'+project,'POST',{expected_version:1,content:{...s,fee:2200},supersede_agreement:true});status(revised,201);
 const after=await call(L);eq(after.value.open,false);eq(after.value.entries.length,10);
 const exported=await call('/api/scopes/'+project+'/export');status(exported,200);
 eq(exported.value.versions.length,2);eq(exported.value.ledger_entries.length,10);
@@ -94,6 +97,6 @@ status(await call('/api/scopes/'+project+'/export','GET',undefined,false),401);
 status(await call('/api/scopes/missing-local-fixture/export'),404);
 status(await call(L,'POST',{kind:'goodwill',baseline_version:1,payload:{title:'Late',value:1}}),409);
 status(await call(RC,'POST',{seq:1,decision:'approved',signer:'Fictional Reviewer',comment:''},false),409);
-status(await call('/api/review/'+revised.value.scope.token,'POST',{decision:'approved',signer:'Fictional Reviewer',comment:'',version:2},false),200);
+status(await call('/api/review/'+revised.value.scope.token,'POST',await ack(base,revised.value.scope.token,{decision:'approved',signer:'Fictional Reviewer',comment:'',version:2}),false),200);
 status(await call(L,'POST',{kind:'change_order',baseline_version:2,payload:co,request_id:rid}),409);
 console.log(JSON.stringify({passed,suite:'ledger',changeOrders:true,clientDecisions:true,hashChain:true,privacy:true,staleBaselineBlocked:true}));

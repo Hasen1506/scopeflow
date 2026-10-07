@@ -4,15 +4,15 @@ Configured 4 October 2026. Secrets are held only in Render Environment settings.
 
 | Resource | Value |
 | --- | --- |
-| Neon project | `Scopeflow` (`purple-king-37058196`) |
+| Neon project | `Scopeflow` (ID in the Neon dashboard) |
 | Region | AWS Singapore |
-| Production branch | `br-round-heart-azlvz7aw` |
-| Development branch | `br-twilight-field-azgogwvm` |
+| Production branch | production branch (ID in the Neon dashboard) |
+| Development branch | development branch (ID in the Neon dashboard) |
 | Database | `neondb` |
-| Render service | `scopeflow` (`srv-db0ra5psrm7s738rnkhg`) |
+| Render service | `scopeflow` (ID in the Render dashboard) |
 | Public origin | `https://scopeflow-qnng.onrender.com` |
 
-Production uses the pooled PostgreSQL connection in server-only DATABASE_URL. Neon Better Auth is enabled on that branch, with email/password signup and Neon's shared email provider. The exact Render HTTPS origin is registered as a trusted origin. Render stores NEON_AUTH_BASE_URL, a stable random NEON_AUTH_COOKIE_SECRET, APP_URL and NODE_ENV=production. No database password or cookie secret belongs in source control.
+Production uses the pooled PostgreSQL connection in server-only DATABASE_URL. Neon Better Auth is enabled on that branch, with email/password signup and Neon's shared email provider. The exact Render HTTPS origin is registered as a trusted origin. Render stores NEON_AUTH_BASE_URL, a stable random NEON_AUTH_COOKIE_SECRET, APP_URL (must be exactly `https://scopeflow-qnng.onrender.com`), SCOPEFLOW_SIGNING_SECRET and NODE_ENV=production. Infrastructure IDs are kept in the provider dashboards, not in this repository. No database password or cookie secret belongs in source control.
 
 Startup runs `npm run db:migrate && npm start`. All six application tables were initialized in the `scopeflow` schema, separate from the managed `neon_auth` schema. Render and Neon are co-located in Singapore and use free plans. The development branch was created before application writes and is isolated from production.
 

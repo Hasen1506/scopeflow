@@ -56,8 +56,23 @@ Set these values securely in the Render service:
 | `DATABASE_URL` | Neon's pooled PostgreSQL connection string; secret |
 | `NEON_AUTH_BASE_URL` | Neon's Auth URL for the same branch |
 | `NEON_AUTH_COOKIE_SECRET` | A private random value of at least 32 characters; the Blueprint generates it |
-| `APP_URL` | Your canonical public origin, such as `https://scopeflow.onrender.com`; use the actual assigned URL |
+| `APP_URL` | Your canonical public origin, exactly as the browser shows it: `https://scopeflow-qnng.onrender.com` for the current service. No path. Used for workspace links and as the OAuth issuer. If unset, the app uses the proxy's `X-Forwarded-Proto` + `Host` of each request; a mismatch is logged once. |
+| `SCOPEFLOW_SIGNING_SECRET` | Random value of at least 32 characters (`openssl rand -base64 48`); the Blueprint generates it. Seeds the Ed25519 key that signs client decisions and ledger entries. Keep it stable; when rotating, put the old value in `SCOPEFLOW_SIGNING_SECRET_PREVIOUS` (comma-separated) so old records still verify. If unset, a key is derived from `NEON_AUTH_COOKIE_SECRET`. |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | Optional, build-time. A role address (for example `support@your-domain`) shown on Support, Privacy, Terms and Data controls. When unset, pages link to the Support page instead of a personal inbox. |
+| `PG_POOL_MAX` | Optional. PostgreSQL client pool size (default 15, 2-100). Use Neon's pooled connection string. |
+| `OAUTH_CIMD_HOSTS` | Optional. Comma-separated hosts whose OAuth Client ID Metadata Documents are trusted (default `chatgpt.com`). Set to an empty string to rely on dynamic client registration only. |
 | `NODE_ENV` | `production`; set by the Blueprint |
+
+### Why APP_URL matters (the "Origin not allowed" outage)
+
+`next start --hostname 0.0.0.0` makes `request.url` inside route handlers look like
+`http://0.0.0.0:<PORT>`. Earlier builds compared the browser's `Origin` header with
+`APP_URL || request.url`, so a missing or mistyped `APP_URL` rejected every sign-up,
+password reset and token request with "Origin not allowed." The guard now accepts the
+canonical origin (`APP_URL`) and the request's own forwarded origin
+(`X-Forwarded-Proto` + `X-Forwarded-Host`/`Host`), which a cross-site page cannot forge
+together with its `Origin`. Still set `APP_URL` exactly: links in MCP responses and
+OAuth metadata are built from it.
 
 If configuring the service manually, generate the cookie secret privately with
 `openssl rand -base64 32`. Keep it stable across restarts/deployments. Changing
@@ -69,9 +84,15 @@ Migrations run at startup so the free Render plan does not need a pre-deploy
 command. They take a PostgreSQL advisory lock, record checksums, and commit
 atomically; repeated starts safely skip already-applied migrations. A failed
 migration stops startup. Existing application writes are transactional and
-ordered by a transaction-scoped advisory lock to preserve the original beta's
-ledger/revision concurrency behavior. This serializes writes and should be
-revisited if the application outgrows the beta workload.
+serialized only where they must be: per project (revisions, client decisions,
+ledger entries) and per owner (project creation cap, account deletion), using
+transaction-scoped advisory locks keyed by that id. Reads that need a coherent
+view run as REPEATABLE READ READ ONLY snapshots without locks. Migration
+`0001_integrity_oauth.sql` adds triggers that make decided versions and ledger
+entries immutable (only account deletion may remove them, through an explicit
+transaction-local bypass). For defence in depth, run the app with a
+least-privilege role that does not own the tables (SELECT, INSERT, UPDATE,
+DELETE only) and run migrations with the owner role.
 
 The current checked-in migration chain lives in `db/migrations`. Legacy SQLite
 migrations in `drizzle` are retained only for historical regression tests.
@@ -92,9 +113,11 @@ Do not edit an already-applied migration.
    projects. Sign out and verify protected requests reject the old session.
 5. Create/revoke an account API token from `/connect`. The REST API and `/mcp`
    accept `Authorization: Bearer <your Scopeflow token>`. Never give a connector
-   your Neon database password or cookie secret. Automatic OpenAI Sites OAuth
-   provisioning is no longer part of this deployment; connector directory
-   approval or a dedicated OAuth server is a separate integration.
+   your Neon database password or cookie secret.
+6. Connect ChatGPT (or MCP Inspector) to `https://<your origin>/mcp`. It discovers
+   `/.well-known/oauth-protected-resource`, registers itself (DCR, or CIMD for
+   `chatgpt.com`), sends you to `/oauth/authorize` to sign in and allow access,
+   and exchanges the code with PKCE. Disconnect apps from `/connect`.
 
 The automated local runner refuses remote databases and hosts. Do not point it
 at Neon production: it deletes fictional account data and resets request

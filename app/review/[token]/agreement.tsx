@@ -6,21 +6,25 @@ import {formatMoney, type Version} from '@/lib/scope';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 
-export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string};
-type Check = {state: 'checking'} | {state: 'ok'; head: string; count: number} | {state: 'failed'; detail: string};
+type SealState = 'valid' | 'invalid' | 'unsigned';
+export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}};
+type Check = {state: 'checking'} | {state: 'ok'; head: string; count: number; signed?: boolean} | {state: 'failed'; detail: string};
 
 /** Recomputes the record's fingerprints locally, so the client does not have to trust our server's word. */
 function useVerification(scope: Version, ledger: ClientLedger): Check {
   const [check, setCheck] = useState<Check>({state: 'checking'});
   useEffect(() => {
     let live = true;
-    setCheck({state:'checking'});
     (async () => {
       const own = await anchorHash({project_id: scope.project_id, version: scope.version, content: scope.content, signer: scope.signer, decided: scope.decided});
       if (own !== ledger.anchors[scope.version]) return {state: 'failed', detail: 'The approved scope does not match the record it is anchored to.'} as Check;
       const result = await verifyChain(ledger.entries, {...ledger.anchors, [scope.version]: own});
       if(result.intact&&result.head!==ledger.head)return {state:'failed',detail:'The record does not reach its stated fingerprint.'} as Check;
-      return result.intact ? {state: 'ok', head: result.head, count: result.count} as Check : {state: 'failed', detail: `Entry #${result.at}: ${result.reason}.`} as Check;
+      if (!result.intact) return {state: 'failed', detail: `Entry #${result.at}: ${result.reason}.`} as Check;
+      // SF-04: recomputed hashes alone cannot prove the record was not rewritten in the
+      // database; the server's signatures (keyed outside the database) must also hold.
+      if (ledger.seal?.state === 'invalid') return {state: 'failed', detail: 'The record’s signatures do not match its contents, so it was changed after it was recorded.'} as Check;
+      return {state: 'ok', head: result.head, count: result.count, signed: ledger.seal?.state === 'valid'} as Check;
     })().then(c => { if (live) setCheck(c); }, () => { if (live) setCheck({state: 'failed', detail: 'This browser could not run the check.'}); });
     return () => { live = false; };
   }, [scope, ledger]);
@@ -62,7 +66,7 @@ export function AgreementView({token, scope, ledger, onChanged}: {token: string;
         </>
       )}
       <p className="fine">
-        {check.state === 'ok' && <>Record fingerprint <span className="mono">{check.head.slice(0, 16)}</span> covers {check.count} entries. Every entry is linked to the one before it and to the approved scope, so a later edit to any of them would change this fingerprint. Save or print this page to keep a copy.</>}
+        {check.state === 'ok' && <>Record fingerprint <span className="mono">{check.head.slice(0, 16)}</span> covers {check.count} entries. Every entry is linked to the one before it and to the approved scope, so a later edit to any of them would change this fingerprint. {check.signed ? ' Every entry and the approval carry Scopeflow signatures that were verified.' : ' Some entries were recorded before signatures were introduced.'} Save or print this page to keep a copy.</>}
         {check.state === 'failed' && <>{check.detail} Ask the creator about it before approving anything further.</>}
         {check.state === 'checking' && 'Checking the record…'}
       </p>

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { authClient } from '@/lib/auth/client';
+import { safeReturnPath } from '@/lib/origin';
 
 export default function AuthForm({ mode, returnTo, token, configured }: {
   mode: string; returnTo: string; token?: string; configured: boolean;
@@ -17,7 +18,9 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
     const form = new FormData(event.currentTarget);
     const email = String(form.get('email') || '').trim();
     const password = String(form.get('password') || '');
-    const callbackURL = window.location.origin + returnTo;
+    // SF-03: re-check the destination on the client too; never navigate off-site.
+    const destination = safeReturnPath(returnTo);
+    const callbackURL = window.location.origin + destination;
     try {
       if (mode === 'forgot-password') {
         const result = await authClient.requestPasswordReset({ email, redirectTo: window.location.origin + '/auth/reset-password' });
@@ -34,7 +37,7 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
           : await authClient.signIn.email({ email, password, callbackURL });
         if (result.error) throw new Error(result.error.message || 'Unable to sign in.');
         const session = await authClient.getSession();
-        if (session.data?.user) { router.push(returnTo); router.refresh(); }
+        if (session.data?.user) { router.push(destination); router.refresh(); }
         else setMessage('Check your email to verify your account, then sign in.');
       }
     } catch (error) { setError(error instanceof Error ? error.message : 'Please try again.'); }
@@ -46,7 +49,7 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
       <form onSubmit={submit} className="section-gap">
         {mode === 'sign-up' && <label>Your name<input name="name" autoComplete="name" required minLength={2} maxLength={120} /></label>}
         {mode !== 'reset-password' && <label>Email<input name="email" type="email" autoComplete="email" required maxLength={254} /></label>}
-        {mode !== 'forgot-password' && <label>Password<input name="password" type="password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} /></label>}
+        {mode !== 'forgot-password' && <label>Password<input name="password" type="password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} aria-describedby={mode === 'sign-in' ? undefined : 'password-hint'} />{mode !== 'sign-in' && <span id="password-hint" className="fine" style={{display: 'block', fontWeight: 400}}>Use at least 8 characters. A longer passphrase is stronger.</span>}</label>}
         <button className="primary section-gap" disabled={busy || (mode === 'reset-password' && !token)}>{busy ? 'Please wait…' : mode === 'sign-up' ? 'Create account' : mode === 'forgot-password' ? 'Send reset link' : mode === 'reset-password' ? 'Update password' : 'Sign in'}</button>
       </form>}
     {error && <p className="error" role="alert">{error}</p>}

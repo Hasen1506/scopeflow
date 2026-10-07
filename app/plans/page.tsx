@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {Header} from '../ui';
 
 export default function Plans(){
@@ -9,6 +10,6 @@ export default function Plans(){
   </div>
   <div className="muted-box section-gap">The current early beta is free to test, with a safety limit of 100 projects and 100 versions per project. Proposed plan limits are not enforced. There is no automatic renewal or payment collection.</div>
   <p className="quiet section-gap">Team workspaces and custom branding are planned separately. They are not included in the current beta.</p>
-  <a className="primary" href="/">Try the workspace</a>
+  <Link className="primary" href="/">Try the workspace</Link>
  </main></>;
 }

@@ -1,0 +1,41 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: scopeflow_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/scopeflow_test
+      NEON_AUTH_BASE_URL: http://localhost:55433
+      NEON_AUTH_COOKIE_SECRET: ci-only-cookie-secret-0123456789abcdef0123
+      APP_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --include=dev --include=optional
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run db:migrate
+      - name: Start the local auth fixture and the production build
+        run: |
+          node tests/support/auth-service.mjs > auth.log 2>&1 &
+          npx next start --hostname localhost --port 5173 > next.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:5173/api/health && break; sleep 1; done
+      - run: npm run test:local

@@ -1,4 +1,4 @@
-import {signIn,localSql} from './support/local.mjs';
+import {signIn,localSql,ack} from './support/local.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
 const base=process.env.SCOPEFLOW_TEST_URL||'http://localhost:5173';
@@ -16,7 +16,7 @@ const v=first.value.scope;
 status(await call('/api/scopes/'+v.project_id+'/review-link','POST',{version:1,action:'revoke'},false),401);
 status(await call('/api/scopes/'+v.project_id+'/review-link','POST',{version:1,action:'revoke'}),200);
 status(await call('/api/review/'+v.token,'GET',undefined,false),404);
-status(await call('/api/review/'+v.token,'POST',{decision:'approved',signer:'Local Reviewer',comment:'',version:1},false),404);
+status(await call('/api/review/'+v.token,'POST',await ack(base,v.token,{decision:'approved',signer:'Local Reviewer',comment:'',version:1}),false),404);
 const replacement=await call('/api/scopes/'+v.project_id+'/review-link','POST',{version:1,action:'rotate'});status(replacement,200);
 status(await call('/api/review/'+v.token,'GET',undefined,false),404);
 status(await call('/api/review/'+replacement.value.review_path.split('/').at(-1),'GET',undefined,false),200);
@@ -41,7 +41,9 @@ const otherTools=await rpc('tools/call',{name:'list_scopes',arguments:{}},false,
 const listed=await rpc('tools/call',{name:'list_scopes',arguments:{}});status(listed,200);assert.ok(listed.value.result.structuredContent.scopes.every(x=>!('token' in x)));passed++;
 const templates=await rpc('tools/call',{name:'list_scope_templates',arguments:{}},false);eq(templates.value.result.structuredContent.templates.length,3);
 const invalid=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:randomUUID(),user_confirmed:false}});eq(invalid.value.error.code,-32602);
-const requestId=randomUUID();const created=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:requestId,user_confirmed:true}});status(created,200);assert.ok(created.value.result.structuredContent.review_url);passed++;
+const requestId=randomUUID();const created=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:requestId,user_confirmed:true}});status(created,200);
+// SF-02/SF-07: no review link for agents; the workspace URL uses the public origin, never 0.0.0.0.
+assert.equal(created.value.result.structuredContent.review_url,undefined);assert.ok(!JSON.stringify(created.value.result).includes('/review/'));assert.equal(new URL(created.value.result.structuredContent.workspace_url).origin,base);passed++;
 const retry=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:requestId,user_confirmed:true}});eq(retry.value.result.structuredContent.replayed,true);
 const project=created.value.result.structuredContent.scope.project_id;
 const revised=await rpc('tools/call',{name:'revise_scope',arguments:{project_id:project,expected_version:1,content:{...s,fee:150},user_confirmed:true}});eq(revised.value.result.structuredContent.scope.version,2);
