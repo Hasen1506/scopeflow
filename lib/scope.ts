@@ -47,7 +47,7 @@ export const scopeSchema = z.object({
   unique(s.client_inputs, 'client_inputs');
 }).transform(s => (s.items?.length ? {...s, deliverables: s.items.map(itemLine).join('\n').slice(0, 5000)} : s));
 export type Scope = z.infer<typeof scopeSchema>;
-export type Version = {id: string; project_id: string; version: number; token: string; revoked?: number; content: Scope; status: string; signer: string | null; comment: string | null; created: string; decided: string | null};
+export type Version = {id: string; project_id: string; version: number; token: string; revoked?: number; content: Scope; status: string; signer: string | null; comment: string | null; created: string; decided: string | null; archived?: string | null; client_email?: string | null};
 
 /** One-line text form of an item; used for the legacy `deliverables` field. */
 export function itemLine(i: Item) {
