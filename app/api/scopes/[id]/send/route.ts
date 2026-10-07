@@ -58,7 +58,8 @@ export async function POST(request: Request, ctx: Ctx) {
     }
     const content = JSON.parse(row.content) as Scope;
     const reviewUrl = publicUrl(request, '/review/' + row.token);
-    const message = signatureEmail({title: content.title, client: content.client, version: row.version, reviewUrl});
+    const wording = await db().prepare('SELECT email_subject,email_body FROM account_settings WHERE owner=?').bind(user.userId).first<{email_subject: string | null; email_body: string | null}>();
+    const message = signatureEmail({title: content.title, client: content.client, version: row.version, reviewUrl, template: {subject: wording?.email_subject ?? undefined, body: wording?.email_body ?? undefined}});
     const fallback = {review_url: reviewUrl, mailto: mailtoLink(email, message)};
     const config = mailConfig();
     if (!config) return json({sent: false, configured: false, to: email, ...fallback});

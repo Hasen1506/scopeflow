@@ -5,7 +5,7 @@
 import {test, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';
-import {base, call, database, owner, project, decide, changeOrder} from './support.mjs';
+import {base, call, database, owner, project, changeOrder} from './support.mjs';
 
 let db, A, F, approved, pending, revoked;
 const clearLimits = () => db.query('DELETE FROM scopeflow.rate_limits');
