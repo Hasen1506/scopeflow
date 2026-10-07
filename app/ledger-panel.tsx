@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {FilePlus2, Gift, Inbox, RefreshCw, RotateCcw, ShieldCheck, ShieldAlert} from 'lucide-react';
 import {coSummary, describeEntry, type Agreement, type ChangeOrder, type LedgerEntry} from '@/lib/ledger';
 import {formatMoney, label, type Item, type Scope} from '@/lib/scope';
+import {formatInZone} from '@/lib/time';
 import {ItemsEditor} from './items-editor';
 import {ScopeCheck} from './scope-check';
 import {api, post} from './ui';
@@ -18,7 +19,7 @@ type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' 
 type Form = LedgerForm;
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function LedgerPanel({projectId, reviewUrl}: {projectId: string; reviewUrl: string | null}) {
+export function LedgerPanel({projectId, reviewUrl, timeZone = null}: {projectId: string; reviewUrl: string | null; timeZone?: string | null}) {
   const [view, setView] = useState<LedgerView | null>(null);
   const [form, setForm] = useState<Form>(null);
   const [coSeed, setCoSeed] = useState<CoPrefill>({});
@@ -128,7 +129,7 @@ export function LedgerPanel({projectId, reviewUrl}: {projectId: string; reviewUr
                   <span>#{e.seq} · {describeEntry(e, cur, items, base?.client_inputs ?? [])}</span>
                   {co && <span className={'tag status-' + (co.status === 'proposed' ? 'pending' : co.status === 'approved' ? 'approved' : 'changes_requested')}>{label(co.status)}</span>}
                 </div>
-                <span className="fine">{new Date(e.created).toLocaleString()} · {e.actor === 'client' ? 'client' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
+                <span className="fine">{formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
                 {co?.status === 'proposed' && <button className="link-button" disabled={busy} onClick={() => { if (window.confirm(`Withdraw CO-${co.seq}? The client will no longer be able to approve it.`)) void submit('settle', {ref_seq: co.seq, outcome: 'withdrawn'}); }}>Withdraw</button>}
               </li>
             );
