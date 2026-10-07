@@ -4,19 +4,20 @@ import {loadLedger, anchorOf} from '@/lib/ledger-server';
 import {sha256} from '@/lib/ledger';
 import {anchorMessage, signRecord, publicSigningKey} from '@/lib/signing';
 import {decisionContext} from '@/lib/decision';
+import {zoneOrUtc} from '@/lib/time';
 import {OTP_SESSION_TTL_MS, maskEmail, signEvidence, type IdentityEvidence} from '@/lib/otp';
 type Ctx={params:Promise<{token:string}>};
 type ReviewRow=Record<string,unknown>&{id:string;project_id:string;version:number;latest:number;owner:string;status:string;content:string;token:string;signature:string|null;decision_context:string|null;require_otp:boolean;client_email:string|null};
-async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest,p.owner,p.require_otp,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<ReviewRow>();}
+async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest,p.owner,p.timezone,p.require_otp,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<ReviewRow>();}
 export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.params;if(!await allowRead('review-ip:'+await ipKey(request),300))return json({error:'Too many requests. Try again in a minute.'},429);const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
  // SF-11: a revoked version's content is not disclosed through the next version's link.
  const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=? AND revoked=0').bind(row.project_id,row.version-1).first<{content:string}>();
- const {owner:_owner,decision_context:_context,require_otp:requireOtp,client_email:clientEmail,...rest}=row;const {token:_,...scope}=parseRow(rest,{withToken:false}) as Record<string,unknown>;
+ const {owner:_owner,decision_context:_context,timezone,require_otp:requireOtp,client_email:clientEmail,...rest}=row;const {token:_,...scope}=parseRow(rest,{withToken:false}) as Record<string,unknown>;
  // The approved latest version doubles as the client's view of the post-approval ledger.
  let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures};}
  // PR B: whether this decision needs an email code first, and where it goes (masked).
  const identity_check=requireOtp&&row.status==='pending'?{method:'email_otp',to:clientEmail?maskEmail(clientEmail):null}:null;
- return json({scope:{...scope,signature:row.signature??null},previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey(),...(identity_check?{identity_check}:{})});}catch(e){return failure(e);}}
+ return json({scope:{...scope,signature:row.signature??null},previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey(),time_zone:zoneOrUtc(timezone as string|null),...(identity_check?{identity_check}:{})});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
  if(!await allowWrite('review:'+row.id,10))return json({error:'Too many attempts. Try again in a minute.'},429);
