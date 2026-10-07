@@ -197,12 +197,23 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   const refused = await page.request.delete(`/api/scopes/${projectId}`, {data: {confirmation: 'DELETE'}, headers: {Origin: baseURL!}});
   expect(refused.status()).toBe(409);
   expect((await refused.json()).code).toBe('has_client_evidence');
+  // Regression: a closing dialog keeps its own wording. While the archive dialog's exit animation ran,
+  // its copy fell through to "Restore this project?" / "Restore project", so a quick "Restore project"
+  // click landed on the closing dialog and no restore dialog opened (red e2e on PRs F and G). The exit
+  // animation is stretched to 2s so the closing state is observed deterministically.
+  const slowClose = await page.addStyleTag({content: '[role="dialog"][data-state="closed"]{animation-duration:2s!important}'});
   await page.getByRole('button', {name: 'Archive project'}).click();
   await page.getByRole('dialog').getByRole('button', {name: 'Archive project'}).click();
+  await expect(page.locator('[role="dialog"][data-state="closed"]')).toHaveCount(1);
+  const closing = await page.locator('[role="dialog"][data-state="closed"]').innerText();
+  expect(closing).toContain('Archive this project?');
+  expect(closing).not.toContain('Restore');
   await expect(page.locator('.small-title').filter({hasText: 'Saved version 1'}).getByText('Archived')).toBeVisible();
   await page.getByRole('button', {name: 'Restore project'}).click();
   await page.getByRole('dialog').getByRole('button', {name: 'Restore project'}).click();
   await expect(page.getByRole('status').filter({hasText: 'Project restored.'})).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await slowClose.evaluate(e => (e as Element).remove());
 
   // --- A pending draft: send for signature (fallback), then delete it -------------------
   await page.getByRole('button', {name: 'New scope'}).click();

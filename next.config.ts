@@ -8,11 +8,13 @@ import type { NextConfig } from "next";
 const isProduction = process.env.NODE_ENV === "production";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
+  `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"} https://checkout.razorpay.com`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://cdn.razorpay.com",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  // PR F: Razorpay Checkout (loaded on demand on the review page only when a deposit is due).
+  "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com",
+  "frame-src https://api.razorpay.com https://checkout.razorpay.com",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'none'",
