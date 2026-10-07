@@ -29,6 +29,8 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci --include=dev --include=optional
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm run lint
       - name: Property-based, golden and differential tests (pure, no server)
@@ -40,4 +42,17 @@ jobs:
           node tests/support/auth-service.mjs > auth.log 2>&1 &
           npx next start --hostname localhost --port 5173 > next.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:5173/api/health && break; sleep 1; done
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:55433/ok && break; sleep 1; done
+      # Runs first, on the fresh database and auth fixture. No retries, no quarantine.
+      - name: Golden E2E (Playwright)
+        run: npm run test:e2e
       - run: npm run test:local
+      - name: Live property and differential tests (API, database triggers)
+        run: npm run test:live
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
