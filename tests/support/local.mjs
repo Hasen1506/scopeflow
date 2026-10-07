@@ -28,3 +28,14 @@ export function localSql(command) {
   assert.equal(result.status, 0, result.stderr + result.stdout);
   return JSON.parse(result.stdout);
 }
+// SF-15: client decisions must carry the reviewer's acknowledgement and the SHA-256 of
+// the exact content shown. Fetches the version through its review link like a browser.
+export async function ack(base, token, body) {
+  const r = await fetch(base + '/api/review/' + token);
+  let content_sha256 = '0'.repeat(64);
+  if (r.ok) {
+    const { scope } = await r.json();
+    content_sha256 = (await import('node:crypto')).createHash('sha256').update(JSON.stringify(scope.content)).digest('hex');
+  }
+  return { ...body, acknowledged: true, content_sha256 };
+}
