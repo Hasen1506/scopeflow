@@ -31,6 +31,8 @@ jobs:
       - run: npm ci --include=dev --include=optional
       - run: npm run typecheck
       - run: npm run lint
+      - name: Property-based, golden and differential tests (pure, no server)
+        run: npm run test:props
       - run: npm run build
       - run: npm run db:migrate
       - name: Start the local auth fixture and the production build
