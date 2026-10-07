@@ -38,6 +38,9 @@ export const scopeSchema = z.object({
   revisions: z.number().int().min(0).max(50),
   due: dateString,
   notes: z.string().trim().max(3000),
+  // PR F: deposit due on signature, % of the fee. Optional and omitted when unset, so content signed
+  // before it existed keeps its exact canonical form (and hash).
+  deposit_pct: z.number().finite().min(0).max(100).optional(),
 }).strict().superRefine((s, ctx) => {
   if (!s.items?.length && s.deliverables.length < 5) ctx.addIssue({code: 'custom', path: ['deliverables'], message: 'Add at least one deliverable'});
   const unique = (list: {id: string}[] | undefined, path: string) => {
