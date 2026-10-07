@@ -26,6 +26,7 @@ export async function DELETE(request:Request){try{
   database.prepare("DELETE FROM rate_limits WHERE id IN (?,?) OR id IN (SELECT 'review:'||v.id FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=?)").bind('owner:'+id,'key:'+id,id),
   database.prepare('DELETE FROM ledger_entries WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM versions WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
+  database.prepare('DELETE FROM payments WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM projects WHERE owner=?').bind(id),
   database.prepare('DELETE FROM api_keys WHERE owner=?').bind(id),
   database.prepare('DELETE FROM oauth_codes WHERE owner=?').bind(id),
