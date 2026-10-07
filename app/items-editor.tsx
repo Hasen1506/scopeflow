@@ -1,6 +1,6 @@
 'use client';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
-import {newId, type ClientInput, type Item} from '@/lib/scope';
+import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
 
 const num = (value: string, fallback: number) => (value === '' || Number.isNaN(Number(value)) ? fallback : Number(value));
 
@@ -38,7 +38,7 @@ export function ItemsEditor({items, currency, onChange}: {items: Item[]; currenc
       ))}
       <div className="small-title">
         <button type="button" className="secondary" onClick={() => onChange([...items, {id: newId(), title: '', qty: 1, unit: '', price: null, acceptance: ''}])}><Plus size={16} />Add deliverable</button>
-        {priced.length > 0 && <span className="fine">Itemised total: {new Intl.NumberFormat('en-US', {style: 'currency', currency}).format(total)}{priced.length < items.length ? ` (${items.length - priced.length} unpriced)` : ''}</span>}
+        {priced.length > 0 && <span className="fine">Itemised total: {formatMoney(total, currency)}{priced.length < items.length ? ` (${items.length - priced.length} unpriced)` : ''}</span>}
       </div>
     </fieldset>
   );
