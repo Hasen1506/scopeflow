@@ -22,6 +22,10 @@ jobs:
       NEON_AUTH_BASE_URL: http://localhost:55433
       NEON_AUTH_COOKIE_SECRET: ci-only-cookie-secret-0123456789abcdef0123
       APP_URL: http://localhost:5173
+      # PR B: no mail provider in CI, so one-time codes are logged to this file instead of emailed
+      # (dev mode is refused unless APP_URL is localhost). tests/otp.mjs reads them from here.
+      SCOPEFLOW_OTP_DEV: '1'
+      SCOPEFLOW_OTP_DEV_LOG: /tmp/scopeflow-otp-dev.log
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
