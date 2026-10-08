@@ -4,7 +4,7 @@ import {ShieldAlert, ShieldCheck} from 'lucide-react';
 import {coSummary, computeAgreement, describeEntry, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
 import {checkClientRecord, type RecordCheck, type SealState} from '@/lib/record-check';
 import {formatMoney, type Version} from '@/lib/scope';
-import {formatInZone} from '@/lib/time';
+import {formatInZone, formatDay} from '@/lib/time';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 
@@ -40,7 +40,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
       <p className="quiet section-gap">Version {scope.version} is the approved baseline. Change orders need your approval before they apply. The creator also records revision rounds, received inputs, delivery shifts, and goodwill here.</p>
       <div className="agreement-grid">
         <div><span>Fee</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>approved at {formatMoney(a.fee_base, cur)}</em>}</div>
-        <div><span>Delivery</span><strong>{a.due || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days</em>}</div>
+        <div><span>Delivery</span><strong>{formatDay(a.due) || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days</em>}</div>
         <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} of {a.revisions_allowed} used</strong></div>
         <div><span>Extra work not billed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong></div>
       </div>
@@ -59,7 +59,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
         </>
       )}
       <p className="fine">
-        {check.state === 'ok' && <>Record fingerprint <span className="mono">{check.head.slice(0, 16)}</span> covers {check.count} entries. Every entry is linked to the one before it and to the approved scope, so a later edit to any of them would change this fingerprint. {check.signed ? ' Every entry and the approval carry Scopeflow signatures that were verified.' : ' Some entries were recorded before signatures were introduced.'} Save or print this page to keep a copy.</>}
+        {check.state === 'ok' && <>Record fingerprint <span className="mono">{check.head.slice(0, 16)}</span> covers {check.count} {check.count === 1 ? 'entry' : 'entries'}. Every entry is linked to the one before it and to the approved scope, so a later edit to any of them would change this fingerprint. {check.signed ? ' Every entry and the approval carry Scopeflow signatures that were verified.' : ' Some entries were recorded before signatures were introduced.'} Save or print this page to keep a copy.</>}
         {check.state === 'failed' && <>{check.detail} Ask the creator about it before approving anything further.</>}
         {check.state === 'checking' && 'Checking the record…'}
       </p>

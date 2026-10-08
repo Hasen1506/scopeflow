@@ -14,7 +14,8 @@ test('payments are off without keys, with a reason; webhook secret is separate',
   assert.equal(rz.razorpayConfig({}), null);
   assert.equal(rz.razorpayConfig({RAZORPAY_KEY_ID: 'rzp_test_x'}), null);
   assert.deepEqual(rz.razorpayConfig({RAZORPAY_KEY_ID: 'rzp_test_x', RAZORPAY_KEY_SECRET: 's'}), {keyId: 'rzp_test_x', keySecret: 's'});
-  assert.match(rz.paymentsStatus({}).reason, /RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET/);
+  assert.match(rz.paymentsStatus({}).setup, /RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET/);
+  assert.doesNotMatch(rz.paymentsStatus({}).reason, /RAZORPAY|KEY|SECRET/, 'the client-facing reason names no server settings');
   assert.equal(rz.paymentsStatus({RAZORPAY_WEBHOOK_SECRET: 'w'}).webhook, true);
   assert.equal(rz.webhookSecret({RAZORPAY_WEBHOOK_SECRET: '  '}), null);
 });

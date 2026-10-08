@@ -21,6 +21,13 @@ export function formatInZone(iso: string | null | undefined, tz?: string | null)
   const name = zone === 'UTC' ? 'UTC' : parts.timeZoneName;
   return `${parts.day} ${parts.month} ${parts.year}, ${parts.hour}:${parts.minute} ${name}`;
 }
+/** A calendar date ("2026-12-15") as "15 Dec 2026". Dates carry no time zone, so they are formatted in UTC; anything else is returned unchanged. */
+export function formatDay(day: string | null | undefined) {
+  if (!day) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
+  const d = new Date(day + 'T00:00:00Z');
+  return Number.isNaN(d.getTime()) ? day : new Intl.DateTimeFormat('en-GB', {timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric'}).format(d);
+}
 /** Zones offered in the editor: the runtime's IANA list when available, plus UTC. */
 export function timeZones(): string[] {
   const intl = Intl as unknown as {supportedValuesOf?: (key: string) => string[]};

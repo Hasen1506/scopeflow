@@ -36,7 +36,7 @@ eq((await call('/api/review/' + token, {method: 'POST', body: await ack(base, to
 // Approved, but no API keys: shown as due, disabled with the reason.
 {
   const r = await call('/api/review/' + token);
-  eq(r.data.deposit, {pct: 30, amount: 30000, currency: 'INR', amount_minor: 3000000, paid: null, enabled: false, provider: null, reason: 'Online payments are not set up on this server (RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are not set).'});
+  eq(r.data.deposit, {pct: 30, amount: 30000, currency: 'INR', amount_minor: 3000000, paid: null, enabled: false, provider: null, reason: 'Online payment is not available for this scope.'});
   const d = await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}});
   eq(d.status, 503); eq(d.data.code, 'payments_disabled');
 }

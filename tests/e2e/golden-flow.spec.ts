@@ -109,7 +109,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await page.getByLabel('Target delivery').fill('2026-12-15'); // native date picker
   await page.getByLabel('Outside this scope').fill('Website design, social media management, print production.');
   await page.getByLabel('Working terms').fill('Feedback is consolidated into one list per round.');
-  await expect(page.locator('.paper')).toContainText('2026-12-15');
+  await expect(page.locator('.paper')).toContainText('15 Dec 2026');
 
   // --- Save version 1 and get the review link ------------------------------------------
   const created = page.waitForResponse(r => r.url().endsWith('/api/scopes') && r.request().method() === 'POST');

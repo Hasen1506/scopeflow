@@ -820,3 +820,25 @@ label .fine{font-weight:var(--fw-1)}
   .page-heading.compact h1{font-size:var(--fs-4);line-height:var(--lh-4)}
   .page-heading.compact .actions{flex-wrap:nowrap}
 }
+/* Stat grids: 2×2 in a card column, one row when there is room, never a half-empty row of filler.
+   Queried against the card, not the viewport, because the card's width depends on the layout. */
+.flow-step,.agreement-view{container-type:inline-size}
+.agreement-grid,.pay-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.agreement-grid>div:last-child:nth-child(odd),.pay-grid>div:last-child:nth-child(odd){grid-column:1/-1}
+@container (min-width:560px){
+ .agreement-grid,.pay-grid{grid-template-columns:none;grid-auto-columns:minmax(0,1fr);grid-auto-flow:column}
+ .agreement-grid>div:last-child:nth-child(odd),.pay-grid>div:last-child:nth-child(odd){grid-column:auto}
+}
+@container (min-width:360px){
+ .agreement-grid:has(>div:nth-child(3):last-child),.pay-grid:has(>div:nth-child(3):last-child){grid-template-columns:none;grid-auto-columns:minmax(0,1fr);grid-auto-flow:column}
+ .agreement-grid>div:nth-child(3):last-child,.pay-grid>div:nth-child(3):last-child{grid-column:auto}
+}
+/* One column: show the scope right after step 1 (was below every other card, a long scroll on phones).
+   The column becomes transparent to layout so the preview can sit between the step cards. */
+@media screen and (max-width:900px){
+ .work-grid{display:flex;flex-direction:column;align-items:stretch;gap:var(--s4)}
+ .flow-col{display:contents}
+ .flow-col>*{order:2}
+ .flow-col>#step-scope{order:0}
+ .preview-col{order:1}
+}
