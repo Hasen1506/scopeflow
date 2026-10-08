@@ -1,6 +1,6 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- decorative art is pre-optimised WebP with fixed dimensions; next/image adds nothing here */
-import {Check,FileText} from 'lucide-react';
+import {Check,FileText,Lock} from 'lucide-react';
 import Link from 'next/link';
 import {usePathname,useRouter} from 'next/navigation';
 import {toast} from 'sonner';
@@ -21,6 +21,22 @@ export async function api(path:string,options?:RequestInit):Promise<any>{const r
 export const post=(data:unknown)=>({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 /** Theme-specific etched vignettes (only the active theme's image is fetched: the other is display:none and lazy). */
 export function Vignette({className='plate'}:{className?:string}){return <div className={className} aria-hidden="true"><img className="art-a" src="/art/etched-horse.webp" alt="" width={360} height={360} loading="lazy" decoding="async"/><img className="art-b" src="/art/survey-stake.webp" alt="" width={360} height={360} loading="lazy" decoding="async"/></div>;}
+/** Signed-out hero "product vignette": a miniature client review, built from the app's own tokens and chips.
+ *  Illustrative only (labelled Example); exposed to assistive tech as a single described image. */
+export function ReviewVignette(){return <div className="vignette-card" role="img" aria-label="Example of a client review in Scopeflow: Brand refresh for Kavya Studio, version 2 locked, three deliverables totalling ₹54,000, approved by the client, with a pending change order for two more social templates at ₹6,000.">
+ <div className="vc-doc" aria-hidden="true">
+  <div className="vc-head"><span className="vc-example">Example</span><span className="vc-chip"><Lock size={11} strokeWidth={2.2}/>Version 2 · locked</span></div>
+  <p className="vc-title">Brand refresh <span className="vc-dash">—</span> <em>Kavya Studio</em></p>
+  <ul className="vc-items">
+   <li><Check size={15}/><span>Logo system</span><span className="vc-amt">₹24,000</span></li>
+   <li><Check size={15}/><span>Brand guidelines</span><span className="vc-amt">₹18,000</span></li>
+   <li><Check size={15}/><span>Social kit · 4 templates</span><span className="vc-amt">₹12,000</span></li>
+  </ul>
+  <div className="vc-total"><span>Total</span><strong>₹54,000</strong>
+   <div className="vc-seal"><span className="vc-seal-top">Approved</span> <span className="vc-seal-mid">by client</span> <span className="vc-seal-date">3 Oct 2026</span></div></div>
+ </div>
+ <div className="vc-slip" aria-hidden="true"><span className="vc-pin"/><strong>Change order #1</strong><span className="vc-slip-body"><span className="vc-co-what">+2 social templates, </span>+₹6,000</span><span className="vc-pending">Pending</span></div>
+</div>;}
 export function EmptyState({title,children}:{title:string;children?:React.ReactNode}){return <div className="empty-state"><span aria-hidden="true"><img className="art-a" src="/art/etched-horse.webp" alt="" width={96} height={96} loading="lazy" decoding="async"/><img className="art-b" src="/art/survey-stake.webp" alt="" width={96} height={96} loading="lazy" decoding="async"/></span><div><strong>{title}</strong>{children&&<p>{children}</p>}</div></div>;}
 /** Loading placeholder with the shape of what is coming, so nothing jumps when it arrives. */
 export function Skeleton({lines=0,cards=0,label='Loading…'}:{lines?:number;cards?:number;label?:string}){return <div className="skeleton-stack" aria-busy="true"><span className="sr-only">{label}</span>{Array.from({length:cards},(_,i)=><span key={'c'+i} className="skeleton skeleton-card"/>)}{Array.from({length:lines},(_,i)=><span key={'l'+i} className="skeleton skeleton-line" style={{width:`${92-i*14}%`}}/>)}</div>;}
