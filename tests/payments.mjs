@@ -72,6 +72,33 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).status, 503); // still no keys
 }
 
+// Payments received outside Scopeflow: the owner records them (kind payment_received), they go on the
+// signed ledger next to the Razorpay deposit, and the overview reports what is paid and still due.
+{
+  const entry = (payload, request_id) => call(`/api/scopes/${project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'payment_received', baseline_version: 1, payload, ...(request_id ? {request_id} : {})}});
+  const good = {amount: 40000, method: 'bank_transfer', received: '2026-10-01', reference: 'UTR123', note: 'Second instalment'};
+  eq((await entry({...good, method: 'barter'})).status, 400);
+  eq((await entry({...good, amount: 0})).status, 400);
+  eq((await entry({...good, amount: 10.005})).status, 400);
+  eq((await entry({...good, received: '2999-01-01'})).status, 400);
+  eq((await entry({...good, extra: 1})).status, 400);
+  const id = 'pay-' + randomUUID();
+  const r = await entry(good, id);
+  eq(r.status, 201); eq(r.data.seq, 2);
+  eq((await entry(good, id)).data.replayed, true); // a retried submit is not recorded twice
+  const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
+  eq(ledger.entries.length, 2); eq(ledger.entries[1].kind, 'payment_received'); eq(ledger.entries[1].actor, 'owner');
+  eq(ledger.entries[1].payload, good); eq(ledger.chain.intact, true); eq(ledger.seal.state, 'valid');
+  eq(ledger.agreement.fee, 100000); // payments never change the agreement itself
+  const review = (await call('/api/review/' + token)).data;
+  ok(review.ledger.entries.some(e => e.kind === 'payment_received' && e.payload.amount === 40000), 'the client sees the recorded payment');
+  const ov = (await call('/api/overview', {cookie})).data.projects.find(p => p.project_id === project_id);
+  eq([ov.paid, ov.balance], [70000, 30000]);
+  eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {archived: true}})).status, 200);
+  eq((await entry({...good, reference: 'UTR124'})).data.code, 'archived');
+  eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {archived: false}})).status, 200);
+}
+
 // Account deletion removes payment rows along with the projects.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
 eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n, 0);

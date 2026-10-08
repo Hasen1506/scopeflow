@@ -17,9 +17,10 @@ export type LedgerView = {
 };
 type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'fee_delta' | 'days_delta' | 'revisions_delta'>>;
 type Form = LedgerForm;
-const today = () => new Date().toISOString().slice(0, 10);
+// The viewer's own calendar date, not UTC's (feedback that arrived this morning in Chennai is dated today).
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, openChangeOrder = 0}: {projectId: string; reviewUrl: string | null; timeZone?: string | null; onView?: (view: LedgerView) => void; openChangeOrder?: number}) {
+export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, openChangeOrder = 0, reload = 0}: {projectId: string; reviewUrl: string | null; timeZone?: string | null; onView?: (view: LedgerView) => void; openChangeOrder?: number; reload?: number}) {
   const [view, setView] = useState<LedgerView | null>(null);
   const [form, setForm] = useState<Form>(null);
   const [coSeed, setCoSeed] = useState<CoPrefill>({});
@@ -43,6 +44,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
     return () => { live = false; };
   }, [projectId]);
 
+  // Something else on the page wrote to the ledger (a payment recorded in the Payment step): read it again.
+  useEffect(() => { if (reload) queueMicrotask(() => void load()); }, [reload, load]);
   // The project page reads the agreement for its Payment step and stage tracker.
   useEffect(() => { if (view) onView?.(view); }, [view, onView]);
   // A "Record change order" press elsewhere on the page (or on a Projects card) opens the form once per press,
@@ -92,7 +95,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
         {(view.open || !view.chain.intact || view.chain.count > 0) && <span className="actions">
           {view.chain.intact
             ? <span className="chain ok" title={`Chain head ${view.chain.head}`}><ShieldCheck size={14} />{view.chain.count} {view.chain.count === 1 ? 'entry' : 'entries'} · {view.chain.head.slice(0, 8)}</span>
-            : <span className="chain bad"><ShieldAlert size={14} />Record check failed at #{view.chain.at}</span>}
+            : <span className="chain bad"><ShieldAlert size={14} />Record check failed at entry {view.chain.at}</span>}
           <button className="icon" aria-label="Refresh ledger" onClick={load}><RefreshCw size={14} /></button>
         </span>}
       </div>
@@ -137,10 +140,10 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
             return (
               <li key={e.seq} className={'kind-' + e.kind}>
                 <div className="small-title">
-                  <span>#{e.seq} · {describeEntry(e, cur, items, base?.client_inputs ?? [])}</span>
+                  <span>{describeEntry(e, cur, items, base?.client_inputs ?? [])}</span>
                   {co && <span className={'tag status-' + (co.status === 'proposed' ? 'pending' : co.status === 'approved' ? 'approved' : 'changes_requested')}>{label(co.status)}</span>}
                 </div>
-                <span className="fine">{formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
+                <span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
                 {co?.status === 'proposed' && <button className="link-button" disabled={busy} onClick={() => { if (window.confirm(`Withdraw CO-${co.seq}? The client will no longer be able to approve it.`)) void submit('settle', {ref_seq: co.seq, outcome: 'withdrawn'}); }}>Withdraw</button>}
               </li>
             );

@@ -1,7 +1,8 @@
 'use client';
 import {useEffect, useState} from 'react';
 import {ShieldAlert, ShieldCheck} from 'lucide-react';
-import {coSummary, computeAgreement, describeEntry, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
+import {coSummary, computeAgreement, describeEntry, paymentsOf, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
+import {totals} from '@/lib/money';
 import {checkClientRecord, type RecordCheck, type SealState} from '@/lib/record-check';
 import {formatMoney, type Version} from '@/lib/scope';
 import {formatInZone, formatDay} from '@/lib/time';
@@ -28,6 +29,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
   const pending = a.change_orders.filter(c => c.status === 'proposed');
   const allItems = [...a.items, ...a.removed];
   const visible = ledger.entries.filter(e => e.baseline_version === scope.version);
+  const {paid} = paymentsOf(visible), total = totals(scope.content, a.fee).total, balance = Math.max(0, Math.round((total - paid) * 100) / 100);
   return (
     <section className="editor agreement-view" data-gap="top">
       <p className="eyebrow">AFTER APPROVAL</p>
@@ -37,13 +39,14 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
         {check.state === 'ok' && !check.signed && <span className="chain unsigned" title={check.head}><ShieldAlert size={14} />Fingerprints match · not signed</span>}
         {check.state === 'failed' && <span className="chain bad"><ShieldAlert size={14} />Record check failed</span>}
       </div>
-      <p className="quiet section-gap">Version {scope.version} is the approved baseline. Change orders need your approval before they apply. The creator also records revision rounds, received inputs, delivery shifts, and goodwill here.</p>
+      <p className="quiet section-gap">Version {scope.version} is the approved baseline. Change orders need your approval before they apply. The creator also records revision rounds, received inputs, delivery shifts, payments and goodwill here.</p>
       <div className="agreement-grid">
         <div><span>Fee</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>approved at {formatMoney(a.fee_base, cur)}</em>}</div>
         <div><span>Delivery</span><strong>{formatDay(a.due) || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days</em>}</div>
         <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} of {a.revisions_allowed} used</strong></div>
         <div><span>Extra work not billed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong></div>
       </div>
+      {paid > 0 && <p className="fine pay-line" role="note">Payments on the record: <strong>{formatMoney(paid, cur)}</strong> of {formatMoney(total, cur)}{total !== a.fee ? ' with tax' : ''}{balance > 0 ? ` · ${formatMoney(balance, cur)} still due` : ' · paid in full'}.</p>}
       {pending.map(co => <PendingChangeOrder key={co.seq} token={token} co={co} agreement={a} verified={check.state==='ok'} onChanged={onChanged} />)}
       <h3 className="section-gap">Deliverables now</h3>
       <ul className="diff-list">
@@ -54,7 +57,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
         <>
           <h3 className="section-gap">Record</h3>
           <ol className="timeline">
-            {[...visible].reverse().map(e => <li key={e.seq} className={'kind-' + e.kind}>#{e.seq} · {describeEntry(e, cur, allItems, scope.content.client_inputs ?? [])}<span className="fine">{formatInZone(e.created, timeZone)}</span></li>)}
+            {[...visible].reverse().map(e => <li key={e.seq} className={'kind-' + e.kind}>{describeEntry(e, cur, allItems, scope.content.client_inputs ?? [])}<span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)}</span></li>)}
           </ol>
         </>
       )}

@@ -1,6 +1,6 @@
 // Type scale guard (pure, no server). The app uses one strict scale (see the TYPE SCALE block in app/globals.css
 // and NOTES.md): six size steps --fs-1..6 with line heights --lh-1..6, weights --fw-1..3 (+ the --fw-ui role),
-// and at most two families per theme (--font-display, --font-ui). Outside the token blocks, no raw font-size,
+// and at most two families (--font-display, --font-ui). Outside the token blocks, no raw font-size,
 // font-family, font-weight or line-height value may appear in any stylesheet, and no component may set fonts inline
 // or with arbitrary Tailwind sizes. Equivalent grep: see NOTES.md "Type scale".
 import {test} from 'node:test';
@@ -20,25 +20,23 @@ function walk(dir, re, out = []) {
 }
 const css = readFileSync(join(root, 'app/globals.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 // Token blocks: the theme definitions and Tailwind's @theme mapping. Everything else is "usage".
-const TOKEN_BLOCK = /(^|\n)\s*(:root|:root,\[data-theme="b"\]|\[data-theme="a"\]|@theme inline)\s*\{[^{}]*\}/g;
+const TOKEN_BLOCK = /(^|\n)\s*(:root|@theme inline)\s*\{[^{}]*\}/g;
 const tokens = css.match(TOKEN_BLOCK) ?? [];
 const usage = css.replace(TOKEN_BLOCK, '\n');
 const decls = (text, prop) => [...text.matchAll(new RegExp(`(?<![-\\w])${prop}\\s*:\\s*([^;}]+)`, 'g'))].map(m => m[1].replace(/!important/, '').trim());
 
-test('token blocks: six sizes, six line heights, three weights, two families per theme', () => {
-  assert.equal(tokens.length, 4, 'expected :root, theme B, theme A and @theme inline blocks');
-  const [base, b, a] = tokens;
+test('token blocks: six sizes, six line heights, three weights, two families', () => {
+  assert.equal(tokens.length, 3, 'expected the scale :root, the colour/family :root and @theme inline blocks');
+  const [base, theme] = tokens;
   for (const n of [1, 2, 3, 4, 5, 6]) {
     assert.match(base, new RegExp(`--fs-${n}:`), `--fs-${n} defined`);
     assert.match(base, new RegExp(`--lh-${n}:`), `--lh-${n} defined`);
   }
   assert.doesNotMatch(base, /--fs-7|--lh-7|--fw-4/, 'no extra steps');
   for (const n of [1, 2, 3]) assert.match(base, new RegExp(`--fw-${n}:`));
-  for (const [name, block] of [['B', b], ['A', a]]) {
-    const fams = new Set([...block.matchAll(/--font-(display|ui):\s*var\((--font-[a-z]+)\)/g)].map(m => m[2]));
-    assert.ok(fams.size >= 1 && fams.size <= 2, `theme ${name} uses ${fams.size} families`);
-    assert.match(block, /--fw-ui:/, `theme ${name} sets the UI weight role`);
-  }
+  const fams = new Set([...theme.matchAll(/--font-(display|ui):\s*var\((--font-[a-z]+)\)/g)].map(m => m[2]));
+  assert.deepEqual([...fams].sort(), ['--font-fraunces', '--font-instrument'], 'Fraunces display + Instrument Sans UI');
+  assert.match(theme, /--fw-ui:/, 'sets the UI weight role');
 });
 
 test('globals.css: every font size, family, weight and line height outside the tokens is a token', () => {

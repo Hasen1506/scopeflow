@@ -1,19 +1,20 @@
 'use client';
 import Link from 'next/link';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {ArrowUpRight,Plus,Copy,RefreshCw,Printer,Keyboard,X,Download,FilePlus2} from 'lucide-react';
+import {ArrowUpRight,Plus,Copy,RefreshCw,Printer,Keyboard,X,Download,FilePlus2,Banknote} from 'lucide-react';
 import {toast} from 'sonner';
 import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Select,SelectTrigger,SelectValue,SelectContent,SelectItem} from '@/components/ui/select';
 import {Scope,Version,Item,scopeSchema,sample,blank,label,money,itemsOf,itemLine,formatMoney} from '@/lib/scope';
+import {paymentsOf,paymentMethods,PAYMENT_METHOD_LABEL} from '@/lib/ledger';
 import {ItemsEditor,ClientInputsEditor} from './items-editor';
 import {LintPanel} from './lint-panel';
 import {LedgerPanel,type LedgerView} from './ledger-panel';
 import {StageChip,StageTracker,NextStep,SummaryStrip} from './workflow';
 import {stageOf,trackerSteps,nextStep,type StageId} from '@/lib/stage';
 import type {Insights} from '@/lib/insights';
-import type {Agreement,LedgerEntry,Payment} from '@/lib/ledger';
+import type {Agreement,LedgerEntry} from '@/lib/ledger';
 import {InsightsPanel} from './insights-panel';
 import {Header,Paper,api,post,type ApiError,ReviewVignette,EmptyState,Skeleton} from './ui';
 import {rememberSession} from '@/lib/theme';
@@ -21,31 +22,56 @@ import {clampNumber,numberProblems,saveBlockReason,DRAFT_KEY,serializeDraft,rest
 import {templates as starterTemplates} from '@/lib/templates';
 import {currencyList,currencyCodes} from '@/lib/currency';
 import {feeCheck,totals} from '@/lib/money';
-import {formatInZone,timeZones,validTimeZone} from '@/lib/time';
+import {formatInZone,formatDay,daysAgo,timeZones,validTimeZone} from '@/lib/time';
+/** A scope still unanswered after this many days gets a gentle "worth a nudge" on its card. */
+const STALE_DAYS=5;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-type OvProject={project_id:string;version:number;currency:string;quoted_fee:number;quoted_total:number;agreed_fee:number|null;agreed_total:number|null;pending_changes:number;pending_value:number;approved_changes:number;deposit_due:number|null;deposit_received:number};
+type OvProject={project_id:string;version:number;currency:string;quoted_fee:number;quoted_total:number;agreed_fee:number|null;agreed_total:number|null;pending_changes:number;pending_value:number;approved_changes:number;deposit_due:number|null;paid:number;balance:number|null};
 type Overview={projects:OvProject[];insights:Insights;online_deposits:boolean};
 const moneyMap=(m:Record<string,number>)=>Object.entries(m).filter(([,v])=>v).map(([c,v])=>formatMoney(v,c)).join(' + ')||'—';
 /** A draft kept in this browser that was never saved: shown on the Projects home so it is not lost. */
 function UnsavedCard({title,onOpen}:{title:string;onOpen:()=>void}){return <div className="project-card stage-draft unsaved-card"><div className="pc-head"><p className="pc-title">{title.trim()||'Untitled scope'}</p><StageChip stage="draft"/></div><p className="pc-client">Not saved yet · kept in this browser</p><div className="pc-next"><p>Finish it and save to get a review link</p><button className="secondary" onClick={onOpen}>Continue draft</button></div></div>;}
-/** Step 4: what the agreement says is owed, what has been received, and the receipts. Real records only. */
-function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUrl,history}:{version:Version;agreement:Agreement|null;entries:LedgerEntry[];onlineDeposits:boolean|null;receiptUrl:(v:Version)=>string;history:Version[]}){
+/** Step 4: what the agreement says is owed, what has been received, what is still due, and the receipts. Real records only. */
+function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUrl,history,archived,onRecorded}:{version:Version;agreement:Agreement|null;entries:LedgerEntry[];onlineDeposits:boolean|null;receiptUrl:(v:Version)=>string;history:Version[];archived:boolean;onRecorded:()=>void}){
  const c=version.content,cur=c.currency,decided=history.filter(v=>v.status!=='pending'&&v.decided);
+ const [formOpen,setFormOpen]=useState(false);
  if(version.status!=='approved'||!agreement){const q=totals(c);return <><p className="quiet">Payment details are fixed when your client approves. Until then this is the quote on version {version.version}.</p><dl className="pay-grid"><div><dt>Quoted fee</dt><dd>{formatMoney(c.fee,cur)}</dd></div>{q.tax_pct>0&&<div><dt>Total with {q.tax_label}</dt><dd>{formatMoney(q.total,cur)}</dd></div>}{q.deposit_pct>0&&<div><dt>Deposit on signature</dt><dd>{formatMoney(q.deposit,cur)}</dd></div>}</dl>{decided.length>0&&<ReceiptList decided={decided} receiptUrl={receiptUrl}/>}</>;}
  const now=totals(c,agreement.fee),signed=totals(c);
- const received=entries.filter(e=>e.kind==='payment'&&e.baseline_version===version.version).map(e=>e.payload as Payment);
- const paid=Math.round(received.reduce((s,p)=>s+Number(p.amount||0),0)*100)/100;
+ const {lines,paid}=paymentsOf(entries.filter(e=>e.baseline_version===version.version));
+ const balance=Math.max(0,Math.round((now.total-paid)*100)/100);
+ const depositOpen=signed.deposit_pct>0&&paid<signed.deposit;
  return <>
   <dl className="pay-grid">
-   <div><dt>Agreed fee</dt><dd>{formatMoney(agreement.fee,cur)}{agreement.fee!==agreement.fee_base&&<span className="pay-note">was {formatMoney(agreement.fee_base,cur)} at approval</span>}</dd></div>
-   {now.tax_pct>0&&<div><dt>Total with {now.tax_label} ({now.tax_pct}%)</dt><dd>{formatMoney(now.total,cur)}</dd></div>}
-   {signed.deposit_pct>0&&<div><dt>Deposit on signature ({signed.deposit_pct}%)</dt><dd>{formatMoney(signed.deposit,cur)}<span className="pay-note">{paid>0?`${formatMoney(paid,cur)} received through Razorpay`:onlineDeposits?'Your client can pay it on the review link':'Online deposits are off on this server, so your client pays you as agreed'}</span></dd></div>}
-   <div><dt>Received in Scopeflow</dt><dd>{formatMoney(paid,cur)}<span className="pay-note">Only deposits Razorpay confirmed</span></dd></div>
+   <div><dt>{now.tax_pct>0?`Agreed total with ${now.tax_label}`:'Agreed fee'}</dt><dd>{formatMoney(now.total,cur)}<span className="pay-note">{now.tax_pct>0?`${formatMoney(agreement.fee,cur)} + ${now.tax_pct}% ${now.tax_label}`:''}{agreement.fee!==agreement.fee_base?`${now.tax_pct>0?' · ':''}fee was ${formatMoney(agreement.fee_base,cur)} at approval`:''}</span></dd></div>
+   {signed.deposit_pct>0&&<div><dt>Deposit on signature ({signed.deposit_pct}%)</dt><dd>{formatMoney(signed.deposit,cur)}<span className="pay-note">{!depositOpen?'Covered by payments received':onlineDeposits?'Your client can pay it on the review link':'Collect it the way you agreed, then record it'}</span></dd></div>}
+   <div><dt>Received</dt><dd>{formatMoney(paid,cur)}<span className="pay-note">{lines.length?`${lines.length} payment${lines.length>1?'s':''} on the record`:'Nothing recorded yet'}</span></dd></div>
+   <div className={balance>0?'pay-due':'pay-clear'}><dt>Balance due</dt><dd>{formatMoney(balance,cur)}<span className="pay-note">{balance>0?(agreement.pending>0?'Before pending change orders':'Still to collect'):'Paid in full'}</span></dd></div>
   </dl>
   {c.payment_terms&&<p className="line-list section-gap"><strong>Payment terms</strong><br/>{c.payment_terms}</p>}
-  {agreement.pending>0&&<p className="fine">{agreement.pending} change order{agreement.pending>1?'s':''} still awaiting the client: the agreed fee changes only once they approve.</p>}
+  {agreement.pending>0&&<p className="fine">{agreement.pending} change order{agreement.pending>1?'s':''} still awaiting the client: the agreed total changes only once they approve.</p>}
+  <div className="section-gap"><div className="small-title"><h4 className="h-sub">Payments</h4>{!formOpen&&!archived&&<button className="secondary" onClick={()=>setFormOpen(true)}><Banknote size={15}/>Record a payment</button>}</div>
+   {formOpen&&<PaymentForm projectId={version.project_id} baseline={version.version} currency={cur} suggested={depositOpen?Math.round((signed.deposit-paid)*100)/100:balance} balance={balance} onDone={()=>{setFormOpen(false);onRecorded();}} onCancel={()=>setFormOpen(false)}/>}
+   {lines.length>0?<ul className="receipt-list payment-list">{lines.map(l=><li key={l.seq}><span><strong>{formatMoney(l.amount,cur)}</strong> · {l.method} · {formatDay(l.received)}{l.reference&&<span className="quiet"> · ref. {l.reference}</span>}{l.note&&l.source==='owner'&&<span className="quiet"> · {l.note}</span>}</span><span className="fine">{l.source==='razorpay'?'Confirmed by Razorpay':'Recorded by you'}</span></li>)}</ul>:!formOpen&&<p className="fine">Record money as it arrives (bank transfer, UPI, cash…). Each payment goes on the signed record your client sees, and the balance updates here and on your Projects home.</p>}
+  </div>
   <ReceiptList decided={decided} receiptUrl={receiptUrl}/>
  </>;
+}
+/** Today in the viewer's own calendar (a payment that arrived this morning in Chennai is not "tomorrow"). */
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+/** Records money received outside Scopeflow as a ledger entry (kind payment_received). */
+function PaymentForm({projectId,baseline,currency,suggested,balance,onDone,onCancel}:{projectId:string;baseline:number;currency:string;suggested:number;balance:number;onDone:()=>void;onCancel:()=>void}){
+ const [amount,setAmount]=useState(suggested>0?String(suggested):''),[method,setMethod]=useState<(typeof paymentMethods)[number]>('bank_transfer'),[received,setReceived]=useState(today()),[reference,setReference]=useState(''),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [requestId]=useState(()=>crypto.randomUUID());
+ const value=Number(amount);
+ async function record(e:React.FormEvent){e.preventDefault();if(!(value>0)){setError('Enter the amount you received.');return;}setBusy(true);setError('');try{await api(`/api/scopes/${projectId}/ledger`,post({kind:'payment_received',baseline_version:baseline,payload:{amount:Math.round(value*100)/100,method,received,reference,note},request_id:requestId}));toast.success(`${formatMoney(value,currency)} recorded.`);onDone();}catch(err){setError((err as Error).message);}finally{setBusy(false);}}
+ return <form className="ledger-form" aria-label="Record a payment" onSubmit={record}>
+  <div className="two-col"><label>Amount received ({currency})<input type="number" min={0.01} step="0.01" inputMode="decimal" required value={amount} onChange={e=>setAmount(e.target.value)}/>{value>balance&&balance>0&&<span className="warn-text" role="status">More than the {formatMoney(balance,currency)} still due.</span>}</label><label>Received on<input type="date" required max={today()} value={received} onChange={e=>setReceived(e.target.value)}/></label></div>
+  <div className="two-col"><label>Method<select value={method} onChange={e=>setMethod(e.target.value as (typeof paymentMethods)[number])}>{paymentMethods.map(m=><option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}</select></label><label>Reference <span className="quiet">· optional</span><input maxLength={80} placeholder="e.g. UTR or cheque number" value={reference} onChange={e=>setReference(e.target.value)}/></label></div>
+  <label>Note <span className="quiet">· optional</span><input maxLength={500} placeholder="e.g. Deposit, second instalment" value={note} onChange={e=>setNote(e.target.value)}/></label>
+  <p className="fine">Your client sees this on their record, and it cannot be edited or deleted later, so check the amount and date first.</p>
+  {error&&<p className="error" role="alert">{error}</p>}
+  <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy?'Recording…':'Record payment'}</button><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancel</button></div>
+ </form>;
 }
 function ReceiptList({decided,receiptUrl}:{decided:Version[];receiptUrl:(v:Version)=>string}){return <div className="section-gap"><h4 className="h-sub">Signed receipts</h4><ul className="receipt-list">{decided.map(v=><li key={v.id}><span>Version {v.version} · {label(v.status)}</span><a className="help-link" href={receiptUrl(v)} download>PDF receipt</a></li>)}</ul><p className="fine">Each PDF carries a QR code your client (or anyone) can check at <Link className="help-link" href="/verify">Verify a receipt</Link>.</p></div>;}
 export default function Workspace(){
@@ -53,7 +79,7 @@ export default function Workspace(){
  const [draft,setDraft]=useState<Scope>(sample),[scopes,setScopes]=useState<Version[]>([]),[history,setHistory]=useState<Version[]>([]),[active,setActive]=useState<Version|null>(null),[signedIn,setSignedIn]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[tab,setTab]=useState<'home'|'project'>('project'),[link,setLink]=useState(''),[importOpen,setImportOpen]=useState(false),[importText,setImportText]=useState(''),[importError,setImportError]=useState(''),[isSample,setIsSample]=useState(true),[undo,setUndo]=useState<{draft:Scope;isSample:boolean}|null>(null),[supersede,setSupersede]=useState<{count:number}|null>(null);
  // Project metadata outside the signed content: client email for "Send for signature", archive state.
  const [clientEmail,setClientEmail]=useState(''),[savedEmail,setSavedEmail]=useState(''),[archived,setArchived]=useState<string|null>(null),[mailOn,setMailOn]=useState(false),[sendFallback,setSendFallback]=useState<{to:string;review_url:string;mailto:string}|null>(null),[projectAction,setProjectAction]=useState<'archive'|'restore'|'delete'|null>(null),[shownAction,setShownAction]=useState<'archive'|'restore'|'delete'>('archive'),[deleteText,setDeleteText]=useState(''),[actionError,setActionError]=useState('');
- const [opening,setOpening]=useState(false),[reviseOpen,setReviseOpen]=useState(false),[ledgerView,setLedgerView]=useState<LedgerView|null>(null),[coSignal,setCoSignal]=useState(0),[insightsOpen,setInsightsOpen]=useState(false);
+ const [opening,setOpening]=useState(false),[reviseOpen,setReviseOpen]=useState(false),[ledgerView,setLedgerView]=useState<LedgerView|null>(null),[coSignal,setCoSignal]=useState(0),[ledgerReload,setLedgerReload]=useState(0),[insightsOpen,setInsightsOpen]=useState(false);
  const onLedgerView=useCallback((v:LedgerView)=>setLedgerView(v),[]);
  function toTop(id:string|null){const el=document.getElementById(id??'project-top');el?.scrollIntoView?.({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
  // PR D: templates library (built-in starters + your own) and AI drafting from a brief.
@@ -164,6 +190,9 @@ export default function Workspace(){
  const urgent=cards.filter(c=>c.stage!=='archived').sort((x,y)=>PRIORITY[x.stage]-PRIORITY[y.stage])[0];
  const unsaved=signedIn&&!active&&!isSample&&meaningfulDraft(draft,sample,blank);
  const ins=overview?.insights;
+ // Money still owed on approved agreements (agreed total with tax, less every payment on the record), per currency.
+ const owed=(overview?.projects??[]).filter(p=>(p.balance??0)>0&&cards.some(c=>c.s.project_id===p.project_id&&c.stage!=='archived'));
+ const dueByCurrency=owed.reduce<Record<string,number>>((m,p)=>({...m,[p.currency]:Math.round(((m[p.currency]??0)+(p.balance??0))*100)/100}),{}),dueCount=owed.length;
  function cardAction(c:typeof cards[number]){
   const k=c.next.kind;
   if((k==='send'||k==='copy_link')&&!c.s.revoked)return <button className="secondary" onClick={()=>void copy(location.origin+'/review/'+c.s.token,'Review link')}><Copy size={15}/>Copy review link</button>;
@@ -173,7 +202,7 @@ export default function Workspace(){
  }
  const amountLine=(c:typeof cards[number])=>{const o=c.ov,cur=c.s.content.currency;if(!o)return <span><b>Quoted</b> {money(c.s.content)}</span>;
   if(o.agreed_fee===null)return <><span><b>Quoted</b> {formatMoney(o.quoted_fee,cur)}</span><span className="quiet">Not approved yet</span></>;
-  return <><span><b>Approved</b> {formatMoney(o.agreed_fee,cur)}{o.agreed_total!==null&&o.agreed_total!==o.agreed_fee&&<span className="quiet"> · {formatMoney(o.agreed_total,cur)} with tax</span>}</span>{o.pending_changes>0&&<span className="warn-ink"><b>{o.pending_changes} change order{o.pending_changes>1?'s':''} pending</b>{o.pending_value?` · ${o.pending_value>0?'+':''}${formatMoney(o.pending_value,cur)}`:''}</span>}{o.deposit_due!==null&&<span><b>Deposit</b> {o.deposit_received>0?`${formatMoney(o.deposit_received,cur)} received`:`${formatMoney(o.deposit_due,cur)} due on signature`}</span>}</>;};
+  return <><span><b>Approved</b> {formatMoney(o.agreed_fee,cur)}{o.agreed_total!==null&&o.agreed_total!==o.agreed_fee&&<span className="quiet"> · {formatMoney(o.agreed_total,cur)} with tax</span>}</span>{o.pending_changes>0&&<span className="warn-ink"><b>{o.pending_changes} change order{o.pending_changes>1?'s':''} pending</b>{o.pending_value?` · ${o.pending_value>0?'+':''}${formatMoney(o.pending_value,cur)}`:''}</span>}{o.balance===0?<span className="ok-ink"><b>Paid in full</b> · {formatMoney(o.paid,cur)}</span>:o.paid>0?<span><b>Received</b> {formatMoney(o.paid,cur)} · <b>Due</b> {formatMoney(o.balance??0,cur)}</span>:o.deposit_due!==null?<span><b>Deposit due</b> {formatMoney(o.deposit_due,cur)}</span>:o.balance!==null&&<span><b>Due</b> {formatMoney(o.balance,cur)}</span>}</>;};
  const editorFields=<>
      <div className="section-gap"><p className="eyebrow flush">Start from a template</p><div className="actions template-list">{library.map(t=><span key={t.id} className="template-chip"><button className="secondary" disabled={busy} onClick={()=>applyTemplate(t.id)}>{t.name}{!t.builtin&&<span className="quiet"> · yours</span>}</button>{!t.builtin&&<button type="button" className="icon" aria-label={`Delete template ${t.name}`} disabled={busy} onClick={()=>deleteTemplate(t)}>×</button>}</span>)}</div>
       {signedIn&&<div className="actions gap-top">{tplOpen?<><input aria-label="Template name" maxLength={80} placeholder={fromTemplate&&!fromTemplate.builtin?fromTemplate.name:'Template name'} value={tplName} onChange={e=>setTplName(e.target.value)}/><button className="secondary" disabled={busy||tplName.trim().length<2} onClick={()=>saveTemplate(false)}>Save as new template</button>{fromTemplate&&!fromTemplate.builtin&&<button className="secondary" disabled={busy} onClick={()=>saveTemplate(true)}>Update “{fromTemplate.name}”</button>}<button className="help-link" onClick={()=>setTplOpen(false)}>Cancel</button></>:<button className="help-link" onClick={()=>{setTplOpen(true);setTplName('');}}>Save this draft as a template</button>}</div>}
@@ -214,15 +243,15 @@ export default function Workspace(){
      <SummaryStrip items={[
       {label:'Awaiting approval',value:String(count('awaiting')),note:count('changes_requested')?`${count('changes_requested')} with changes requested`:'scopes with a live link'},
       {label:'Change orders pending',value:String(cards.reduce((n,c)=>n+(c.ov?.pending_changes??0),0)),note:'awaiting your clients'},
-      {label:'Agreed value',value:ins?moneyMap(ins.fee_now):'…',note:ins?`${ins.projects} approved agreement${ins.projects===1?'':'s'}`:undefined},
-      {label:'Added by change orders',value:ins?moneyMap(ins.change_order_value):'…',note:ins?`${ins.change_orders.approved} approved`:undefined},
+      {label:'Agreed value',value:ins?moneyMap(ins.fee_now):'…',note:ins?`before tax, ${ins.projects} approved agreement${ins.projects===1?'':'s'}`:undefined},
+      {label:'Still to collect',value:overview?moneyMap(dueByCurrency):'…',note:overview?(dueCount?`with tax, on ${dueCount} approved project${dueCount===1?'':'s'}`:'nothing outstanding'):undefined},
      ]}/>
      <div className="list-tools"><label>Search projects <span className="kbd" aria-hidden="true">/</span><input ref={searchRef} type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Project or client name" aria-keyshortcuts="/"/></label><label>Stage<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All active projects</option><option value="changes_requested">Changes requested</option><option value="change_pending">Change pending</option><option value="awaiting">Awaiting approval</option><option value="draft">Draft (no live link)</option><option value="approved">Approved</option><option value="archived">Archived</option></select></label></div>
      {unsaved&&<UnsavedCard title={draft.title} onOpen={()=>setTab('project')}/>}
      {filtered.length===0?<div className="empty-filter"><p className="empty">No projects match these filters.</p><button className="secondary" onClick={()=>{setQuery('');setStatusFilter('all');}}>Clear filters</button></div>
      :<ul className="project-grid" aria-label="Projects">{filtered.map(c=><li key={c.s.project_id} className={'project-card stage-'+c.stage+(c.s.project_id===active?.project_id?' active':'')}>
       <div className="pc-head"><h3 className="pc-title"><button type="button" className="pc-open" onClick={()=>void select(c.s)} disabled={busy} aria-describedby={'pc-'+c.s.project_id}>{c.s.content.title}</button></h3><StageChip stage={c.stage}/></div>
-      <div id={'pc-'+c.s.project_id} className="pc-body"><p className="pc-client">{c.s.content.client} · Version {c.s.version}</p><StageTracker steps={c.steps} compact linked={false}/><p className="pc-money">{amountLine(c)}</p></div>
+      <div id={'pc-'+c.s.project_id} className="pc-body"><p className="pc-client">{c.s.content.client} · Version {c.s.version}{(()=>{if(c.stage!=='awaiting'&&c.stage!=='changes_requested')return null;const age=daysAgo(c.stage==='awaiting'?c.s.created:c.s.decided);if(!age.text)return null;return c.stage==='awaiting'&&age.days>=STALE_DAYS?<span className="warn-ink"> · sent {age.text}, worth a nudge</span>:<span> · {c.stage==='awaiting'?'sent':'answered'} {age.text}</span>;})()}</p><StageTracker steps={c.steps} compact linked={false}/><p className="pc-money">{amountLine(c)}</p></div>
       <div className="pc-next"><p>{c.next.title}</p>{cardAction(c)}</div>
      </li>)}</ul>}
      <details className="disclosure insights-more" onToggle={e=>setInsightsOpen(e.currentTarget.open)}><summary>All insights <span className="quiet">· by client, revision rounds, goodwill</span></summary>{insightsOpen&&<InsightsPanel signedIn={signedIn}/>}</details>
@@ -234,7 +263,7 @@ export default function Workspace(){
     <div id="project-top" className="project-head">
      <div className="ph-title"><div><p className="eyebrow flush">{active?`${draft.client||active.content.client} · version ${active.version}`:isSample?'Example project':'New scope'}</p><h2>{(active?active.content.title:draft.title.trim())||'Untitled scope'}</h2></div><StageChip stage={stage}/></div>
      {opening?<Skeleton lines={2} label="Opening project…"/>:<StageTracker steps={steps}/>}
-     <NextStep tone={stage==='changes_requested'||stage==='change_pending'||stage==='archived'?'attention':stage==='approved'?'ok':'info'} title={next.title} actions={nextActions}>{next.detail}{!active&&<> Press <span className="kbd">Ctrl</span> <span className="kbd">S</span> to save.</>}</NextStep>
+     <NextStep tone={stage==='changes_requested'||stage==='change_pending'||stage==='archived'?'attention':stage==='approved'?'ok':'info'} title={next.title} actions={nextActions}>{next.detail}{stage==='approved'&&activeOv&&(activeOv.balance??0)>0&&<> <strong>{formatMoney(activeOv.balance??0,activeOv.currency)} is still to collect</strong>: record payments in step 4 as they arrive.</>}{!active&&<> Press <span className="kbd">Ctrl</span> <span className="kbd">S</span> to save.</>}</NextStep>
     </div>
     <div className="work-grid"><div className={'flow-col'+(!active?' editing':'')}>
      <section id="step-scope" className={'editor flow-step'+(!active?' editing':'')} aria-labelledby="h-scope">
@@ -261,11 +290,11 @@ export default function Workspace(){
      </section>}
      {active&&<section id="step-changes" className="editor flow-step" aria-labelledby="h-changes">
       <div className="step-head"><span className="step-num" aria-hidden="true">3</span><h3 id="h-changes">Changes</h3>{pendingCos>0&&<span className="tag status-changes_requested">{pendingCos} pending</span>}</div>
-      <LedgerPanel key={active.project_id+":"+active.version+":"+active.status} timeZone={timeZone} projectId={active.project_id} reviewUrl={active.revoked?null:'/review/'+active.token} onView={onLedgerView} openChangeOrder={coSignal}/>
+      <LedgerPanel key={active.project_id+":"+active.version+":"+active.status} timeZone={timeZone} projectId={active.project_id} reviewUrl={active.revoked?null:'/review/'+active.token} onView={onLedgerView} openChangeOrder={coSignal} reload={ledgerReload}/>
      </section>}
      {active&&<section id="step-payment" className="editor flow-step" aria-labelledby="h-payment">
       <div className="step-head"><span className="step-num" aria-hidden="true">4</span><h3 id="h-payment">Payment &amp; receipts</h3></div>
-      <PaymentPanel version={active} agreement={ledgerView?.agreement??null} entries={ledgerView?.entries??[]} onlineDeposits={overview?.online_deposits??null} receiptUrl={receiptUrl} history={history}/>
+      <PaymentPanel version={active} agreement={ledgerView?.agreement??null} entries={ledgerView?.entries??[]} onlineDeposits={overview?.online_deposits??null} receiptUrl={receiptUrl} history={history} archived={!!archived} onRecorded={()=>{setLedgerReload(n=>n+1);void loadOverview();}}/>
      </section>}
      {active&&<section id="project-settings" className="editor flow-step" aria-labelledby="h-settings">
       <div className="step-head"><h3 id="h-settings">Project settings</h3></div>

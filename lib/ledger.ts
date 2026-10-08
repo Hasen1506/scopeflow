@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {dateString, itemSchema, itemsOf, formatMoney, type Item, type Scope} from './scope';
+import {formatDay} from './time';
 
 // ---------------------------------------------------------------------------
 // Entry payloads. Every post-approval event is one immutable ledger entry.
@@ -53,6 +54,19 @@ export const paymentSchema = z.object({
   currency: z.string().regex(/^[A-Z]{3}$/),
 }).strict();
 
+// A payment the creator received outside Scopeflow (bank transfer, UPI, cash…), recorded by the
+// owner. It is the creator's own statement, shown to the client on the record, not provider evidence.
+export const paymentMethods = ['bank_transfer', 'upi', 'card', 'cash', 'cheque', 'other'] as const;
+export const PAYMENT_METHOD_LABEL: Record<(typeof paymentMethods)[number], string> = {bank_transfer: 'Bank transfer', upi: 'UPI', card: 'Card', cash: 'Cash', cheque: 'Cheque', other: 'Other'};
+const PAYMENT_METHOD_PHRASE: Record<(typeof paymentMethods)[number], string> = {bank_transfer: 'by bank transfer', upi: 'by UPI', card: 'by card', cash: 'in cash', cheque: 'by cheque', other: 'by another method'};
+export const paymentReceivedSchema = z.object({
+  amount: z.number().finite().positive().max(100000000),
+  method: z.enum(paymentMethods),
+  received: dateString.refine(Boolean, 'Enter the date it arrived'),
+  reference: z.string().trim().max(80).default(''),
+  note: z.string().trim().max(500).default(''),
+}).strict();
+
 export const payloadSchemas = {
   change_order: changeOrderSchema,
   settle: settleSchema,
@@ -60,6 +74,7 @@ export const payloadSchemas = {
   revision_round: revisionRoundSchema,
   client_input: clientInputSchema,
   payment: paymentSchema,
+  payment_received: paymentReceivedSchema,
 } as const;
 export type EntryKind = keyof typeof payloadSchemas;
 export const entryKinds = Object.keys(payloadSchemas) as EntryKind[];
@@ -69,6 +84,7 @@ export type Goodwill = z.infer<typeof goodwillSchema>;
 export type RevisionRound = z.infer<typeof revisionRoundSchema>;
 export type ClientInputReceived = z.infer<typeof clientInputSchema>;
 export type Payment = z.infer<typeof paymentSchema>;
+export type PaymentReceived = z.infer<typeof paymentReceivedSchema>;
 
 /** A stored entry. `payload` is null when hidden from the client; `payload_hash` still commits to it. */
 export type LedgerEntry = {
@@ -189,6 +205,18 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
   };
 }
 
+/** Money received against one baseline: Razorpay deposits (provider evidence) and payments the creator recorded. */
+export type PaymentLine = {seq: number; created: string; source: 'razorpay' | 'owner'; amount: number; method: string; received: string; reference: string; note: string};
+export function paymentsOf(entries: LedgerEntry[]): {lines: PaymentLine[]; paid: number} {
+  const lines: PaymentLine[] = [];
+  for (const e of entries) {
+    if (!e.payload) continue;
+    if (e.kind === 'payment') { const p = e.payload as Payment; lines.push({seq: e.seq, created: e.created, source: 'razorpay', amount: Number(p.amount) || 0, method: 'Razorpay', received: e.created.slice(0, 10), reference: p.payment_id, note: 'Deposit'}); }
+    else if (e.kind === 'payment_received') { const p = e.payload as PaymentReceived; lines.push({seq: e.seq, created: e.created, source: 'owner', amount: p.amount, method: PAYMENT_METHOD_LABEL[p.method], received: p.received, reference: p.reference, note: p.note}); }
+  }
+  return {lines, paid: Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100};
+}
+
 /** Validates a new entry against the current agreement. Returns an error message or null. */
 export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, agreement: Agreement, actor: 'owner' | 'client'): string | null {
   if (kind === 'change_order') {
@@ -220,6 +248,13 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
     }
     return null;
   }
+  if (kind === 'payment_received') {
+    const p = payload as PaymentReceived;
+    if (Math.abs(p.amount * 100 - Math.round(p.amount * 100)) > 1e-6) return 'Enter the amount with at most two decimals.';
+    // One day of slack: the creator's local date can run ahead of UTC.
+    if (p.received > addDays(new Date().toISOString().slice(0, 10), 1)) return 'The date a payment arrived cannot be in the future.';
+    return null;
+  }
   if (kind === 'client_input') {
     const c = payload as ClientInputReceived;
     if (!(baseline.client_inputs ?? []).some(i => i.id === c.input_id)) return 'Unknown client input. Use one listed in the approved scope.';
@@ -249,8 +284,9 @@ export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = 
     case 'change_order': { const co = e.payload as ChangeOrder; return `Change order CO-${e.seq} proposed: ${co.title} (${coSummary(co, currency, items)})`; }
     case 'settle': { const s = e.payload as Settle; return `CO-${s.ref_seq} ${s.outcome}${s.signer ? ' by ' + s.signer : ''}${s.comment ? ': “' + s.comment + '”' : ''}`; }
     case 'goodwill': { const g = e.payload as Goodwill; return `Goodwill: ${g.title} (${formatMoney(g.value, currency)}${g.hours ? `, ${g.hours}h` : ''} not billed)`; }
-    case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${r.feedback_date}${r.note ? ': ' + r.note : ''}`; }
+    case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${formatDay(r.feedback_date)}${r.note ? ': ' + r.note : ''}`; }
     case 'payment': { const p = e.payload as Payment; return `Deposit received: ${formatMoney(p.amount, p.currency)} via Razorpay (payment ${p.payment_id})`; }
-    case 'client_input': { const c = e.payload as ClientInputReceived; return `Received from client: ${inputs.find(i => i.id === c.input_id)?.title ?? c.input_id} on ${c.received}`; }
+    case 'payment_received': { const p = e.payload as PaymentReceived; return `Payment received: ${formatMoney(p.amount, currency)} ${PAYMENT_METHOD_PHRASE[p.method]} on ${formatDay(p.received)}${p.reference ? ` (ref. ${p.reference})` : ''}`; }
+    case 'client_input': { const c = e.payload as ClientInputReceived; return `Received from client: ${inputs.find(i => i.id === c.input_id)?.title ?? c.input_id} on ${formatDay(c.received)}`; }
   }
 }
