@@ -1,4 +1,5 @@
 import {createHmac, timingSafeEqual} from 'node:crypto';
+import {totals} from './money';
 
 // PR F: deposit on signature through Razorpay (scaffold).
 //
@@ -30,12 +31,14 @@ export function fromMinorUnits(minor: number, currency: string) {
   return minor / 10 ** digits;
 }
 
-/** Deposit due on signature: deposit_pct of the approved fee (plus tax when the scope carries one). */
+/**
+ * Deposit due on signature: deposit_pct of the approved fee (plus tax when the scope carries one).
+ * One source of truth: the same `totals()` figure the signed scope paper shows the client, so the
+ * amount charged is exactly the amount approved (the two used to differ by a cent on some fees).
+ */
 export function depositAmount(content: {fee: number; deposit_pct?: number; tax_pct?: number}) {
-  const pct = content.deposit_pct ?? 0;
-  if (!(pct > 0)) return 0;
-  const total = content.fee * (1 + (content.tax_pct ?? 0) / 100);
-  return Math.round(total * pct) / 100;
+  if (!((content.deposit_pct ?? 0) > 0)) return 0;
+  return totals(content).deposit;
 }
 
 export class RazorpayError extends Error {}

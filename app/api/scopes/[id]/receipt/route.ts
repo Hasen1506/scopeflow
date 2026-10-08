@@ -11,7 +11,7 @@ export async function GET(request: Request, ctx: Ctx) {
     const raw = new URL(request.url).searchParams.get('version');
     const version = raw === null ? null : Number(raw);
     if (version !== null && (!Number.isInteger(version) || version < 1 || version > 100000)) return json({error: 'Use a whole version number.'}, 400);
-    const fields = 'v.id,v.project_id,v.version,v.status,v.content,v.signer,v.comment,v.decided,v.signature,v.decision_context';
+    const fields = 'v.id,v.project_id,v.version,v.status,v.content,v.signer,v.comment,v.decided,v.signature,v.decision_context,p.timezone';
     const row = version === null
       ? await db().prepare(`SELECT ${fields} FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.id=? AND p.owner=? AND v.status<>'pending' ORDER BY v.version DESC LIMIT 1`).bind(id, auth.user).first<DecidedRow>()
       : await db().prepare(`SELECT ${fields} FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.id=? AND p.owner=? AND v.version=?`).bind(id, auth.user, version).first<DecidedRow>();

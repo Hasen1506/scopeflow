@@ -6,12 +6,12 @@ import {anchorMessage, publicSigningKey, verifyRecord, type SignatureState} from
 import {renderReceiptPdf, validTimeZone, verifyUrl, type ReceiptModel} from './receipt';
 import type {Scope} from './scope';
 
-export type DecidedRow = {id: string; project_id: string; version: number; status: string; content: string; signer: string | null; comment: string | null; decided: string | null; signature: string | null; decision_context: string | null};
+export type DecidedRow = {id: string; project_id: string; version: number; status: string; content: string; signer: string | null; comment: string | null; decided: string | null; signature: string | null; decision_context: string | null; timezone?: string | null};
 
-/** Time zone for receipt timestamps: a valid IANA `tz` query parameter, else UTC. */
-export function receiptTimeZone(request: Request) {
+/** Time zone for receipt timestamps: a valid IANA `tz` query parameter, else the project's time zone, else UTC. */
+export function receiptTimeZone(request: Request, projectZone?: string | null) {
   const tz = new URL(request.url).searchParams.get('tz');
-  return validTimeZone(tz) ? tz : 'UTC';
+  return validTimeZone(tz) ? tz : validTimeZone(projectZone) ? projectZone : 'UTC';
 }
 
 function keyFor(signature: string | null) {
@@ -39,7 +39,7 @@ export async function receiptModel(request: Request, row: DecidedRow): Promise<R
     content_sha256: await sha256(JSON.stringify(content)),
     signer: row.signer, decided: row.decided, comment: row.comment,
     anchor, signature: row.signature, key: keyFor(row.signature), context, ledger,
-    time_zone: receiptTimeZone(request), generated: new Date().toISOString(),
+    time_zone: receiptTimeZone(request, row.timezone), generated: new Date().toISOString(),
     verify_url: verifyUrl(origin, row.project_id, row.version, anchor),
   };
 }

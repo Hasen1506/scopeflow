@@ -29,6 +29,17 @@ test('amounts: minor units per currency; deposit from the fee (and tax when pres
   fc.assert(fc.property(fc.integer({min: 0, max: 10_000_000_00}), minor => assert.equal(rz.toMinorUnits(rz.fromMinorUnits(minor, 'INR'), 'INR'), minor)));
 });
 
+test('deposit charged equals the deposit on the signed scope paper (one source: money.totals)', async () => {
+  const {totals} = await import('../../lib/money.ts');
+  // A fee where the old formula (rounding only once, on the unrounded tax-inclusive total) charged a cent more.
+  assert.equal(totals({fee: 97246.8, tax_pct: 18, deposit_pct: 79}).deposit, 90653.46);
+  assert.equal(rz.depositAmount({fee: 97246.8, tax_pct: 18, deposit_pct: 79}), 90653.46);
+  fc.assert(fc.property(fc.integer({min: 0, max: 1_000_000_00}).map(c => c / 100), fc.constantFrom(0, 5, 7.5, 8.25, 12, 18, 28), fc.integer({min: 0, max: 100}), (fee, tax_pct, deposit_pct) => {
+    const paper = totals({fee, tax_pct, deposit_pct}).deposit;
+    assert.equal(rz.depositAmount({fee, tax_pct, deposit_pct}), deposit_pct > 0 ? paper : 0);
+  }), {numRuns: 2000});
+});
+
 test('order creation: POST /v1/orders with basic auth, paise and notes', async () => {
   const calls = [];
   const fetchImpl = async (url, init) => { calls.push({url, init, body: JSON.parse(init.body)}); return new Response(JSON.stringify({id: 'order_123', amount: 30000, currency: 'INR', status: 'created'}), {status: 200}); };

@@ -84,4 +84,16 @@ eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id=
   ok(/Razorpay order ID/.test(privacy) && /payment ID/.test(privacy), 'privacy notice lists the payment identifiers Scopeflow stores');
   ok(!/does not collect payments/.test(privacy), 'privacy notice no longer says payments are not collected');
 }
+// Deposits are live code, so no served page may still say Scopeflow takes no payments
+// (the static source scan is tests/property/payment-copy.test.mjs).
+{
+  const forbidden = [/\b(?:does not|doesn['’]t|do not|never|no|not)\b[^.'"`<]{0,80}?\b(?:collects?|collecting|process(?:es)?|processing|takes?|accepts?)\s+payments?\b/i, /\bno\b[^.'"`<]{0,60}?\bpayment collection\b/i];
+  for (const path of ['/', '/terms', '/privacy', '/reviewer-guide', '/plans', '/support', '/connect', '/verify', '/api/openapi']) {
+    const r = await fetch(base + path); eq(r.status, 200, path);
+    const text = await r.text();
+    for (const re of forbidden) eq(re.exec(text)?.[0] ?? null, null, `${path} says Scopeflow takes no payments`);
+  }
+  const terms = await (await fetch(base + '/terms')).text();
+  ok(terms.includes('Scopeflow itself is free during this beta') && terms.includes('Client deposits') && terms.includes('Razorpay merchant account the server operator configured'), 'terms describe client deposits through Razorpay');
+}
 console.log(`payments: ${passed} checks passed`);

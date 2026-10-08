@@ -66,6 +66,21 @@ const {anchor, signature, content_sha256} = decision.data.receipt;
   eq(utc.status, 200); ok(!utc.data.toString('latin1').includes('GMT+'), 'UTC only');
 }
 
+// Without a tz parameter the receipt uses the project's time zone (the zone the review page and
+// workspace show every time in), not UTC. An explicit valid tz still wins.
+{
+  eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {timezone: 'Asia/Kolkata'}})).data.project.timezone, 'Asia/Kolkata');
+  const client = (await call(`/api/review/${token}/receipt`)).data.toString('latin1');
+  ok(client.includes('Asia/Kolkata') && client.includes('GMT+5:30'), 'client receipt defaults to the project time zone');
+  const owner = (await call(`/api/scopes/${project_id}/receipt?version=1`, {cookie})).data.toString('latin1');
+  ok(owner.includes('Asia/Kolkata') && owner.includes('GMT+5:30'), 'owner receipt defaults to the project time zone');
+  const tokyo = (await call(`/api/review/${token}/receipt?tz=Asia/Tokyo`)).data.toString('latin1');
+  ok(tokyo.includes('Asia/Tokyo') && !tokyo.includes('Asia/Kolkata'), 'an explicit tz overrides the project zone');
+  const invalid = (await call(`/api/review/${token}/receipt?tz=Mars/Olympus`)).data.toString('latin1');
+  ok(invalid.includes('Asia/Kolkata'), 'an invalid tz falls back to the project zone');
+  eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {timezone: ''}})).data.project.timezone, null);
+}
+
 // The owner's copy: session only for their own project.
 {
   const r = await call(`/api/scopes/${project_id}/receipt?version=1`, {cookie});
