@@ -12,7 +12,7 @@ function badge(c: ScopeChange) {
 export function ScopeDiff({previous, current, title}: {previous: Scope; current: Scope; title: string}) {
   const changes = semanticDiff(previous, current);
   return (
-    <section className="editor no-print" style={{marginBottom: 24}}>
+    <section className="editor no-print" data-gap="bottom">
       <h2>{title}</h2>
       {changes.length === 0 ? <p className="quiet section-gap">No content changes.</p> : (
         <ul className="diff-list">

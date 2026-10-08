@@ -29,7 +29,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
   const allItems = [...a.items, ...a.removed];
   const visible = ledger.entries.filter(e => e.baseline_version === scope.version);
   return (
-    <section className="editor agreement-view" style={{marginTop: 24}}>
+    <section className="editor agreement-view" data-gap="top">
       <p className="eyebrow">AFTER APPROVAL</p>
       <div className="small-title"><h2>Current agreement</h2>
         {check.state === 'ok' && check.signed && <span className="chain ok" title={check.head}><ShieldCheck size={14} />Verified in your browser</span>}
