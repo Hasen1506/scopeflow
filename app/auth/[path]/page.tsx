@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { Header } from '@/app/ui';
+import { Header, Vignette } from '@/app/ui';
 import { authConfigured } from '@/lib/auth/server';
 import { safeReturnPath } from '@/lib/origin';
 import AuthForm from './auth-form';
@@ -13,7 +13,7 @@ export default async function AuthPage({ params, searchParams }: {
   const { path } = await params;
   if (!paths.includes(path)) notFound();
   const query = await searchParams;
-  return <><Header /><main className="review-shell"><section className="editor">
+  return <><Header /><main id="main" className="auth-layout"><section className="editor">
     <AuthForm mode={path} returnTo={safeReturnPath(query.return_to)} token={typeof query.token === 'string' ? query.token : undefined} configured={authConfigured()} />
-  </section></main></>;
+  </section><aside className="auth-aside" aria-hidden="true"><Vignette /><p className="tagline">Write the scope once. Let the record do the remembering.</p></aside></main></>;
 }

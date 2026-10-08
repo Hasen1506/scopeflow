@@ -2,7 +2,7 @@
 import {useEffect, useState} from 'react';
 import type {Insights} from '@/lib/insights';
 import {formatMoney} from '@/lib/scope';
-import {api} from './ui';
+import {api, EmptyState, Skeleton} from './ui';
 
 const money = (m: Record<string, number>) => Object.entries(m).filter(([, v]) => v).map(([c, v]) => formatMoney(v, c)).join(' + ') || '—';
 
@@ -16,10 +16,10 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
     api('/api/insights').then(d => { if (live) setData(d); }, e => { if (live) setError((e as Error).message); });
     return () => { live = false; };
   }, [signedIn]);
-  if (!signedIn) return <p className="empty">Sign in to see patterns across your projects.</p>;
+  if (!signedIn) return <EmptyState title="Patterns across your projects">Sign in to see where scope actually moves: change orders, rounds and goodwill.</EmptyState>;
   if (error) return <p className="error" role="alert">{error}</p>;
-  if (!data) return <p className="empty">Loading insights…</p>;
-  if (!data.projects) return <p className="empty">Insights appear once a client approves a scope and you start recording change orders, rounds and goodwill.</p>;
+  if (!data) return <Skeleton cards={2} lines={2} label="Loading insights…" />;
+  if (!data.projects) return <EmptyState title="No approved agreements yet">Insights appear once a client approves a scope and you start recording change orders, rounds and goodwill.</EmptyState>;
   const co = data.change_orders, r = data.revision_rounds;
   return (
     <div className="section-gap">

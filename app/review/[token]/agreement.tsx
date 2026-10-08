@@ -93,7 +93,7 @@ function PendingChangeOrder({token, co, agreement, verified, onChanged}: {token:
       <p className="fine">If approved: fee {formatMoney(agreement.fee, cur)} → {formatMoney(agreement.fee + co.fee_delta, cur)}{co.revisions_delta ? `, revision rounds ${agreement.revisions_allowed} → ${agreement.revisions_allowed + co.revisions_delta}` : ''}{co.days_delta ? `, delivery moves ${co.days_delta > 0 ? 'later' : 'earlier'} by ${Math.abs(co.days_delta)} days` : ''}.</p>
       <div className="no-print"><label>Your name<input maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
       <label>Comment <span className="quiet">· required if declining</span><textarea rows={2} maxLength={3000} value={comment} onChange={e => setComment(e.target.value)} /></label>
-      <label style={{display: 'flex', gap: 12, alignItems: 'start'}}><Checkbox checked={checked} onCheckedChange={v => setChecked(v === true)} style={{marginTop: 4}} />I have reviewed CO-{co.seq}, including its effect on the fee and timeline.</label>
+      <label className="consent"><Checkbox checked={checked} onCheckedChange={v => setChecked(v === true)} />I have reviewed CO-{co.seq}, including its effect on the fee and timeline.</label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions"><button className="primary" disabled={busy||!verified} onClick={() => decide('approved')}>{busy ? 'Saving…' : 'Approve change'}</button><button className="secondary" disabled={busy||!verified} onClick={() => decide('declined')}>Decline</button></div></div>
     </div>
