@@ -53,8 +53,12 @@ the ledger shows the payment, then switch to Live keys and a Live webhook. This 
 partial payments, payouts to freelancers, or reconciliation of missed webhooks yet (see
 [deposits.md](deposits.md)).
 
-Before you turn Live keys on, update the privacy notice (`app/privacy/page.tsx`). It still says "This beta
-does not collect payments or store card information" and does not name Razorpay as a processor.
+Privacy notice: done. `/privacy` (effective 8 October 2026) now names Razorpay Payments Private Limited as the
+deposit processor, links Razorpay's privacy policy, says Scopeflow never sees or stores card/UPI/bank details,
+and lists exactly what the `payments` table and the ledger `payment` entry keep (order ID, payment ID, webhook
+event ID, amount, currency, status, created/paid times) and why. Those records hold no IP or user agent, so the
+client-data retention setting does not touch them; "Delete all data" removes them. `tests/payments.mjs` checks
+the notice. If you change what the deposit flow sends to Razorpay or stores, update the notice before deploying.
 
 ## Client-data retention (#13)
 

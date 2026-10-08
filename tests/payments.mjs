@@ -75,4 +75,13 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
 // Account deletion removes payment rows along with the projects.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
 eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n, 0);
+// The privacy notice names Razorpay as the deposit processor and no longer says payments are not collected.
+{
+  const privacy = await (await fetch(base + '/privacy')).text();
+  ok(/Razorpay Payments Private Limited/.test(privacy), 'privacy notice names Razorpay Payments Private Limited as processor');
+  ok(privacy.includes('href="https://razorpay.com/privacy/"'), "privacy notice links Razorpay's privacy policy");
+  ok(/does not see or store card, UPI or bank details/.test(privacy), 'privacy notice says Scopeflow never sees payment instrument details');
+  ok(/Razorpay order ID/.test(privacy) && /payment ID/.test(privacy), 'privacy notice lists the payment identifiers Scopeflow stores');
+  ok(!/does not collect payments/.test(privacy), 'privacy notice no longer says payments are not collected');
+}
 console.log(`payments: ${passed} checks passed`);
