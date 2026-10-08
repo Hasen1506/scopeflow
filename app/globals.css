@@ -262,8 +262,8 @@ label select{margin-top:7px}
 [data-slot=tabs-content]{animation:sf-fade-up var(--dur-3) var(--ease)}
 
 /* Dialog / popover / select (shadcn) */
-[data-slot=dialog-overlay]{background:rgba(10,18,52,.52)!important;backdrop-filter:blur(2px)}
-[data-slot=dialog-content]{background:var(--popover)!important;color:var(--ink);border:1px solid var(--rule-strong)!important;border-radius:var(--r-lg)!important;box-shadow:var(--shadow-2)!important;padding:28px!important;background-image:var(--grain)!important}
+[data-slot=dialog-overlay]{background:rgba(10,18,52,.55)!important}
+[data-slot=dialog-content]{background:var(--popover)!important;color:var(--ink);border:1px solid var(--rule-strong)!important;border-radius:var(--r-lg)!important;box-shadow:var(--shadow-2)!important;padding:28px!important}
 [data-slot=dialog-content] h2{font-size:var(--fs-xl)}
 [data-slot=dialog-content] p[id]{color:var(--ink-2);font-size:var(--fs-md)}
 [data-slot=select-trigger]{border-color:var(--rule-strong)!important;border-radius:var(--r-sm)!important;background:var(--paper)!important;color:var(--paper-ink)!important;font-family:var(--font-ui);font-size:var(--fs-base)!important;margin-top:7px}
@@ -339,7 +339,7 @@ label select{margin-top:7px}
 .check-row{display:flex!important;gap:10px;align-items:flex-start;font-weight:400}
 .check-row input{width:auto;margin-top:5px}
 .send-box{border:1px solid var(--rule);border-radius:var(--r);padding:4px 16px 16px;margin:18px 0;background:var(--surface-2)}
-.save-bar{position:sticky;bottom:0;z-index:5;margin:24px -30px -30px;padding:16px 30px;border-top:1px solid var(--rule);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-radius:0 0 var(--r-lg) var(--r-lg)}
+.save-bar{position:sticky;bottom:0;z-index:5;margin:24px -30px -30px;padding:16px 30px;border-top:1px solid var(--rule);background:var(--bg);border-radius:0 0 var(--r-lg) var(--r-lg)}
 [data-theme="a"] .save-bar{background:rgba(26,53,145,.92)}
 .save-bar .fine{margin-top:8px}
 .version-panel{margin-top:28px;padding-top:24px;border-top:1px solid var(--rule)}
@@ -352,7 +352,7 @@ label select{margin-top:7px}
 /* Notice dock: inline status that stays in view while the form scrolls (toast-like, not a toast) */
 .notice-dock{position:sticky;bottom:12px;z-index:6;display:flex;flex-direction:column;gap:8px;margin-top:14px;pointer-events:none}
 .notice-dock>*{pointer-events:auto;margin:0}
-.notice-dock .muted-box{box-shadow:var(--shadow-2);background:var(--popover);background-image:var(--grain);border-color:var(--rule-strong);animation:sf-fade-up var(--dur-3) var(--ease);display:flex;gap:10px;align-items:flex-start}
+.notice-dock .muted-box{box-shadow:var(--shadow-2);background:var(--popover);border-color:var(--rule-strong);animation:sf-fade-up var(--dur-3) var(--ease);display:flex;gap:10px;align-items:flex-start}
 .notice-dock .muted-box::before{content:"";flex:0 0 8px;height:8px;margin-top:8px;border-radius:50%;background:var(--accent)}
 .notice-dock .muted-box .help-link{white-space:nowrap}
 .notice-dock .error{box-shadow:var(--shadow-2);animation:sf-fade-up var(--dur-3) var(--ease)}
@@ -544,7 +544,7 @@ label select{margin-top:7px}
 .hero-in{display:none}
 [data-auth="in"] .hero-in{display:flex}
 [data-auth="in"] .hero-out{display:none}
-.editor:has(.save-bar) .notice-dock{bottom:118px}
+.editor.editing .notice-dock{bottom:118px}
 .list-tools label .kbd{margin-left:6px;vertical-align:1px}
 input:user-invalid~#password-hint{color:var(--bad)}
 @media (max-width:900px){
@@ -559,9 +559,9 @@ input:user-invalid~#password-hint{color:var(--bad)}
 @media (max-width:760px){
   .hero{gap:20px;margin-bottom:28px}
   .hero .plate{width:132px}
-  .save-bar{position:static;background:transparent;backdrop-filter:none}
+  .save-bar{position:static;background:transparent}
   [data-theme="a"] .save-bar{background:transparent}
-  .editor:has(.save-bar) .notice-dock{bottom:12px}
+  .editor.editing .notice-dock{bottom:12px}
   .template-list{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:6px;margin-right:-20px}
   .template-chip{flex:0 0 auto}
   .action-label{width:100%}

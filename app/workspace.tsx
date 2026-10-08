@@ -107,7 +107,7 @@ export default function Workspace(){
    <Vignette/>
   </section>
   <div className="page-heading compact hero-in"><div><p className="eyebrow">Your workspace</p><h1>Scopes &amp; <em>agreements</em></h1></div><div className="actions"><button className="secondary" onClick={()=>setKeysOpen(true)} aria-label="Keyboard shortcuts"><Keyboard size={16}/></button><button className="primary" onClick={newScope}><Plus size={16}/>New scope</button></div></div>
-  <div className="work-grid"><section className="editor">
+  <div className="work-grid"><section className={'editor'+(tab==='edit'?' editing':'')}>
    <Tabs value={tab} onValueChange={setTab}><TabsList variant="line"><TabsTrigger value="edit">Scope editor</TabsTrigger><TabsTrigger value="saved">Projects ({scopes.length})</TabsTrigger><TabsTrigger value="insights">Insights</TabsTrigger></TabsList>
     <TabsContent value="insights"><InsightsPanel signedIn={signedIn}/></TabsContent>
     <TabsContent value="edit">
