@@ -4,12 +4,10 @@ Collected while implementing the 2026-10-07 roadmap PRs (A–F plus retention/wo
 candidate, not a commitment; nothing here is built. Roughly ordered by value for effort within each group.
 
 ## Integration follow-ups between the roadmap PRs (small, do right after merging)
-- **Receipt uses the project time zone** (A + C): `/api/review/<token>/receipt` and the owner receipt should default
-  `tz` to `projects.timezone` instead of the browser's zone.
+Done since: receipts default to the project time zone, and the deposit charged is `totals().deposit` (the figure on
+the signed scope paper; the old separate formula could differ by a cent).
 - **Receipt prints tax, deposit and payment terms** (A + C) and the deposit-paid ledger entry (A + F).
 - **Unify `lib/time.ts` (C) and `validTimeZone`/`stamp` in `lib/receipt.ts` (A)** into one helper.
-- **Deposit amount single source** (C + F): `lib/money.ts totals()` and `lib/razorpay.ts depositAmount()` compute
-  the same number; keep one.
 - **OTP for change-order approvals** (B): the same email-code gate before a client approves a change order.
 - **Radar before approval in the UI** (E): the endpoint already works on the latest version; the button lives only
   in the post-approval ledger panel.
