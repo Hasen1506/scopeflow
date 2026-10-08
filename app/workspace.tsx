@@ -11,7 +11,7 @@ import {ItemsEditor,ClientInputsEditor} from './items-editor';
 import {LintPanel} from './lint-panel';
 import {LedgerPanel} from './ledger-panel';
 import {InsightsPanel} from './insights-panel';
-import {Header,Paper,api,post,type ApiError,Vignette,EmptyState,Skeleton} from './ui';
+import {Header,Paper,api,post,type ApiError,ReviewVignette,EmptyState,Skeleton} from './ui';
 import {rememberSession} from '@/lib/theme';
 import {clampNumber,numberProblems,saveBlockReason,DRAFT_KEY,serializeDraft,restoreDraft,meaningfulDraft} from '@/lib/editor';
 import {templates as starterTemplates} from '@/lib/templates';
@@ -102,9 +102,9 @@ export default function Workspace(){
  const moneySummary=[draft.tax_pct?`${draft.tax_label||'Tax'} ${draft.tax_pct}%`:'',draft.deposit_pct?`${draft.deposit_pct}% deposit`:'',draft.payment_terms?'payment terms':''].filter(Boolean).join(' · ');
  const preview={...draft,fee:Number.isFinite(draft.fee)?draft.fee:0,revisions:Number.isFinite(draft.revisions)?draft.revisions:0};
  return <><Header/><main className="shell" id="main">
-  <section className="hero hero-out" aria-labelledby="hero-title">
+  <section className="hero hero-out hero-split" aria-labelledby="hero-title">
    <div><p className="eyebrow ruled">Scopes · approvals · change orders</p><h1 id="hero-title">Good work starts with a <em>clear agreement.</em></h1><p className="tagline">Define the work, get it approved on a version-locked link, and keep the next “small change” on the record.</p><div className="actions">{!signedIn&&<Link className="primary" href="/auth/sign-in?return_to=%2F">Sign in to save<ArrowUpRight size={17}/></Link>}<button className="secondary" onClick={newScope}><Plus size={16}/>New scope</button>{!signedIn&&<Link className="help-link" href="/auth/sign-up?return_to=%2F">Create an account</Link>}</div></div>
-   <Vignette/>
+   <ReviewVignette/>
   </section>
   <div className="page-heading compact hero-in"><div><p className="eyebrow">Your workspace</p><h1>Scopes &amp; <em>agreements</em></h1></div><div className="actions"><button className="secondary" onClick={()=>setKeysOpen(true)} aria-label="Keyboard shortcuts"><Keyboard size={16}/></button><button className="primary" onClick={newScope}><Plus size={16}/>New scope</button></div></div>
   <div className="work-grid"><section className={'editor'+(tab==='edit'?' editing':'')}>
