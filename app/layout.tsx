@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { EB_Garamond, Fraunces, Instrument_Sans } from "next/font/google";
+import { EB_Garamond, Fraunces } from "next/font/google";
 import { Toaster } from "sonner";
 import { SiteFooter } from "./site-footer";
 import { SESSION_HINT_KEY, THEME_KEY } from "@/lib/theme";
 import "./globals.css";
 
-// Theme B (default) fonts are preloaded; Theme A's Garamond loads only when that theme is chosen.
-const fraunces = Fraunces({ subsets: ["latin"], style: ["normal", "italic"], variable: "--font-fraunces", display: "swap" });
-const instrument = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument", display: "swap" });
-const garamond = EB_Garamond({ subsets: ["latin"], style: ["normal", "italic"], variable: "--font-garamond", display: "swap", preload: false });
+// Display serifs only (UI text uses the system sans stack, so it costs nothing to load).
+// Theme B's Fraunces (400 roman + italic, ~43 KB) is preloaded; Theme A's Garamond loads only when A is chosen.
+// display: swap with next/font's metric-matched fallback, so the swap causes no layout shift.
+const fraunces = Fraunces({ subsets: ["latin"], weight: ["400"], style: ["normal", "italic"], variable: "--font-fraunces", display: "swap" });
+const garamond = EB_Garamond({ subsets: ["latin"], weight: ["400", "500"], style: ["normal", "italic"], variable: "--font-garamond", display: "swap", preload: false });
 
 export const metadata: Metadata = {
   title: "Scopeflow — Client approvals, clearly",
@@ -32,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="b" className={`${fraunces.variable} ${instrument.variable} ${garamond.variable}`} suppressHydrationWarning>
+    <html lang="en" data-theme="b" className={`${fraunces.variable} ${garamond.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body className="antialiased"><a className="skip-link" href="#main">Skip to content</a>{children}<SiteFooter /><Toaster position="bottom-center" duration={2600} /></body>
     </html>
