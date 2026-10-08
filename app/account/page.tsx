@@ -3,6 +3,7 @@ import Link from 'next/link';
 import {useEffect,useState} from 'react';
 import {Header,api} from '../ui';
 import {ContactLink} from '../contact';
+import {NextStep} from '../workflow';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 type Summary={projects:number;versions:number};
 export default function Account(){
@@ -24,11 +25,11 @@ export default function Account(){
  async function saveSettings(){if(!settings||busy)return;setBusy(true);setError('');setSettingsNote('');try{const r=await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});setSettings(r.settings);const n=r.redacted.versions+r.redacted.entries;setSettingsNote('Settings saved.'+(n?` Network details on ${n} older ${n===1?'record were':'records were'} redacted.`:''));}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  const set=<K extends keyof Settings>(k:K,v:Settings[K])=>setSettings(x=>x?{...x,[k]:v}:x);
  return <><Header/><main id="main" className="review-shell policy"><section className="editor">
-  <p className="eyebrow">YOUR DATA</p><h1>Keep control of <em>your work.</em></h1>
+  <p className="eyebrow">ACCOUNT · DATA CONTROLS</p><h1>Keep control of <em>your work.</em></h1>
+  {signedOut?<NextStep title="Sign in to manage your data" actions={<Link className="primary" href="/auth/sign-in?return_to=%2Faccount">Sign in</Link>}>Retention, your email wording and deletion are per account.</NextStep>:<NextStep title="Set your wording once" actions={<Link className="secondary" href="/">Back to projects</Link>}>The email wording and default terms below are used for every new scope. Export a project from its page before deleting anything.</NextStep>}
   <p>Export any project and its complete version history from the workspace. The export includes private scope content and review links; store it securely.</p>
   <p className="fine">Before deleting your data, tell your clients and send them their copies: deletion removes every approval record and review link.</p>
   <p>Review links can be revoked or replaced from the selected project. Revoking a link blocks access and new decisions. Previous decisions remain in your private history.</p>
-  {signedOut&&<p><Link className="primary" href="/auth/sign-in?return_to=%2Faccount">Sign in to manage your data</Link></p>}
   {settings&&<><h2>Client data retention</h2><p>When a client decides, Scopeflow records the network address and browser it came from. Choose how long to keep them; afterwards they are replaced with “redacted”. The signed decision, its fingerprint and signature are never changed.</p><label>Keep client network details<select value={settings.context_retention_days??''} onChange={e=>set('context_retention_days',e.target.value===''?null:Number(e.target.value))}><option value="">{serverDefault?`Server default (${serverDefault} days)`:'Until I delete the project'}</option>{[30,90,180,365,730].map(d=><option key={d} value={d}>{d} days</option>)}</select></label>
   <h2>Your wording</h2><p className="fine">Used instead of Scopeflow’s defaults. In the email you can use {'{client}'}, {'{title}'}, {'{version}'} and {'{link}'}; the body must include {'{link}'}.</p><label>“Send for signature” subject<input maxLength={200} placeholder="Please review and approve: {title} (version {version})" value={settings.email_subject} onChange={e=>set('email_subject',e.target.value)}/></label><label>“Send for signature” message<textarea rows={5} maxLength={4000} placeholder={'Hi {client},\n\nThe scope for {title} is ready: {link}'} value={settings.email_body} onChange={e=>set('email_body',e.target.value)}/></label><label>Default “Outside this scope” text for new drafts<textarea rows={2} maxLength={3000} value={settings.default_exclusions} onChange={e=>set('default_exclusions',e.target.value)}/></label><label>Default working terms for new drafts<textarea rows={3} maxLength={3000} value={settings.default_terms} onChange={e=>set('default_terms',e.target.value)}/></label><button className="primary section-gap" disabled={busy} onClick={saveSettings}>{busy?'Saving…':'Save settings'}</button>{settingsNote&&<p role="status">{settingsNote}</p>}</>}
   <h2>API access</h2><p>Tokens expire after 30 days. Revoking your token disconnects every integration using it.</p>

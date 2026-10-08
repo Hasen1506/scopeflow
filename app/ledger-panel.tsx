@@ -19,7 +19,7 @@ type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' 
 type Form = LedgerForm;
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function LedgerPanel({projectId, reviewUrl, timeZone = null}: {projectId: string; reviewUrl: string | null; timeZone?: string | null}) {
+export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, openChangeOrder = 0}: {projectId: string; reviewUrl: string | null; timeZone?: string | null; onView?: (view: LedgerView) => void; openChangeOrder?: number}) {
   const [view, setView] = useState<LedgerView | null>(null);
   const [form, setForm] = useState<Form>(null);
   const [coSeed, setCoSeed] = useState<CoPrefill>({});
@@ -30,6 +30,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null}: {projectId:
   // True while the open form holds input that has not been recorded.
   const dirty = useRef(false);
   const formArea = useRef<HTMLDivElement>(null);
+  const handledSignal = useRef(0);
   const setDirty = useCallback((value: boolean) => { dirty.current = value; }, []);
 
   const load = useCallback(async () => {
@@ -41,6 +42,16 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null}: {projectId:
     api(`/api/scopes/${projectId}/ledger`).then(v => { if (live) setView(v); }, e => { if (live) setError((e as Error).message); });
     return () => { live = false; };
   }, [projectId]);
+
+  // The project page reads the agreement for its Payment step and stage tracker.
+  useEffect(() => { if (view) onView?.(view); }, [view, onView]);
+  // A "Record change order" press elsewhere on the page (or on a Projects card) opens the form once per press,
+  // unless another form with typed input is open.
+  useEffect(() => {
+    if (!openChangeOrder || handledSignal.current === openChangeOrder || !view?.baseline || !view.agreement || dirty.current) return;
+    handledSignal.current = openChangeOrder;
+    queueMicrotask(() => { setCoSeed({}); setForm('change_order'); setError(''); setNotice(''); requestAnimationFrame(() => formArea.current?.scrollIntoView?.({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'})); });
+  }, [openChangeOrder, view]);
 
   async function submit(kind: string, payload: unknown, requestId?: string) {
     if (busy) return false;
@@ -97,7 +108,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null}: {projectId:
           {a.revisions_used >= a.revisions_allowed && (
             <div className="muted-box warn-box">
               {a.rounds_over ? `${a.rounds_over} round${a.rounds_over > 1 ? 's' : ''} over the allowance.` : 'The included revision rounds are used up.'} The next round of feedback is new work.
-              <div className="actions" style={{marginTop: 10}}><button className="secondary" onClick={() => openForm('change_order', {title: 'Additional revision round', reason: 'All included revision rounds have been used.', revisions_delta: 1})}>Draft a change order for an extra round</button></div>
+              <div className="actions gap-top"><button className="secondary" onClick={() => openForm('change_order', {title: 'Additional revision round', reason: 'All included revision rounds have been used.', revisions_delta: 1})}>Draft a change order for an extra round</button></div>
             </div>
           )}
           {a.pending > 0 && <p className="fine">{a.pending} change order{a.pending > 1 ? 's' : ''} awaiting the client{reviewUrl ? ' on ' : '.'}{reviewUrl && <a className="help-link" href={reviewUrl} target="_blank" rel="noreferrer">their review link</a>}</p>}
