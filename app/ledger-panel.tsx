@@ -6,7 +6,7 @@ import {formatMoney, label, type Item, type Scope} from '@/lib/scope';
 import {formatInZone} from '@/lib/time';
 import {ItemsEditor} from './items-editor';
 import {ScopeCheck} from './scope-check';
-import {api, post} from './ui';
+import {api, post, Skeleton} from './ui';
 import {changeOrderProblems, nextForm, type LedgerForm} from '@/lib/ledger-form';
 
 export type LedgerView = {
@@ -58,7 +58,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null}: {projectId:
     } catch (e) { setError((e as Error).message); return false; } finally { setBusy(false); }
   }
 
-  if (!view) return <section className="ledger section-gap"><h3>Agreement ledger</h3><p className="empty">{error || 'Loading ledger…'}</p></section>;
+  if (!view) return <section className="ledger section-gap"><h3>Agreement ledger</h3>{error ? <p className="error" role="alert">{error}</p> : <Skeleton lines={3} cards={1} label="Loading ledger…" />}</section>;
   const a = view.agreement, base = view.baseline?.content;
   const cur = a?.currency ?? 'USD';
   const items = base ? [...(a?.items ?? []), ...(a?.removed ?? [])] : [];

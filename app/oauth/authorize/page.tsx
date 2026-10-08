@@ -16,7 +16,7 @@ export default async function Authorize({searchParams}: {searchParams: Promise<R
   const checked = await validateAuthorize(request, query);
   if (!checked.ok && checked.redirect) redirect(redirectWith(request, checked.redirect_uri, {error: checked.error, error_description: checked.description, state: checked.state}));
   if (!checked.ok) {
-    return <><Header/><main className="review-shell"><section className="editor"><p className="eyebrow">CONNECT AN APP</p><h1>This connection request is not valid.</h1><p className="error" role="alert">{(checked as {message: string}).message}</p></section></main></>;
+    return <><Header/><main id="main" className="review-shell"><section className="editor"><p className="eyebrow">CONNECT AN APP</p><h1>This connection request is not valid.</h1><p className="error" role="alert">{(checked as {message: string}).message}</p></section></main></>;
   }
   const user = await getUser();
   if (!user) {
@@ -25,7 +25,7 @@ export default async function Authorize({searchParams}: {searchParams: Promise<R
   }
   const {params} = checked;
   const destination = new URL(params.redirect_uri).host;
-  return <><Header/><main className="review-shell"><section className="editor">
+  return <><Header/><main id="main" className="review-shell"><section className="editor">
     <p className="eyebrow">CONNECT AN APP</p>
     <h1>Allow {params.client.name} to use your Scopeflow account?</h1>
     <p>Signed in as <strong>{user.email}</strong>. After you allow access you will return to <strong>{destination}</strong>.</p>

@@ -23,8 +23,8 @@ export default function Account(){
  }
  async function saveSettings(){if(!settings||busy)return;setBusy(true);setError('');setSettingsNote('');try{const r=await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});setSettings(r.settings);const n=r.redacted.versions+r.redacted.entries;setSettingsNote('Settings saved.'+(n?` Network details on ${n} older ${n===1?'record were':'records were'} redacted.`:''));}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  const set=<K extends keyof Settings>(k:K,v:Settings[K])=>setSettings(x=>x?{...x,[k]:v}:x);
- return <><Header/><main className="review-shell policy"><section className="editor">
-  <p className="eyebrow">YOUR DATA</p><h1>Keep control of your work.</h1>
+ return <><Header/><main id="main" className="review-shell policy"><section className="editor">
+  <p className="eyebrow">YOUR DATA</p><h1>Keep control of <em>your work.</em></h1>
   <p>Export any project and its complete version history from the workspace. The export includes private scope content and review links; store it securely.</p>
   <p className="fine">Before deleting your data, tell your clients and send them their copies: deletion removes every approval record and review link.</p>
   <p>Review links can be revoked or replaced from the selected project. Revoking a link blocks access and new decisions. Previous decisions remain in your private history.</p>
@@ -40,7 +40,6 @@ export default function Account(){
   <button className="secondary danger section-gap" disabled={busy||!summary} aria-describedby={gate?'gate-delete':undefined} onClick={()=>{setConfirmation('');setError('');setConfirmOpen(true);}}>Delete all Scopeflow data</button>{gate&&<p id="gate-delete" className="fine">{gate} {signedOut&&<Link className="help-link" href="/auth/sign-in?return_to=%2Faccount">Sign in</Link>}</p>}
   {message&&<p role="status">{message}</p>}{error&&!confirmOpen&&<p className="error" role="alert">{error}</p>}
   <h2>Corrections and help</h2><p>For a correction to a recorded reviewer name or help with access, contact Scopeflow support through <ContactLink/>.</p>
-  <Link className="secondary section-gap" href="/">Back to workspace</Link>
  </section></main>
  <Dialog open={confirmOpen} onOpenChange={open=>{if(!busy){setConfirmOpen(open);setConfirmation('');}}}>
   <DialogContent showCloseButton={!busy} onEscapeKeyDown={e=>{if(busy)e.preventDefault();}} onPointerDownOutside={e=>{if(busy)e.preventDefault();}}>
