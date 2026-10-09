@@ -16,6 +16,10 @@ export async function POST(request: Request, ctx: Ctx) {
     const content = JSON.parse(row.content) as Scope;
     const amount = depositAmount(content);
     if (!(amount > 0)) return json({error: 'This scope has no deposit.', code: 'no_deposit'}, 409);
+    // Money the creator already recorded (bank transfer, UPI…) counts: never ask the client to pay the deposit twice.
+    const recorded = await db().prepare("SELECT payload FROM ledger_entries WHERE project_id=? AND baseline_version=? AND kind='payment_received'").bind(row.project_id, row.version).all<{payload: string}>();
+    const recordedPaid = recorded.results.reduce((sum, r) => sum + (Number(JSON.parse(r.payload).amount) || 0), 0);
+    if (recordedPaid + 0.005 >= amount) return json({error: 'The creator has already recorded payments that cover the deposit.', code: 'already_paid'}, 409);
     const config = razorpayConfig();
     if (!config) return json({error: paymentsStatus().reason + ' Pay the creator the way you agreed.', code: 'payments_disabled'}, 503);
     if (!await allowWrite('deposit:' + row.id, 10)) return json({error: 'Too many attempts. Try again in a minute.'}, 429);

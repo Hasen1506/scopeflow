@@ -36,3 +36,24 @@ services:
         sync: false
       - key: SCOPEFLOW_MAIL_REPLY_TO
         sync: false
+
+  # Daily client-data retention (docs/DEPLOY.md, "Client-data retention"): replaces the IP address and
+  # browser user agent on client decisions older than each owner's retention setting with "redacted".
+  # Idempotent; signed fields are never touched. Render cron jobs are not on the free plan, so this
+  # needs the Starter plan; delete this block if you would rather run the script by hand.
+  - type: cron
+    name: scopeflow-retention
+    runtime: node
+    plan: starter
+    schedule: "30 20 * * *" # 20:30 UTC = 02:00 IST
+    buildCommand: npm ci --omit=dev --ignore-scripts
+    startCommand: node scripts/redact-expired.mjs
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: DATABASE_URL
+      # Optional server-wide default for owners who set no retention in Data controls.
+      - key: SCOPEFLOW_CONTEXT_RETENTION_DAYS
+        sync: false

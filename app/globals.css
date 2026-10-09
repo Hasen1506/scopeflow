@@ -757,3 +757,4 @@ label .fine{font-weight:var(--fw-1)}
 .actions .flush{margin:0}
 /* The heading's short buttons keep their label on one line (on phones "New scope" broke onto two). */
 .page-heading .actions .primary,.page-heading .actions .secondary{white-space:nowrap}
+.pay-actions{display:flex;gap:var(--s2);flex-wrap:wrap}

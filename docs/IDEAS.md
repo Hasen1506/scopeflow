@@ -23,7 +23,8 @@ the signed scope paper; the old separate formula could differ by a cent).
   ledger + chain proof + certificate).
 - **SMS / WhatsApp OTP** (MSG91 or Twilio; Indian DLT sender + template registration needed).
 - **"Who opened" log** on review links (first/last view, count), shown to the owner.
-- **Review-link expiry and reminders** (e.g. remind after 3 days, expire after 30).
+- **Review-link expiry** (e.g. expire after 30 days) and **automatic reminders** on a schedule. Manual reminders
+  (one a day, three per version) are built.
 - **Multi-party signing order** (approver + finance) and multiple signers per version.
 - **Separate `system` ledger actor** for provider events (payments) instead of `client`, so a revoked review link
   never blocks recording a payment.
@@ -31,7 +32,8 @@ the signed scope paper; the old separate formula could differ by a cent).
 
 ## Money
 - **Dual-currency display with an FX rate locked at signature** (INR ↔ USD export work), plus an LUT/GST export note.
-- **Milestone payments** (schedule of amounts and due dates) and **Net-X reminders**; balance invoice on delivery.
+- **Milestone payments** (schedule of amounts and due dates) and **Net-X payment reminders**. Recording offline
+  payments, the balance due and a PDF statement of account are built; a GST tax invoice is not.
 - **Razorpay Route / Stripe Connect payouts** to each freelancer (KYC per freelancer), refunds, partial payments,
   a reconciliation job that polls orders when a webhook is missed, and Stripe Checkout for non-INR clients.
 - **Hour-bank or money-budget revisions** as an alternative to a fixed round count.
@@ -58,4 +60,3 @@ the signed scope paper; the old separate formula could differ by a cent).
 - **Plan-tier config** for the beta caps and rate limits (today constants in code).
 - **Drop the cookie-secret fallback for the signing key in production**; move signing to KMS/HSM.
 - **Accessibility pass** on the review page (OTP input, deposit button, focus order).
-- **Render Cron Job definition** in `render.yaml` for `scripts/redact-expired.mjs`.

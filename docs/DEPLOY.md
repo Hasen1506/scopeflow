@@ -66,12 +66,14 @@ the notice. If you change what the deposit flow sends to Razorpay or stores, upd
 | --- | --- |
 | `SCOPEFLOW_CONTEXT_RETENTION_DAYS` | Optional server-wide default (1–3650 days) for owners who set no retention in Data controls. After that many days, the IP address and browser user agent stored with client decisions and client ledger entries are replaced with `redacted`. Unset = keep until deleted. Signed fields are never touched, so receipts and the hash chain still verify. |
 
-**Daily cron.** Retention only happens when the redaction script runs. Add a Render Cron Job on the same repo
-and environment group (it needs `DATABASE_URL`, plus `SCOPEFLOW_CONTEXT_RETENTION_DAYS` if you use it):
+**Daily cron.** Retention only happens when the redaction script runs. `render.yaml` now defines it as the
+`scopeflow-retention` cron job, which reads `DATABASE_URL` from the web service. Render cron jobs need a paid
+plan (Starter); if you would rather not pay for it, delete that block and run the script by hand. Set
+`SCOPEFLOW_CONTEXT_RETENTION_DAYS` on the cron job too if you use it. Manual setup, if you skip the blueprint:
 
 - **Command:** `node scripts/redact-expired.mjs`
 - **Schedule:** once a day, e.g. `30 20 * * *` (Render cron times are UTC; 20:30 UTC is 02:00 IST)
-- **Build command:** `npm ci`
+- **Build command:** `npm ci --omit=dev --ignore-scripts`
 
 The script is idempotent. It prints how many versions and ledger entries it redacted.
 
@@ -86,8 +88,8 @@ environment group.
 
 ## After deploying
 
-1. `npm run db:migrate` runs migrations 0004–0008 (client OTP, project time zone, templates, payments,
-   retention settings). They add tables and columns, and 0008 also replaces the immutability trigger
+1. `npm run db:migrate` runs migrations 0004–0009 (client OTP, project time zone, templates, payments,
+   retention settings, reminder tracking). They add tables and columns, and 0008 also replaces the immutability trigger
    functions so that retention may redact IP and user agent (and nothing else) on recorded decisions.
 2. Check `/api/health`, then sign and download one PDF receipt and open its QR code at `/verify`.
 3. If Resend is set: turn on the email code check on a test project and sign through it.

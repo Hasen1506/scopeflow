@@ -87,7 +87,7 @@ const fresh = await call('/api/scopes', 'POST', {...scope, title: 'Send QA ' + D
 const S = '/api/scopes/' + fresh.value.scope.project_id;
 status(await call(S, 'PATCH', {client_email: 'not-an-email'}), 400);
 const saved = await call(S, 'PATCH', {client_email: ' Client@Example.test '}); status(saved, 200); eq(saved.value.project.client_email, 'client@example.test');
-eq((await call(S + '/send')).value, {configured: false, client_email: 'client@example.test'});
+eq((await call(S + '/send')).value, {configured: false, client_email: 'client@example.test', last_sent: null, sent_version: null, reminders: 0, max_reminders: 3});
 status(await call(S + '/send', 'POST', {version: 1}, {headers: {Authorization: 'Bearer sf_not_a_session'}}), 401);
 status(await call(S + '/send', 'POST', {version: 1}, {auth: other}), 404);
 const sent = await call(S + '/send', 'POST', {version: 1}); status(sent, 200);
@@ -100,6 +100,24 @@ eq((await call(S)).value.project.client_email, 'other.client@example.test');
 status(await call(S + '/send', 'POST', {version: 1, email: 'nope'}), 400);
 status(await call(S + '/send', 'POST', {version: 1}, {headers: {Origin: 'https://untrusted.example'}}), 403);
 status(await call(P + '/send', 'POST', {version: 1}), 409); // already decided
+// Reminders: reminder wording through the same fallback, at most one email a day and three per version
+// (tracking only follows emails a provider accepted, so the limits are exercised on seeded state).
+{
+  const r = await call(S + '/send', 'POST', {version: 1, reminder: true}); status(r, 200);
+  eq([r.value.reminder, r.value.sent], [true, false]);
+  assert.match(decodeURIComponent(r.value.mailto), /subject=Reminder: please review Send QA/); passed++;
+  status(await call(S + '/send', 'POST', {version: 1, reminder: 'yes'}), 400);
+  const id = fresh.value.scope.project_id;
+  localSql(`UPDATE scopeflow.projects SET last_sent=${quote(new Date(Date.now() - 3600_000).toISOString())}, sent_version=1, reminders=0 WHERE id=${quote(id)}`);
+  const soon = await call(S + '/send', 'POST', {version: 1, reminder: true}); status(soon, 429); eq(soon.value.code, 'recently_sent');
+  assert.match(soon.value.error, /about 23 hours/); passed++;
+  localSql(`UPDATE scopeflow.projects SET last_sent=${quote(new Date(Date.now() - 2 * 86400_000).toISOString())}, reminders=3 WHERE id=${quote(id)}`);
+  const capped = await call(S + '/send', 'POST', {version: 1, reminder: true}); status(capped, 409); eq(capped.value.code, 'reminder_limit');
+  status(await call(S + '/send', 'POST', {version: 1}), 200); // a plain re-send is still allowed
+  const ov = (await call('/api/overview')).value.projects.find(p => p.project_id === id);
+  eq([typeof ov.last_sent, ov.reminders], ['string', 3]);
+  status(await call(P + '/send', 'POST', {version: 1, reminder: true}), 409); // decided: nothing to remind about
+}
 // The email lives on the project, never inside the signed scope content.
 assert.ok(!('client_email' in (await call('/api/review/' + fresh.value.scope.token, 'GET', undefined, {auth: null})).value.scope.content)); passed++;
 
