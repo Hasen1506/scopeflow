@@ -39,15 +39,78 @@ services:
       # Shared with the daily job: authorizes POST /api/payments/razorpay/reconcile.
       - key: SCOPEFLOW_CRON_SECRET
         generateValue: true
+      # Optional: Email through Postmark or Amazon SES instead of Resend (docs/DEPLOY.md); SCOPEFLOW_MAIL_PROVIDER picks one.
+      - key: SCOPEFLOW_MAIL_PROVIDER
+        sync: false
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: SCOPEFLOW_SES_ACCESS_KEY_ID
+        sync: false
+      - key: SCOPEFLOW_SES_SECRET_ACCESS_KEY
+        sync: false
+      - key: SCOPEFLOW_SES_REGION
+        sync: false
+      # Optional: SMS / WhatsApp one-time codes (MSG91 needs a DLT-registered template in India).
+      - key: MSG91_AUTH_KEY
+        sync: false
+      - key: MSG91_OTP_TEMPLATE_ID
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_SMS_FROM
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: TWILIO_WHATSAPP_CONTENT_SID
+        sync: false
+      # Optional: AI drafting and the scope-creep radar; SCOPEFLOW_EMBEDDINGS=openai|voyage adds the meaning match.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SCOPEFLOW_EMBEDDINGS
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
+      # Optional: Email forwarding into the radar: inbound domain and the webhook secret.
+      - key: SCOPEFLOW_INBOUND_DOMAIN
+        sync: false
+      - key: SCOPEFLOW_INBOUND_SECRET
+        generateValue: true
+      # Optional: Online payments: Razorpay (INR) and Stripe Checkout (other currencies), each with its webhook secret.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_CURRENCIES
+        sync: false
+      # Optional: Evidence: RFC 3161 timestamps and PAdES-signed PDFs (a document-signing certificate and key).
+      - key: SCOPEFLOW_TSA_URL
+        sync: false
+      - key: SCOPEFLOW_PDF_SIGN_CERT
+        sync: false
+      - key: SCOPEFLOW_PDF_SIGN_KEY
+        sync: false
 
   # Daily jobs (docs/DEPLOY.md):
   #  1. client-data retention: replaces the IP address and browser user agent on client decisions
   #     older than each owner's retention setting with "redacted" (signed fields are never touched);
   #  2. automatic reminders for owners who turned them on, including payment reminders for overdue
   #     invoices (needs the Resend variables; without them it sends nothing and says so);
-  #  3. Razorpay reconciliation: records captured payments whose webhook was lost (calls the web
-  #     service with SCOPEFLOW_CRON_SECRET).
-  # Both are idempotent. Render cron jobs are not on the free plan, so this needs the Starter plan;
+  #  3. payment reconciliation (Razorpay and Stripe): records captured payments whose webhook was
+  #     lost (calls the web service with SCOPEFLOW_CRON_SECRET);
+  #  4. the model-lifecycle check: warns when a configured AI model is gone or about to retire.
+  # Step 1 also deletes archived drafts for owners who turned on draft expiry (never projects on
+  # legal hold).
+  # All are idempotent. Render cron jobs are not on the free plan, so this needs the Starter plan;
   # delete this block if you would rather run the scripts by hand.
   - type: cron
     name: scopeflow-retention
@@ -55,7 +118,7 @@ services:
     plan: starter
     schedule: "30 20 * * *" # 20:30 UTC = 02:00 IST
     buildCommand: npm ci --omit=dev --ignore-scripts
-    startCommand: node scripts/redact-expired.mjs && node scripts/send-reminders.mjs && node scripts/reconcile-payments.mjs
+    startCommand: node scripts/redact-expired.mjs && node scripts/send-reminders.mjs && node scripts/reconcile-payments.mjs && node scripts/check-models.mjs
     envVars:
       - key: DATABASE_URL
         fromService:
@@ -90,3 +153,38 @@ services:
           type: web
           name: scopeflow
           envVarKey: SCOPEFLOW_CRON_SECRET
+      - key: SCOPEFLOW_MAIL_PROVIDER
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_MAIL_PROVIDER
+      - key: POSTMARK_SERVER_TOKEN
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: POSTMARK_SERVER_TOKEN
+      - key: SCOPEFLOW_SES_ACCESS_KEY_ID
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_SES_ACCESS_KEY_ID
+      - key: SCOPEFLOW_SES_SECRET_ACCESS_KEY
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_SES_SECRET_ACCESS_KEY
+      - key: SCOPEFLOW_SES_REGION
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_SES_REGION
+      - key: OPENAI_API_KEY
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: OPENAI_API_KEY
+      - key: ANTHROPIC_API_KEY
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: ANTHROPIC_API_KEY
