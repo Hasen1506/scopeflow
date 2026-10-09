@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 import {PdfDocument, wrap, type Font} from './pdf';
 import {itemsOf, formatMoney, label, type Scope} from './scope';
-import {totals} from './money';
+import {fxLine, schedule, totals} from './money';
 import {formatDay, stamp} from './time';
 import type {PaymentLine} from './ledger';
 
@@ -127,8 +127,11 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   const t = totals(m.content);
   if (t.tax_pct > 0) { row(`${t.tax_label} (${t.tax_pct}%)`, formatMoney(t.tax, m.content.currency)); row(`Total with ${t.tax_label}`, formatMoney(t.total, m.content.currency)); }
   if (t.deposit_pct > 0) row(`Deposit on signature (${t.deposit_pct}%)`, formatMoney(t.deposit, m.content.currency));
+  for (const l of schedule(m.content, t.total)) row(`Milestone: ${l.title} (${l.pct}%)`, `${formatMoney(l.amount, m.content.currency)}${l.due ? ` · due ${l.due}` : ''}`);
+  if (m.content.fx) row(`In ${m.content.fx.currency}`, fxLine(m.content, t.total));
   if (m.content.payment_terms) row('Payment terms', m.content.payment_terms);
   row('Revision rounds', String(m.content.revisions));
+  if (m.content.revision_bank) { const b = m.content.revision_bank; row(b.unit === 'hours' ? 'Revision hours' : 'Revision budget', `${b.unit === 'hours' ? b.amount + ' hours' : formatMoney(b.amount, m.content.currency)}${b.overage_rate ? ` · then ${formatMoney(b.overage_rate, m.content.currency)} per hour` : ''}`); }
   if (m.content.due) row('Target delivery', m.content.due);
   for (const c of m.content.client_inputs ?? []) row('Client provides', c.title + (c.due ? ` (by ${c.due})` : ''));
   if (m.payments?.length) {

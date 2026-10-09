@@ -54,7 +54,8 @@ eq((await call(I, {cookie})).data.invoices.map(i => i.number), ['AS-0001', 'AS-0
   const r = await fetch(base + I + '/1', {headers: {Cookie: cookie}});
   eq(r.status, 200); eq(r.headers.get('content-type'), 'application/pdf');
   const pdf = Buffer.from(await r.arrayBuffer()).toString('latin1').replace(/\\([()])/g, '$1');
-  for (const s of ['INVOICE', 'AS-0001', 'Ada Studio', 'Tax ID: 33ABCDE1234F1Z5', 'Kaveri Foods', 'Deposit (30%)', 'GST (18%)', 'Rs.35,400.00', 'UPI ada@okbank']) ok(pdf.includes(s), 'invoice PDF states ' + s);
+  // A GSTIN seller charging GST issues a tax invoice; with no client state on record the place of supply is the seller's own state.
+  for (const s of ['TAX INVOICE', 'AS-0001', 'Ada Studio', 'GSTIN: 33ABCDE1234F1Z5', 'Kaveri Foods', 'Deposit (30%)', 'CGST (9%)', 'SGST (9%)', 'Place of supply: Tamil Nadu (33)', 'Rs.35,400.00', 'UPI ada@okbank']) ok(pdf.includes(s), 'invoice PDF states ' + s);
   eq((await call(I + '/1', {cookie: other})).status, 404);
   eq((await call(I + '/99', {cookie})).status, 404);
 }

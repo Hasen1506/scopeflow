@@ -43,6 +43,8 @@ function compact(view: LedgerResponse) {
     deliverables: a.items.map(i => ({id: i.id, title: i.title, qty: i.qty, unit: i.unit, acceptance: i.acceptance, added_by: i.source === 'baseline' ? 'baseline' : 'CO-' + i.source})),
     exclusions: exclusionClauses(s.exclusions), client_inputs: s.client_inputs ?? [], working_terms: s.notes,
     revision_rounds: {included: a.revisions_allowed, used: a.revisions_used, left: Math.max(0, a.revisions_allowed - a.revisions_used)},
+    ...(a.bank ? {revision_bank: a.bank} : {}),
+    ...(s.milestones ? {payment_schedule: s.milestones} : {}),
     change_orders: a.change_orders.map(c => ({seq: c.seq, title: c.title, status: c.status, summary: coSummary(c, a.currency, [...a.items, ...a.removed])})),
     goodwill_absorbed: a.goodwill_value, record_intact: view.chain.intact,
   };

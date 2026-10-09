@@ -9,7 +9,7 @@ type Result<T> = { results: T[]; meta: { changes: number } };
 // bypassImmutability: true = account deletion (may remove decided versions and ledger entries);
 // 'drafts' = single-project deletion, which the triggers still limit to pending versions.
 type BatchOptions = { lock?: string | null; bypassImmutability?: boolean | 'drafts'; redact?: boolean };
-const tables = 'projects|versions|api_keys|rate_limits|ledger_entries|oauth_clients|oauth_codes|oauth_tokens|templates|payments|account_settings|review_otps|business_profiles|invoices|review_views|version_cosigns|timestamps';
+const tables = 'projects|versions|api_keys|rate_limits|ledger_entries|oauth_clients|oauth_codes|oauth_tokens|templates|payments|account_settings|review_otps|business_profiles|invoices|review_views|version_cosigns|timestamps|invoice_reminders';
 
 // Existing application SQL uses positional ? parameters. Translate only outside
 // quoted strings, and keep all application tables in a private database schema.

@@ -4,6 +4,7 @@ import {useEffect,useState} from 'react';
 import {Header,api} from '../ui';
 import {ContactLink} from '../contact';
 import {NextStep} from '../workflow';
+import {gstinState, stateCodes, stateName, validGstin} from '@/lib/gst';
 import {currencyList} from '@/lib/currency';
 import type {Profile} from '@/lib/profile';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
@@ -41,6 +42,10 @@ export default function Account(){
    <div className="two-col"><label>Business or trading name<input maxLength={120} placeholder="e.g. Ada Studio" value={profile.business_name} onChange={e=>setP('business_name',e.target.value)}/></label><label>Tax ID <span className="quiet">· optional, e.g. GSTIN</span><input maxLength={40} value={profile.tax_id} onChange={e=>setP('tax_id',e.target.value)}/></label></div>
    <label>Address <span className="quiet">· optional</span><textarea rows={2} maxLength={500} value={profile.business_address} onChange={e=>setP('business_address',e.target.value)}/></label>
    <label>How clients pay you <span className="quiet">· printed on invoices, e.g. bank account or UPI ID</span><textarea rows={2} maxLength={500} value={profile.payment_details} onChange={e=>setP('payment_details',e.target.value)}/></label>
+   <details className="disclosure" open={!!(profile.gst_state||profile.sac_code||profile.lut_arn)||undefined}><summary>GST tax invoices (India) <span className="quiet">· {profile.gst_state?`registered in ${stateName(profile.gst_state)}`:'optional'}</span></summary>
+    <p className="fine">With your GSTIN as the tax ID and a tax named GST on the scope, invoices are issued as tax invoices: SAC, place of supply and CGST + SGST within your state or IGST across states.{profile.tax_id&&gstinState(profile.tax_id)&&!validGstin(profile.tax_id)?' Check your GSTIN: its last character does not match the rest.':''}</p>
+    <div className="three-col"><label>Registered in<select value={profile.gst_state||gstinState(profile.tax_id)} onChange={e=>setP('gst_state',e.target.value)}><option value="">Not registered</option>{stateCodes.filter(c=>c!=='96').map(c=><option key={c} value={c}>{c} · {stateName(c)}</option>)}</select></label><label>SAC code <span className="quiet">· e.g. 998391</span><input maxLength={8} inputMode="numeric" value={profile.sac_code} onChange={e=>setP('sac_code',e.target.value)}/></label><label>Export LUT ARN <span className="quiet">· optional</span><input maxLength={40} value={profile.lut_arn} onChange={e=>setP('lut_arn',e.target.value)}/></label></div>
+   </details>
    <label>Invoice number prefix<input maxLength={12} placeholder="INV-" value={profile.invoice_prefix} onChange={e=>setP('invoice_prefix',e.target.value)}/><span className="fine block">Invoices are numbered in order with no gaps: {(profile.invoice_prefix||'INV-')}0001, {(profile.invoice_prefix||'INV-')}0002…</span></label>
    <h2 id="h-defaults">Defaults for new scopes</h2><p className="fine">Pre-filled when you start a new scope; you can change them on each scope. Templates and existing scopes are not changed.</p>
    <div className="two-col"><label>Currency<select value={profile.default_currency} onChange={e=>setP('default_currency',e.target.value as Profile['default_currency'])}><option value="">Scopeflow default (USD)</option>{currencyList.map(c=><option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></label><label>Deposit on signature (%)<input type="number" min={0} max={100} step="any" inputMode="decimal" value={pctValue(profile.default_deposit_pct)} onChange={e=>setP('default_deposit_pct',pctInput(e.target.value))}/></label></div>

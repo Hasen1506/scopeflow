@@ -1,6 +1,6 @@
 import {PdfDocument, textWidth, wrap, type Font} from './pdf';
 import {paymentsOf, type Agreement, type LedgerEntry, type PaymentLine} from './ledger';
-import {totals} from './money';
+import {fxLine, schedule, totals, type ScheduleLine} from './money';
 import {formatMoney, type Scope} from './scope';
 import {formatDay, stamp} from './time';
 
@@ -15,6 +15,9 @@ export type StatementModel = {
   fee_base: number; fee: number; tax_label: string; tax_pct: number; tax: number; total: number;
   deposit_pct: number; deposit: number;
   payment_terms: string | null; pending_change_orders: number;
+  /** Payment milestones with what the payments received cover, oldest first. */
+  schedule: (ScheduleLine & {covered: number; status: 'paid' | 'part' | 'open'})[];
+  fx: string; bank: Agreement['bank'];
   lines: PaymentLine[]; paid: number; balance: number; overpaid: number;
   head: string | null; entries: number;
   time_zone: string; generated: string;
@@ -32,10 +35,21 @@ export function statementModel({project_id, version, content, agreement, entries
     fee_base: agreement.fee_base, fee: agreement.fee, tax_label: t.tax_label, tax_pct: t.tax_pct, tax: t.tax, total: t.total,
     deposit_pct: signed.deposit_pct, deposit: signed.deposit,
     payment_terms: content.payment_terms ?? null, pending_change_orders: agreement.pending,
+    schedule: coverSchedule(schedule(content, t.total), paid), fx: fxLine(content, t.total), bank: agreement.bank,
     lines, paid, balance: round2(Math.max(0, t.total - paid)), overpaid: round2(Math.max(0, paid - t.total)),
     head: own.at(-1)?.hash ?? null, entries: own.length,
     time_zone, generated,
   };
+}
+
+/** Applies the money received to the milestones in order: the earliest are covered first. Pure. */
+export function coverSchedule(lines: ScheduleLine[], paid: number): StatementModel['schedule'] {
+  let left = round2(paid);
+  return lines.map(l => {
+    const covered = round2(Math.min(l.amount, Math.max(0, left)));
+    left = round2(left - covered);
+    return {...l, covered, status: covered >= l.amount - 0.005 ? 'paid' : covered > 0 ? 'part' : 'open'};
+  });
 }
 
 const MARGIN = 48;
@@ -73,6 +87,7 @@ export function renderStatementPdf(m: StatementModel): Uint8Array {
   if (m.tax_pct > 0) amount(`${m.tax_label} (${m.tax_pct}%)`, money(m.tax));
   amount(m.tax_pct > 0 ? `Total with ${m.tax_label}` : 'Total', money(m.total), {font: 'bold'});
   if (m.deposit_pct > 0) amount(`Deposit on signature (${m.deposit_pct}%)`, money(m.deposit), {note: m.paid >= m.deposit ? 'Covered by the payments below.' : 'Part of the total above, due on signature.'});
+  if (m.fx) para(m.fx, {size: 8.5, gray: 0.4});
   if (m.pending_change_orders > 0) para(`${m.pending_change_orders} change order${m.pending_change_orders > 1 ? 's are' : ' is'} awaiting the client's approval and not included above.`, {size: 8.5, gray: 0.4});
 
   heading('Payments received');
@@ -85,6 +100,15 @@ export function renderStatementPdf(m: StatementModel): Uint8Array {
   amount('Total received', money(m.paid));
   amount(m.overpaid > 0 ? 'Received above the total' : 'Balance due', money(m.overpaid > 0 ? m.overpaid : m.balance), {font: 'bold', note: m.balance === 0 && m.overpaid === 0 ? 'Paid in full.' : ''});
 
+  if (m.schedule.length) {
+    heading('Payment schedule');
+    for (const l of m.schedule) amount(`${l.title} (${l.pct}%)${l.due ? ` · due ${formatDay(l.due)}` : ''}`, money(l.amount), {note: l.status === 'paid' ? 'Paid.' : l.status === 'part' ? `${money(l.covered)} received, ${money(round2(l.amount - l.covered))} open.` : 'Open.'});
+  }
+  if (m.bank) {
+    heading(m.bank.unit === 'hours' ? 'Revision hours' : 'Revision budget');
+    const v = (n: number) => (m.bank!.unit === 'hours' ? `${n}h` : money(n));
+    para(`${v(m.bank.used)} of ${v(m.bank.allowed)} used${m.bank.over ? `; ${v(m.bank.over)} over${m.bank.overage_value ? `, ${money(m.bank.overage_value)} billable at the agreed rate` : ''}` : `; ${v(m.bank.left)} left`}.`);
+  }
   if (m.payment_terms) { heading('Payment terms'); para(m.payment_terms); }
 
   heading('About this statement');

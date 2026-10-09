@@ -15,9 +15,11 @@ export const changeOrderSchema = z.object({
   fee_delta: z.number().finite().min(-10000000).max(10000000).default(0),
   days_delta: z.number().int().min(-365).max(365).default(0),
   revisions_delta: z.number().int().min(-50).max(50).default(0),
+  // Hours or money added to (or taken from) the revision bank. Optional, so older entries keep their exact payload.
+  bank_delta: z.number().finite().min(-100000).max(100000).optional(),
 }).strict().refine(
-  c => c.add_items.length || c.remove_item_ids.length || c.fee_delta || c.days_delta || c.revisions_delta,
-  'A change order must change deliverables, fee, timeline or revision rounds.',
+  c => c.add_items.length || c.remove_item_ids.length || c.fee_delta || c.days_delta || c.revisions_delta || c.bank_delta,
+  'A change order must change deliverables, fee, timeline, revision rounds or the revision bank.',
 );
 export const settleSchema = z.object({
   ref_seq: z.number().int().min(1),
@@ -35,6 +37,8 @@ export const goodwillSchema = z.object({
 export const revisionRoundSchema = z.object({
   feedback_date: dateString.refine(Boolean, 'Enter the date feedback arrived'),
   note: z.string().trim().max(2000).default(''),
+  // Hours (or money) the round drew from the revision bank, when the scope has one.
+  used: z.number().finite().min(0).max(100000).optional(),
 }).strict();
 export const clientInputSchema = z.object({
   input_id: z.string().min(1).max(40),
@@ -144,6 +148,8 @@ export type Agreement = {
   change_orders: CoView[]; pending: number;
   goodwill: (Goodwill & {seq: number; created: string})[]; goodwill_value: number; goodwill_hours: number;
   delays: {seq: number; input_id: string; title: string; due: string; received: string; days_late: number; shifted: boolean}[];
+  /** Present only when the approved scope has a revision bank, so agreements without one are unchanged. */
+  bank?: {unit: 'hours' | 'money'; allowed: number; used: number; left: number; over: number; overage_rate: number | null; overage_value: number};
 };
 
 export function addDays(date: string, days: number) {
@@ -163,7 +169,7 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
 
   let items: AgreementItem[] = itemsOf(baseline).map(i => ({...i, source: 'baseline'}));
   const removed: AgreementItem[] = [];
-  let fee = baseline.fee, codays = 0, revisions = baseline.revisions, used = 0, shift = 0;
+  let fee = baseline.fee, codays = 0, revisions = baseline.revisions, used = 0, shift = 0, bankAllowed = baseline.revision_bank?.amount ?? 0, bankUsed = 0;
   const change_orders: CoView[] = [], goodwill: Agreement['goodwill'] = [], delays: Agreement['delays'] = [];
   const inputs = new Map((baseline.client_inputs ?? []).map(i => [i.id, i]));
 
@@ -181,8 +187,10 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
       fee += co.fee_delta;
       codays += co.days_delta;
       revisions += co.revisions_delta;
+      bankAllowed += co.bank_delta ?? 0;
     } else if (e.kind === 'revision_round') {
       used++;
+      bankUsed += (e.payload as RevisionRound).used ?? 0;
     } else if (e.kind === 'goodwill') {
       goodwill.push({...(e.payload as Goodwill), seq: e.seq, created: e.created});
     } else if (e.kind === 'client_input') {
@@ -196,7 +204,14 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
   }
   // SF-12: with no baseline due date there is nothing to move; never report a shift.
   const days = baseline.due ? codays + shift : 0;
-  return {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const b = baseline.revision_bank;
+  const over = b ? r2(Math.max(0, bankUsed - Math.max(0, bankAllowed))) : 0;
+  const bank = b ? {
+    unit: b.unit, allowed: r2(Math.max(0, bankAllowed)), used: r2(bankUsed), left: r2(Math.max(0, bankAllowed - bankUsed)), over,
+    overage_rate: b.overage_rate ?? null, overage_value: b.unit === 'money' ? over : r2(over * (b.overage_rate ?? 0)),
+  } : null;
+  const agreement: Agreement = {
     baseline_version: baselineVersion, currency: baseline.currency,
     items, removed, fee_base: baseline.fee, fee: Math.round(fee * 100) / 100,
     due_base: baseline.due, due: addDays(baseline.due, days), days_shift: days,
@@ -205,6 +220,8 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
     goodwill, goodwill_value: goodwill.reduce((s, g) => s + g.value, 0), goodwill_hours: goodwill.reduce((s, g) => s + g.hours, 0),
     delays,
   };
+  if (bank) agreement.bank = bank;
+  return agreement;
 }
 
 /** Money received against one baseline: Razorpay deposits (provider evidence) and payments the creator recorded. */
@@ -233,6 +250,8 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
     if (co.days_delta && !baseline.due) return 'The approved scope has no delivery date, so a timeline change cannot apply. Set days_delta to 0, or revise the scope with a delivery date first.';
     if (agreement.fee + co.fee_delta < 0) return 'The fee cannot go below zero.';
     if (agreement.revisions_allowed + co.revisions_delta < 0) return 'Revision rounds cannot go below zero.';
+    if (co.bank_delta && !agreement.bank) return 'The approved scope has no revision bank, so bank_delta cannot apply.';
+    if (co.bank_delta && agreement.bank && agreement.bank.allowed + co.bank_delta < 0) return 'The revision bank cannot go below zero.';
     return null;
   }
   if (kind === 'settle') {
@@ -257,6 +276,12 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
     if (p.received > addDays(new Date().toISOString().slice(0, 10), 1)) return 'The date a payment arrived cannot be in the future.';
     return null;
   }
+  if (kind === 'revision_round') {
+    const r = payload as RevisionRound;
+    if (agreement.bank && r.used === undefined) return `Enter how many ${agreement.bank.unit === 'hours' ? 'hours this round took' : 'of the revision budget this round used'}.`;
+    if (!agreement.bank && r.used !== undefined) return 'The approved scope has no revision bank; leave out the hours used.';
+    return null;
+  }
   if (kind === 'client_input') {
     const c = payload as ClientInputReceived;
     if (!(baseline.client_inputs ?? []).some(i => i.id === c.input_id)) return 'Unknown client input. Use one listed in the approved scope.';
@@ -278,6 +303,7 @@ export function coSummary(co: ChangeOrder, currency: string, items: Item[] = [])
   if (co.fee_delta) parts.push(`${co.fee_delta > 0 ? '+' : '−'}${formatMoney(Math.abs(co.fee_delta), currency)}`);
   if (co.days_delta) parts.push(signed(co.days_delta, 'day'));
   if (co.revisions_delta) parts.push(signed(co.revisions_delta, 'revision round'));
+  if (co.bank_delta) parts.push(`${co.bank_delta > 0 ? '+' : '−'}${Math.abs(co.bank_delta)} revision bank`);
   return parts.join(' · ');
 }
 export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = [], inputs: {id: string; title: string}[] = []): string {
@@ -286,7 +312,7 @@ export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = 
     case 'change_order': { const co = e.payload as ChangeOrder; return `Change order CO-${e.seq} proposed: ${co.title} (${coSummary(co, currency, items)})`; }
     case 'settle': { const s = e.payload as Settle; return `CO-${s.ref_seq} ${s.outcome}${s.signer ? ' by ' + s.signer : ''}${s.comment ? ': “' + s.comment + '”' : ''}`; }
     case 'goodwill': { const g = e.payload as Goodwill; return `Goodwill: ${g.title} (${formatMoney(g.value, currency)}${g.hours ? `, ${g.hours}h` : ''} not billed)`; }
-    case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${formatDay(r.feedback_date)}${r.note ? ': ' + r.note : ''}`; }
+    case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${formatDay(r.feedback_date)}${r.used !== undefined ? ` (${r.used} used from the revision bank)` : ''}${r.note ? ': ' + r.note : ''}`; }
     case 'payment': { const p = e.payload as Payment; return `Deposit received: ${formatMoney(p.amount, p.currency)} via Razorpay (payment ${p.payment_id})`; }
     case 'payment_received': { const p = e.payload as PaymentReceived; return `Payment received: ${formatMoney(p.amount, currency)} ${PAYMENT_METHOD_PHRASE[p.method]} on ${formatDay(p.received)}${p.reference ? ` (ref. ${p.reference})` : ''}`; }
     case 'client_input': { const c = e.payload as ClientInputReceived; return `Received from client: ${inputs.find(i => i.id === c.input_id)?.title ?? c.input_id} on ${formatDay(c.received)}`; }

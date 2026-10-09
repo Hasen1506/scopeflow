@@ -110,6 +110,27 @@ export function reminderEmail({title, client, version, reviewUrl, days}: {title:
   return {subject, text, html};
 }
 
+/** Payment reminder for an overdue invoice (daily job). Amounts arrive formatted; the link opens the review page with the invoice PDF. */
+export function invoiceReminderEmail({title, client, number, amount, due, days, reviewUrl, seller}: {title: string; client: string; number: string; amount: string; due: string; days: number; reviewUrl: string; seller: string}): SignatureEmail {
+  const t = oneLine(title, 160), c = oneLine(client, 120), n = oneLine(number, 40), s = oneLine(seller, 120);
+  const subject = `Payment reminder: invoice ${n} for ${t}`;
+  const late = `${days} day${days === 1 ? '' : 's'}`;
+  const text = [
+    `Hi ${c},`,
+    '',
+    `Invoice ${n} for "${t}" was due on ${due} and ${amount} is still open (${late} overdue).`,
+    'The invoice PDF and the statement of payments are on your review page:',
+    '',
+    reviewUrl,
+    '',
+    'If you have already paid, thank you: please reply with the payment reference so it can be recorded.',
+    '',
+    `${s ? s + ' · ' : ''}Sent with Scopeflow`,
+  ].join('\n');
+  const html = `<p>Hi ${escapeHtml(c)},</p><p>Invoice <strong>${escapeHtml(n)}</strong> for <strong>${escapeHtml(t)}</strong> was due on ${escapeHtml(due)} and <strong>${escapeHtml(amount)}</strong> is still open (${late} overdue).</p><p><a href="${escapeHtml(reviewUrl)}">Open the invoice and statement</a></p><p>If you have already paid, thank you: please reply with the payment reference so it can be recorded.</p><p style="color:#666;font-size:13px">${s ? escapeHtml(s) + ' · ' : ''}Sent with Scopeflow</p>`;
+  return {subject, text, html};
+}
+
 /** mailto: fallback that opens the owner's own mail app with the message filled in. */
 export function mailtoLink(to: string, message: Pick<SignatureEmail, 'subject' | 'text'>) {
   return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(message.subject)}&body=${encodeURIComponent(message.text)}`;

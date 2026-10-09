@@ -39,7 +39,9 @@ test('amount checks: two decimals, never more than the balance, nothing when pai
   assert.match(I.invoiceProblem(1.005, 100, 'INR'), /two decimals/);
   assert.match(I.invoiceProblem(1, 0, 'INR'), /paid in full/);
   assert.equal(I.invoiceRequestSchema.safeParse({amount: 5, extra: 1}).success, false);
-  assert.deepEqual(I.invoiceRequestSchema.parse({amount: 5}), {amount: 5, description: '', due_days: 15});
+  assert.deepEqual(I.invoiceRequestSchema.parse({amount: 5}), {amount: 5, description: ''});
+  assert.equal(I.invoiceRequestSchema.safeParse({}).success, false);
+  assert.deepEqual(I.invoiceRequestSchema.parse({milestone_id: 'm1'}), {milestone_id: 'm1', description: ''});
 });
 
 test('PDF: deterministic, prints seller, client, number, tax split and how to pay', () => {

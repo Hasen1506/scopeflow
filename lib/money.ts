@@ -32,3 +32,29 @@ export function feeCheck(s: Pick<Scope, 'fee' | 'currency' | 'items' | 'delivera
   if (base.unpriced) return {...base, status: 'partial', message: `Priced items add up to ${m(item_total)}; ${m(difference)} of the ${m(s.fee)} fee is not assigned to an item (${base.unpriced} unpriced).`};
   return {...base, status: 'under', message: `Item prices add up to ${m(item_total)}, ${m(difference)} less than the fee of ${m(s.fee)}.`};
 }
+
+export type ScheduleLine = {id: string; title: string; pct: number; due: string; amount: number};
+/**
+ * The payment schedule in money: each milestone's share of the tax-inclusive total. Shares are
+ * rounded to the cent and the last milestone takes the remainder, so the lines always add up to the total.
+ */
+export function schedule(s: Pick<Scope, 'milestones'>, total: number): ScheduleLine[] {
+  const list = s.milestones ?? [];
+  let left = round2(total);
+  return list.map((m, i) => {
+    const amount = i === list.length - 1 ? left : round2(total * m.pct / 100);
+    left = round2(left - amount);
+    return {id: m.id, title: m.title, pct: m.pct, due: m.due, amount};
+  });
+}
+
+/** An amount in the scope's locked second currency, or null when the scope has none. */
+export function inFx(s: Pick<Scope, 'fx'>, amount: number): {amount: number; currency: string} | null {
+  return s.fx ? {amount: round2(amount * s.fx.rate), currency: s.fx.currency} : null;
+}
+/** "≈ ₹1,50,000.00 at 83.5 INR/USD (RBI reference rate, 2026-10-01)". */
+export function fxLine(s: Pick<Scope, 'fx' | 'currency'>, amount: number) {
+  const v = inFx(s, amount);
+  if (!v || !s.fx) return '';
+  return `≈ ${formatMoney(v.amount, v.currency)} at ${s.fx.rate} ${s.fx.currency}/${s.currency} (${s.fx.source}, ${s.fx.as_of})`;
+}

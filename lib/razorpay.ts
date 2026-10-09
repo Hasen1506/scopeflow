@@ -43,14 +43,17 @@ export function depositAmount(content: {fee: number; deposit_pct?: number; tax_p
 }
 
 export class RazorpayError extends Error {}
+/** Razorpay's API origin; RAZORPAY_API_URL overrides it (a test double or a proxy). */
+export const razorpayApi = (env: Env = process.env) => (env.RAZORPAY_API_URL?.trim() || 'https://api.razorpay.com').replace(/\/$/, '');
+const basic = (config: RazorpayConfig) => 'Basic ' + Buffer.from(`${config.keyId}:${config.keySecret}`).toString('base64');
 
 /** Creates a Razorpay order (POST /v1/orders, basic auth). `fetchImpl` is injectable for tests. */
 export async function createOrder(config: RazorpayConfig, order: {amount_minor: number; currency: string; receipt: string; notes: Record<string, string>}, fetchImpl: typeof fetch = fetch) {
   let response: Response;
   try {
-    response = await fetchImpl('https://api.razorpay.com/v1/orders', {
+    response = await fetchImpl(`${razorpayApi()}/v1/orders`, {
       method: 'POST',
-      headers: {Authorization: 'Basic ' + Buffer.from(`${config.keyId}:${config.keySecret}`).toString('base64'), 'Content-Type': 'application/json'},
+      headers: {Authorization: basic(config), 'Content-Type': 'application/json'},
       body: JSON.stringify({amount: order.amount_minor, currency: order.currency, receipt: order.receipt.slice(0, 40), notes: order.notes}),
       signal: AbortSignal.timeout(10000),
     });
@@ -83,4 +86,16 @@ export function paidEvent(payload: unknown, eventId: string | null): PaidEvent |
   if (!e || typeof e.order_id !== 'string' || typeof e.id !== 'string' || typeof e.amount !== 'number' || typeof e.currency !== 'string') return null;
   if (e.status !== undefined && e.status !== 'captured') return null;
   return {event_id: eventId, order_id: e.order_id, payment_id: e.id, amount_minor: e.amount, currency: e.currency};
+}
+
+/** The captured payment of an order (GET /v1/orders/:id/payments), or null when none is captured. For reconciliation. */
+export async function capturedPayment(config: RazorpayConfig, orderId: string, fetchImpl: typeof fetch = fetch, env: Env = process.env): Promise<PaidEvent | null> {
+  let response: Response;
+  try {
+    response = await fetchImpl(`${razorpayApi(env)}/v1/orders/${encodeURIComponent(orderId)}/payments`, {headers: {Authorization: basic(config)}, signal: AbortSignal.timeout(10000)});
+  } catch { throw new RazorpayError('Razorpay could not be reached.'); }
+  const data = await response.json().catch(() => ({})) as {items?: Record<string, unknown>[]; error?: {description?: string}};
+  if (!response.ok || !Array.isArray(data.items)) throw new RazorpayError(`Razorpay refused the lookup${data.error?.description ? ': ' + String(data.error.description).slice(0, 200) : '.'}`);
+  const p = data.items.find(i => i.status === 'captured' && i.order_id === orderId && typeof i.id === 'string' && typeof i.amount === 'number' && typeof i.currency === 'string');
+  return p ? {event_id: null, order_id: orderId, payment_id: p.id as string, amount_minor: p.amount as number, currency: p.currency as string} : null;
 }

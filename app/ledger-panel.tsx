@@ -15,7 +15,7 @@ export type LedgerView = {
   agreement: Agreement | null; entries: LedgerEntry[];
   chain: {intact: true; head: string; count: number} | {intact: false; at: number; reason: string};
 };
-type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'fee_delta' | 'days_delta' | 'revisions_delta'>>;
+type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'fee_delta' | 'days_delta' | 'revisions_delta' | 'bank_delta'>>;
 type Form = LedgerForm;
 // The viewer's own calendar date, not UTC's (feedback that arrived this morning in Chennai is dated today).
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -27,6 +27,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [roundNote, setRoundNote] = useState('');
   const pendingWrite = useRef<{signature:string;id:string}|null>(null);
   // True while the open form holds input that has not been recorded.
   const dirty = useRef(false);
@@ -106,16 +107,23 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
             <div><span>Current fee</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>was {formatMoney(a.fee_base, cur)}</em>}</div>
             <div><span>Delivery</span><strong>{formatDay(a.due) || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days{a.due_base ? ` from ${formatDay(a.due_base)}` : ''}</em>}</div>
             <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} / {a.revisions_allowed}</strong><meter min={0} max={Math.max(1, a.revisions_allowed)} value={Math.min(a.revisions_used, Math.max(1, a.revisions_allowed))} /></div>
+            {a.bank && <div><span>Revision {a.bank.unit === 'hours' ? 'hours' : 'budget'}</span><strong className={a.bank.over ? 'over' : ''}>{a.bank.unit === 'hours' ? `${a.bank.used}h / ${a.bank.allowed}h` : `${formatMoney(a.bank.used, cur)} / ${formatMoney(a.bank.allowed, cur)}`}</strong><meter min={0} max={Math.max(1, a.bank.allowed)} value={Math.min(a.bank.used, Math.max(1, a.bank.allowed))} />{a.bank.over > 0 && <em>{a.bank.unit === 'hours' ? `${a.bank.over}h over` : `${formatMoney(a.bank.over, cur)} over`}{a.bank.overage_value > 0 ? ` · ${formatMoney(a.bank.overage_value, cur)} billable` : ''}</em>}</div>}
             <div><span>Goodwill absorbed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong>{a.goodwill_hours > 0 && <em>{a.goodwill_hours}h unbilled</em>}</div>
           </div>
-          {a.revisions_used >= a.revisions_allowed && (
+          {a.bank && a.bank.left === 0 && (
+            <div className="muted-box warn-box">
+              {a.bank.over ? `The revision ${a.bank.unit === 'hours' ? 'hours are' : 'budget is'} overdrawn by ${a.bank.unit === 'hours' ? a.bank.over + 'h' : formatMoney(a.bank.over, cur)}${a.bank.overage_value ? `, ${formatMoney(a.bank.overage_value, cur)} at the agreed overage rate` : ''}.` : `The revision ${a.bank.unit === 'hours' ? 'hours are' : 'budget is'} used up.`}
+              <div className="actions gap-top"><button className="secondary" onClick={() => openForm('change_order', {title: a.bank!.unit === 'hours' ? 'Top up revision hours' : 'Top up revision budget', reason: 'The revision bank in the approved scope is used up.', bank_delta: a.bank!.unit === 'hours' ? 5 : 0, fee_delta: a.bank!.overage_value || 0})}>Draft a top-up change order</button></div>
+            </div>
+          )}
+          {a.revisions_used >= a.revisions_allowed && !a.bank && (
             <div className="muted-box warn-box">
               {a.rounds_over ? `${a.rounds_over} round${a.rounds_over > 1 ? 's' : ''} over the allowance.` : 'The included revision rounds are used up.'} The next round of feedback is new work.
               <div className="actions gap-top"><button className="secondary" onClick={() => openForm('change_order', {title: 'Additional revision round', reason: 'All included revision rounds have been used.', revisions_delta: 1})}>Draft a change order for an extra round</button></div>
             </div>
           )}
           {a.pending > 0 && <p className="fine">{a.pending} change order{a.pending > 1 ? 's' : ''} awaiting the client{reviewUrl ? ' on ' : '.'}{reviewUrl && <a className="help-link" href={reviewUrl} target="_blank" rel="noreferrer">their review link</a>}</p>}
-          <ScopeCheck projectId={projectId} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => void submit('revision_round', {feedback_date: today(), note})} />
+          <ScopeCheck projectId={projectId} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => { if (a.bank) { setRoundNote(note); openForm('revision_round'); } else void submit('revision_round', {feedback_date: today(), note}); }} />
           <div className="actions section-gap">
             <button type="button" className={toggle('change_order')} aria-pressed={form === 'change_order'} disabled={busy} onClick={() => openForm('change_order')}><FilePlus2 size={16} />Change order</button>
             <button type="button" className={toggle('revision_round')} aria-pressed={form === 'revision_round'} disabled={busy} onClick={() => openForm('revision_round')}><RotateCcw size={16} />Revision round</button>
@@ -124,7 +132,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
           </div>
           <div ref={formArea}>
             {form === 'change_order' && <ChangeOrderForm key={JSON.stringify(coSeed)} seed={coSeed} agreement={a} busy={busy} error={error} onInvalid={setError} onDirty={setDirty} onSubmit={(p, id) => submit('change_order', p, id)} onCancel={closeForm} />}
-            {form === 'revision_round' && <RoundForm busy={busy} error={error} used={a.revisions_used} allowed={a.revisions_allowed} onSubmit={p => submit('revision_round', p)} onCancel={closeForm} />}
+            {form === 'revision_round' && <RoundForm key={roundNote} busy={busy} error={error} used={a.revisions_used} allowed={a.revisions_allowed} bank={a.bank} currency={cur} seedNote={roundNote} onSubmit={p => submit('revision_round', p)} onCancel={closeForm} />}
             {form === 'client_input' && <InputForm busy={busy} error={error} inputs={(base.client_inputs ?? []).filter(i => !a.delays.some(d => d.input_id === i.id))} onSubmit={p => submit('client_input', p)} onCancel={closeForm} />}
             {form === 'goodwill' && <GoodwillForm busy={busy} error={error} currency={cur} onDirty={setDirty} onSubmit={p => submit('goodwill', p)} onCancel={closeForm} />}
           </div>
@@ -167,10 +175,11 @@ function ChangeOrderForm({seed, agreement, busy, error, onInvalid, onDirty, onSu
   const [fee, setFee] = useState(String(seed.fee_delta ?? 0));
   const [days, setDays] = useState(String(seed.days_delta ?? 0));
   const [rounds, setRounds] = useState(String(seed.revisions_delta ?? 0));
+  const [bankDelta, setBankDelta] = useState(String(seed.bank_delta ?? 0));
   // One id per drafted change order, so a retried submit cannot record it twice.
   const [requestId] = useState(() => crypto.randomUUID());
   const cur = agreement.currency;
-  const payload: ChangeOrder = {title, reason, request_quote: quote, add_items: add, remove_item_ids: remove, fee_delta: Number(fee) || 0, days_delta: Math.round(Number(days) || 0), revisions_delta: Math.round(Number(rounds) || 0)};
+  const payload: ChangeOrder = {title, reason, request_quote: quote, add_items: add, remove_item_ids: remove, fee_delta: Number(fee) || 0, days_delta: Math.round(Number(days) || 0), revisions_delta: Math.round(Number(rounds) || 0), ...(agreement.bank && Number(bankDelta) ? {bank_delta: Number(bankDelta)} : {})};
   const itemTotal = add.reduce((s, i) => s + (i.price ?? 0), 0);
   const fingerprint = JSON.stringify(payload);
   const [initial] = useState(fingerprint);
@@ -198,6 +207,7 @@ function ChangeOrderForm({seed, agreement, busy, error, onInvalid, onDirty, onSu
         <label>Schedule change (days)<input type="number" step="1" value={days} onChange={e => setDays(e.target.value)} /></label>
         <label>Extra revision rounds<input type="number" step="1" value={rounds} onChange={e => setRounds(e.target.value)} /></label>
       </div>
+      {agreement.bank && <label>Revision {agreement.bank.unit === 'hours' ? 'hours added' : `budget added (${cur})`} <span className="quiet">· {agreement.bank.left} left now</span><input type="number" step={agreement.bank.unit === 'hours' ? '0.25' : '0.01'} value={bankDelta} onChange={e => setBankDelta(e.target.value)} /></label>}
       {itemTotal > 0 && Number(fee) !== itemTotal && <p className="fine">Added deliverables are priced at {formatMoney(itemTotal, cur)}. <button type="button" className="link-button" onClick={() => setFee(String(itemTotal))}>Use as fee change</button></p>}
       <p className="muted-box">Client will see: <strong>{title || 'Untitled'}</strong>{coSummary(payload, cur, agreement.items) ? ' · ' + coSummary(payload, cur, agreement.items) : ''}. New fee {formatMoney(agreement.fee + payload.fee_delta, cur)}.</p>
       <InlineError error={error} />
@@ -206,12 +216,16 @@ function ChangeOrderForm({seed, agreement, busy, error, onInvalid, onDirty, onSu
   );
 }
 
-function RoundForm({busy, error, used, allowed, onSubmit, onCancel}: {busy: boolean; error: string; used: number; allowed: number; onSubmit: (p: unknown) => Promise<boolean>; onCancel: () => void}) {
+function RoundForm({busy, error, used, allowed, bank, currency, seedNote, onSubmit, onCancel}: {busy: boolean; error: string; used: number; allowed: number; bank: Agreement['bank']; currency: string; seedNote: string; onSubmit: (p: unknown) => Promise<boolean>; onCancel: () => void}) {
   const [date, setDate] = useState(today());
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(seedNote);
+  const [spent, setSpent] = useState('');
   return (
-    <form className="ledger-form" onSubmit={e => { e.preventDefault(); void onSubmit({feedback_date: date, note}); }}>
-      <p className="fine">This will be round {used + 1} of {allowed} included.{used + 1 > allowed ? ' It is over the allowance, so consider a change order instead.' : ''}</p>
+    <form className="ledger-form" onSubmit={e => { e.preventDefault(); void onSubmit({feedback_date: date, note, ...(bank ? {used: Number(spent) || 0} : {})}); }}>
+      {bank
+        ? <p className="fine">{bank.unit === 'hours' ? `${bank.left}h of ${bank.allowed}h` : `${formatMoney(bank.left, currency)} of ${formatMoney(bank.allowed, currency)}`} left in the revision bank.</p>
+        : <p className="fine">This will be round {used + 1} of {allowed} included.{used + 1 > allowed ? ' It is over the allowance, so consider a change order instead.' : ''}</p>}
+      {bank && <label>{bank.unit === 'hours' ? 'Hours this round took' : `Cost of this round (${currency})`}<input type="number" required min={0} step={bank.unit === 'hours' ? '0.25' : '0.01'} value={spent} onChange={e => setSpent(e.target.value)} /></label>}
       <div className="two-col"><label>Feedback received<input type="date" required value={date} onChange={e => setDate(e.target.value)} /></label><label>Note <span className="quiet">· optional</span><input maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Logo colour feedback" /></label></div>
       <InlineError error={error} />
       <div className="actions"><button type="submit" className="primary" disabled={busy}>Log revision round</button><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancel</button></div>

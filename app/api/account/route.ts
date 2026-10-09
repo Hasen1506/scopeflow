@@ -27,6 +27,7 @@ export async function DELETE(request:Request){try{
   database.prepare('DELETE FROM ledger_entries WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM versions WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM payments WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
+  database.prepare('DELETE FROM invoice_reminders WHERE invoice_id IN (SELECT id FROM invoices WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM invoices WHERE owner=?').bind(id),
   database.prepare('DELETE FROM review_views WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM version_cosigns WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),

@@ -2,18 +2,19 @@ import {randomUUID} from 'node:crypto';
 import {db, json, ownerAuth, body, safeOrigin, allowWrite, allowRead, failure} from '@/lib/server';
 import {loadLedger} from '@/lib/ledger-server';
 import {paymentsOf} from '@/lib/ledger';
-import {totals} from '@/lib/money';
+import {schedule, totals} from '@/lib/money';
+import {gstinState} from '@/lib/gst';
 import {profileFromRow, type ProfileRow} from '@/lib/profile';
-import {invoiceContent, invoiceNumber, invoiceProblem, invoiceRequestSchema, type InvoiceContent} from '@/lib/invoice';
+import {invoiceContent, invoiceNumber, invoiceProblem, invoiceRequestSchema, netDays, type InvoiceContent} from '@/lib/invoice';
 import {zoneOrUtc} from '@/lib/time';
+import {invoiceViews, todayIn, type InvoiceRow} from '@/lib/invoice-server';
 type Ctx = {params: Promise<{id: string}>};
-type InvoiceRow = {id: string; seq: number; number: string; version: number; amount: number; currency: string; issued: string; content: string};
-const view = (r: InvoiceRow) => { const c = JSON.parse(r.content) as InvoiceContent; return {seq: r.seq, number: r.number, version: r.version, amount: r.amount, currency: r.currency, issued: c.issued, due: c.due, description: c.line.description}; };
+const view = (r: InvoiceRow) => { const c = JSON.parse(r.content) as InvoiceContent; return {seq: r.seq, number: r.number, version: r.version, amount: r.amount, currency: r.currency, issued: c.issued, due: c.due, description: c.line.description, tax_invoice: !!c.gst, milestone: c.milestone?.id ?? null}; };
 
 async function project(request: Request, id: string) {
   const auth = await ownerAuth(request);
   if (!auth) return {error: json({error: 'Sign in or provide a valid API token.'}, 401)};
-  const row = await db().prepare('SELECT id,archived,client_email,timezone FROM projects WHERE id=? AND owner=?').bind(id, auth.user).first<{id: string; archived: string | null; client_email: string | null; timezone: string | null}>();
+  const row = await db().prepare('SELECT id,archived,client_email,timezone,client_gstin,client_state,client_address FROM projects WHERE id=? AND owner=?').bind(id, auth.user).first<{id: string; archived: string | null; client_email: string | null; timezone: string | null; client_gstin: string | null; client_state: string | null; client_address: string | null}>();
   if (!row) return {error: json({error: 'Project not found.'}, 404)};
   return {auth, row};
 }
@@ -26,7 +27,12 @@ export async function GET(request: Request, ctx: Ctx) {
     if (p.error) return p.error;
     if (!await allowRead('owner:' + p.auth.user)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     const rows = await db().prepare('SELECT id,seq,number,version,amount,currency,issued,content FROM invoices WHERE project_id=? AND owner=? ORDER BY seq').bind(id, p.auth.user).all<InvoiceRow>();
-    return json({invoices: rows.results.map(view)});
+    const l = await loadLedger(id);
+    // The payment schedule of the approved scope, with what has been invoiced against each milestone.
+    const invoices = invoiceViews(rows.results, l.entries, todayIn(p.row.timezone));
+    const t = l.content && l.agreement ? totals(l.content, l.agreement.fee) : null;
+    const plan = l.content && t ? schedule(l.content, t.total).map(m => ({...m, invoiced: Math.round(rows.results.filter(r => r.version === l.baseline!.version && (JSON.parse(r.content) as InvoiceContent).milestone?.id === m.id).reduce((a, r) => a + r.amount, 0) * 100) / 100})) : [];
+    return json({invoices, schedule: plan, net_days: netDays(l.content?.payment_terms) ?? null});
   } catch (e) { return failure(e); }
 }
 
@@ -56,15 +62,33 @@ export async function POST(request: Request, ctx: Ctx) {
     const t = totals(l.content, l.agreement.fee);
     const {paid} = paymentsOf(l.entries.filter(e => e.baseline_version === l.baseline!.version));
     const balance = Math.round(Math.max(0, t.total - paid) * 100) / 100;
-    const problem = invoiceProblem(req.amount, balance, l.agreement.currency);
+    // A milestone invoice: its share of the current total, less what earlier invoices for it asked for.
+    let milestone: InvoiceContent['milestone'];
+    let amount = req.amount;
+    if (req.milestone_id) {
+      const line = schedule(l.content, t.total).find(m => m.id === req.milestone_id);
+      if (!line) return json({error: 'That milestone is not in the approved scope.', code: 'unknown_milestone'}, 400);
+      milestone = {id: line.id, title: line.title, pct: line.pct};
+      const earlier = await db().prepare('SELECT content FROM invoices WHERE project_id=? AND owner=? AND version=?').bind(id, auth.user, l.baseline.version).all<{content: string}>();
+      const invoiced = Math.round(earlier.results.map(r => JSON.parse(r.content) as InvoiceContent).filter(c => c.milestone?.id === line.id).reduce((a, c) => a + c.total, 0) * 100) / 100;
+      const open = Math.round(Math.max(0, line.amount - invoiced) * 100) / 100;
+      if (amount === undefined) {
+        if (!(open > 0)) return json({error: `${line.title} has already been invoiced in full.`, code: 'milestone_invoiced'}, 409);
+        amount = Math.min(open, balance);
+      }
+    }
+    if (amount === undefined) return json({error: 'Give an amount to invoice.'}, 400);
+    const problem = invoiceProblem(amount, balance, l.agreement.currency);
     if (problem) return json({error: problem, code: 'invalid_amount', balance}, 400);
     const issued = new Intl.DateTimeFormat('en-CA', {timeZone: zoneOrUtc(row.timezone), year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
     // Take the next number and insert the invoice in one statement: numbers never skip or repeat.
     const draft = (seq: number) => invoiceContent({
-      number: invoiceNumber(profile.invoice_prefix, seq), issued, due_days: req.due_days, description: req.description, amount: req.amount,
+      number: invoiceNumber(profile.invoice_prefix, seq), issued, due_days: req.due_days ?? netDays(l.content!.payment_terms ?? profile.default_payment_terms) ?? 15, description: req.description, amount: amount!,
       seller: {name: profile.business_name, address: profile.business_address, tax_id: profile.tax_id, payment_details: profile.payment_details},
       client: {name: l.content!.client, email: row.client_email ?? ''}, project: {id, title: l.content!.title, version: l.baseline!.version},
       currency: l.agreement!.currency, tax_label: t.tax_label, tax_pct: t.tax_pct, agreed_total: t.total, paid, payment_terms: l.content!.payment_terms ?? profile.default_payment_terms,
+      gst: {seller_state: profile.gst_state || gstinState(profile.tax_id), sac: profile.sac_code, lut_arn: profile.lut_arn, client_gstin: row.client_gstin ?? '', client_state: row.client_state ?? '', client_address: row.client_address ?? ''},
+      milestone, fx: l.content!.fx,
     });
     // The content embeds the number, so it is built for the sequence the counter is about to hand out and checked after.
     const next = await db().prepare('SELECT next_invoice FROM business_profiles WHERE owner=?').bind(auth.user).first<{next_invoice: number}>();

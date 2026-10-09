@@ -33,6 +33,9 @@ jobs:
       SCOPEFLOW_TSA_URL: http://127.0.0.1:55434/
       SCOPEFLOW_PDF_SIGN_CERT: /tmp/scopeflow-sign.crt
       SCOPEFLOW_PDF_SIGN_KEY: /tmp/scopeflow-sign.key
+      # Reference rates from the same local service; the reconciliation route's bearer secret.
+      SCOPEFLOW_FX_URL: http://127.0.0.1:55434/fx
+      SCOPEFLOW_CRON_SECRET: ci-only-cron-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

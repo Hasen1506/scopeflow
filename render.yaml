@@ -36,12 +36,17 @@ services:
         sync: false
       - key: SCOPEFLOW_MAIL_REPLY_TO
         sync: false
+      # Shared with the daily job: authorizes POST /api/payments/razorpay/reconcile.
+      - key: SCOPEFLOW_CRON_SECRET
+        generateValue: true
 
   # Daily jobs (docs/DEPLOY.md):
   #  1. client-data retention: replaces the IP address and browser user agent on client decisions
   #     older than each owner's retention setting with "redacted" (signed fields are never touched);
-  #  2. automatic reminders for owners who turned them on (needs the Resend variables; without them
-  #     it sends nothing and says so).
+  #  2. automatic reminders for owners who turned them on, including payment reminders for overdue
+  #     invoices (needs the Resend variables; without them it sends nothing and says so);
+  #  3. Razorpay reconciliation: records captured payments whose webhook was lost (calls the web
+  #     service with SCOPEFLOW_CRON_SECRET).
   # Both are idempotent. Render cron jobs are not on the free plan, so this needs the Starter plan;
   # delete this block if you would rather run the scripts by hand.
   - type: cron
@@ -50,7 +55,7 @@ services:
     plan: starter
     schedule: "30 20 * * *" # 20:30 UTC = 02:00 IST
     buildCommand: npm ci --omit=dev --ignore-scripts
-    startCommand: node scripts/redact-expired.mjs && node scripts/send-reminders.mjs
+    startCommand: node scripts/redact-expired.mjs && node scripts/send-reminders.mjs && node scripts/reconcile-payments.mjs
     envVars:
       - key: DATABASE_URL
         fromService:
@@ -80,3 +85,8 @@ services:
           type: web
           name: scopeflow
           envVarKey: SCOPEFLOW_MAIL_REPLY_TO
+      - key: SCOPEFLOW_CRON_SECRET
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_CRON_SECRET

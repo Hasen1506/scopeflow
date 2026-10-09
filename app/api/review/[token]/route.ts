@@ -7,6 +7,7 @@ import {sha256} from '@/lib/ledger';
 import {anchorMessage, signRecord, publicSigningKey} from '@/lib/signing';
 import {decisionContext, isOwnerSession} from '@/lib/decision';
 import {depositView} from '@/lib/deposit-server';
+import {clientInvoices} from '@/lib/invoice-server';
 import {zoneOrUtc} from '@/lib/time';
 import {linkExpired,linkExpires} from '@/lib/link';
 import {cosignStatus,parseCosigners,type Cosign} from '@/lib/cosign';
@@ -24,7 +25,7 @@ export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.p
  const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=? AND revoked=0').bind(row.project_id,row.version-1).first<{content:string}>();
  const {owner:_owner,decision_context:_context,timezone,require_otp:requireOtp,client_email:clientEmail,client_phone:clientPhone,otp_channel:otpChannel,cosigners:_cosigners,link_issued:_issued,link_expiry_days:_days,...rest}=row;const expires=linkExpires(row);const {token:_,...scope}=parseRow(rest,{withToken:false}) as Record<string,unknown>;
  // The approved latest version doubles as the client's view of the post-approval ledger.
- let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures};}
+ let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures,invoices:await clientInvoices(row.project_id,row.version,l.entries,timezone as string|null)};}
  // PR F: the deposit due on signature, once approved (null when the scope has none).
  const deposit=row.status==='approved'&&row.version===row.latest?await depositView(row.project_id,row.version,JSON.parse(row.content)):null;
  // PR B: whether this decision (or a pending change-order decision) needs an email code first, and where it goes (masked).

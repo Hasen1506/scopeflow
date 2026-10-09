@@ -5,15 +5,16 @@ import { clientEmailSchema } from '@/lib/mail';
 import { validTimeZone } from '@/lib/time';
 import { otpAvailable, type OtpChannel } from '@/lib/otp';
 import { cosignersSchema, parseCosigners } from '@/lib/cosign';
+import { gstinState, stateCodes } from '@/lib/gst';
 import { linkExpires } from '@/lib/link';
 import { getUser } from '@/lib/auth/server';
 import { lockKey } from '@/db/client';
 import { db,json,ownerAuth,body,safeOrigin,allowWrite,allowRead,parseRow,secret,failure,hash } from '@/lib/server';
 type Ctx={params:Promise<{id:string}>};
-const PROJECT_COLUMNS='archived,client_email,timezone,require_otp,link_expiry_days,link_issued,client_phone,otp_channel,cosigners';
-type ProjectRow={archived:string|null;client_email:string|null;timezone:string|null;require_otp:boolean;link_expiry_days:number|null;link_issued:string|null;client_phone:string|null;otp_channel:string|null;cosigners:string|null};
+const PROJECT_COLUMNS='archived,client_email,timezone,require_otp,link_expiry_days,link_issued,client_phone,otp_channel,cosigners,client_gstin,client_state,client_address';
+type ProjectRow={archived:string|null;client_email:string|null;timezone:string|null;require_otp:boolean;link_expiry_days:number|null;link_issued:string|null;client_phone:string|null;otp_channel:string|null;cosigners:string|null;client_gstin:string|null;client_state:string|null;client_address:string|null};
 /** Owner-facing project settings. */
-function projectSettings(p:ProjectRow){return {archived:p.archived??null,client_email:p.client_email??'',timezone:p.timezone??null,require_otp:!!p.require_otp,link_expiry_days:p.link_expiry_days??null,link_issued:p.link_issued??null,client_phone:p.client_phone??'',otp_channel:(p.otp_channel??'email') as OtpChannel,cosigners:parseCosigners(p.cosigners)};}
+function projectSettings(p:ProjectRow){return {archived:p.archived??null,client_email:p.client_email??'',timezone:p.timezone??null,require_otp:!!p.require_otp,link_expiry_days:p.link_expiry_days??null,link_issued:p.link_issued??null,client_phone:p.client_phone??'',otp_channel:(p.otp_channel??'email') as OtpChannel,cosigners:parseCosigners(p.cosigners),client_gstin:p.client_gstin??'',client_state:p.client_state??'',client_address:p.client_address??''};}
 const LINK_HINT='Review links are shown only in the signed-in Scopeflow workspace, so an API token or connector can never act as the client.';
 export async function GET(request:Request,ctx:Ctx){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const {id}=await ctx.params;const p=await db().prepare(`SELECT latest,${PROJECT_COLUMNS} FROM projects WHERE id=? AND owner=?`).bind(id,auth.user).first<ProjectRow&{latest:number}>();if(!p)return json({error:'Project not found.'},404);const r=await db().prepare('SELECT * FROM versions WHERE project_id=? ORDER BY version DESC').bind(id).all();const latest=r.results[0] as {status:string;created:string}|undefined;const cosigns=await db().prepare('SELECT cosigner_id,role,signer,signed,signature FROM version_cosigns WHERE project_id=? AND version=? ORDER BY signed').bind(id,p.latest).all();return json({versions:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'})),project:{...projectSettings(p),link_expires:latest?linkExpires({...latest,link_issued:p.link_issued,link_expiry_days:p.link_expiry_days}):null},cosigns:cosigns.results});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
@@ -42,7 +43,7 @@ export async function POST(request:Request,ctx:Ctx){try{
 
 // Project metadata the owner can change without a new version: archive state and the
 // client email used by "Send for signature". Nothing here touches signed content.
-const patchSchema=z.object({archived:z.boolean().optional(),client_email:clientEmailSchema.optional(),timezone:z.union([z.literal(''),z.string().max(64).refine(validTimeZone,'Use an IANA time zone such as Asia/Kolkata')]).optional(),require_otp:z.boolean().optional(),link_expiry_days:z.union([z.null(),z.literal(7),z.literal(14),z.literal(30),z.literal(60),z.literal(90)]).optional(),client_phone:z.union([z.literal(''),z.string().regex(/^\+[1-9]\d{7,14}$/,'Enter the phone number in international form, e.g. +919876543210')]).optional(),otp_channel:z.enum(['email','sms','whatsapp']).optional(),cosigners:cosignersSchema.optional()}).strict().refine(x=>Object.values(x).some(v=>v!==undefined),'Provide at least one project setting.');
+const patchSchema=z.object({archived:z.boolean().optional(),client_email:clientEmailSchema.optional(),timezone:z.union([z.literal(''),z.string().max(64).refine(validTimeZone,'Use an IANA time zone such as Asia/Kolkata')]).optional(),require_otp:z.boolean().optional(),link_expiry_days:z.union([z.null(),z.literal(7),z.literal(14),z.literal(30),z.literal(60),z.literal(90)]).optional(),client_phone:z.union([z.literal(''),z.string().regex(/^\+[1-9]\d{7,14}$/,'Enter the phone number in international form, e.g. +919876543210')]).optional(),otp_channel:z.enum(['email','sms','whatsapp']).optional(),cosigners:cosignersSchema.optional(),client_gstin:z.union([z.literal(''),z.string().trim().toUpperCase().refine(g=>!!gstinState(g),'Enter the 15-character GSTIN, e.g. 29ABCDE1234F1Z5')]).optional(),client_state:z.union([z.literal(''),z.enum(stateCodes)]).optional(),client_address:z.union([z.literal(''),z.string().trim().max(500)]).optional()}).strict().refine(x=>Object.values(x).some(v=>v!==undefined),'Provide at least one project setting.');
 export async function PATCH(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);
  const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);
@@ -72,6 +73,7 @@ export async function PATCH(request:Request,ctx:Ctx){try{
  if(d.link_expiry_days!==undefined){sets.push('link_expiry_days=?');values.push(d.link_expiry_days);}
  if(d.client_phone!==undefined){sets.push('client_phone=?');values.push(d.client_phone||null);}
  if(d.otp_channel!==undefined){sets.push('otp_channel=?');values.push(d.otp_channel);}
+ for(const k of ['client_gstin','client_state','client_address'] as const)if(d[k]!==undefined){sets.push(`${k}=?`);values.push(d[k]||null);}
  if(d.cosigners!==undefined){sets.push('cosigners=?');values.push(d.cosigners.length?JSON.stringify(d.cosigners):null);}
  const row=await db().prepare(`UPDATE projects SET ${sets.join(',')} WHERE id=? AND owner=? RETURNING ${PROJECT_COLUMNS}`).bind(...values,id,auth.user).first<ProjectRow>();
  if(!row)return json({error:'Project not found.'},404);
