@@ -26,17 +26,24 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const marked = await db().prepare("UPDATE payments SET status='paid',payment_id=?,event_id=?,paid_at=? WHERE id=? AND status<>'paid' RETURNING id").bind(event.payment_id, event.event_id, now, order.id).first();
     if (!marked) return json({recorded: false, duplicate: true});
-    // Append to the ledger when the paid version is still the approved baseline.
-    const ledger = await loadLedger(order.project_id);
-    if (!ledger.baseline || ledger.baseline.version !== order.version) return json({recorded: true, ledger: false});
-    try {
-      const entry = await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind: 'payment', actor: 'client', ref: 'payment:' + event.order_id,
-        payload: {provider: 'razorpay', purpose: 'deposit', order_id: event.order_id, payment_id: event.payment_id, amount: fromMinorUnits(event.amount_minor, event.currency), currency: event.currency},
-        context: {channel: 'razorpay_webhook', event_id: event.event_id}});
-      return json({recorded: true, ledger: true, seq: entry.seq});
-    } catch (e) {
-      if (e instanceof LedgerConflict) return json({recorded: true, ledger: false, note: e.message});
-      throw e;
+    // Append to the ledger when the paid version is still the approved baseline. Scopeflow records it
+    // as the `system` actor (verified provider evidence), so a revoked review link never blocks it, and
+    // retries when the ledger moved underneath (the reconciliation job catches anything still missing).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const ledger = await loadLedger(order.project_id);
+      if (!ledger.baseline || ledger.baseline.version !== order.version) return json({recorded: true, ledger: false});
+      try {
+        const entry = await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind: 'payment', actor: 'system', ref: 'payment:' + event.order_id,
+          payload: {provider: 'razorpay', purpose: 'deposit', order_id: event.order_id, payment_id: event.payment_id, amount: fromMinorUnits(event.amount_minor, event.currency), currency: event.currency},
+          context: {channel: 'razorpay_webhook', event_id: event.event_id}});
+        return json({recorded: true, ledger: true, seq: entry.seq});
+      } catch (e) {
+        if (!(e instanceof LedgerConflict)) throw e;
+        const existing = await db().prepare('SELECT seq FROM ledger_entries WHERE project_id=? AND ref=?').bind(order.project_id, 'payment:' + event.order_id).first<{seq: number}>();
+        if (existing) return json({recorded: true, ledger: true, seq: existing.seq, duplicate: true});
+        if (attempt === 2) return json({recorded: true, ledger: false, note: e.message});
+      }
     }
+    return json({recorded: true, ledger: false});
   } catch (e) { return failure(e); }
 }

@@ -45,3 +45,11 @@ test('issues without a safe rewrite still say what to write instead', () => {
   assert.ok(issues.length >= 3);
   for (const i of issues) { assert.ok(i.fix && i.fix !== 'Replace it with an exact list, number or limit.'); assert.equal(i.rewrite, undefined); }
 });
+
+test('stamp duty: flagged for high-value INR agreements, not for others or once noted', () => {
+  const rules = over => lintScope(scope(over), '2026-10-01').issues.map(i => i.rule);
+  assert.ok(rules({currency: 'INR', fee: 150000}).includes('stamp-duty'));
+  assert.ok(!rules({currency: 'INR', fee: 50000}).includes('stamp-duty'));
+  assert.ok(!rules({currency: 'USD', fee: 150000}).includes('stamp-duty'));
+  assert.ok(!rules({currency: 'INR', fee: 150000, notes: 'One round is one consolidated feedback list. E-stamp IN-KA123 attached.'}).includes('stamp-duty'));
+});

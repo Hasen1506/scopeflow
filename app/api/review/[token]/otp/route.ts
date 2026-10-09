@@ -1,11 +1,13 @@
 import {z} from 'zod';
 import {db, json, body, safeOrigin, allowWrite, failure, hash, secret} from '@/lib/server';
 import {MailError} from '@/lib/mail';
-import {OTP_MAX_ATTEMPTS, OTP_SENDS_PER_WINDOW, OTP_TTL_MS, OtpUnavailable, codeHash, deliverCode, generateCode, maskEmail, normalizeCode, otpEmail} from '@/lib/otp';
+import {OTP_MAX_ATTEMPTS, OTP_SENDS_PER_WINDOW, OTP_TTL_MS, OtpDeliveryError, OtpUnavailable, codeHash, deliverCode, generateCode, maskDestination, normalizeCode, otpEmail, type OtpChannel} from '@/lib/otp';
 import type {Scope} from '@/lib/scope';
 import {loadLedger} from '@/lib/ledger-server';
+import {linkExpired} from '@/lib/link';
+import {parseCosigners} from '@/lib/cosign';
 type Ctx = {params: Promise<{token: string}>};
-type Row = {id: string; project_id: string; version: number; status: string; content: string; latest: number; require_otp: boolean; client_email: string | null};
+type Row = {id: string; project_id: string; version: number; status: string; content: string; created: string; latest: number; require_otp: boolean; client_email: string | null; client_phone: string | null; otp_channel: string | null; cosigners: string | null; link_issued: string | null; link_expiry_days: number | null};
 
 const input = z.discriminatedUnion('action', [
   z.object({action: z.literal('send')}).strict(),
@@ -20,16 +22,21 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
     const {token} = await ctx.params;
     if (!/^[a-f0-9]{64}$/.test(token)) return json({error: 'This review link was not found.'}, 404);
-    const row = await db().prepare('SELECT v.id,v.project_id,v.version,v.status,v.content,p.latest,p.require_otp,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<Row>();
+    const row = await db().prepare('SELECT v.id,v.project_id,v.version,v.status,v.content,v.created,p.latest,p.require_otp,p.client_email,p.client_phone,p.otp_channel,p.cosigners,p.link_issued,p.link_expiry_days FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<Row>();
     if (!row) return json({error: 'This review link was not found.'}, 404);
+    if (linkExpired(row)) return json({error: 'This review link has expired. Ask the creator for a new link.', code: 'link_expired'}, 410);
     if (!row.require_otp) return json({error: 'This scope does not need an email code.', code: 'otp_not_required'}, 409);
     // A code confirms either the decision on a pending version or one on a change order to the approved latest version.
     if (row.version !== row.latest) return json({error: 'This version has been replaced. Ask the creator for the latest link.'}, 409);
     if (row.status !== 'pending') {
       const ledger = row.status === 'approved' ? await loadLedger(row.project_id, {forClient: true}) : null;
-      if (!ledger?.agreement || ledger.baseline?.id !== row.id || ledger.agreement.pending === 0) return json({error: 'This version already has a decision and no change order is waiting for you.'}, 409);
+      const changeOrder = !!ledger?.agreement && ledger.baseline?.id === row.id && ledger.agreement.pending > 0;
+      const cosignWaiting = row.status === 'approved' && parseCosigners(row.cosigners).length > Number((await db().prepare('SELECT COUNT(*) AS n FROM version_cosigns WHERE project_id=? AND version=?').bind(row.project_id, row.version).first<{n: number}>())?.n ?? 0);
+      if (!changeOrder && !cosignWaiting) return json({error: 'This version already has a decision and nothing is waiting for you.'}, 409);
     }
-    if (!row.client_email) return json({error: 'The creator has not set your email address yet. Ask them to add it, then try again.', code: 'otp_no_email'}, 409);
+    const channel = (row.otp_channel ?? 'email') as OtpChannel;
+    const destination = channel === 'email' ? row.client_email : row.client_phone;
+    if (!destination) return json(channel === 'email' ? {error: 'The creator has not set your email address yet. Ask them to add it, then try again.', code: 'otp_no_email'} : {error: 'The creator has not set your phone number yet. Ask them to add it, then try again.', code: 'otp_no_phone'}, 409);
     if (!await allowWrite('otp:' + row.id, 20)) return json({error: 'Too many attempts. Try again in a minute.'}, 429);
     let raw;
     try { raw = await body(request); } catch { return json({error: 'Provide valid JSON under 24 KB.'}, 400); }
@@ -41,17 +48,17 @@ export async function POST(request: Request, ctx: Ctx) {
       const recent = await db().prepare('SELECT COUNT(*) AS n FROM review_otps WHERE version_id=? AND created > ?').bind(row.id, new Date(now - OTP_TTL_MS).toISOString()).first<{n: number}>();
       if (Number(recent?.n ?? 0) >= OTP_SENDS_PER_WINDOW) return json({error: 'Three codes were sent in the last 10 minutes. Use the latest one, or wait before asking again.', code: 'otp_send_limit'}, 429);
       const id = crypto.randomUUID(), code = generateCode();
-      await db().prepare('INSERT INTO review_otps (id,version_id,email,code_hash,expires,created) VALUES (?,?,?,?,?,?)').bind(id, row.id, row.client_email, await codeHash(id, code), new Date(now + OTP_TTL_MS).toISOString(), new Date(now).toISOString()).run();
+      await db().prepare('INSERT INTO review_otps (id,version_id,email,channel,code_hash,expires,created) VALUES (?,?,?,?,?,?,?)').bind(id, row.id, destination, channel, await codeHash(id, code), new Date(now + OTP_TTL_MS).toISOString(), new Date(now).toISOString()).run();
       const content = JSON.parse(row.content) as Scope;
       try {
-        await deliverCode(row.client_email, otpEmail({code, title: content.title, version: row.version}), {code, version_id: row.id, id});
+        await deliverCode(destination, otpEmail({code, title: content.title, version: row.version}), {code, version_id: row.id, id}, process.env, channel);
       } catch (e) {
         await db().prepare('DELETE FROM review_otps WHERE id=?').bind(id).run();
-        if (e instanceof OtpUnavailable) return json({error: 'Email codes are not available on this server. Ask the creator to turn off the email check or set up email delivery.', code: 'otp_unavailable'}, 503);
-        if (e instanceof MailError) return json({error: e.message, code: 'mail_failed'}, 502);
+        if (e instanceof OtpUnavailable) return json({error: 'Codes cannot be sent on this server right now. Ask the creator to turn off the identity check or set up delivery.', code: 'otp_unavailable'}, 503);
+        if (e instanceof MailError || e instanceof OtpDeliveryError) return json({error: e.message, code: 'mail_failed'}, 502);
         throw e;
       }
-      return json({sent: true, to: maskEmail(row.client_email), expires_in: OTP_TTL_MS / 1000});
+      return json({sent: true, to: maskDestination(channel, destination), channel, expires_in: OTP_TTL_MS / 1000});
     }
 
     const code = normalizeCode(parsed.data.code);
@@ -68,6 +75,6 @@ export async function POST(request: Request, ctx: Ctx) {
     // Single use: only the first correct submission wins (verified IS NULL in the WHERE clause).
     const marked = await db().prepare('UPDATE review_otps SET verified=?,session_hash=? WHERE id=? AND verified IS NULL AND attempts < ? RETURNING id').bind(new Date(now).toISOString(), await hash(session), otp.id, OTP_MAX_ATTEMPTS).first<{id: string}>();
     if (!marked) return json({error: 'This code was already used. Send a new one.', code: 'otp_used'}, 409);
-    return json({verified: true, otp_session: session, email: maskEmail(row.client_email)});
+    return json({verified: true, otp_session: session, email: maskDestination(channel, destination), channel});
   } catch (e) { return failure(e); }
 }

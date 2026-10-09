@@ -63,7 +63,7 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   eq((await webhook(captured(order_id, 3000000))).data, {recorded: false, duplicate: true}); // a second payment id for the same order
   const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
   eq(ledger.entries.length, 1);
-  eq(ledger.entries[0].kind, 'payment'); eq(ledger.entries[0].actor, 'client');
+  eq(ledger.entries[0].kind, 'payment'); eq(ledger.entries[0].actor, 'system'); // verified provider evidence, not a client action
   eq(ledger.entries[0].payload, {provider: 'razorpay', purpose: 'deposit', order_id, payment_id: event.payload.payment.entity.id, amount: 30000, currency: 'INR'});
   eq(ledger.chain.intact, true); eq(ledger.seal.state, 'valid');
   const review = (await call('/api/review/' + token)).data;
@@ -113,6 +113,16 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {archived: false}})).status, 200);
 }
 
+// A revoked review link never blocks recording a verified payment (Scopeflow appends it as the system actor).
+{
+  eq((await call(`/api/scopes/${project_id}/review-link`, {method: 'POST', cookie, body: {version: 1, action: 'revoke'}})).status, 200);
+  const late = 'order_' + randomUUID().replaceAll('-', '').slice(0, 14);
+  localSql(`INSERT INTO scopeflow.payments (id,project_id,version,provider,order_id,amount_minor,currency,status,created) VALUES ('${randomUUID()}','${project_id}',1,'razorpay','${late}',1000000,'INR','created','${new Date().toISOString()}')`);
+  const r = await webhook(captured(late, 1000000));
+  eq(r.data.recorded, true); eq(r.data.ledger, true);
+  const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
+  eq(ledger.entries.at(-1).actor, 'system'); eq(ledger.chain.intact, true);
+}
 // Account deletion removes payment rows along with the projects.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
 eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n, 0);

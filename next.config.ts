@@ -37,6 +37,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
+  // harfbuzzjs loads its WebAssembly from its own folder at runtime (PDF text shaping), so it is not bundled.
+  serverExternalPackages: ["harfbuzzjs"],
   experimental: { cpus: 2 },
   async headers() {
     return [

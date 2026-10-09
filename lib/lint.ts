@@ -40,6 +40,9 @@ const categories: {name: string; detect: RegExp; expect: {term: RegExp; label: s
     {term: /store|developer account/i, label: 'app store fees'}, {term: /backend|server|api/i, label: 'backend or server work'}, {term: /maintenance|support/i, label: 'post-launch support'}]},
 ];
 
+/** INR fee from which the clarity check suggests checking stamp duty. */
+export const STAMP_DUTY_THRESHOLD_INR = 100000;
+
 const weights: Record<Severity, number> = {error: 25, warn: 8, info: 3};
 
 export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10)): LintResult {
@@ -79,6 +82,9 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
   // PR C: payment terms that need each other.
   if ((s.deposit_pct ?? 0) > 0 && !s.payment_terms) add({rule: 'deposit-no-terms', severity: 'info', field: 'payment_terms', message: `A ${s.deposit_pct}% deposit is set but no payment terms say when the balance is due.`, fix: 'Add payment terms, e.g. “Balance due within 15 days of delivery”.'});
   if (s.tax_pct !== undefined && s.tax_pct > 0 && !s.tax_label) add({rule: 'tax-no-label', severity: 'info', field: 'tax_label', message: 'A tax rate is set without a name.', fix: 'Name the tax (GST, VAT, sales tax) so the client knows what it is.'});
+  // Stamp duty: Indian agreements may need it (rates differ by state). Advisory only, for high-value scopes.
+  if (s.currency === 'INR' && s.fee >= STAMP_DUTY_THRESHOLD_INR && !/stamp/i.test(s.notes))
+    add({rule: 'stamp-duty', severity: 'info', field: 'notes', message: `A ${formatMoney(s.fee, 'INR')} agreement in India may need stamp duty paid; the amount depends on the state.`, fix: 'If it applies, buy an e-stamp through SHCIL (shcilestamp.com) or your state portal and note its certificate number in the working terms. This is not legal advice.'});
   if (s.fee === 0) add({rule: 'no-fee', severity: 'warn', field: 'fee', message: 'The fee is zero.', fix: 'Record the agreed fee, even if it is paid elsewhere.'});
 
   if (!s.exclusions.trim()) add({rule: 'no-exclusions', severity: 'warn', field: 'exclusions', message: 'Nothing is listed as outside this scope.', fix: 'Name the adjacent work the client might assume is included.'});

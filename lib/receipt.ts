@@ -14,10 +14,14 @@ export type ReceiptModel = {
   content: Scope; content_sha256: string;
   signer: string | null; decided: string | null; comment: string | null;
   anchor: string; signature: string | null; key: {kid: string; x: string} | null;
-  context: {channel?: string; ip?: string; user_agent?: string; owner_session?: boolean; via_api?: boolean; acknowledged?: boolean; identity?: {method?: string; email?: string; verified_at?: string}; identity_signature?: string | null} | null;
+  context: {channel?: string; ip?: string; user_agent?: string; owner_session?: boolean; via_api?: boolean; acknowledged?: boolean; identity?: {method?: string; email?: string; phone?: string; verified_at?: string}; identity_signature?: string | null} | null;
   ledger: {head: string; count: number} | null;
   /** Payments on the signed record of this version (Razorpay deposits and payments the creator recorded). */
   payments?: PaymentLine[];
+  /** Countersignatures on this version, each Ed25519 over the anchor and its own details. */
+  cosigns?: {role: string; signer: string; signed: string; signature: string | null}[];
+  /** RFC 3161 timestamps from an independent authority over this version's fingerprints. */
+  timestamps?: {subject: string; digest: string; tsa: string; gen_time: string}[];
   time_zone: string; generated: string; verify_url: string;
 };
 
@@ -89,6 +93,7 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   left('Decided', stamp(m.decided, m.time_zone));
   // Identity evidence (email one-time code) when the project required it.
   if (ctx.identity?.method === 'email_otp') left('Identity check', `Email code verified for ${ctx.identity.email ?? 'the client email'} at ${stamp(ctx.identity.verified_at ?? null, m.time_zone)}`);
+  else if (ctx.identity?.method === 'sms_otp' || ctx.identity?.method === 'whatsapp_otp') left('Identity check', `${ctx.identity.method === 'sms_otp' ? 'SMS' : 'WhatsApp'} code verified for ${ctx.identity.phone ?? 'the client phone'} at ${stamp(ctx.identity.verified_at ?? null, m.time_zone)}`);
   else left('Identity check', 'None: the name was typed by the reviewer');
   left('Acknowledged', ctx.acknowledged ? 'Yes: reviewed this version, fee, deliverables and revisions' : 'Not recorded');
   left('Channel', ctx.channel === 'review_link' ? 'Private review link' : (ctx.channel ?? 'not recorded'));
@@ -103,9 +108,12 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   row('Signature (Ed25519)', m.signature ?? 'Not signed (signing is not configured on this server)', 'mono');
   if (m.key) row('Public key', `kid ${m.key.kid} · x ${m.key.x}`, 'mono');
   if (ctx.identity_signature) row('Identity signature', ctx.identity_signature, 'mono');
+  for (const c of m.cosigns ?? []) row('Countersignature', `${c.role}: ${c.signer} · ${stamp(c.signed, m.time_zone)} · signature ${c.signature ?? 'not signed'}`, 'mono');
+  for (const t of m.timestamps ?? []) row('RFC 3161 timestamp', `${t.subject === 'decision' ? 'Decision' : t.subject.startsWith('cosign:') ? 'Countersignature' : 'Record'} timestamped ${stamp(t.gen_time, m.time_zone)} by ${t.tsa} over ${t.digest}`, 'mono');
   if (m.ledger) row('Ledger head', `${m.ledger.head} (${m.ledger.count} ${m.ledger.count === 1 ? 'entry' : 'entries'})`, 'mono');
   row('Verify', m.verify_url, 'mono');
   para('The record fingerprint is SHA-256 of "scopeflow-baseline-v1|project|version|content JSON|signer|decided". The signature is Ed25519 over "scopeflow-anchor-v1:" followed by that fingerprint, checkable with the public key published at /api/signing-key.', {size: 7.5, gray: 0.4});
+  if (m.cosigns?.length) para('A countersignature is Ed25519 over "scopeflow-cosign-v1:" + record fingerprint + ":" + SHA-256 of the JSON {cosigner_id, role, signer, signed}; it adds to the approval and never changes it.', {size: 7.5, gray: 0.4});
 
   heading('Scope of work');
   for (const i of itemsOf(m.content)) {

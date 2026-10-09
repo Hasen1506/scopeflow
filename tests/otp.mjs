@@ -39,7 +39,7 @@ const S = '/api/scopes/' + project_id;
 {
   const noEmail = await call(S, {method: 'PATCH', cookie, body: {require_otp: true}});
   eq(noEmail.status, 400); eq(noEmail.data.code, 'otp_needs_email');
-  eq((await call(S, {method: 'PATCH', cookie, body: {client_email: 'ada.client@example.test', require_otp: true}})).data.project, {id: project_id, archived: null, client_email: 'ada.client@example.test', timezone: null, require_otp: true});
+  { const p = (await call(S, {method: 'PATCH', cookie, body: {client_email: 'ada.client@example.test', require_otp: true}})).data.project; eq({id: p.id, archived: p.archived, client_email: p.client_email, timezone: p.timezone, require_otp: p.require_otp, otp_channel: p.otp_channel}, {id: project_id, archived: null, client_email: 'ada.client@example.test', timezone: null, require_otp: true, otp_channel: 'email'}); }
   eq((await call(S, {cookie})).data.project.require_otp, true);
   const clear = await call(S, {method: 'PATCH', cookie, body: {client_email: ''}});
   eq(clear.status, 400); // cannot remove the address the code is sent to while the check is on
@@ -49,7 +49,7 @@ const S = '/api/scopes/' + project_id;
 // The review page learns that a code is needed, with a masked address only.
 {
   const r = await call('/api/review/' + token);
-  eq(r.data.identity_check, {method: 'email_otp', to: 'a******@example.test'});
+  eq(r.data.identity_check, {method: 'email_otp', channel: 'email', to: 'a******@example.test'});
   ok(!JSON.stringify(r.data).includes('ada.client@example.test'), 'full client email never reaches the review page');
 }
 
@@ -131,7 +131,7 @@ let session;
   const proposed = await call(S + '/ledger', {method: 'POST', cookie, body: {kind: 'change_order', baseline_version: 1, payload: co, request_id: 'otp-co-' + randomUUID().slice(0, 8)}});
   eq(proposed.status, 201);
   const seq = proposed.data.seq;
-  eq((await call('/api/review/' + token)).data.identity_check, {method: 'email_otp', to: 'a******@example.test'});
+  eq((await call('/api/review/' + token)).data.identity_check, {method: 'email_otp', channel: 'email', to: 'a******@example.test'});
   const settle = extra => call(`/api/review/${token}/change-order`, {method: 'POST', body: {seq, decision: 'approved', signer: 'Ada Client', comment: '', ...extra}});
   const refused = await settle({});
   eq(refused.status, 403); eq(refused.data.code, 'otp_required');

@@ -155,6 +155,13 @@ label select{margin-top:7px}
 .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.03fr);gap:32px;align-items:start}
 .preview-col{position:sticky;top:20px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.inline-field{display:flex;gap:8px;align-items:stretch}
+.inline-field input{flex:1;min-width:0}
+.trust-settings{border-top:1px solid var(--rule);padding-top:14px}
+.trust-settings .h-sub{display:flex;gap:6px;align-items:center}
+.cosign-list{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px}
+.cosign-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+@media (max-width:640px){.two-col{grid-template-columns:1fr}}
 .three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .section-gap{margin-top:28px}
 .review-shell{width:100%;max-width:860px;margin:0 auto;padding:36px 20px 80px}

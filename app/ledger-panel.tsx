@@ -143,7 +143,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
                   <span>{describeEntry(e, cur, items, base?.client_inputs ?? [])}</span>
                   {co && <span className={'tag status-' + (co.status === 'proposed' ? 'pending' : co.status === 'approved' ? 'approved' : 'changes_requested')}>{label(co.status)}</span>}
                 </div>
-                <span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
+                <span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : e.actor === 'system' ? 'Scopeflow (Razorpay)' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
                 {co?.status === 'proposed' && <button className="link-button" disabled={busy} onClick={() => { if (window.confirm(`Withdraw CO-${co.seq}? The client will no longer be able to approve it.`)) void submit('settle', {ref_seq: co.seq, outcome: 'withdrawn'}); }}>Withdraw</button>}
               </li>
             );

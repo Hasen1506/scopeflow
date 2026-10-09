@@ -29,6 +29,10 @@ jobs:
       # (dev mode is refused unless APP_URL is localhost). tests/otp.mjs reads them from here.
       SCOPEFLOW_OTP_DEV: '1'
       SCOPEFLOW_OTP_DEV_LOG: /tmp/scopeflow-otp-dev.log
+      # Local RFC 3161 authority and a throwaway PDF signing certificate (created below).
+      SCOPEFLOW_TSA_URL: http://127.0.0.1:55434/
+      SCOPEFLOW_PDF_SIGN_CERT: /tmp/scopeflow-sign.crt
+      SCOPEFLOW_PDF_SIGN_KEY: /tmp/scopeflow-sign.key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,12 +48,16 @@ jobs:
         run: npm run test:props
       - run: npm run build
       - run: npm run db:migrate
+      - name: Throwaway PDF signing certificate
+        run: openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/scopeflow-sign.key -out /tmp/scopeflow-sign.crt -days 7 -subj "/CN=Scopeflow CI Signer"
       - name: Start the local auth fixture and the production build
         run: |
+          node tests/support/tsa-service.mjs > tsa.log 2>&1 &
           node tests/support/auth-service.mjs > auth.log 2>&1 &
           npx next start --hostname localhost --port 5173 > next.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:5173/api/health && break; sleep 1; done
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:55433/ok && break; sleep 1; done
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:55434/ && break; sleep 1; done
       # Runs first, on the fresh database and auth fixture. No retries, no quarantine.
       - name: Golden E2E (Playwright)
         run: npm run test:e2e

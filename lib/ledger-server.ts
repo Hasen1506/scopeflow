@@ -1,11 +1,11 @@
 import {db} from './server';
 import type {Scope} from './scope';
-import {anchorHash, computeAgreement, entryHash, sha256, GENESIS, type EntryKind, type LedgerEntry} from './ledger';
+import {anchorHash, computeAgreement, entryHash, sha256, GENESIS, type Actor, type EntryKind, type LedgerEntry} from './ledger';
 import {anchorMessage, entryMessage, signRecord, verifyRecord, publicSigningKey, type SignatureState} from './signing';
 
 import {limits} from './plans';
 type VersionRow = {id: string; project_id: string; version: number; token: string; revoked: number; content: string; status: string; signer: string | null; decided: string | null; signature?: string | null};
-type EntryRow = {seq: number; kind: EntryKind; baseline_version: number; actor: 'owner' | 'client'; payload: string; prev_hash: string; hash: string; created: string; signature?: string | null};
+type EntryRow = {seq: number; kind: EntryKind; baseline_version: number; actor: Actor; payload: string; prev_hash: string; hash: string; created: string; signature?: string | null};
 export type SignedEntry = LedgerEntry & {signature: string | null};
 
 export class LedgerConflict extends Error {}
@@ -68,7 +68,7 @@ export async function loadLedger(projectId: string, {forClient = false} = {}) {
  * revision or revocation cannot slip an entry onto a stale agreement. The write is
  * serialized per project only (SF-05) and the entry hash is signed (SF-04).
  */
-export async function appendEntry(opts: {baseline: VersionRow; expectedHead: string; kind: EntryKind; payload: unknown; actor: 'owner' | 'client'; ref?: string | null; context?: unknown}) {
+export async function appendEntry(opts: {baseline: VersionRow; expectedHead: string; kind: EntryKind; payload: unknown; actor: Actor; ref?: string | null; context?: unknown}) {
   const database = db();
   const {baseline, kind, actor} = opts;
   const last = await database.prepare('SELECT seq,hash,(SELECT COUNT(*) FROM ledger_entries WHERE project_id=?) AS n FROM ledger_entries WHERE project_id=? ORDER BY seq DESC LIMIT 1').bind(baseline.project_id, baseline.project_id).first<{seq: number; hash: string; n: number}>();

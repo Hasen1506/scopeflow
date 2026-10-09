@@ -86,9 +86,11 @@ export type ClientInputReceived = z.infer<typeof clientInputSchema>;
 export type Payment = z.infer<typeof paymentSchema>;
 export type PaymentReceived = z.infer<typeof paymentReceivedSchema>;
 
+/** Who appended an entry: the creator, the client (review link), or Scopeflow itself for verified provider events (payments). */
+export type Actor = 'owner' | 'client' | 'system';
 /** A stored entry. `payload` is null when hidden from the client; `payload_hash` still commits to it. */
 export type LedgerEntry = {
-  seq: number; kind: EntryKind; baseline_version: number; actor: 'owner' | 'client'; created: string;
+  seq: number; kind: EntryKind; baseline_version: number; actor: Actor; created: string;
   payload: unknown; payload_hash: string; prev_hash: string; hash: string;
 };
 
@@ -218,7 +220,7 @@ export function paymentsOf(entries: LedgerEntry[]): {lines: PaymentLine[]; paid:
 }
 
 /** Validates a new entry against the current agreement. Returns an error message or null. */
-export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, agreement: Agreement, actor: 'owner' | 'client'): string | null {
+export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, agreement: Agreement, actor: Actor): string | null {
   if (kind === 'change_order') {
     const co = payload as ChangeOrder;
     const current = new Set(agreement.items.map(i => i.id));

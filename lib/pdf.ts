@@ -1,3 +1,5 @@
+import {deflateSync} from 'node:zlib';
+
 // A small, dependency-free PDF 1.4 writer for server-generated receipts.
 //
 // Deterministic by construction: the same input always produces the same bytes (no
@@ -9,6 +11,34 @@
 export type Font = 'regular' | 'bold' | 'mono';
 const FONT_RESOURCE: Record<Font, string> = {regular: 'F1', bold: 'F2', mono: 'F3'};
 const FONT_NAME: Record<Font, string> = {regular: 'Helvetica', bold: 'Helvetica-Bold', mono: 'Courier'};
+
+// Text outside WinAnsi (Devanagari, Tamil and other Indian scripts, Greek, Cyrillic, extended Latin)
+// is drawn with embedded TrueType fonts when a shaper is registered (lib/pdf-fonts.ts, HarfBuzz):
+// complex scripts are shaped into positioned glyphs, so conjuncts and vowel signs render correctly.
+// Without a shaper (unit tests, or before fonts load) such characters fall back to "?". Plain
+// WinAnsi text never uses the shaper, so those PDFs stay byte-for-byte the same.
+export type ShapedGlyph = {gid: number; x: number; y: number; adv: number; text: string};
+export type EmbeddedFont = {name: string; data: Uint8Array; ascent: number; descent: number; capHeight: number; bbox: [number, number, number, number]};
+export type Shaper = {fonts: EmbeddedFont[]; covers(font: number, cp: number): boolean; fontFor(cp: number): number; shape(text: string, font: number): ShapedGlyph[]};
+let shaper: Shaper | null = null;
+/** Registers (or clears) the shaper used for non-WinAnsi text. */
+export function setPdfShaper(s: Shaper | null) { shaper = s; }
+type Run = {font: number; text: string};
+const encodable = (ch: string) => { const c = ch.codePointAt(0)!; return (c >= 0x20 && c <= 0x7e) || WIN_ANSI[ch] !== undefined || TRANSLITERATE[ch] !== undefined || ch === '\t'; };
+/** Splits text into WinAnsi runs (font -1) and runs for one embedded font. */
+function runs(text: string): Run[] {
+  const out: Run[] = [];
+  for (const ch of text.normalize('NFC')) {
+    const cp = ch.codePointAt(0)!, last = out.at(-1);
+    let font = -1;
+    if (shaper) {
+      if (last && last.font >= 0 && shaper.covers(last.font, cp) && (!encodable(ch) || /[\s\d.,;:!?()'"\u2013\u2014-]/.test(ch))) font = last.font;
+      else if (!encodable(ch)) font = shaper.fontFor(cp);
+    }
+    if (last && last.font === font) last.text += ch; else out.push({font, text: ch});
+  }
+  return out;
+}
 
 // Helvetica advance widths (1/1000 em) for ASCII 32..126, from the standard AFM.
 const HELVETICA = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
@@ -32,7 +62,10 @@ export function winAnsi(text: string): number[] {
 }
 
 /** Width of `text` in points at `size`. Bold is approximated conservatively for wrapping. */
-export function textWidth(text: string, size: number, font: Font = 'regular') {
+export function textWidth(text: string, size: number, font: Font = 'regular'): number {
+  if (shaper && [...text].some(ch => !encodable(ch))) {
+    return runs(text).reduce((w, r) => w + (r.font < 0 ? textWidth(r.text, size, font) : shaper!.shape(r.text, r.font).reduce((s, g) => s + g.adv, 0) / 1000 * size * (font === 'bold' ? 1.03 : 1)), 0);
+  }
   if (font === 'mono') return winAnsi(text).length * 0.6 * size;
   const units = winAnsi(text).reduce((sum, b) => sum + (b >= 32 && b <= 126 ? HELVETICA[b - 32] : 556), 0);
   return (units / 1000) * size * (font === 'bold' ? 1.08 : 1);
@@ -71,13 +104,30 @@ export class PdfDocument {
   readonly height: number;
   private pages: string[][] = [];
   private info: Record<string, string>;
+  /** Glyphs used per embedded font (gid -> advance and the text it stands for). */
+  private glyphs = new Map<number, Map<number, {adv: number; text: string}>>();
   constructor({width = 595.28, height = 841.89, info = {}}: {width?: number; height?: number; info?: Record<string, string>} = {}) {
     this.width = width; this.height = height; this.info = info;
   }
   addPage() { this.pages.push([]); return this.pages.length - 1; }
   private get ops() { if (!this.pages.length) this.addPage(); return this.pages[this.pages.length - 1]; }
   text(x: number, y: number, text: string, {size = 10, font = 'regular' as Font, gray = 0} = {}) {
-    this.ops.push(`BT /${FONT_RESOURCE[font]} ${n(size)} Tf ${n(gray)} g ${n(x)} ${n(y)} Td ${pdfString(text)} Tj ET`);
+    if (!shaper || [...text].every(encodable)) { this.ops.push(`BT /${FONT_RESOURCE[font]} ${n(size)} Tf ${n(gray)} g ${n(x)} ${n(y)} Td ${pdfString(text)} Tj ET`); return; }
+    let pen = x;
+    for (const r of runs(text)) {
+      if (r.font < 0) { this.ops.push(`BT /${FONT_RESOURCE[font]} ${n(size)} Tf ${n(gray)} g ${n(pen)} ${n(y)} Td ${pdfString(r.text)} Tj ET`); pen += textWidth(r.text, size, font); continue; }
+      const used = this.glyphs.get(r.font) ?? new Map<number, {adv: number; text: string}>();
+      this.glyphs.set(r.font, used);
+      // Bold is drawn as fill plus a thin stroke (the embedded fonts are regular weight).
+      const ops = [font === 'bold' ? `q ${n(size * 0.03)} w ${n(gray)} G BT 2 Tr` : 'BT', `/E${r.font} ${n(size)} Tf ${n(gray)} g`];
+      for (const g of shaper.shape(r.text, r.font)) {
+        if (!used.has(g.gid)) used.set(g.gid, {adv: g.adv, text: g.text});
+        ops.push(`1 0 0 1 ${n(pen + g.x / 1000 * size)} ${n(y + g.y / 1000 * size)} Tm <${g.gid.toString(16).padStart(4, '0')}> Tj`);
+        pen += g.adv / 1000 * size * (font === 'bold' ? 1.03 : 1);
+      }
+      ops.push(font === 'bold' ? 'ET Q' : 'ET');
+      this.ops.push(ops.join(' '));
+    }
   }
   line(x1: number, y1: number, x2: number, y2: number, {width = 0.5, gray = 0.75} = {}) {
     this.ops.push(`${n(gray)} G ${n(width)} w ${n(x1)} ${n(y1)} m ${n(x2)} ${n(y2)} l S`);
@@ -94,7 +144,8 @@ export class PdfDocument {
     const add = (body: string) => { objects.push(body); return objects.length; };
     const catalog = add(''), pagesId = add('');
     const fonts = (['regular', 'bold', 'mono'] as Font[]).map(f => add(`<< /Type /Font /Subtype /Type1 /BaseFont /${FONT_NAME[f]} /Encoding /WinAnsiEncoding >>`));
-    const resources = `<< /Font << /F1 ${fonts[0]} 0 R /F2 ${fonts[1]} 0 R /F3 ${fonts[2]} 0 R >> >>`;
+    const embedded = [...this.glyphs.entries()].sort((a, b) => a[0] - b[0]).map(([i, used]) => `/E${i} ${embedFont(add, shaper!.fonts[i], used)} 0 R`).join(' ');
+    const resources = `<< /Font << /F1 ${fonts[0]} 0 R /F2 ${fonts[1]} 0 R /F3 ${fonts[2]} 0 R${embedded ? ' ' + embedded : ''} >> >>`;
     const kids: number[] = [];
     for (const ops of this.pages) {
       const stream = ops.join('\n');
@@ -113,4 +164,25 @@ export class PdfDocument {
     out += `trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
     return new Uint8Array(Buffer.from(out, 'latin1'));
   }
+}
+
+/** Writes a Type0 / CIDFontType2 font (Identity-H, full TrueType program, compressed) with widths and a ToUnicode map. */
+function embedFont(add: (body: string) => number, f: EmbeddedFont, used: Map<number, {adv: number; text: string}>): number {
+  const program = deflateSync(Buffer.from(f.data));
+  const file = add(`<< /Length ${program.length} /Length1 ${f.data.length} /Filter /FlateDecode >>\nstream\n${program.toString('latin1')}\nendstream`);
+  const name = f.name.replace(/[^A-Za-z0-9-]/g, '');
+  const descriptor = add(`<< /Type /FontDescriptor /FontName /${name} /Flags 32 /FontBBox [${f.bbox.map(v => Math.round(v)).join(' ')}] /ItalicAngle 0 /Ascent ${Math.round(f.ascent)} /Descent ${Math.round(f.descent)} /CapHeight ${Math.round(f.capHeight)} /StemV 80 /FontFile2 ${file} 0 R >>`);
+  const gids = [...used.keys()].sort((a, b) => a - b);
+  const widths = gids.map(g => `${g} [${Math.round(used.get(g)!.adv)}]`).join(' ');
+  const cid = add(`<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${name} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${descriptor} 0 R /CIDToGIDMap /Identity /DW 1000 /W [${widths}] >>`);
+  const utf16 = (t: string) => Array.from(t).map(ch => { const c = ch.codePointAt(0)!; if (c < 0x10000) return c.toString(16).padStart(4, '0'); const v = c - 0x10000; return ((0xd800 + (v >> 10)).toString(16) + (0xdc00 + (v & 0x3ff)).toString(16)).padStart(8, '0'); }).join('');
+  const mapped = gids.filter(g => used.get(g)!.text);
+  const blocks: string[] = [];
+  for (let i = 0; i < mapped.length; i += 100) {
+    const chunk = mapped.slice(i, i + 100);
+    blocks.push(`${chunk.length} beginbfchar\n${chunk.map(g => `<${g.toString(16).padStart(4, '0')}> <${utf16(used.get(g)!.text)}>`).join('\n')}\nendbfchar`);
+  }
+  const cmap = `/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n${blocks.join('\n')}\nendcmap\nCMapName currentdict /CMap defineresource pop\nend\nend`;
+  const toUnicode = add(`<< /Length ${cmap.length} >>\nstream\n${cmap}\nendstream`);
+  return add(`<< /Type /Font /Subtype /Type0 /BaseFont /${name} /Encoding /Identity-H /DescendantFonts [${cid} 0 R] /ToUnicode ${toUnicode} 0 R >>`);
 }

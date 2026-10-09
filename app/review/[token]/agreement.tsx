@@ -24,7 +24,7 @@ function useVerification(scope: Version, ledger: ClientLedger): Check {
   return check;
 }
 
-type Identity = {method: string; to: string | null} | null;
+type Identity = {method: string; to: string | null; channel?: 'email' | 'sms' | 'whatsapp'} | null;
 export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged, identity = null, otpSession = '', onOtpVerified}: {token: string; scope: Version; ledger: ClientLedger; timeZone?: string; onChanged: () => Promise<void>; identity?: Identity; otpSession?: string; onOtpVerified?: (session: string) => void}) {
   const a = computeAgreement(scope.content,scope.version,ledger.entries.filter(e=>e.baseline_version===scope.version)), cur = a.currency;
   const check = useVerification(scope, ledger);
@@ -49,7 +49,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
         <div><span>Extra work not billed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong></div>
       </div>
       {paid > 0 && <p className="fine pay-line" role="note">Payments on the record: <strong>{formatMoney(paid, cur)}</strong> of {formatMoney(total, cur)}{total !== a.fee ? ' with tax' : ''}{balance > 0 ? ` · ${formatMoney(balance, cur)} still due` : ' · paid in full'}.</p>}
-      {pending.length > 0 && identity && onOtpVerified && <OtpGate token={token} to={identity.to} session={otpSession} onVerified={onOtpVerified} purpose={pending.length > 1 ? 'decisions on these change orders' : 'a decision on this change order'} />}
+      {pending.length > 0 && identity && onOtpVerified && <OtpGate token={token} to={identity.to} channel={identity.channel} session={otpSession} onVerified={onOtpVerified} purpose={pending.length > 1 ? 'decisions on these change orders' : 'a decision on this change order'} />}
       {pending.map(co => <PendingChangeOrder key={co.seq} token={token} co={co} agreement={a} verified={check.state==='ok'} onChanged={onChanged} otpSession={identity ? otpSession : ''} needsOtp={!!identity} />)}
       <h3 className="section-gap">Deliverables now</h3>
       <ul className="diff-list">
