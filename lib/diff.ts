@@ -1,4 +1,5 @@
 import {itemsOf, formatMoney, type Item, type Scope, type ClientInput} from './scope';
+import {formatDay} from './time';
 
 export type ItemField = 'title' | 'qty' | 'unit' | 'price' | 'acceptance';
 export type ScopeChange =
@@ -75,9 +76,9 @@ export function describeChange(c: ScopeChange, currency: string): string {
       });
       return `Changed: ${c.after.title} (${parts.join('; ')})`;
     }
-    case 'input_added': return `Client now provides: ${c.input.title}${c.input.due ? ' by ' + c.input.due : ''}`;
+    case 'input_added': return `Client now provides: ${c.input.title}${c.input.due ? ' by ' + formatDay(c.input.due) : ''}`;
     case 'input_removed': return `No longer needed from client: ${c.input.title}`;
-    case 'input_changed': return `Client input updated: ${c.after.title}${c.after.due ? ' by ' + c.after.due : ''}`;
+    case 'input_changed': return `Client input updated: ${c.after.title}${c.after.due ? ' by ' + formatDay(c.after.due) : ''}`;
     case 'field': return `${c.label}: ${c.before || 'not specified'} → ${c.after || 'not specified'}`;
   }
 }

@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import {PdfDocument, wrap, type Font} from './pdf';
 import {itemsOf, formatMoney, label, type Scope} from './scope';
+import {totals} from './money';
 
 // The audit-grade decision receipt: a server-generated PDF of the decided scope with its
 // fingerprints, the Ed25519 signature, signer details, timestamps (UTC and a named time
@@ -125,6 +126,10 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   }
   y -= 4;
   row('Project fee', formatMoney(m.content.fee, m.content.currency));
+  const t = totals(m.content);
+  if (t.tax_pct > 0) { row(`${t.tax_label} (${t.tax_pct}%)`, formatMoney(t.tax, m.content.currency)); row(`Total with ${t.tax_label}`, formatMoney(t.total, m.content.currency)); }
+  if (t.deposit_pct > 0) row(`Deposit on signature (${t.deposit_pct}%)`, formatMoney(t.deposit, m.content.currency));
+  if (m.content.payment_terms) row('Payment terms', m.content.payment_terms);
   row('Revision rounds', String(m.content.revisions));
   if (m.content.due) row('Target delivery', m.content.due);
   for (const c of m.content.client_inputs ?? []) row('Client provides', c.title + (c.due ? ` (by ${c.due})` : ''));

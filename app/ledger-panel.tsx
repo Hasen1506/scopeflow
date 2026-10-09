@@ -3,7 +3,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {FilePlus2, Gift, Inbox, RefreshCw, RotateCcw, ShieldCheck, ShieldAlert} from 'lucide-react';
 import {coSummary, describeEntry, type Agreement, type ChangeOrder, type LedgerEntry} from '@/lib/ledger';
 import {formatMoney, label, type Item, type Scope} from '@/lib/scope';
-import {formatInZone} from '@/lib/time';
+import {formatInZone, formatDay} from '@/lib/time';
 import {ItemsEditor} from './items-editor';
 import {ScopeCheck} from './scope-check';
 import {api, post, Skeleton} from './ui';
@@ -17,9 +17,10 @@ export type LedgerView = {
 };
 type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'fee_delta' | 'days_delta' | 'revisions_delta'>>;
 type Form = LedgerForm;
-const today = () => new Date().toISOString().slice(0, 10);
+// The viewer's own calendar date, not UTC's (feedback that arrived this morning in Chennai is dated today).
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, openChangeOrder = 0}: {projectId: string; reviewUrl: string | null; timeZone?: string | null; onView?: (view: LedgerView) => void; openChangeOrder?: number}) {
+export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, openChangeOrder = 0, reload = 0}: {projectId: string; reviewUrl: string | null; timeZone?: string | null; onView?: (view: LedgerView) => void; openChangeOrder?: number; reload?: number}) {
   const [view, setView] = useState<LedgerView | null>(null);
   const [form, setForm] = useState<Form>(null);
   const [coSeed, setCoSeed] = useState<CoPrefill>({});
@@ -43,6 +44,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
     return () => { live = false; };
   }, [projectId]);
 
+  // Something else on the page wrote to the ledger (a payment recorded in the Payment step): read it again.
+  useEffect(() => { if (reload) queueMicrotask(() => void load()); }, [reload, load]);
   // The project page reads the agreement for its Payment step and stage tracker.
   useEffect(() => { if (view) onView?.(view); }, [view, onView]);
   // A "Record change order" press elsewhere on the page (or on a Projects card) opens the form once per press,
@@ -89,19 +92,19 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
     <section className="ledger section-gap">
       <div className="small-title">
         <h3>Agreement ledger</h3>
-        <span className="actions">
+        {(view.open || !view.chain.intact || view.chain.count > 0) && <span className="actions">
           {view.chain.intact
-            ? <span className="chain ok" title={`Chain head ${view.chain.head}`}><ShieldCheck size={14} />{view.chain.count} entries · {view.chain.head.slice(0, 8)}</span>
-            : <span className="chain bad"><ShieldAlert size={14} />Record check failed at #{view.chain.at}</span>}
+            ? <span className="chain ok" title={`Chain head ${view.chain.head}`}><ShieldCheck size={14} />{view.chain.count} {view.chain.count === 1 ? 'entry' : 'entries'} · {view.chain.head.slice(0, 8)}</span>
+            : <span className="chain bad"><ShieldAlert size={14} />Record check failed at entry {view.chain.at}</span>}
           <button className="icon" aria-label="Refresh ledger" onClick={load}><RefreshCw size={14} /></button>
-        </span>
+        </span>}
       </div>
       {!view.open && <p className="muted-box">{view.reason}</p>}
       {a && base && (
         <>
           <div className="agreement-grid">
             <div><span>Current fee</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>was {formatMoney(a.fee_base, cur)}</em>}</div>
-            <div><span>Delivery</span><strong>{a.due || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days{a.due_base ? ` from ${a.due_base}` : ''}</em>}</div>
+            <div><span>Delivery</span><strong>{formatDay(a.due) || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days{a.due_base ? ` from ${formatDay(a.due_base)}` : ''}</em>}</div>
             <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} / {a.revisions_allowed}</strong><meter min={0} max={Math.max(1, a.revisions_allowed)} value={Math.min(a.revisions_used, Math.max(1, a.revisions_allowed))} /></div>
             <div><span>Goodwill absorbed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong>{a.goodwill_hours > 0 && <em>{a.goodwill_hours}h unbilled</em>}</div>
           </div>
@@ -137,10 +140,10 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
             return (
               <li key={e.seq} className={'kind-' + e.kind}>
                 <div className="small-title">
-                  <span>#{e.seq} · {describeEntry(e, cur, items, base?.client_inputs ?? [])}</span>
+                  <span>{describeEntry(e, cur, items, base?.client_inputs ?? [])}</span>
                   {co && <span className={'tag status-' + (co.status === 'proposed' ? 'pending' : co.status === 'approved' ? 'approved' : 'changes_requested')}>{label(co.status)}</span>}
                 </div>
-                <span className="fine">{formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
+                <span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
                 {co?.status === 'proposed' && <button className="link-button" disabled={busy} onClick={() => { if (window.confirm(`Withdraw CO-${co.seq}? The client will no longer be able to approve it.`)) void submit('settle', {ref_seq: co.seq, outcome: 'withdrawn'}); }}>Withdraw</button>}
               </li>
             );
@@ -227,7 +230,7 @@ function InputForm({busy, error, inputs, onSubmit, onCancel}: {busy: boolean; er
   return (
     <form className="ledger-form" onSubmit={e => { e.preventDefault(); void onSubmit({input_id: id, received: date, shift, note}); }}>
       <div className="two-col">
-        <label>What arrived<select value={id} onChange={e => setId(e.target.value)}>{inputs.map(i => <option key={i.id} value={i.id}>{i.title}{i.due ? ` (due ${i.due})` : ''}</option>)}</select></label>
+        <label>What arrived<select value={id} onChange={e => setId(e.target.value)}>{inputs.map(i => <option key={i.id} value={i.id}>{i.title}{i.due ? ` (due ${formatDay(i.due)})` : ''}</option>)}</select></label>
         <label>Received on<input type="date" required value={date} onChange={e => setDate(e.target.value)} /></label>
       </div>
       {late > 0 && <label className="check-row"><input type="checkbox" checked={shift} onChange={e => setShift(e.target.checked)} />{late} day{late > 1 ? 's' : ''} late: move the delivery date by the same amount</label>}

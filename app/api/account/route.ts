@@ -27,10 +27,13 @@ export async function DELETE(request:Request){try{
   database.prepare('DELETE FROM ledger_entries WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM versions WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM payments WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
+  database.prepare('DELETE FROM invoices WHERE owner=?').bind(id),
+  database.prepare('DELETE FROM review_views WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM projects WHERE owner=?').bind(id),
   database.prepare('DELETE FROM api_keys WHERE owner=?').bind(id),
   database.prepare('DELETE FROM templates WHERE owner=?').bind(id),
   database.prepare('DELETE FROM account_settings WHERE owner=?').bind(id),
+  database.prepare('DELETE FROM business_profiles WHERE owner=?').bind(id),
   database.prepare('DELETE FROM oauth_codes WHERE owner=?').bind(id),
   database.prepare('DELETE FROM oauth_tokens WHERE owner=?').bind(id),
  ],{lock:lockKey('owner',id),bypassImmutability:true});

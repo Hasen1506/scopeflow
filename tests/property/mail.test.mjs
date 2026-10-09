@@ -41,3 +41,23 @@ test('provider refusal and network failure become MailError (never an unhandled 
     } finally { fetchMock.mock.restore(); }
   }), {numRuns: 60});
 });
+
+test('reminders: wording stays header-safe and says how long it has waited; one a day, three per version', () => {
+  fc.assert(fc.property(text, text, fc.integer({min: 1, max: 100}), fc.nat(60), (title, client, version, days) => {
+    const reviewUrl = 'https://scopeflow.example/review/' + 'b'.repeat(64);
+    const m = mail.reminderEmail({title, client, version, reviewUrl, days});
+    assert.doesNotMatch(m.subject, /[\r\n]/);
+    assert.ok(m.subject.startsWith('Reminder: please review '));
+    assert.doesNotMatch(m.html.replace(/<\/?(p|strong|a|br)( [^>]*)?>/g, ''), /[<>]/);
+    assert.ok(m.text.includes(reviewUrl) && m.html.includes(`href="${reviewUrl}"`));
+    assert.equal(m.text.includes(`for ${days} days`), days >= 2);
+  }), {numRuns: 200});
+  const now = Date.parse('2026-10-09T12:00:00Z'), ago = h => new Date(now - h * 3600_000).toISOString();
+  const block = (state, v = 2) => mail.reminderBlock({last_sent: null, sent_version: null, reminders: 0, ...state}, v, now)?.code ?? null;
+  assert.equal(block({}), null);
+  assert.equal(block({last_sent: ago(2), sent_version: 2}), 'recently_sent');
+  assert.equal(block({last_sent: ago(2), sent_version: 1}), null); // emailed about another version
+  assert.equal(block({last_sent: ago(25), sent_version: 2, reminders: 2}), null);
+  assert.equal(block({last_sent: ago(25), sent_version: 2, reminders: 3}), 'reminder_limit');
+  assert.match(mail.reminderBlock({last_sent: ago(23.5), sent_version: 2, reminders: 0}, 2, now).error, /about 1 hour\./);
+});

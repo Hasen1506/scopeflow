@@ -55,11 +55,10 @@ export function SiteFooter() {
         </div>
         <div className="footer-legal">
           <span>Scopeflow · Early beta</span>
-          <nav aria-label="Legal"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link></nav>
+          <nav aria-label="Legal"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav>
         </div>
       </div>
-      <img className="footer-art art-a" src="/art/etched-plain-1600.webp" srcSet="/art/etched-plain-800.webp 800w, /art/etched-plain-1600.webp 1600w" sizes="100vw" alt="" width={1600} height={529} loading="lazy" decoding="async" />
-      <img className="footer-art art-b" src="/art/survey-valley-1600.webp" srcSet="/art/survey-valley-800.webp 800w, /art/survey-valley-1600.webp 1600w" sizes="100vw" alt="" width={1600} height={522} loading="lazy" decoding="async" />
+      <img className="footer-art" src="/art/survey-valley-1600.webp" srcSet="/art/survey-valley-800.webp 800w, /art/survey-valley-1600.webp 1600w" sizes="100vw" alt="" width={1600} height={522} loading="lazy" decoding="async" />
     </footer>
   );
 }

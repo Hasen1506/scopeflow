@@ -90,6 +90,7 @@ export async function DELETE(request:Request,ctx:Ctx){try{
   database.prepare("DELETE FROM rate_limits WHERE id IN (SELECT 'review:'||v.id FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.id=? AND p.owner=?)").bind(id,user.userId),
   database.prepare("DELETE FROM versions WHERE project_id=? AND status='pending' AND EXISTS (SELECT 1 FROM projects WHERE id=? AND owner=?) AND NOT EXISTS (SELECT 1 FROM versions WHERE project_id=? AND status<>'pending') AND NOT EXISTS (SELECT 1 FROM ledger_entries WHERE project_id=?)").bind(id,id,user.userId,id,id),
   database.prepare('DELETE FROM projects WHERE id=? AND owner=? AND NOT EXISTS (SELECT 1 FROM versions WHERE project_id=?)').bind(id,user.userId,id),
+  database.prepare('DELETE FROM review_views WHERE project_id=? AND NOT EXISTS (SELECT 1 FROM projects WHERE id=?)').bind(id,id),
  ],{lock:lockKey('project',id),bypassImmutability:'drafts'});}catch(e){if(String(e).includes('immutable')||String(e).includes('append-only'))return signed();throw e;}
  if(!result[3].meta.changes)return signed();
  console.warn('Scopeflow draft project deleted by its owner',JSON.stringify({owner_hash:(await hash(user.userId)).slice(0,16),versions:result[2].meta.changes,at:new Date().toISOString()}));

@@ -4,6 +4,7 @@ import {sha256} from './ledger';
 import {anchorOf, loadLedger} from './ledger-server';
 import {anchorMessage, publicSigningKey, verifyRecord, type SignatureState} from './signing';
 import {renderReceiptPdf, validTimeZone, verifyUrl, type ReceiptModel} from './receipt';
+import {renderStatementPdf, statementModel} from './statement';
 import type {Scope} from './scope';
 
 export type DecidedRow = {id: string; project_id: string; version: number; status: string; content: string; signer: string | null; comment: string | null; decided: string | null; signature: string | null; decision_context: string | null; timezone?: string | null};
@@ -82,4 +83,13 @@ export async function verifyAnchor(projectId: string, version: number, anchor: s
     signature: verifyRecord(anchorMessage(anchor), row.signature),
     details: {title: content.title, client: content.client, version: row.version, status: row.status, signer: row.signer, decided: row.decided, content_sha256: await sha256(JSON.stringify(content)), kid: row.signature?.split('.')[0] ?? null, signature: row.signature},
   };
+}
+
+/** PDF statement of account for a project's approved agreement, or a JSON error when nothing is approved yet. */
+export async function statementResponse(request: Request, projectId: string, {version, timezone}: {version?: number; timezone?: string | null} = {}) {
+  const l = await loadLedger(projectId, {forClient: true});
+  if (!l.baseline || !l.content || !l.agreement) return json({error: 'There is no approved agreement yet, so there is no statement.', code: 'not_approved'}, 409);
+  if (version !== undefined && version !== l.baseline.version) return json({error: 'This link is for a version that is not the current agreement.', code: 'superseded'}, 409);
+  const model = statementModel({project_id: projectId, version: l.baseline.version, content: l.content, agreement: l.agreement, entries: l.entries, time_zone: receiptTimeZone(request, timezone), generated: new Date().toISOString()});
+  return pdfResponse(renderStatementPdf(model), `scopeflow-statement-${projectId.slice(0, 12)}-v${l.baseline.version}.pdf`);
 }

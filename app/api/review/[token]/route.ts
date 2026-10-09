@@ -3,7 +3,7 @@ import {db,json,body,safeOrigin,allowWrite,allowRead,parseRow,failure,ipKey,hash
 import {loadLedger, anchorOf} from '@/lib/ledger-server';
 import {sha256} from '@/lib/ledger';
 import {anchorMessage, signRecord, publicSigningKey} from '@/lib/signing';
-import {decisionContext} from '@/lib/decision';
+import {decisionContext, isOwnerSession} from '@/lib/decision';
 import {depositView} from '@/lib/deposit-server';
 import {zoneOrUtc} from '@/lib/time';
 import {OTP_SESSION_TTL_MS, maskEmail, signEvidence, type IdentityEvidence} from '@/lib/otp';
@@ -11,6 +11,8 @@ type Ctx={params:Promise<{token:string}>};
 type ReviewRow=Record<string,unknown>&{id:string;project_id:string;version:number;latest:number;owner:string;status:string;content:string;token:string;signature:string|null;decision_context:string|null;require_otp:boolean;client_email:string|null};
 async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest,p.owner,p.timezone,p.require_otp,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<ReviewRow>();}
 export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.params;if(!await allowRead('review-ip:'+await ipKey(request),300))return json({error:'Too many requests. Try again in a minute.'},429);const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
+ // Owner-private "opened" log for this version; the creator previewing their own link does not count.
+ if(!await isOwnerSession(request,row.owner)){const now=new Date().toISOString();await db().prepare('INSERT INTO review_views (project_id,version,first_viewed,last_viewed,views) VALUES (?,?,?,?,1) ON CONFLICT (project_id,version) DO UPDATE SET last_viewed=excluded.last_viewed,views=review_views.views+1').bind(row.project_id,row.version,now,now).run().catch(()=>{/* never block the review on the log */});}
  // SF-11: a revoked version's content is not disclosed through the next version's link.
  const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=? AND revoked=0').bind(row.project_id,row.version-1).first<{content:string}>();
  const {owner:_owner,decision_context:_context,timezone,require_otp:requireOtp,client_email:clientEmail,...rest}=row;const {token:_,...scope}=parseRow(rest,{withToken:false}) as Record<string,unknown>;

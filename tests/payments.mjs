@@ -31,12 +31,14 @@ const {project_id, token} = created.data.scope;
 // Not approved yet: no deposit offered.
 eq((await call('/api/review/' + token)).data.deposit, undefined);
 eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).data.code, 'not_approved');
+eq((await call(`/api/scopes/${project_id}/statement`, {cookie})).data.code, 'not_approved'); // no statement before approval
+eq((await call(`/api/review/${token}/statement`)).data.code, 'not_approved');
 eq((await call('/api/review/' + token, {method: 'POST', body: await ack(base, token, {decision: 'approved', signer: 'Ada', comment: '', version: 1})})).status, 200);
 
 // Approved, but no API keys: shown as due, disabled with the reason.
 {
   const r = await call('/api/review/' + token);
-  eq(r.data.deposit, {pct: 30, amount: 30000, currency: 'INR', amount_minor: 3000000, paid: null, enabled: false, provider: null, reason: 'Online payments are not set up on this server (RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are not set).'});
+  eq(r.data.deposit, {pct: 30, amount: 30000, currency: 'INR', amount_minor: 3000000, paid: null, enabled: false, provider: null, reason: 'Online payment is not available for this scope.'});
   const d = await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}});
   eq(d.status, 503); eq(d.data.code, 'payments_disabled');
 }
@@ -70,6 +72,45 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   const owner = await call(`/api/scopes/${project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'payment', baseline_version: 1, payload: ledger.entries[0].payload}});
   eq(owner.status, 400); // owners can never write a payment entry
   eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).status, 503); // still no keys
+}
+
+// Payments received outside Scopeflow: the owner records them (kind payment_received), they go on the
+// signed ledger next to the Razorpay deposit, and the overview reports what is paid and still due.
+{
+  const entry = (payload, request_id) => call(`/api/scopes/${project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'payment_received', baseline_version: 1, payload, ...(request_id ? {request_id} : {})}});
+  const good = {amount: 40000, method: 'bank_transfer', received: '2026-10-01', reference: 'UTR123', note: 'Second instalment'};
+  eq((await entry({...good, method: 'barter'})).status, 400);
+  eq((await entry({...good, amount: 0})).status, 400);
+  eq((await entry({...good, amount: 10.005})).status, 400);
+  eq((await entry({...good, received: '2999-01-01'})).status, 400);
+  eq((await entry({...good, extra: 1})).status, 400);
+  const id = 'pay-' + randomUUID();
+  const r = await entry(good, id);
+  eq(r.status, 201); eq(r.data.seq, 2);
+  eq((await entry(good, id)).data.replayed, true); // a retried submit is not recorded twice
+  const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
+  eq(ledger.entries.length, 2); eq(ledger.entries[1].kind, 'payment_received'); eq(ledger.entries[1].actor, 'owner');
+  eq(ledger.entries[1].payload, good); eq(ledger.chain.intact, true); eq(ledger.seal.state, 'valid');
+  eq(ledger.agreement.fee, 100000); // payments never change the agreement itself
+  // Recorded payments (40,000) now cover the 30,000 deposit on their own: no second deposit request.
+  eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).data.code, 'already_paid');
+  const review = (await call('/api/review/' + token)).data;
+  ok(review.ledger.entries.some(e => e.kind === 'payment_received' && e.payload.amount === 40000), 'the client sees the recorded payment');
+  const ov = (await call('/api/overview', {cookie})).data.projects.find(p => p.project_id === project_id);
+  eq([ov.paid, ov.balance], [70000, 30000]);
+  // Statement of account (PDF): the same figures for the owner and the client, nothing for strangers.
+  for (const [path, opts] of [[`/api/scopes/${project_id}/statement`, {cookie}], [`/api/review/${token}/statement`, {}]]) {
+    const r = await fetch(base + path, {headers: opts.cookie ? {Cookie: opts.cookie} : {}});
+    eq(r.status, 200, path); eq(r.headers.get('content-type'), 'application/pdf');
+    ok(/attachment; filename="scopeflow-statement-/.test(r.headers.get('content-disposition')), 'statement is a download');
+    const pdf = Buffer.from(await r.arrayBuffer()).toString('latin1');
+    for (const s of ['STATEMENT OF ACCOUNT', 'Rs.1,00,000', 'Rs.30,000', 'Rs.40,000', 'ref. UTR123', 'Balance due']) ok(pdf.includes(s), `${path} states ${s}`);
+  }
+  eq((await call(`/api/scopes/${project_id}/statement`)).status, 401);
+  eq((await call(`/api/review/${'0'.repeat(64)}/statement`)).status, 404);
+  eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {archived: true}})).status, 200);
+  eq((await entry({...good, reference: 'UTR124'})).data.code, 'archived');
+  eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {archived: false}})).status, 200);
 }
 
 // Account deletion removes payment rows along with the projects.

@@ -54,10 +54,11 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
       </form>}
     {error && <p className="error" role="alert">{error}</p>}
     {message && <p className="muted-box" role="status">{message}</p>}
-    <div className="actions section-gap">
-      <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)}>Sign in</Link>
-      <Link className="help-link" href={'/auth/sign-up?return_to=' + encodeURIComponent(returnTo)}>Create an account</Link>
-      <Link className="help-link" href="/auth/forgot-password">Forgot password?</Link>
-    </div>
+    {/* Only the ways out that make sense from this form (the sign-in page no longer links to itself). */}
+    <p className="fine section-gap auth-switch">
+      {mode === 'sign-in' && <>New to Scopeflow? <Link className="help-link" href={'/auth/sign-up?return_to=' + encodeURIComponent(returnTo)}>Create an account</Link> · <Link className="help-link" href="/auth/forgot-password">Forgot password?</Link></>}
+      {mode === 'sign-up' && <>Already have an account? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)}>Sign in</Link></>}
+      {(mode === 'forgot-password' || mode === 'reset-password') && <>Remembered it? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)}>Back to sign in</Link></>}
+    </p>
   </>;
 }

@@ -4,7 +4,7 @@ import {payloadSchemas, checkEntry, verifyChain} from '@/lib/ledger';
 import {loadLedger, appendEntry, LedgerConflict} from '@/lib/ledger-server';
 type Ctx = {params: Promise<{id: string}>};
 
-const ownerKinds = ['change_order', 'goodwill', 'revision_round', 'client_input', 'settle'] as const;
+const ownerKinds = ['change_order', 'goodwill', 'revision_round', 'client_input', 'payment_received', 'settle'] as const;
 const requestSchema = z.object({
   kind: z.enum(ownerKinds),
   baseline_version: z.number().int().min(1),

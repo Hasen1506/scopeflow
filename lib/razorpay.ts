@@ -16,9 +16,10 @@ export function razorpayConfig(env: Env = process.env): RazorpayConfig | null {
   return keyId && keySecret ? {keyId, keySecret} : null;
 }
 export function webhookSecret(env: Env = process.env) { return env.RAZORPAY_WEBHOOK_SECRET?.trim() || null; }
+// `reason` is shown to clients, so it names no server settings; `setup` is for whoever runs the server.
 export function paymentsStatus(env: Env = process.env) {
   if (razorpayConfig(env)) return {enabled: true as const, provider: 'razorpay' as const, webhook: !!webhookSecret(env)};
-  return {enabled: false as const, provider: null, webhook: !!webhookSecret(env), reason: 'Online payments are not set up on this server (RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are not set).'};
+  return {enabled: false as const, provider: null, webhook: !!webhookSecret(env), reason: 'Online payment is not available for this scope.', setup: 'Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to enable online deposits.'};
 }
 
 /** Amount in the currency's smallest unit (paise for INR, none for JPY), as Razorpay expects. */
