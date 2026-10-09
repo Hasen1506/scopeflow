@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {PdfDocument, textWidth, wrap, type Font} from './pdf';
+import {drawPdfBrand, type PdfBrand} from './brand';
 import {formatMoney} from './currency';
 import {formatDay} from './time';
 import {EXPORT_STATE, gstSplit, isGstLabel, placeOfSupply, rupeesInWords, stateName, type GstSplit} from './gst';
@@ -107,7 +108,7 @@ export function invoiceContent(input: {
 }
 
 const MARGIN = 48;
-export function renderInvoicePdf(c: InvoiceContent): Uint8Array {
+export function renderInvoicePdf(c: InvoiceContent, brand: PdfBrand | null = null): Uint8Array {
   const doc = new PdfDocument({info: {Title: `Invoice ${c.number}`, Producer: 'Scopeflow'}});
   const W = doc.width - MARGIN * 2, money = (v: number) => formatMoney(v, c.currency);
   doc.addPage();
@@ -118,6 +119,7 @@ export function renderInvoicePdf(c: InvoiceContent): Uint8Array {
   const right = (v: string, yy: number, {size = 10, font = 'regular' as Font} = {}) => doc.text(MARGIN + W - textWidth(v, size), yy, v, {size, font});
   doc.text(MARGIN, 28, `Invoice ${c.number} · ${c.project.title.slice(0, 60)} · prepared with Scopeflow`, {size: 7, gray: 0.45});
 
+  y -= drawPdfBrand(doc, brand, {margin: MARGIN, top: y, align: 'left'});
   // Seller block (left) and invoice details (right).
   const top = y;
   lines(c.seller.name || 'Seller name not set', MARGIN, W / 2, {size: 14, font: 'bold'});

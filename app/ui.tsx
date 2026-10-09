@@ -14,7 +14,7 @@ import {formatDay} from '@/lib/time';
 export function Mark(){return <span className="mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><circle cx="16" cy="16" r="10.5"/><path d="M16 1.8v4.4M16 25.8v4.4M1.8 16h4.4M25.8 16h4.4"/><path d="M8.6 14.2c2.4-2 4.8-2 7.4 0s5 2 7.4 0M8.6 19c2.4-2 4.8-2 7.4 0s5 2 7.4 0" strokeWidth="1.4"/></svg></span>;}
 export function Brand({beta=true}:{beta?:boolean}){return <Link className="brand" href="/" aria-label="Scopeflow home"><Mark/><span className="wordmark">Scope<em>flow</em></span>{beta&&<span className="beta">EARLY BETA</span>}</Link>;}
 /** Everything that is about the account rather than a project lives under one menu (was three top-level pages). */
-const ACCOUNT=[{href:'/account',label:'Data controls',hint:'Export, retention, wording, delete'},{href:'/connect',label:'Connect',hint:'Muse, ChatGPT & API'},{href:'/plans',label:'Plans',hint:'Pricing preview'}];
+const ACCOUNT=[{href:'/account',label:'Data controls',hint:'Export, retention, wording, delete'},{href:'/templates',label:'Templates',hint:'Tags, history, sharing'},{href:'/connect',label:'Connect',hint:'Muse, ChatGPT & API'},{href:'/plans',label:'Plans',hint:'Pricing preview'}];
 export function Header(){const router=useRouter();const path=usePathname();const {data:session}=authClient.useSession();const inAccount=ACCOUNT.some(a=>a.href===path);
  // On the workspace itself, "Projects" switches to the Projects home without a reload.
  const home=(e:React.MouseEvent)=>{if(path==='/'&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey){e.preventDefault();window.dispatchEvent(new Event('scopeflow:home'));}};

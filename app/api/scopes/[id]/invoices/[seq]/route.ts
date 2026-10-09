@@ -1,6 +1,8 @@
 import {db, json, ownerAuth, allowRead, failure} from '@/lib/server';
 import {pdfResponse} from '@/lib/receipt-server';
 import {ensurePdfFonts} from '@/lib/pdf-fonts';
+import {loadBrand} from '@/lib/brand-server';
+import {pdfBrand} from '@/lib/brand';
 import {renderInvoicePdf, type InvoiceContent} from '@/lib/invoice';
 type Ctx = {params: Promise<{id: string; seq: string}>};
 // One issued invoice as a PDF, rendered from its frozen snapshot.
@@ -14,6 +16,6 @@ export async function GET(request: Request, ctx: Ctx) {
     const row = await db().prepare('SELECT number,content FROM invoices WHERE project_id=? AND owner=? AND seq=?').bind(id, auth.user, Number(seq)).first<{number: string; content: string}>();
     if (!row) return json({error: 'Invoice not found.'}, 404);
     await ensurePdfFonts();
-    return pdfResponse(renderInvoicePdf(JSON.parse(row.content) as InvoiceContent), `invoice-${row.number}.pdf`);
+    return pdfResponse(renderInvoicePdf(JSON.parse(row.content) as InvoiceContent, pdfBrand(await loadBrand(auth.user))), `invoice-${row.number}.pdf`);
   } catch (e) { return failure(e); }
 }

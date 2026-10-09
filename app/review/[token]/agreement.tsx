@@ -11,7 +11,7 @@ import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 import {OtpGate} from './otp-gate';
 
-export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}; invoices?: InvoiceView[]};
+export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}; invoices?: InvoiceView[]; online_payments?: boolean};
 type Check = {state: 'checking'} | RecordCheck;
 
 /** Recomputes the record's fingerprints locally (lib/record-check.ts), so the client does not have to trust our server's word. */

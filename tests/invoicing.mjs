@@ -186,7 +186,7 @@ eq((await call('/api/payments/razorpay/reconcile', {method: 'POST', headers: {Au
   localSql(`INSERT INTO scopeflow.payments (id,project_id,version,provider,order_id,amount_minor,currency,status,payment_id,paid_at,created) VALUES (${q(randomUUID())},${q(project_id)},1,'razorpay',${q(order_id)},500000,'INR','paid','pay_lost123',${q(new Date().toISOString())},${q(new Date().toISOString())})`);
   const auth = {Authorization: 'Bearer ' + process.env.SCOPEFLOW_CRON_SECRET};
   const r = await call('/api/payments/razorpay/reconcile', {method: 'POST', headers: auth});
-  eq(r.status, 200); ok(r.data.lookups.startsWith('off'), 'lookups need Razorpay keys');
+  eq(r.status, 200); ok(r.data.lookups.startsWith(process.env.RAZORPAY_KEY_ID || process.env.STRIPE_SECRET_KEY ? 'on' : 'off'), 'lookups need Razorpay or Stripe keys');
   const mine = r.data.results.find(x => x.order_id === order_id);
   eq([mine.recorded, mine.ledger], [false, true]);
   const entry = (await call(L, {cookie})).data.entries.find(e => e.kind === 'payment' && e.payload.order_id === order_id);

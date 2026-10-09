@@ -1,4 +1,5 @@
 import {PdfDocument, textWidth, wrap, type Font} from './pdf';
+import {drawPdfBrand, type PdfBrand} from './brand';
 import {paymentsOf, type Agreement, type LedgerEntry, type PaymentLine} from './ledger';
 import {fxLine, schedule, totals, type ScheduleLine} from './money';
 import {formatMoney, type Scope} from './scope';
@@ -53,7 +54,7 @@ export function coverSchedule(lines: ScheduleLine[], paid: number): StatementMod
 }
 
 const MARGIN = 48;
-export function renderStatementPdf(m: StatementModel): Uint8Array {
+export function renderStatementPdf(m: StatementModel, brand: PdfBrand | null = null): Uint8Array {
   const doc = new PdfDocument({info: {Title: `Scopeflow statement: ${m.title} v${m.version}`, Producer: 'Scopeflow'}});
   const W = doc.width - MARGIN * 2;
   const money = (v: number) => formatMoney(v, m.currency);
@@ -77,8 +78,9 @@ export function renderStatementPdf(m: StatementModel): Uint8Array {
   };
 
   page();
-  doc.text(MARGIN, y - 10, 'SCOPEFLOW · STATEMENT OF ACCOUNT', {size: 9, font: 'bold', gray: 0.35});
-  y -= 30;
+  const branded = drawPdfBrand(doc, brand, {margin: MARGIN, top: y});
+  doc.text(MARGIN, y - 10, brand?.name ? `${brand.name.toUpperCase().slice(0, 50)} · STATEMENT OF ACCOUNT` : 'SCOPEFLOW · STATEMENT OF ACCOUNT', {size: 9, font: 'bold', gray: 0.35});
+  y -= Math.max(30, branded);
   para(m.title, {size: 18, font: 'bold', gap: 2});
   para(`Prepared for ${m.client} · Approved version ${m.version} · Issued ${stamp(m.generated, m.time_zone)}`, {size: 10, gray: 0.3, gap: 6});
 
@@ -93,8 +95,8 @@ export function renderStatementPdf(m: StatementModel): Uint8Array {
   heading('Payments received');
   if (!m.lines.length) para('No payments are on the record yet.', {size: 9.5, gray: 0.35});
   for (const l of m.lines) {
-    const detail = [l.method, l.reference ? `ref. ${l.reference}` : '', l.source === 'owner' ? l.note : 'Confirmed by Razorpay'].filter(Boolean).join(' · ');
-    amount(`${formatDay(l.received)} · ${detail}`, money(l.amount), {note: `Record entry ${l.seq}${l.source === 'owner' ? ', recorded by the creator' : ''}`});
+    const detail = [l.method, l.reference ? `ref. ${l.reference}` : '', l.source === 'owner' || l.source === 'refund' ? l.note : `Confirmed by ${l.method}`].filter(Boolean).join(' · ');
+    amount(`${formatDay(l.received)} · ${detail}`, money(l.amount), {note: `Record entry ${l.seq}${l.source === 'owner' || (l.source === 'refund' && !l.provider_refund_id) ? ', recorded by the creator' : ''}`});
   }
   y -= 2; doc.line(MARGIN, y, MARGIN + W, y); y -= 6;
   amount('Total received', money(m.paid));

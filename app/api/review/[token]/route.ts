@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import {paymentsStatus} from '@/lib/razorpay';
+import {loadBrand} from '@/lib/brand-server';
+import {textSafe} from '@/lib/brand';
 import {after} from 'next/server';
 import {timestampRecord} from '@/lib/timestamps';
 import {db,json,body,safeOrigin,allowWrite,allowRead,parseRow,failure,ipKey} from '@/lib/server';
@@ -25,14 +28,15 @@ export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.p
  const previous=await db().prepare('SELECT content FROM versions WHERE project_id=? AND version=? AND revoked=0').bind(row.project_id,row.version-1).first<{content:string}>();
  const {owner:_owner,decision_context:_context,timezone,require_otp:requireOtp,client_email:clientEmail,client_phone:clientPhone,otp_channel:otpChannel,cosigners:_cosigners,link_issued:_issued,link_expiry_days:_days,...rest}=row;const expires=linkExpires(row);const {token:_,...scope}=parseRow(rest,{withToken:false}) as Record<string,unknown>;
  // The approved latest version doubles as the client's view of the post-approval ledger.
- let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures,invoices:await clientInvoices(row.project_id,row.version,l.entries,timezone as string|null)};}
+ let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures,invoices:await clientInvoices(row.project_id,row.version,l.entries,timezone as string|null),online_payments:paymentsStatus(process.env,(JSON.parse(row.content) as {currency?:string}).currency).enabled};}
  // PR F: the deposit due on signature, once approved (null when the scope has none).
  const deposit=row.status==='approved'&&row.version===row.latest?await depositView(row.project_id,row.version,JSON.parse(row.content)):null;
  // PR B: whether this decision (or a pending change-order decision) needs an email code first, and where it goes (masked).
  // Countersignatures on the approved latest version (roles the creator listed).
  let cosign=null;if(row.status==='approved'&&row.version===row.latest){const required=parseCosigners(row.cosigners);if(required.length){const signed=await db().prepare('SELECT cosigner_id,role,signer,signed,signature FROM version_cosigns WHERE project_id=? AND version=?').bind(row.project_id,row.version).all<Cosign>();cosign=cosignStatus(required,signed.results);}}
  const identity_check=requireOtp&&(row.status==='pending'||(ledger&&(ledger.agreement?.pending??0)>0)||(cosign&&cosign.waiting>0))?identityCheck((otpChannel??'email') as OtpChannel,(otpChannel&&otpChannel!=='email'?clientPhone:clientEmail) as string|null):null;
- return json({scope:{...scope,signature:row.signature??null},previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey(),...(deposit?{deposit}:{}),time_zone:zoneOrUtc(timezone as string|null),...(expires?{link_expires:expires}:{}),...(identity_check?{identity_check}:{}),...(cosign?{cosign}:{})});}catch(e){return failure(e);}}
+ const b=await loadBrand(row.owner as string);const brand=b?{name:b.name,color:b.color,text_color:textSafe(b.color),logo_url:b.logoHash?`/api/brand/${b.logoHash}`:null}:null;
+ return json({scope:{...scope,signature:row.signature??null},...(brand?{brand}:{}),previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey(),...(deposit?{deposit}:{}),time_zone:zoneOrUtc(timezone as string|null),...(expires?{link_expires:expires}:{}),...(identity_check?{identity_check}:{}),...(cosign?{cosign}:{})});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);if(linkExpired(row))return expiredReply(row);
  if(!await allowWrite('review:'+row.id,10))return json({error:'Too many attempts. Try again in a minute.'},429);

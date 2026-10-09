@@ -49,13 +49,17 @@ export const clientInputSchema = z.object({
 
 // PR F: a deposit paid through the payment provider. Appended only by the verified webhook
 // (never by an owner or client request), so it is evidence that the money arrived.
+export const paymentProviders = ['razorpay', 'stripe'] as const;
+export const PROVIDER_LABEL: Record<(typeof paymentProviders)[number], string> = {razorpay: 'Razorpay', stripe: 'Stripe'};
 export const paymentSchema = z.object({
-  provider: z.literal('razorpay'),
-  purpose: z.literal('deposit'),
-  order_id: z.string().min(1).max(64),
-  payment_id: z.string().min(1).max(64),
+  provider: z.enum(paymentProviders),
+  purpose: z.enum(['deposit', 'invoice']),
+  order_id: z.string().min(1).max(255),
+  payment_id: z.string().min(1).max(255),
   amount: z.number().finite().min(0),
   currency: z.string().regex(/^[A-Z]{3}$/),
+  /** For purpose "invoice": the invoice the client paid online. */
+  invoice_number: z.string().min(1).max(40).optional(),
 }).strict();
 
 // A payment the creator received outside Scopeflow (bank transfer, UPI, cash…), recorded by the
@@ -71,6 +75,19 @@ export const paymentReceivedSchema = z.object({
   note: z.string().trim().max(500).default(''),
 }).strict();
 
+// Money returned to the client: recorded by the creator (a refund made outside Scopeflow), or issued
+// through Razorpay or Stripe from the workspace (provider_refund_id is the provider's refund id).
+// It lowers the amount paid; refund_of is the ledger entry of the payment it reverses, when known.
+export const refundSchema = z.object({
+  amount: z.number().finite().positive().max(100000000),
+  method: z.enum([...paymentMethods, ...paymentProviders]),
+  refunded: dateString.refine(Boolean, 'Enter the date of the refund'),
+  reference: z.string().trim().max(80).default(''),
+  note: z.string().trim().max(500).default(''),
+  provider_refund_id: z.string().min(1).max(255).optional(),
+  refund_of: z.number().int().min(1).optional(),
+}).strict();
+
 export const payloadSchemas = {
   change_order: changeOrderSchema,
   settle: settleSchema,
@@ -79,6 +96,7 @@ export const payloadSchemas = {
   client_input: clientInputSchema,
   payment: paymentSchema,
   payment_received: paymentReceivedSchema,
+  refund: refundSchema,
 } as const;
 export type EntryKind = keyof typeof payloadSchemas;
 export const entryKinds = Object.keys(payloadSchemas) as EntryKind[];
@@ -89,6 +107,8 @@ export type RevisionRound = z.infer<typeof revisionRoundSchema>;
 export type ClientInputReceived = z.infer<typeof clientInputSchema>;
 export type Payment = z.infer<typeof paymentSchema>;
 export type PaymentReceived = z.infer<typeof paymentReceivedSchema>;
+export type Refund = z.infer<typeof refundSchema>;
+const methodLabel = (m: Refund['method']) => m === 'razorpay' || m === 'stripe' ? PROVIDER_LABEL[m] : PAYMENT_METHOD_LABEL[m];
 
 /** Who appended an entry: the creator, the client (review link), or Scopeflow itself for verified provider events (payments). */
 export type Actor = 'owner' | 'client' | 'system';
@@ -224,16 +244,25 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
   return agreement;
 }
 
-/** Money received against one baseline: Razorpay deposits (provider evidence) and payments the creator recorded. */
-export type PaymentLine = {seq: number; created: string; source: 'razorpay' | 'owner'; amount: number; method: string; received: string; reference: string; note: string};
+/**
+ * Money received against one baseline: online payments (Razorpay or Stripe, provider evidence),
+ * payments the creator recorded, and refunds (negative amounts). `paid` is the net amount.
+ */
+export type PaymentLine = {seq: number; created: string; source: 'razorpay' | 'stripe' | 'owner' | 'refund'; amount: number; method: string; received: string; reference: string; note: string; provider_refund_id?: string; refund_of?: number};
 export function paymentsOf(entries: LedgerEntry[]): {lines: PaymentLine[]; paid: number} {
   const lines: PaymentLine[] = [];
   for (const e of entries) {
     if (!e.payload) continue;
-    if (e.kind === 'payment') { const p = e.payload as Payment; lines.push({seq: e.seq, created: e.created, source: 'razorpay', amount: Number(p.amount) || 0, method: 'Razorpay', received: e.created.slice(0, 10), reference: p.payment_id, note: 'Deposit'}); }
+    if (e.kind === 'payment') { const p = e.payload as Payment; lines.push({seq: e.seq, created: e.created, source: p.provider, amount: Number(p.amount) || 0, method: PROVIDER_LABEL[p.provider] ?? p.provider, received: e.created.slice(0, 10), reference: p.payment_id, note: p.purpose === 'invoice' ? `Invoice ${p.invoice_number ?? ''}`.trim() : 'Deposit'}); }
+    else if (e.kind === 'refund') { const r = e.payload as Refund; lines.push({seq: e.seq, created: e.created, source: 'refund', amount: -r.amount, method: `Refund · ${methodLabel(r.method)}`, received: r.refunded, reference: r.reference || (r.provider_refund_id ?? ''), note: r.note, ...(r.provider_refund_id ? {provider_refund_id: r.provider_refund_id} : {}), ...(r.refund_of ? {refund_of: r.refund_of} : {})}); }
     else if (e.kind === 'payment_received') { const p = e.payload as PaymentReceived; lines.push({seq: e.seq, created: e.created, source: 'owner', amount: p.amount, method: PAYMENT_METHOD_LABEL[p.method], received: p.received, reference: p.reference, note: p.note}); }
   }
   return {lines, paid: Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100};
+}
+/** How much of an online payment can still be refunded (its amount less refunds that name it). */
+export function refundableOf(line: PaymentLine, lines: PaymentLine[]) {
+  if (line.source !== 'razorpay' && line.source !== 'stripe') return 0;
+  return Math.max(0, Math.round((line.amount + lines.filter(l => l.source === 'refund' && l.refund_of === line.seq).reduce((s, l) => s + l.amount, 0)) * 100) / 100);
 }
 
 /** Validates a new entry against the current agreement. Returns an error message or null. */
@@ -267,6 +296,13 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
       const check = checkEntry('change_order', co, baseline, {...agreement, change_orders: agreement.change_orders.filter(c => c.seq !== co.seq)}, 'owner');
       if (check) return 'This change order no longer applies to the current agreement. Ask the creator for an updated one.';
     }
+    return null;
+  }
+  if (kind === 'refund') {
+    const r = payload as Refund;
+    if (Math.abs(r.amount * 100 - Math.round(r.amount * 100)) > 1e-6) return 'Enter the amount with at most two decimals.';
+    if (r.refunded > addDays(new Date().toISOString().slice(0, 10), 1)) return 'The date of a refund cannot be in the future.';
+    if (actor === 'client') return 'Only the creator records refunds.';
     return null;
   }
   if (kind === 'payment_received') {
@@ -313,7 +349,8 @@ export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = 
     case 'settle': { const s = e.payload as Settle; return `CO-${s.ref_seq} ${s.outcome}${s.signer ? ' by ' + s.signer : ''}${s.comment ? ': “' + s.comment + '”' : ''}`; }
     case 'goodwill': { const g = e.payload as Goodwill; return `Goodwill: ${g.title} (${formatMoney(g.value, currency)}${g.hours ? `, ${g.hours}h` : ''} not billed)`; }
     case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${formatDay(r.feedback_date)}${r.used !== undefined ? ` (${r.used} used from the revision bank)` : ''}${r.note ? ': ' + r.note : ''}`; }
-    case 'payment': { const p = e.payload as Payment; return `Deposit received: ${formatMoney(p.amount, p.currency)} via Razorpay (payment ${p.payment_id})`; }
+    case 'payment': { const p = e.payload as Payment; return `${p.purpose === 'invoice' ? `Payment for invoice ${p.invoice_number ?? ''}`.trim() : 'Deposit'} received: ${formatMoney(p.amount, p.currency)} via ${PROVIDER_LABEL[p.provider] ?? p.provider} (payment ${p.payment_id})`; }
+    case 'refund': { const r = e.payload as Refund; return `Refund: ${formatMoney(r.amount, currency)} returned ${r.method === 'razorpay' || r.method === 'stripe' ? `through ${PROVIDER_LABEL[r.method]}` : PAYMENT_METHOD_PHRASE[r.method]} on ${formatDay(r.refunded)}${r.reference ? ` (ref. ${r.reference})` : ''}${r.note ? ': ' + r.note : ''}`; }
     case 'payment_received': { const p = e.payload as PaymentReceived; return `Payment received: ${formatMoney(p.amount, currency)} ${PAYMENT_METHOD_PHRASE[p.method]} on ${formatDay(p.received)}${p.reference ? ` (ref. ${p.reference})` : ''}`; }
     case 'client_input': { const c = e.payload as ClientInputReceived; return `Received from client: ${inputs.find(i => i.id === c.input_id)?.title ?? c.input_id} on ${formatDay(c.received)}`; }
   }

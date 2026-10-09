@@ -9,6 +9,8 @@ import {deflateSync} from 'node:zlib';
 // outside WinAnsi are transliterated where a common equivalent exists, else shown as "?".
 
 export type Font = 'regular' | 'bold' | 'mono';
+/** An image XObject payload (see lib/image.ts). */
+export type PdfImageData = {width: number; height: number; filter: 'DCTDecode' | 'FlateDecode'; colors: 1 | 3; data: Uint8Array; alpha: Uint8Array | null};
 const FONT_RESOURCE: Record<Font, string> = {regular: 'F1', bold: 'F2', mono: 'F3'};
 const FONT_NAME: Record<Font, string> = {regular: 'Helvetica', bold: 'Helvetica-Bold', mono: 'Courier'};
 
@@ -132,8 +134,15 @@ export class PdfDocument {
   line(x1: number, y1: number, x2: number, y2: number, {width = 0.5, gray = 0.75} = {}) {
     this.ops.push(`${n(gray)} G ${n(width)} w ${n(x1)} ${n(y1)} m ${n(x2)} ${n(y2)} l S`);
   }
-  rect(x: number, y: number, w: number, h: number, {gray = 0} = {}) {
-    this.ops.push(`${n(gray)} g ${n(x)} ${n(y)} ${n(w)} ${n(h)} re f`);
+  rect(x: number, y: number, w: number, h: number, {gray = 0, rgb}: {gray?: number; rgb?: [number, number, number] | null} = {}) {
+    this.ops.push(`${rgb ? rgb.map(n).join(' ') + ' rg' : n(gray) + ' g'} ${n(x)} ${n(y)} ${n(w)} ${n(h)} re f`);
+  }
+  private images: PdfImageData[] = [];
+  /** Draws an image (lib/image.ts PdfImage) scaled into the w×h box at (x, y), bottom-left. */
+  image(x: number, y: number, w: number, h: number, img: PdfImageData) {
+    let i = this.images.indexOf(img);
+    if (i < 0) i = this.images.push(img) - 1;
+    this.ops.push(`q ${n(w)} 0 0 ${n(h)} ${n(x)} ${n(y)} cm /Im${i} Do Q`);
   }
   /** Raw marker comment (e.g. to delimit the QR code for tests and tooling). */
   comment(text: string) { this.ops.push('% ' + text.replace(/[\r\n]/g, ' ')); }
@@ -145,7 +154,13 @@ export class PdfDocument {
     const catalog = add(''), pagesId = add('');
     const fonts = (['regular', 'bold', 'mono'] as Font[]).map(f => add(`<< /Type /Font /Subtype /Type1 /BaseFont /${FONT_NAME[f]} /Encoding /WinAnsiEncoding >>`));
     const embedded = [...this.glyphs.entries()].sort((a, b) => a[0] - b[0]).map(([i, used]) => `/E${i} ${embedFont(add, shaper!.fonts[i], used)} 0 R`).join(' ');
-    const resources = `<< /Font << /F1 ${fonts[0]} 0 R /F2 ${fonts[1]} 0 R /F3 ${fonts[2]} 0 R${embedded ? ' ' + embedded : ''} >> >>`;
+    const bin = (d: Uint8Array) => Buffer.from(d).toString('latin1');
+    const xobjects = this.images.map((img, i) => {
+      const mask = img.alpha ? add(`<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${img.alpha.length} >>\nstream\n${bin(img.alpha)}\nendstream`) : 0;
+      const id = add(`<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /${img.colors === 1 ? 'DeviceGray' : 'DeviceRGB'} /BitsPerComponent 8 /Filter /${img.filter}${mask ? ` /SMask ${mask} 0 R` : ''} /Length ${img.data.length} >>\nstream\n${bin(img.data)}\nendstream`);
+      return `/Im${i} ${id} 0 R`;
+    }).join(' ');
+    const resources = `<< /Font << /F1 ${fonts[0]} 0 R /F2 ${fonts[1]} 0 R /F3 ${fonts[2]} 0 R${embedded ? ' ' + embedded : ''} >>${xobjects ? ` /XObject << ${xobjects} >>` : ''} >>`;
     const kids: number[] = [];
     for (const ops of this.pages) {
       const stream = ops.join('\n');

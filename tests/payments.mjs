@@ -71,7 +71,7 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   ok(review.ledger.entries.some(e => e.kind === 'payment'), 'the client sees the payment in the record');
   const owner = await call(`/api/scopes/${project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'payment', baseline_version: 1, payload: ledger.entries[0].payload}});
   eq(owner.status, 400); // owners can never write a payment entry
-  eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).status, 503); // still no keys
+  eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).data.code, 'already_paid'); // paid: never asked again, keys or not
 }
 
 // Payments received outside Scopeflow: the owner records them (kind payment_received), they go on the
@@ -145,6 +145,6 @@ eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id=
     for (const re of forbidden) eq(re.exec(text)?.[0] ?? null, null, `${path} says Scopeflow takes no payments`);
   }
   const terms = await (await fetch(base + '/terms')).text();
-  ok(terms.includes('Scopeflow itself is free during this beta') && terms.includes('Client deposits') && terms.includes('Razorpay merchant account the server operator configured'), 'terms describe client deposits through Razorpay');
+  ok(terms.includes('Scopeflow itself is free during this beta') && terms.includes('Client payments') && terms.includes('Razorpay or Stripe merchant account the server operator configured'), 'terms describe client payments through Razorpay or Stripe');
 }
 console.log(`payments: ${passed} checks passed`);

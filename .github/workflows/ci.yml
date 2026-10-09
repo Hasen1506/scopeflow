@@ -21,6 +21,8 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/scopeflow_test
       NEON_AUTH_BASE_URL: http://localhost:55433
       NEON_AUTH_COOKIE_SECRET: ci-only-cookie-secret-0123456789abcdef0123
+      # Production builds no longer sign records with the cookie secret, so CI sets a dedicated one.
+      SCOPEFLOW_SIGNING_SECRET: ci-only-signing-secret-0123456789abcdef0123
       APP_URL: http://localhost:5173
       # PR F: test-only webhook secret so tests/payments.mjs exercises the verified webhook path.
       # No RAZORPAY_KEY_ID/SECRET: online deposits stay disabled, which the suite also asserts.
@@ -36,6 +38,17 @@ jobs:
       # Reference rates from the same local service; the reconciliation route's bearer secret.
       SCOPEFLOW_FX_URL: http://127.0.0.1:55434/fx
       SCOPEFLOW_CRON_SECRET: ci-only-cron-secret
+      # Stripe test double (EUR and GBP only, so the INR deposit suite still sees payments off), the
+      # embeddings double for the meaning-match radar, and email forwarding into the radar.
+      STRIPE_SECRET_KEY: sk_test_ci_only
+      STRIPE_WEBHOOK_SECRET: whsec_ci_only
+      STRIPE_API_URL: http://127.0.0.1:55434/stripe
+      STRIPE_CURRENCIES: EUR,GBP
+      SCOPEFLOW_EMBEDDINGS: voyage
+      VOYAGE_API_KEY: ci-only-voyage-key
+      SCOPEFLOW_EMBEDDINGS_URL: http://127.0.0.1:55434/embeddings
+      SCOPEFLOW_INBOUND_DOMAIN: in.scopeflow.test
+      SCOPEFLOW_INBOUND_SECRET: ci-only-inbound-secret-0123
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

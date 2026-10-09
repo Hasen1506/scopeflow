@@ -11,8 +11,11 @@ const {restoreDraft, serializeDraft} = await import('../../lib/editor.ts');
 const {sample} = await import('../../lib/scope.ts');
 const valid = {context_retention_days: 90, email_subject: 'Please sign {title}', email_body: 'Hi {client},\n\nHere it is: {link}', default_exclusions: 'Hosting', default_terms: 'Net 15'};
 
-test('settings: retention 1–3650 days or null; the email body must contain {link}', () => {
-  assert.deepEqual(settingsSchema.parse(valid), valid);
+test('settings: retention 1–3650 days or null, draft expiry 7–3650 days or null; the email body must contain {link}', () => {
+  // draft_expiry_days was added later: older clients that leave it out keep drafts (null).
+  assert.deepEqual(settingsSchema.parse(valid), {...valid, draft_expiry_days: null});
+  assert.deepEqual(settingsSchema.parse({...valid, draft_expiry_days: 90}), {...valid, draft_expiry_days: 90});
+  for (const bad of [6, 3651, 30.5]) assert.equal(settingsSchema.safeParse({...valid, draft_expiry_days: bad}).success, false, String(bad));
   assert.equal(settingsSchema.safeParse({...valid, context_retention_days: null}).success, true);
   for (const bad of [{context_retention_days: 0}, {context_retention_days: 3651}, {context_retention_days: 1.5}, {email_body: 'No link here'}, {email_subject: 'x'.repeat(201)}, {extra: 1}]) {
     assert.equal(settingsSchema.safeParse({...valid, ...bad}).success, false, JSON.stringify(bad));

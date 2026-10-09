@@ -41,10 +41,10 @@ test('navigation: Projects home, one-tap next steps, the project page and the Ac
   await expect(page.getByRole('complementary', {name: 'Next step'})).toContainText('Start with your first scope');
   await expect(page.getByRole('tab')).toHaveCount(2); // was Scope editor / Projects / Insights
 
-  // Account menu holds the three account pages (were top-level nav links).
+  // Account menu holds the account pages (were top-level nav links).
   await page.getByRole('button', {name: 'Account'}).click();
   const menu = page.getByRole('menu');
-  await expect(menu.getByRole('menuitem')).toHaveText([/Data controls/, /Connect/, /Plans/]);
+  await expect(menu.getByRole('menuitem')).toHaveText([/Data controls/, /Templates/, /Connect/, /Plans/]);
   await menu.getByRole('menuitem', {name: /Plans/}).click();
   await expect(page).toHaveURL(/\/plans$/);
   await expect(page.getByRole('complementary', {name: 'Next step'})).toBeVisible();

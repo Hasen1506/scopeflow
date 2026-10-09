@@ -771,3 +771,19 @@ label .fine{font-weight:var(--fw-1)}
 /* The heading's short buttons keep their label on one line (on phones "New scope" broke onto two). */
 .page-heading .actions .primary,.page-heading .actions .secondary{white-space:nowrap}
 .pay-actions{display:flex;gap:var(--s2);flex-wrap:wrap}
+
+/* Owner branding on the client review page: logo or name, and an accent rule in the owner's colour. */
+.client-brand{display:flex;align-items:center;gap:12px;margin:0 0 16px;flex-wrap:wrap}
+.client-brand img{height:40px;width:auto;max-width:200px;object-fit:contain}
+.client-brand.has-accent{border-bottom:3px solid var(--brand-accent);padding-bottom:12px}
+.review-shell[style*="--brand-accent"] .paper{border-top:4px solid var(--brand-accent)}
+h2[tabindex="-1"]:focus{outline:none}
+h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outline-offset:4px}
+.color-row{display:flex;gap:8px;align-items:center}
+.color-row input[type="color"]{width:44px;height:36px;padding:2px;flex:none}
+.inbound-list li{display:block}
+.inbound-list li .actions{margin-top:8px}
+.template-admin li{display:block}
+.template-admin li>*+*{margin-top:8px}
+.tag-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.tag-row label{flex:1;min-width:200px}

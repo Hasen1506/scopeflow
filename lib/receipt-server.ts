@@ -1,3 +1,5 @@
+import {brandForProject} from './brand-server';
+import {pdfBrand} from './brand';
 import {db, json} from './server';
 import {publicUrl} from './origin';
 import {paymentsOf, sha256} from './ledger';
@@ -68,7 +70,7 @@ export async function receiptResponse(request: Request, row: DecidedRow | null) 
   if (!row) return json({error: 'This record was not found.'}, 404);
   if (row.status === 'pending' || !row.decided) return json({error: 'This version has no client decision yet, so there is no receipt.', code: 'no_decision'}, 409);
   const model = await receiptModel(request, row);
-  return pdfResponse(renderReceiptPdf(model), `scopeflow-receipt-${row.project_id.slice(0, 12)}-v${row.version}.pdf`);
+  return pdfResponse(renderReceiptPdf(model, pdfBrand(await brandForProject(row.project_id))), `scopeflow-receipt-${row.project_id.slice(0, 12)}-v${row.version}.pdf`);
 }
 
 export type Verification = {
@@ -102,5 +104,5 @@ export async function statementResponse(request: Request, projectId: string, {ve
   if (!l.baseline || !l.content || !l.agreement) return json({error: 'There is no approved agreement yet, so there is no statement.', code: 'not_approved'}, 409);
   if (version !== undefined && version !== l.baseline.version) return json({error: 'This link is for a version that is not the current agreement.', code: 'superseded'}, 409);
   const model = statementModel({project_id: projectId, version: l.baseline.version, content: l.content, agreement: l.agreement, entries: l.entries, time_zone: receiptTimeZone(request, timezone), generated: new Date().toISOString()});
-  return pdfResponse(renderStatementPdf(model), `scopeflow-statement-${projectId.slice(0, 12)}-v${l.baseline.version}.pdf`);
+  return pdfResponse(renderStatementPdf(model, pdfBrand(await brandForProject(projectId))), `scopeflow-statement-${projectId.slice(0, 12)}-v${l.baseline.version}.pdf`);
 }

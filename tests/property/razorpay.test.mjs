@@ -14,7 +14,7 @@ test('payments are off without keys, with a reason; webhook secret is separate',
   assert.equal(rz.razorpayConfig({}), null);
   assert.equal(rz.razorpayConfig({RAZORPAY_KEY_ID: 'rzp_test_x'}), null);
   assert.deepEqual(rz.razorpayConfig({RAZORPAY_KEY_ID: 'rzp_test_x', RAZORPAY_KEY_SECRET: 's'}), {keyId: 'rzp_test_x', keySecret: 's'});
-  assert.match(rz.paymentsStatus({}).setup, /RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET/);
+  assert.match(rz.paymentsStatus({}).setup, /RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET \(or STRIPE_SECRET_KEY\)/);
   assert.doesNotMatch(rz.paymentsStatus({}).reason, /RAZORPAY|KEY|SECRET/, 'the client-facing reason names no server settings');
   assert.equal(rz.paymentsStatus({RAZORPAY_WEBHOOK_SECRET: 'w'}).webhook, true);
   assert.equal(rz.webhookSecret({RAZORPAY_WEBHOOK_SECRET: '  '}), null);
@@ -80,10 +80,12 @@ test('paid events: payment.captured and order.paid only, with a captured payment
   assert.equal(rz.paidEvent(null, null), null);
 });
 
-test('ledger: the payment kind validates strictly and reads as a deposit; scopes accept deposit_pct', () => {
+test('ledger: the payment kind validates strictly and reads as a deposit or an invoice payment; scopes accept deposit_pct', () => {
   const p = {provider: 'razorpay', purpose: 'deposit', order_id: 'order_9', payment_id: 'pay_9', amount: 300, currency: 'INR'};
   assert.equal(payloadSchemas.payment.safeParse(p).success, true);
-  assert.equal(payloadSchemas.payment.safeParse({...p, provider: 'stripe'}).success, false);
+  assert.equal(payloadSchemas.payment.safeParse({...p, provider: 'stripe'}).success, true);
+  assert.equal(payloadSchemas.payment.safeParse({...p, provider: 'paypal'}).success, false);
+  assert.equal(describeEntry({seq: 4, kind: 'payment', payload: {...p, provider: 'stripe', purpose: 'invoice', invoice_number: 'INV-7', currency: 'USD', amount: 50}}, 'USD'), 'Payment for invoice INV-7 received: $50.00 via Stripe (payment pay_9)');
   assert.equal(payloadSchemas.payment.safeParse({...p, extra: 1}).success, false);
   assert.equal(describeEntry({seq: 3, kind: 'payment', payload: p}, 'INR'), 'Deposit received: ₹300.00 via Razorpay (payment pay_9)');
   const base = {title: 'T scope', client: 'Client', deliverables: 'Logo design', exclusions: '', fee: 100, currency: 'INR', revisions: 1, due: '', notes: ''};

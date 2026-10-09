@@ -36,6 +36,29 @@ export function retirementWarning(model: string, today = new Date().toISOString(
   return left <= days ? `The configured model ${model} is scheduled to retire on ${date} (in ${left} day${left === 1 ? '' : 's'}). Change the model setting before then.` : null;
 }
 
+export type ModelCheck = {provider: LlmProvider; tier: LlmTier; model: string; status: 'available' | 'missing' | 'unreachable'; warning: string | null};
+/**
+ * Model-lifecycle guard (scripts/check-models.mjs, run daily): asks the provider's Models API whether
+ * each configured model is still served (404 means it is gone or was never valid) and adds the known
+ * retirement warning `days` ahead. Never throws; an unreachable API is reported as such.
+ */
+export async function checkModels(env: Env = process.env, {today = new Date().toISOString().slice(0, 10), days = 45, fetchImpl = fetch}: {today?: string; days?: number; fetchImpl?: typeof fetch} = {}): Promise<ModelCheck[]> {
+  const out: ModelCheck[] = [];
+  for (const tier of ['fast', 'careful'] as LlmTier[]) {
+    const c = llmConfig(env, tier);
+    if (!c || out.some(o => o.model === c.model && o.provider === c.provider)) continue;
+    const base = env.SCOPEFLOW_MODELS_API_URL?.trim().replace(/\/+$/, '') || (c.provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com');
+    let status: ModelCheck['status'] = 'unreachable';
+    try {
+      const r = await fetchImpl(`${base}/v1/models/${encodeURIComponent(c.model)}`, {headers: c.provider === 'openai' ? {Authorization: `Bearer ${c.apiKey}`} : {'x-api-key': c.apiKey, 'anthropic-version': '2023-06-01'}, signal: AbortSignal.timeout(10000)});
+      status = r.ok ? 'available' : r.status === 404 ? 'missing' : 'unreachable';
+    } catch { status = 'unreachable'; }
+    const warning = status === 'missing' ? `The configured ${tier} model ${c.model} is not served by ${c.provider} any more (Models API 404). Set ${c.provider === 'openai' ? 'SCOPEFLOW_OPENAI_MODEL' : 'SCOPEFLOW_ANTHROPIC_MODEL'}${tier === 'careful' ? '_CAREFUL' : ''} to a current model.` : retirementWarning(c.model, today, days);
+    out.push({provider: c.provider, tier, model: c.model, status, warning});
+  }
+  return out;
+}
+
 function envModel(env: Env, provider: LlmProvider, tier: LlmTier) {
   const key = provider === 'openai' ? 'SCOPEFLOW_OPENAI_MODEL' : 'SCOPEFLOW_ANTHROPIC_MODEL';
   return tier === 'careful'

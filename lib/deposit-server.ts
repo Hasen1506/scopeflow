@@ -9,7 +9,7 @@ export async function depositView(projectId: string, version: number, content: S
   const amount = depositAmount(content);
   if (!(amount > 0)) return null;
   const paid = await db().prepare("SELECT order_id,amount_minor,currency,status,payment_id,paid_at FROM payments WHERE project_id=? AND version=? AND status='paid' ORDER BY paid_at DESC LIMIT 1").bind(projectId, version).first<DepositRow>();
-  const status = paymentsStatus();
+  const status = paymentsStatus(process.env, content.currency);
   return {
     pct: content.deposit_pct ?? 0, amount, currency: content.currency, amount_minor: toMinorUnits(amount, content.currency),
     paid: paid ? {amount: fromMinorUnits(Number(paid.amount_minor), paid.currency), currency: paid.currency, payment_id: paid.payment_id, paid_at: paid.paid_at} : null,

@@ -1,10 +1,10 @@
 import {z} from 'zod';
 import {db, json, owner, body, safeOrigin, allowWrite, allowRead, failure} from '@/lib/server';
-import {payloadSchemas, checkEntry, verifyChain} from '@/lib/ledger';
+import {payloadSchemas, checkEntry, verifyChain, paymentsOf, type Refund} from '@/lib/ledger';
 import {loadLedger, appendEntry, LedgerConflict} from '@/lib/ledger-server';
 type Ctx = {params: Promise<{id: string}>};
 
-const ownerKinds = ['change_order', 'goodwill', 'revision_round', 'client_input', 'payment_received', 'settle'] as const;
+const ownerKinds = ['change_order', 'goodwill', 'revision_round', 'client_input', 'payment_received', 'refund', 'settle'] as const;
 const requestSchema = z.object({
   kind: z.enum(ownerKinds),
   baseline_version: z.number().int().min(1),
@@ -84,6 +84,12 @@ export async function POST(request: Request, ctx: Ctx) {
     // stops anyone confirming a guessed value or title against that hash.
     const stored = kind === 'goodwill' && (parsed.data as {visible: boolean}).visible === false ? {...(parsed.data as object), salt: crypto.randomUUID()} : parsed.data;
     if (problem) return json({error: problem}, kind === 'settle' && /already/.test(problem) ? 409 : 400);
+    if (kind === 'refund') {
+      const r = parsed.data as Refund;
+      if (r.method === 'razorpay' || r.method === 'stripe' || r.provider_refund_id) return json({error: 'Refund an online payment with Refund on that payment, so the provider returns the money.'}, 400);
+      const {paid} = paymentsOf(ledger.entries.filter(e => e.baseline_version === baseline_version));
+      if (r.amount > paid + 0.005) return json({error: `A refund cannot be more than the ${paid.toFixed(2)} paid so far.`, code: 'refund_exceeds_paid'}, 400);
+    }
     try {
       const entry = await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind, payload: stored, actor: 'owner', ref});
       return json({seq: entry.seq, ...(await view(id))}, 201);

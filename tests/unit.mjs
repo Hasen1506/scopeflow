@@ -170,7 +170,7 @@ test('email delivery is configured only with RESEND_API_KEY and SCOPEFLOW_MAIL_F
  assert.equal(mail.mailConfigured({}),false);
  assert.equal(mail.mailConfigured({RESEND_API_KEY:'re_x'}),false);
  assert.equal(mail.mailConfigured({SCOPEFLOW_MAIL_FROM:'a@b.co'}),false);
- assert.deepEqual(mail.mailConfig({RESEND_API_KEY:' re_x ',SCOPEFLOW_MAIL_FROM:'Scopeflow <s@b.co>'}),{apiKey:'re_x',from:'Scopeflow <s@b.co>',replyTo:null});
+ assert.deepEqual(mail.mailConfig({RESEND_API_KEY:' re_x ',SCOPEFLOW_MAIL_FROM:'Scopeflow <s@b.co>'}),{provider:'resend',apiKey:'re_x',from:'Scopeflow <s@b.co>',replyTo:null,apiUrl:null});
 });
 test('signature email escapes content and the mailto fallback carries the link',()=>{
  const m=mail.signatureEmail({title:'Logo <b>\r\nBcc: x@evil.test',client:'Ana & Co',version:2,reviewUrl:'https://app.example/review/'+'a'.repeat(64)});

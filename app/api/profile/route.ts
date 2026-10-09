@@ -8,7 +8,8 @@ export async function GET(request: Request) {
     if (!auth) return json({error: 'Sign in or provide a valid API token.'}, 401);
     if (!await allowRead('owner:' + auth.user)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     const row = await db().prepare('SELECT * FROM business_profiles WHERE owner=?').bind(auth.user).first<ProfileRow>();
-    return json({profile: profileFromRow(row), auto_remind_choices: AUTO_REMIND_CHOICES, mail_configured: mailConfigured()});
+    const brand = row as (ProfileRow & {brand_color?: string | null; reply_to?: string | null; logo?: string | null; logo_hash?: string | null}) | null;
+    return json({profile: profileFromRow(row), brand: {brand_color: brand?.brand_color ?? '', reply_to: brand?.reply_to ?? '', logo: brand?.logo ?? '', logo_url: brand?.logo_hash ? `/api/brand/${brand.logo_hash}` : null}, auto_remind_choices: AUTO_REMIND_CHOICES, mail_configured: mailConfigured()});
   } catch (e) { return failure(e); }
 }
 export async function PUT(request: Request) {

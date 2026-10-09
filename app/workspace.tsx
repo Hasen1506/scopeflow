@@ -7,7 +7,7 @@ import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Select,SelectTrigger,SelectValue,SelectContent,SelectItem} from '@/components/ui/select';
 import {Scope,Version,Item,scopeSchema,sample,blank,label,money,itemsOf,itemLine,formatMoney} from '@/lib/scope';
-import {paymentsOf,paymentMethods,PAYMENT_METHOD_LABEL} from '@/lib/ledger';
+import {paymentsOf,paymentMethods,PAYMENT_METHOD_LABEL,refundableOf} from '@/lib/ledger';
 import {applyOwnerDefaults,draftDefaults,type OwnerDefaults} from '@/lib/profile';
 import {ItemsEditor,ClientInputsEditor} from './items-editor';
 import {MilestonesEditor,FxEditor,RevisionBankEditor} from './terms-editor';
@@ -17,7 +17,7 @@ import {LedgerPanel,type LedgerView} from './ledger-panel';
 import {StageChip,StageTracker,NextStep,SummaryStrip} from './workflow';
 import {stageOf,trackerSteps,nextStep,type StageId} from '@/lib/stage';
 import type {Insights} from '@/lib/insights';
-import type {Agreement,LedgerEntry} from '@/lib/ledger';
+import type {Agreement,LedgerEntry,PaymentLine} from '@/lib/ledger';
 import {InsightsPanel} from './insights-panel';
 import {Header,Paper,api,post,type ApiError,ReviewVignette,EmptyState,Skeleton} from './ui';
 import {rememberSession} from '@/lib/theme';
@@ -28,6 +28,8 @@ import {feeCheck,totals} from '@/lib/money';
 import {formatInZone,formatDay,daysAgo,timeZones,validTimeZone} from '@/lib/time';
 import {ScopeCheck,AiQuality,type AiStatus} from './scope-check';
 import {TrustSettings,type ProjectSettings,type CosignView,type OtpChannel} from './trust-settings';
+import {RetentionSettings} from './retention-settings';
+import {InboundPanel} from './inbound-panel';
 /** A scope still unanswered after this many days gets a gentle "worth a nudge" on its card. */
 const STALE_DAYS=5;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,11 +41,12 @@ function UnsavedCard({title,onOpen}:{title:string;onOpen:()=>void}){return <div 
 /** Step 4: what the agreement says is owed, what has been received, what is still due, and the receipts. Real records only. */
 function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUrl,history,archived,onRecorded}:{version:Version;agreement:Agreement|null;entries:LedgerEntry[];onlineDeposits:boolean|null;receiptUrl:(v:Version)=>string;history:Version[];archived:boolean;onRecorded:()=>void}){
  const c=version.content,cur=c.currency,decided=history.filter(v=>v.status!=='pending'&&v.decided);
- const [formOpen,setFormOpen]=useState(false);
+ const [formOpen,setFormOpen]=useState(false),[refundFor,setRefundFor]=useState<PaymentLine|'offline'|null>(null);
  if(version.status!=='approved'||!agreement){const q=totals(c);return <><p className="quiet">Payment details are fixed when your client approves. Until then this is the quote on version {version.version}.</p><dl className="pay-grid"><div><dt>Quoted fee</dt><dd>{formatMoney(c.fee,cur)}</dd></div>{q.tax_pct>0&&<div><dt>Total with {q.tax_label}</dt><dd>{formatMoney(q.total,cur)}</dd></div>}{q.deposit_pct>0&&<div><dt>Deposit on signature</dt><dd>{formatMoney(q.deposit,cur)}</dd></div>}</dl>{decided.length>0&&<ReceiptList decided={decided} receiptUrl={receiptUrl}/>}</>;}
  const now=totals(c,agreement.fee),signed=totals(c);
  const {lines,paid}=paymentsOf(entries.filter(e=>e.baseline_version===version.version));
  const balance=Math.max(0,Math.round((now.total-paid)*100)/100);
+ const refundable=(l:PaymentLine)=>refundableOf(l,lines);
  const depositOpen=signed.deposit_pct>0&&paid<signed.deposit;
  return <>
   <dl className="pay-grid">
@@ -54,14 +57,33 @@ function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUrl,histo
   </dl>
   {c.payment_terms&&<p className="line-list section-gap"><strong>Payment terms</strong><br/>{c.payment_terms}</p>}
   {agreement.pending>0&&<p className="fine">{agreement.pending} change order{agreement.pending>1?'s':''} still awaiting the client: the agreed total changes only once they approve.</p>}
-  <div className="section-gap"><div className="small-title"><h4 className="h-sub">Payments</h4><div className="pay-actions"><a className="secondary" href={`/api/scopes/${version.project_id}/statement`} download><Download size={15}/>Statement PDF</a><a className="secondary" href={`/api/scopes/${version.project_id}/dispute-pack`} download title="Every receipt, the statement, invoices, the signed record with its chain proof, timestamps and a BSA 2023 Section 63 certificate template, in one ZIP"><FolderArchive size={15}/>Dispute pack</a>{!formOpen&&!archived&&<button className="secondary" onClick={()=>setFormOpen(true)}><Banknote size={15}/>Record a payment</button>}</div></div>
+  <div className="section-gap"><div className="small-title"><h4 className="h-sub">Payments</h4><div className="pay-actions"><a className="secondary" href={`/api/scopes/${version.project_id}/statement`} download><Download size={15}/>Statement PDF</a><a className="secondary" href={`/api/scopes/${version.project_id}/dispute-pack`} download title="Every receipt, the statement, invoices, the signed record with its chain proof, timestamps and a BSA 2023 Section 63 certificate template, in one ZIP"><FolderArchive size={15}/>Dispute pack</a>{!formOpen&&!archived&&<button className="secondary" onClick={()=>setFormOpen(true)}><Banknote size={15}/>Record a payment</button>}{!archived&&paid>0&&!refundFor&&<button className="secondary" onClick={()=>setRefundFor('offline')}>Record a refund</button>}</div></div>
+   {refundFor&&<RefundForm projectId={version.project_id} baseline={version.version} currency={cur} line={refundFor==='offline'?null:refundFor} max={refundFor==='offline'?paid:refundable(refundFor)} onDone={()=>{setRefundFor(null);onRecorded();}} onCancel={()=>setRefundFor(null)}/>}
    {formOpen&&<PaymentForm projectId={version.project_id} baseline={version.version} currency={cur} suggested={depositOpen?Math.round((signed.deposit-paid)*100)/100:balance} balance={balance} onDone={()=>{setFormOpen(false);onRecorded();}} onCancel={()=>setFormOpen(false)}/>}
-   {lines.length>0?<ul className="receipt-list payment-list">{lines.map(l=><li key={l.seq}><span><strong>{formatMoney(l.amount,cur)}</strong> · {l.method} · {formatDay(l.received)}{l.reference&&<span className="quiet"> · ref. {l.reference}</span>}{l.note&&l.source==='owner'&&<span className="quiet"> · {l.note}</span>}</span><span className="fine">{l.source==='razorpay'?'Confirmed by Razorpay':'Recorded by you'}</span></li>)}</ul>:!formOpen&&<p className="fine">Record money as it arrives (bank transfer, UPI, cash…). Each payment goes on the signed record your client sees, and the balance updates here and on your Projects home.</p>}
+   {lines.length>0?<ul className="receipt-list payment-list">{lines.map(l=><li key={l.seq}><span><strong>{formatMoney(l.amount,cur)}</strong> · {l.method} · {formatDay(l.received)}{l.reference&&<span className="quiet"> · ref. {l.reference}</span>}{l.note&&(l.source==='owner'||l.source==='refund')&&<span className="quiet"> · {l.note}</span>}</span><span className="fine">{l.source==='razorpay'||l.source==='stripe'?<>Confirmed by {l.method}{!archived&&refundable(l)>0&&<> · <button className="help-link" onClick={()=>setRefundFor(l)}>Refund</button></>}</>:l.source==='refund'?(l.provider_refund_id?'Refunded online':'Refund recorded by you'):'Recorded by you'}</span></li>)}</ul>:!formOpen&&<p className="fine">Record money as it arrives (bank transfer, UPI, cash…). Each payment goes on the signed record your client sees, and the balance updates here and on your Projects home.</p>}
    <p className="fine">The statement PDF shows the agreed total, every payment on the record and the balance due. Send it with an invoice or a payment reminder; your client can download the same statement from their review link.</p>
   </div>
   <InvoicePanel projectId={version.project_id} currency={cur} balance={balance} archived={archived}/>
   <ReceiptList decided={decided} receiptUrl={receiptUrl}/>
  </>;
+}
+/** A refund: through Razorpay or Stripe for an online payment (money goes back to the client's card or account), or one the creator made outside Scopeflow. Either way it goes on the signed record. */
+function RefundForm({projectId,baseline,currency,line,max,onDone,onCancel}:{projectId:string;baseline:number;currency:string;line:PaymentLine|null;max:number;onDone:()=>void;onCancel:()=>void}){
+ const [amount,setAmount]=useState(String(max)),[method,setMethod]=useState<(typeof paymentMethods)[number]>('bank_transfer'),[refunded,setRefunded]=useState(today()),[reference,setReference]=useState(''),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [requestId]=useState(()=>crypto.randomUUID());
+ const value=Math.round(Number(amount)*100)/100;
+ async function submit(e:React.FormEvent){e.preventDefault();if(!(value>0)||value>max+0.005){setError(`Enter an amount up to ${formatMoney(max,currency)}.`);return;}setBusy(true);setError('');try{
+  if(line)await api(`/api/scopes/${projectId}/refunds`,post({payment_seq:line.seq,amount:value,note,request_id:requestId}));
+  else await api(`/api/scopes/${projectId}/ledger`,post({kind:'refund',baseline_version:baseline,payload:{amount:value,method,refunded,reference,note},request_id:requestId}));
+  toast.success(line?`${formatMoney(value,currency)} refunded through ${line.method}.`:`Refund of ${formatMoney(value,currency)} recorded.`);onDone();}catch(err){setError((err as Error).message);}finally{setBusy(false);}}
+ return <form className="ledger-form" aria-label={line?'Refund an online payment':'Record a refund'} onSubmit={submit}>
+  {line&&<p className="fine">Refunds {formatMoney(max,currency)} or less of the {line.method} payment {line.reference} back to your client through {line.method}. This cannot be undone.</p>}
+  <div className="two-col"><label>Amount to refund ({currency})<input type="number" min={0.01} max={max} step="0.01" inputMode="decimal" required value={amount} onChange={e=>setAmount(e.target.value)}/></label>{!line&&<label>Refunded on<input type="date" required max={today()} value={refunded} onChange={e=>setRefunded(e.target.value)}/></label>}</div>
+  {!line&&<div className="two-col"><label>Method<select value={method} onChange={e=>setMethod(e.target.value as (typeof paymentMethods)[number])}>{paymentMethods.map(m=><option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}</select></label><label>Reference <span className="quiet">· optional</span><input maxLength={80} value={reference} onChange={e=>setReference(e.target.value)}/></label></div>}
+  <label>Reason <span className="quiet">· shown to your client</span><input maxLength={500} placeholder="e.g. Deliverable D3 dropped by agreement" value={note} onChange={e=>setNote(e.target.value)}/></label>
+  {error&&<p className="error" role="alert">{error}</p>}
+  <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy?'Refunding…':line?'Refund through '+line.method:'Record refund'}</button><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancel</button></div>
+ </form>;
 }
 /** Today in the viewer's own calendar (a payment that arrived this morning in Chennai is not "tomorrow"). */
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -315,7 +337,9 @@ export default function Workspace(){
      {active&&<section id="project-settings" className="editor flow-step" aria-labelledby="h-settings">
       <div className="step-head"><h3 id="h-settings">Project settings</h3></div>
      {<label>Project time zone <span className="quiet">· every time is shown in it, for you and your client</span><select value={timeZone??'UTC'} disabled={busy} onChange={e=>saveTimeZone(e.target.value)}>{timeZones().map(z=><option key={z} value={z}>{z}</option>)}</select></label>}
-      <div className="action-group section-gap"><span className="action-label">Project</span><button className="secondary" disabled={busy} onClick={duplicateDraft}>Reuse as new draft</button><button className="secondary" onClick={exportProject}><Download size={15}/>Export project JSON</button>{!archived&&<button className="secondary" disabled={busy} onClick={()=>{setActionError('');setProjectAction('archive');}}>Archive project</button>}{history.every(v=>v.status==='pending')&&<button className="secondary danger" disabled={busy} onClick={()=>{setActionError('');setDeleteText('');setProjectAction('delete');}}>Delete project</button>}</div>
+      <div className="action-group section-gap"><span className="action-label">Project</span><button className="secondary" disabled={busy} onClick={duplicateDraft}>Reuse as new draft</button><button className="secondary" onClick={exportProject}><Download size={15}/>Export project JSON</button>{!archived&&<button className="secondary" disabled={busy} onClick={()=>{setActionError('');setProjectAction('archive');}}>Archive project</button>}{history.every(v=>v.status==='pending')&&!trust?.legal_hold&&<button className="secondary danger" disabled={busy} onClick={()=>{setActionError('');setDeleteText('');setProjectAction('delete');}}>Delete project</button>}</div>
+      {trust&&<RetentionSettings projectId={active.project_id} settings={{retention_days:trust.retention_days??null,legal_hold:!!trust.legal_hold,legal_hold_reason:trust.legal_hold_reason??'',legal_hold_set:trust.legal_hold_set??null}} timeZone={timeZone} onChange={p=>setTrust(t=>t&&({...t,...p}))}/>}
+      <InboundPanel projectId={active.project_id} timeZone={timeZone}/>
       {archived&&<p className="fine">This project is archived: it is hidden from your project list and cannot get new versions or ledger entries until you restore it. Its signed record and review links are unchanged.</p>}{!history.every(v=>v.status==='pending')&&<p className="fine">This project has a client decision on record, so it can be archived but not deleted. Deleting your whole account (Data controls) removes everything.</p>}
      </section>}
      <div className="notice-dock">{error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="muted-box" role="status"><span>{notice}</span><button type="button" className="dismiss" aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={14}/></button></p>}{undo&&<p className="muted-box" role="status"><span>Your previous draft was replaced. <button className="help-link" onClick={undoReplace}>Undo</button> <button className="help-link" onClick={()=>setUndo(null)}>Dismiss</button></span></p>}</div>

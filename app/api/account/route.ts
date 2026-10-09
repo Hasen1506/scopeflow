@@ -21,6 +21,8 @@ export async function DELETE(request:Request){try{
  let raw;try{raw=await body(request);}catch{return json({error:'Provide a valid deletion confirmation.'},400);}
  if(!z.object({confirmation:z.literal('DELETE')}).strict().safeParse(raw).success)return json({error:'Type DELETE to confirm permanent deletion.'},400);
  const database=db(),id=user.userId;
+ const held=await database.prepare('SELECT COUNT(*) AS n FROM projects WHERE owner=? AND legal_hold').bind(id).first<{n:number}>();
+ if(Number(held?.n)>0)return json({error:`${held!.n} project${Number(held!.n)===1?' is':'s are'} on legal hold. Lift the hold (in the project’s Retention settings) before deleting your account.`,code:'legal_hold'},409);
  // Database batches are transactional. Resolve ownership in each statement; remove dependent rows first.
  await database.batch([
   database.prepare("DELETE FROM rate_limits WHERE id IN (?,?) OR id IN (SELECT 'review:'||v.id FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=?)").bind('owner:'+id,'key:'+id,id),
@@ -32,8 +34,10 @@ export async function DELETE(request:Request){try{
   database.prepare('DELETE FROM review_views WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM version_cosigns WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM timestamps WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
+  database.prepare('DELETE FROM inbound_messages WHERE project_id IN (SELECT id FROM projects WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM projects WHERE owner=?').bind(id),
   database.prepare('DELETE FROM api_keys WHERE owner=?').bind(id),
+  database.prepare('DELETE FROM template_revisions WHERE template_id IN (SELECT id FROM templates WHERE owner=?)').bind(id),
   database.prepare('DELETE FROM templates WHERE owner=?').bind(id),
   database.prepare('DELETE FROM account_settings WHERE owner=?').bind(id),
   database.prepare('DELETE FROM business_profiles WHERE owner=?').bind(id),

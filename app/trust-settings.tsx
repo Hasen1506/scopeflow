@@ -10,6 +10,7 @@ export type ProjectSettings = {
   require_otp: boolean; client_email: string; client_phone: string; otp_channel: OtpChannel;
   link_expiry_days: number | null; link_issued: string | null;
   cosigners: {id: string; role: string}[];
+  retention_days?: number | null; legal_hold?: boolean; legal_hold_reason?: string; legal_hold_set?: string | null;
 };
 export type CosignView = {cosigner_id: string; role: string; signer: string; signed: string};
 

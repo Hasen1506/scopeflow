@@ -1,6 +1,8 @@
 import {z} from 'zod';
 import {db, json, body, safeOrigin, allowWrite, failure, hash, secret} from '@/lib/server';
-import {MailError} from '@/lib/mail';
+import {MailError, brandEmail} from '@/lib/mail';
+import {brandForProject} from '@/lib/brand-server';
+import {publicUrl} from '@/lib/origin';
 import {OTP_MAX_ATTEMPTS, OTP_SENDS_PER_WINDOW, OTP_TTL_MS, OtpDeliveryError, OtpUnavailable, codeHash, deliverCode, generateCode, maskDestination, normalizeCode, otpEmail, type OtpChannel} from '@/lib/otp';
 import type {Scope} from '@/lib/scope';
 import {loadLedger} from '@/lib/ledger-server';
@@ -51,7 +53,9 @@ export async function POST(request: Request, ctx: Ctx) {
       await db().prepare('INSERT INTO review_otps (id,version_id,email,channel,code_hash,expires,created) VALUES (?,?,?,?,?,?,?)').bind(id, row.id, destination, channel, await codeHash(id, code), new Date(now + OTP_TTL_MS).toISOString(), new Date(now).toISOString()).run();
       const content = JSON.parse(row.content) as Scope;
       try {
-        await deliverCode(destination, otpEmail({code, title: content.title, version: row.version}), {code, version_id: row.id, id}, process.env, channel);
+        const brand = await brandForProject(row.project_id);
+        const otpMessage = otpEmail({code, title: content.title, version: row.version});
+        await deliverCode(destination, {...brandEmail(otpMessage, brand && {name: brand.name, color: brand.color, logoUrl: brand.logoHash ? publicUrl(request, '/api/brand/' + brand.logoHash) : null}), sms: otpMessage.sms}, {code, version_id: row.id, id}, process.env, channel, {fromName: brand?.name, replyTo: brand?.replyTo});
       } catch (e) {
         await db().prepare('DELETE FROM review_otps WHERE id=?').bind(id).run();
         if (e instanceof OtpUnavailable) return json({error: 'Codes cannot be sent on this server right now. Ask the creator to turn off the identity check or set up delivery.', code: 'otp_unavailable'}, 503);

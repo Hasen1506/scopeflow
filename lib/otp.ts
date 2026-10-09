@@ -64,10 +64,10 @@ export function otpEmail({code, title, version}: {code: string; title: string; v
 export class OtpUnavailable extends Error {}
 
 /** Sends the code by email, SMS or WhatsApp, or in dev mode logs it (and appends a JSON line to SCOPEFLOW_OTP_DEV_LOG). */
-export async function deliverCode(to: string, message: SignatureEmail & {sms?: string}, meta: {code: string; version_id: string; id: string}, env: Env = process.env, channel: OtpChannel = 'email') {
+export async function deliverCode(to: string, message: SignatureEmail & {sms?: string}, meta: {code: string; version_id: string; id: string}, env: Env = process.env, channel: OtpChannel = 'email', sender: {fromName?: string | null; replyTo?: string | null} = {}) {
   if (channel === 'email') {
     const config = mailConfig(env);
-    if (config) return {delivered: 'email' as const, ...(await sendMail(config, to, message, `scopeflow-otp-${meta.id}`))};
+    if (config) return {delivered: 'email' as const, ...(await sendMail(config, to, message, `scopeflow-otp-${meta.id}`, sender))};
   } else {
     const config = smsConfig(env);
     if (config?.channels.includes(channel)) {

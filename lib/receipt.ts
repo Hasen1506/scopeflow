@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import {PdfDocument, wrap, type Font} from './pdf';
+import {drawPdfBrand, type PdfBrand} from './brand';
 import {itemsOf, formatMoney, label, type Scope} from './scope';
 import {fxLine, schedule, totals} from './money';
 import {formatDay, stamp} from './time';
@@ -40,7 +41,7 @@ export function qrMatrix(text: string): boolean[][] {
 }
 
 const MARGIN = 48;
-export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
+export function renderReceiptPdf(m: ReceiptModel, brand: PdfBrand | null = null): Uint8Array {
   const doc = new PdfDocument({info: {Title: `Scopeflow decision receipt: ${m.content.title} v${m.version}`, Producer: 'Scopeflow', Subject: `anchor ${m.anchor}`}});
   const W = doc.width - MARGIN * 2;
   let y = 0;
@@ -63,8 +64,9 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   };
 
   page();
-  doc.text(MARGIN, y - 10, 'SCOPEFLOW · DECISION RECEIPT', {size: 9, font: 'bold', gray: 0.35});
-  y -= 30;
+  const branded = drawPdfBrand(doc, brand, {margin: MARGIN, top: y});
+  doc.text(MARGIN, y - 10, brand?.name ? `${brand.name.toUpperCase().slice(0, 50)} · DECISION RECEIPT` : 'SCOPEFLOW · DECISION RECEIPT', {size: 9, font: 'bold', gray: 0.35});
+  y -= Math.max(30, branded);
   para(m.content.title, {size: 18, font: 'bold', gap: 2});
   para(`Prepared for ${m.content.client} · Version ${m.version} · ${label(m.status)}`, {size: 10.5, gray: 0.3, gap: 6});
 
@@ -136,7 +138,7 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   for (const c of m.content.client_inputs ?? []) row('Client provides', c.title + (c.due ? ` (by ${c.due})` : ''));
   if (m.payments?.length) {
     heading('Payments on the record');
-    for (const p of m.payments) row(formatDay(p.received), `${formatMoney(p.amount, m.content.currency)} · ${p.source === 'razorpay' ? `${p.note} paid through Razorpay (payment ${p.reference})` : `${p.method}${p.reference ? ` · ref. ${p.reference}` : ''} · recorded by the creator`} · entry ${p.seq}`);
+    for (const p of m.payments) row(formatDay(p.received), `${formatMoney(p.amount, m.content.currency)} · ${p.source === 'razorpay' || p.source === 'stripe' ? `${p.note} paid through ${p.method} (payment ${p.reference})` : p.source === 'refund' ? `${p.method}${p.reference ? ` · ref. ${p.reference}` : ''}` : `${p.method}${p.reference ? ` · ref. ${p.reference}` : ''} · recorded by the creator`} · entry ${p.seq}`);
     const paid = Math.round(m.payments.reduce((s, p) => s + p.amount, 0) * 100) / 100;
     row('Received in total', formatMoney(paid, m.content.currency), 'bold');
   }
