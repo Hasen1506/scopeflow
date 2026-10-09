@@ -21,6 +21,8 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/scopeflow_test
       NEON_AUTH_BASE_URL: http://localhost:55433
       NEON_AUTH_COOKIE_SECRET: ci-only-cookie-secret-0123456789abcdef0123
+      # Production builds no longer sign records with the cookie secret, so CI sets a dedicated one.
+      SCOPEFLOW_SIGNING_SECRET: ci-only-signing-secret-0123456789abcdef0123
       APP_URL: http://localhost:5173
       # PR F: test-only webhook secret so tests/payments.mjs exercises the verified webhook path.
       # No RAZORPAY_KEY_ID/SECRET: online deposits stay disabled, which the suite also asserts.
@@ -29,6 +31,24 @@ jobs:
       # (dev mode is refused unless APP_URL is localhost). tests/otp.mjs reads them from here.
       SCOPEFLOW_OTP_DEV: '1'
       SCOPEFLOW_OTP_DEV_LOG: /tmp/scopeflow-otp-dev.log
+      # Local RFC 3161 authority and a throwaway PDF signing certificate (created below).
+      SCOPEFLOW_TSA_URL: http://127.0.0.1:55434/
+      SCOPEFLOW_PDF_SIGN_CERT: /tmp/scopeflow-sign.crt
+      SCOPEFLOW_PDF_SIGN_KEY: /tmp/scopeflow-sign.key
+      # Reference rates from the same local service; the reconciliation route's bearer secret.
+      SCOPEFLOW_FX_URL: http://127.0.0.1:55434/fx
+      SCOPEFLOW_CRON_SECRET: ci-only-cron-secret
+      # Stripe test double (EUR and GBP only, so the INR deposit suite still sees payments off), the
+      # embeddings double for the meaning-match radar, and email forwarding into the radar.
+      STRIPE_SECRET_KEY: sk_test_ci_only
+      STRIPE_WEBHOOK_SECRET: whsec_ci_only
+      STRIPE_API_URL: http://127.0.0.1:55434/stripe
+      STRIPE_CURRENCIES: EUR,GBP
+      SCOPEFLOW_EMBEDDINGS: voyage
+      VOYAGE_API_KEY: ci-only-voyage-key
+      SCOPEFLOW_EMBEDDINGS_URL: http://127.0.0.1:55434/embeddings
+      SCOPEFLOW_INBOUND_DOMAIN: in.scopeflow.test
+      SCOPEFLOW_INBOUND_SECRET: ci-only-inbound-secret-0123
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,18 +58,24 @@ jobs:
       - run: npm ci --include=dev --include=optional
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
+      - name: Install poppler (pdfsig, pdftotext and pdftoppm verify the signed and Unicode PDFs)
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends poppler-utils
       - run: npm run typecheck
       - run: npm run lint
       - name: Property-based, golden and differential tests (pure, no server)
         run: npm run test:props
       - run: npm run build
       - run: npm run db:migrate
+      - name: Throwaway PDF signing certificate
+        run: openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/scopeflow-sign.key -out /tmp/scopeflow-sign.crt -days 7 -subj "/CN=Scopeflow CI Signer"
       - name: Start the local auth fixture and the production build
         run: |
+          node tests/support/tsa-service.mjs > tsa.log 2>&1 &
           node tests/support/auth-service.mjs > auth.log 2>&1 &
           npx next start --hostname localhost --port 5173 > next.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:5173/api/health && break; sleep 1; done
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:55433/ok && break; sleep 1; done
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:55434/ && break; sleep 1; done
       # Runs first, on the fresh database and auth fixture. No retries, no quarantine.
       - name: Golden E2E (Playwright)
         run: npm run test:e2e

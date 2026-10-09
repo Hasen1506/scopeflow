@@ -33,7 +33,7 @@ const opened = await call(L); status(opened, 200); eq(opened.value.open, true); 
 const uiPayload = {title: 'Instagram templates', reason: '', request_quote: '', add_items: [], remove_item_ids: [], fee_delta: 400, days_delta: 0, revisions_delta: 0};
 // A failed submit returns a readable error the form shows inline (not a silent no-op).
 const invalid = await call(L, 'POST', {kind: 'change_order', baseline_version: 1, payload: {...uiPayload, fee_delta: 0}, request_id: randomUUID()});
-status(invalid, 400); assert.match(invalid.value.error, /must change deliverables, fee, timeline or revision rounds/); passed++;
+status(invalid, 400); assert.match(invalid.value.error, /must change deliverables, fee, timeline, revision rounds or the revision bank/); passed++;
 const co = await call(L, 'POST', {kind: 'change_order', baseline_version: 1, payload: uiPayload, request_id: randomUUID()});
 status(co, 201); eq(co.value.seq, 1); eq(co.value.chain.count, 1); eq(co.value.agreement.pending, 1);
 const withPrefill = await call(L, 'POST', {kind: 'change_order', baseline_version: 1, payload: {title: '6 Instagram templates', reason: 'Asks for something that is not one of the agreed deliverables.', request_quote: 'Could you also make 6 Instagram templates?', add_items: [{id: 'n-' + randomUUID().slice(0, 8), title: '6 Instagram templates', qty: 1, unit: '', price: null, acceptance: ''}], remove_item_ids: [], fee_delta: 0, days_delta: 0, revisions_delta: 0}, request_id: randomUUID()});

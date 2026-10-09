@@ -39,7 +39,7 @@ const S = '/api/scopes/' + project_id;
 {
   const noEmail = await call(S, {method: 'PATCH', cookie, body: {require_otp: true}});
   eq(noEmail.status, 400); eq(noEmail.data.code, 'otp_needs_email');
-  eq((await call(S, {method: 'PATCH', cookie, body: {client_email: 'ada.client@example.test', require_otp: true}})).data.project, {id: project_id, archived: null, client_email: 'ada.client@example.test', timezone: null, require_otp: true});
+  { const p = (await call(S, {method: 'PATCH', cookie, body: {client_email: 'ada.client@example.test', require_otp: true}})).data.project; eq({id: p.id, archived: p.archived, client_email: p.client_email, timezone: p.timezone, require_otp: p.require_otp, otp_channel: p.otp_channel}, {id: project_id, archived: null, client_email: 'ada.client@example.test', timezone: null, require_otp: true, otp_channel: 'email'}); }
   eq((await call(S, {cookie})).data.project.require_otp, true);
   const clear = await call(S, {method: 'PATCH', cookie, body: {client_email: ''}});
   eq(clear.status, 400); // cannot remove the address the code is sent to while the check is on
@@ -49,7 +49,7 @@ const S = '/api/scopes/' + project_id;
 // The review page learns that a code is needed, with a masked address only.
 {
   const r = await call('/api/review/' + token);
-  eq(r.data.identity_check, {method: 'email_otp', to: 'a******@example.test'});
+  eq(r.data.identity_check, {method: 'email_otp', channel: 'email', to: 'a******@example.test'});
   ok(!JSON.stringify(r.data).includes('ada.client@example.test'), 'full client email never reaches the review page');
 }
 
@@ -123,6 +123,30 @@ let session;
   const tamper = await (async () => { try { localSql(`UPDATE scopeflow.versions SET decision_context='{}' WHERE id='${versionId}'`); return 'updated'; } catch { return 'refused'; } })();
   eq(tamper, 'refused');
   eq((await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'send'}})).status, 409); // decided: no more codes
+}
+
+// Change orders on the approved agreement need a fresh code too, and record it with the decision.
+{
+  const co = {title: 'Extra banner', reason: '', request_quote: '', add_items: [{id: 'i_banner', title: 'Web banner', qty: 1, unit: '', price: 100, acceptance: ''}], remove_item_ids: [], fee_delta: 100, days_delta: 0, revisions_delta: 0};
+  const proposed = await call(S + '/ledger', {method: 'POST', cookie, body: {kind: 'change_order', baseline_version: 1, payload: co, request_id: 'otp-co-' + randomUUID().slice(0, 8)}});
+  eq(proposed.status, 201);
+  const seq = proposed.data.seq;
+  eq((await call('/api/review/' + token)).data.identity_check, {method: 'email_otp', channel: 'email', to: 'a******@example.test'});
+  const settle = extra => call(`/api/review/${token}/change-order`, {method: 'POST', body: {seq, decision: 'approved', signer: 'Ada Client', comment: '', ...extra}});
+  const refused = await settle({});
+  eq(refused.status, 403); eq(refused.data.code, 'otp_required');
+  eq((await settle({otp_session: 'f'.repeat(64)})).status, 403);
+  localSql(`UPDATE scopeflow.review_otps SET created='2000-01-01T00:00:00.000Z' WHERE version_id='${versionId}'`); // the earlier sends left the window
+  eq((await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'send'}})).status, 200);
+  const verified = await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'verify', code: lastCode(versionId).code}});
+  eq(verified.status, 200);
+  const r = await settle({otp_session: verified.data.otp_session});
+  eq(r.status, 200); eq(r.data.receipt.identity.method, 'email_otp'); ok(/\./.test(r.data.receipt.identity_signature), 'signed evidence');
+  const stored = localSql(`SELECT context FROM scopeflow.ledger_entries WHERE project_id='${project_id}' AND kind='settle'`)[0].results[0];
+  eq(JSON.parse(stored.context).identity.email, 'ada.client@example.test');
+  // Nothing is waiting any more: no identity check and no further codes.
+  eq((await call('/api/review/' + token)).data.identity_check, undefined);
+  eq((await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'send'}})).status, 409);
 }
 
 // A project without the setting is unaffected; the OTP endpoint says so.

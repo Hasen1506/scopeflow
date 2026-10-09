@@ -26,9 +26,9 @@ const cookie = await signIn(base, `retention-${Date.now()}@example.test`);
 
 // Settings: defaults, validation, save.
 const empty = await call('/api/settings', {cookie});
-eq(empty.data.settings, {context_retention_days: null, email_subject: '', email_body: '', default_exclusions: '', default_terms: ''});
+eq(empty.data.settings, {context_retention_days: null, email_subject: '', email_body: '', default_exclusions: '', default_terms: '', draft_expiry_days: null});
 eq((await call('/api/settings')).status, 401);
-const wording = {context_retention_days: null, email_subject: 'Sign {title} (v{version})', email_body: 'Hi {client},\n\nYour scope: {link}', default_exclusions: 'Hosting and SEO', default_terms: 'Balance due within 15 days.'};
+const wording = {context_retention_days: null, email_subject: 'Sign {title} (v{version})', email_body: 'Hi {client},\n\nYour scope: {link}', default_exclusions: 'Hosting and SEO', default_terms: 'Balance due within 15 days.', draft_expiry_days: null};
 eq((await call('/api/settings', {method: 'PUT', cookie, body: {...wording, email_body: 'no link'}})).status, 400);
 eq((await call('/api/settings', {method: 'PUT', cookie, body: {...wording, context_retention_days: 0}})).status, 400);
 eq((await call('/api/settings', {method: 'PUT', cookie, body: wording})).data.settings, wording);

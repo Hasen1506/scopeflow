@@ -63,7 +63,7 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   eq((await webhook(captured(order_id, 3000000))).data, {recorded: false, duplicate: true}); // a second payment id for the same order
   const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
   eq(ledger.entries.length, 1);
-  eq(ledger.entries[0].kind, 'payment'); eq(ledger.entries[0].actor, 'client');
+  eq(ledger.entries[0].kind, 'payment'); eq(ledger.entries[0].actor, 'system'); // verified provider evidence, not a client action
   eq(ledger.entries[0].payload, {provider: 'razorpay', purpose: 'deposit', order_id, payment_id: event.payload.payment.entity.id, amount: 30000, currency: 'INR'});
   eq(ledger.chain.intact, true); eq(ledger.seal.state, 'valid');
   const review = (await call('/api/review/' + token)).data;
@@ -71,7 +71,7 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   ok(review.ledger.entries.some(e => e.kind === 'payment'), 'the client sees the payment in the record');
   const owner = await call(`/api/scopes/${project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'payment', baseline_version: 1, payload: ledger.entries[0].payload}});
   eq(owner.status, 400); // owners can never write a payment entry
-  eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).status, 503); // still no keys
+  eq((await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}})).data.code, 'already_paid'); // paid: never asked again, keys or not
 }
 
 // Payments received outside Scopeflow: the owner records them (kind payment_received), they go on the
@@ -113,6 +113,16 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   eq((await call(`/api/scopes/${project_id}`, {method: 'PATCH', cookie, body: {archived: false}})).status, 200);
 }
 
+// A revoked review link never blocks recording a verified payment (Scopeflow appends it as the system actor).
+{
+  eq((await call(`/api/scopes/${project_id}/review-link`, {method: 'POST', cookie, body: {version: 1, action: 'revoke'}})).status, 200);
+  const late = 'order_' + randomUUID().replaceAll('-', '').slice(0, 14);
+  localSql(`INSERT INTO scopeflow.payments (id,project_id,version,provider,order_id,amount_minor,currency,status,created) VALUES ('${randomUUID()}','${project_id}',1,'razorpay','${late}',1000000,'INR','created','${new Date().toISOString()}')`);
+  const r = await webhook(captured(late, 1000000));
+  eq(r.data.recorded, true); eq(r.data.ledger, true);
+  const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
+  eq(ledger.entries.at(-1).actor, 'system'); eq(ledger.chain.intact, true);
+}
 // Account deletion removes payment rows along with the projects.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
 eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n, 0);
@@ -135,6 +145,6 @@ eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id=
     for (const re of forbidden) eq(re.exec(text)?.[0] ?? null, null, `${path} says Scopeflow takes no payments`);
   }
   const terms = await (await fetch(base + '/terms')).text();
-  ok(terms.includes('Scopeflow itself is free during this beta') && terms.includes('Client deposits') && terms.includes('Razorpay merchant account the server operator configured'), 'terms describe client deposits through Razorpay');
+  ok(terms.includes('Scopeflow itself is free during this beta') && terms.includes('Client payments') && terms.includes('Razorpay or Stripe merchant account the server operator configured'), 'terms describe client payments through Razorpay or Stripe');
 }
 console.log(`payments: ${passed} checks passed`);

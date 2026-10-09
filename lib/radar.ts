@@ -1,5 +1,6 @@
 import {checkRequest, exclusionClauses, type CheckResult, type Verdict} from './check';
 import {completeJson, type LlmConfig} from './llm';
+import {embed, rankBySimilarity, type EmbeddingConfig, type SemanticMatch} from './embeddings';
 import type {Agreement} from './ledger';
 import type {Scope} from './scope';
 
@@ -7,12 +8,14 @@ import type {Scope} from './scope';
 // clause of the agreement it rests on. The keyword checker (lib/check.ts) is the explainable
 // baseline and always runs; when an LLM key is configured, a model adjudicates against the same
 // numbered clauses and must cite clause ids that exist, otherwise its answer is discarded and the
-// keyword verdict stands. Nothing is sent to the client and nothing is recorded.
+// keyword verdict stands. With embeddings configured (lib/embeddings.ts) the clauses closest in
+// meaning are ranked too: they settle a request the keywords could not place, and are given to the
+// model as hints. Nothing is sent to the client and nothing is recorded.
 
 export type ClauseKind = 'deliverable' | 'exclusion' | 'term' | 'revisions';
 export type Clause = {id: string; kind: ClauseKind; text: string; ref?: string};
 export type Citation = Clause & {why: string};
-export type RadarResult = CheckResult & {engine: 'keyword' | 'llm'; citations: Citation[]; covered: 'yes' | 'no' | 'revision' | 'unclear'; note: string | null};
+export type RadarResult = CheckResult & {engine: 'keyword' | 'embedding' | 'llm'; citations: Citation[]; covered: 'yes' | 'no' | 'revision' | 'unclear'; note: string | null; semantic?: (SemanticMatch & {kind: ClauseKind; text: string})[]};
 
 type AgreementView = Pick<Agreement, 'items' | 'revisions_allowed' | 'revisions_used' | 'currency'>;
 
@@ -41,14 +44,15 @@ export function keywordRadar(message: string, scope: Scope, agreement: Agreement
   return {...base, engine: 'keyword', citations, covered: coveredOf(base.verdict), note: null};
 }
 
-export function radarPrompt(message: string, clauses: Clause[]) {
+export function radarPrompt(message: string, clauses: Clause[], hints: SemanticMatch[] = []) {
   const system = [
     'You check whether a client\'s request is covered by a signed scope of work. Reply with ONE JSON object only.',
     'Shape: {"verdict": "in_scope" | "out_of_scope" | "revision" | "ambiguous", "citations": [clause ids], "reason": string (one or two sentences, quoting the clause), "reply": string (a short, friendly reply the freelancer could send)}.',
     'Use ONLY the numbered clauses given. "in_scope": an agreed deliverable (D) covers it. "out_of_scope": it is excluded (X) or not among the deliverables, or asks for more than an agreed quantity. "revision": feedback on an agreed deliverable (cite the D clause and R1). "ambiguous": you cannot tell.',
     'Every verdict except "ambiguous" must cite at least one clause id that appears in the list. Never invent clauses or ids.',
   ].join('\n');
-  const user = `Clauses:\n${clauses.map(c => `${c.id} [${c.kind}] ${c.text}`).join('\n')}\n\nClient request:\n"""\n${message.slice(0, 4000)}\n"""`;
+  const hint = hints.length ? `\n\nClauses closest in meaning to the request (similarity, a hint only): ${hints.map(h => `${h.id} ${h.score}`).join(', ')}` : '';
+  const user = `Clauses:\n${clauses.map(c => `${c.id} [${c.kind}] ${c.text}`).join('\n')}${hint}\n\nClient request:\n"""\n${message.slice(0, 4000)}\n"""`;
   return {system, user};
 }
 
@@ -71,12 +75,53 @@ export function parseAdjudication(raw: unknown, clauses: Clause[]): {verdict: Ve
  * The radar: keyword baseline always; LLM adjudication when configured. A model answer that
  * cites unknown clauses or fails is discarded with a note, so the result is always explainable.
  */
-export async function scopeRadar(message: string, scope: Scope, agreement: AgreementView, {config = null, fetchImpl}: {config?: LlmConfig | null; fetchImpl?: typeof fetch} = {}): Promise<RadarResult> {
-  const keyword = keywordRadar(message, scope, agreement);
+/** The minimum similarity for a semantic match to settle a request (SCOPEFLOW_EMBEDDING_MIN, default 0.45). */
+export function semanticFloor(env: Record<string, string | undefined> = process.env) {
+  const n = Number(env.SCOPEFLOW_EMBEDDING_MIN);
+  return Number.isFinite(n) && n > 0 && n < 1 ? n : 0.45;
+}
+
+/**
+ * Applies semantic matches to a keyword result the keywords could not place ("ambiguous"): the
+ * closest clause, when it clears the floor and leads the next one, decides. Pure.
+ */
+export function semanticRadar(keyword: RadarResult, matches: SemanticMatch[], message: string, scope: Scope, agreement: AgreementView, floor = 0.45): RadarResult {
+  const clauses = clausesOf(scope, agreement);
+  const semantic = matches.slice(0, 3).map(m => { const c = clauses.find(x => x.id === m.id)!; return {...m, kind: c.kind, text: c.text}; });
+  const withSemantic = {...keyword, semantic};
+  const [top, next] = matches;
+  if (keyword.verdict !== 'ambiguous' || !top || top.score < floor || (next && top.score - next.score < 0.03)) return withSemantic;
+  const clause = clauses.find(c => c.id === top.id)!;
+  if (clause.kind === 'term') return withSemantic;
+  const verdict: Verdict = clause.kind === 'exclusion' ? 'out_of_scope' : clause.kind === 'revisions' ? 'revision' : 'in_scope';
+  const why = `Closest in meaning to this clause (similarity ${top.score.toFixed(2)}).`;
+  const citations: Citation[] = [{...clause, why}];
+  const changeOrder = verdict === 'out_of_scope' ? keywordRadar('also ' + message, scope, agreement).change_order ?? {title: message.trim().split(/[.!?\n]/)[0].slice(0, 120) || 'Additional work', request_quote: message.trim().slice(0, 2000), reason: `Excluded by ${clause.id}: ${clause.text}`} : null;
+  const reply = verdict === 'out_of_scope' ? `Thanks for this. It falls outside what we agreed (${clause.text}), so I can quote it separately as a change order.` : verdict === 'revision' ? keyword.reply : `Thanks, this is part of what we agreed (${clause.text}).`;
+  return {...withSemantic, engine: 'embedding', verdict, covered: coveredOf(verdict), confidence: 'low', reasons: [`${why} The keywords found no clear match.`], citations, reply, change_order: changeOrder,
+    note: 'Matched by meaning, not by the exact words: check the cited clause before replying.'};
+}
+
+/**
+ * The radar: keyword baseline always; semantic ranking when embeddings are configured; LLM
+ * adjudication when a model is configured. A model answer that cites unknown clauses or fails is
+ * discarded with a note, so the result is always explainable.
+ */
+export async function scopeRadar(message: string, scope: Scope, agreement: AgreementView, {config = null, embeddings = null, fetchImpl}: {config?: LlmConfig | null; embeddings?: EmbeddingConfig | null; fetchImpl?: typeof fetch} = {}): Promise<RadarResult> {
+  let keyword = keywordRadar(message, scope, agreement);
+  let hints: SemanticMatch[] = [];
+  if (embeddings) {
+    const all = clausesOf(scope, agreement);
+    try {
+      const [query, ...vectors] = await embed([message.slice(0, 4000), ...all.map(c => c.text)], embeddings, fetchImpl);
+      hints = rankBySimilarity(query, all.map((c, i) => ({id: c.id, vector: vectors[i]})));
+      keyword = semanticRadar(keyword, hints, message, scope, agreement, semanticFloor());
+    } catch { keyword = {...keyword, note: 'The meaning match was unavailable, so this is the keyword check.'}; }
+  }
   if (!config) return keyword;
   const clauses = clausesOf(scope, agreement);
   let judged: ReturnType<typeof parseAdjudication> = null;
-  try { judged = parseAdjudication(await completeJson(radarPrompt(message, clauses), {config, fetchImpl, timeoutMs: 20000}), clauses); }
+  try { judged = parseAdjudication(await completeJson(radarPrompt(message, clauses, hints.slice(0, 3)), {config, fetchImpl, timeoutMs: 20000}), clauses); }
   catch { return {...keyword, note: 'The AI check was unavailable, so this is the keyword check.'}; }
   if (!judged) return {...keyword, note: 'The AI answer did not cite the agreement correctly and was discarded; this is the keyword check.'};
   const citations = judged.citations.map(id => ({...clauses.find(c => c.id === id)!, why: judged.reason}));

@@ -155,6 +155,13 @@ label select{margin-top:7px}
 .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.03fr);gap:32px;align-items:start}
 .preview-col{position:sticky;top:20px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.inline-field{display:flex;gap:8px;align-items:stretch}
+.inline-field input{flex:1;min-width:0}
+.trust-settings{border-top:1px solid var(--rule);padding-top:14px}
+.trust-settings .h-sub{display:flex;gap:6px;align-items:center}
+.cosign-list{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px}
+.cosign-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+@media (max-width:640px){.two-col{grid-template-columns:1fr}}
 .three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .section-gap{margin-top:28px}
 .review-shell{width:100%;max-width:860px;margin:0 auto;padding:36px 20px 80px}
@@ -280,8 +287,14 @@ label select{margin-top:7px}
 .item-meta label,.item-accept{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2)}
 .item-meta input,.item-accept input{padding:7px 9px;font-size:var(--fs-2);margin-top:3px}
 .input-row{display:grid;grid-template-columns:1fr 160px 34px;gap:8px;align-items:center;margin:8px 0}
+.milestone-row{grid-template-columns:1fr 90px 160px 110px 34px}.milestone-row .fine{text-align:right;white-space:nowrap}
+.fx-row{grid-template-columns:110px 1fr 160px 1fr 34px}
+.payment-list .warn-text{display:inline;margin:0}.ok-text{color:var(--ok);font-weight:var(--fw-2)}
 .check-row{display:flex!important;gap:10px;align-items:flex-start;font-weight:var(--fw-1)}
 .check-row input{width:auto;margin-top:5px}
+.ai-quality{border:0;padding:0;margin:10px 0;display:flex;flex-wrap:wrap;gap:4px 18px}
+.ai-quality legend{padding:0;margin-bottom:4px;width:100%}
+.ai-quality .check-row{margin:0}
 .send-box{border:1px solid var(--rule);border-radius:var(--r);padding:4px 16px 16px;margin:18px 0;background:var(--surface-2)}
 .save-bar{position:sticky;bottom:0;z-index:5;margin:24px -30px -30px;padding:16px 30px;border-top:1px solid var(--rule);background:var(--bg);border-radius:0 0 var(--r-lg) var(--r-lg)}
 .save-bar .fine{margin-top:8px}
@@ -449,7 +462,7 @@ label select{margin-top:7px}
   .footer-inner{grid-template-columns:1fr;gap:28px;padding-top:40px}
   .empty-state{grid-template-columns:72px 1fr}.empty-state img{width:72px;height:72px}
 }
-@media (max-width:600px){.item-meta{grid-template-columns:70px 1fr}.item-meta label:last-child{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
+@media (max-width:600px){.milestone-row,.fx-row{grid-template-columns:1fr 1fr}.milestone-row .icon,.fx-row .icon{justify-self:end}.item-meta{grid-template-columns:70px 1fr}.item-meta label:last-child{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
 
 /* ---- Print: always the plain document --------------------------------------------------- */
 @media print{
@@ -758,3 +771,19 @@ label .fine{font-weight:var(--fw-1)}
 /* The heading's short buttons keep their label on one line (on phones "New scope" broke onto two). */
 .page-heading .actions .primary,.page-heading .actions .secondary{white-space:nowrap}
 .pay-actions{display:flex;gap:var(--s2);flex-wrap:wrap}
+
+/* Owner branding on the client review page: logo or name, and an accent rule in the owner's colour. */
+.client-brand{display:flex;align-items:center;gap:12px;margin:0 0 16px;flex-wrap:wrap}
+.client-brand img{height:40px;width:auto;max-width:200px;object-fit:contain}
+.client-brand.has-accent{border-bottom:3px solid var(--brand-accent);padding-bottom:12px}
+.review-shell[style*="--brand-accent"] .paper{border-top:4px solid var(--brand-accent)}
+h2[tabindex="-1"]:focus{outline:none}
+h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outline-offset:4px}
+.color-row{display:flex;gap:8px;align-items:center}
+.color-row input[type="color"]{width:44px;height:36px;padding:2px;flex:none}
+.inbound-list li{display:block}
+.inbound-list li .actions{margin-top:8px}
+.template-admin li{display:block}
+.template-admin li>*+*{margin-top:8px}
+.tag-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.tag-row label{flex:1;min-width:200px}

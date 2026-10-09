@@ -13,7 +13,7 @@ const {templateContent, builtinTemplates} = await import('../../lib/template-sto
 
 test('provider selection: off without keys, OpenAI preferred, override and models from env', () => {
   assert.equal(llm.llmConfig({}), null);
-  assert.deepEqual(llm.llmStatus({}), {enabled: false, provider: null, model: null, reason: 'No OPENAI_API_KEY or ANTHROPIC_API_KEY is set on this server.'});
+  assert.deepEqual(llm.llmStatus({}), {enabled: false, provider: null, model: null, careful_model: null, warning: null, reason: 'No OPENAI_API_KEY or ANTHROPIC_API_KEY is set on this server.'});
   assert.deepEqual(llm.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}), {provider: 'anthropic', apiKey: 'sk-ant', model: llm.DEFAULT_MODELS.anthropic});
   assert.equal(llm.llmConfig({OPENAI_API_KEY: 'sk-o', ANTHROPIC_API_KEY: 'sk-a'}).provider, 'openai');
   assert.equal(llm.llmConfig({OPENAI_API_KEY: 'sk-o', ANTHROPIC_API_KEY: 'sk-a', SCOPEFLOW_LLM_PROVIDER: 'anthropic'}).provider, 'anthropic');
@@ -24,10 +24,12 @@ test('provider selection: off without keys, OpenAI preferred, override and model
 // Retired ids (Anthropic: claude-3-5-haiku-20241022 retired 2026-02-19, claude-3-haiku-20240307 retired
 // 2026-04-20; https://docs.anthropic.com/en/docs/about-claude/model-deprecations). Requests to these fail.
 const RETIRED_MODELS = ['claude-3-5-haiku-latest', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-latest', 'claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'gpt-3.5-turbo', 'gpt-4-32k'];
-test('default models are current (checked 2026-10-07), never a retired id', () => {
-  assert.deepEqual(llm.DEFAULT_MODELS, {openai: 'gpt-4o-mini', anthropic: 'claude-haiku-4-5'});
+test('default models are current (checked 2026-10-09), never a retired or soon-retiring id', () => {
+  assert.deepEqual(llm.DEFAULT_MODELS, {openai: 'gpt-4o-mini', anthropic: 'claude-haiku-5-5'});
+  assert.deepEqual(llm.CAREFUL_MODELS, {openai: 'gpt-4o', anthropic: 'claude-sonnet-5-5'});
+  for (const m of [...Object.values(llm.DEFAULT_MODELS), ...Object.values(llm.CAREFUL_MODELS)]) assert.equal(llm.MODEL_RETIREMENTS[m], undefined, m);
   for (const m of Object.values(llm.DEFAULT_MODELS)) assert.ok(!RETIRED_MODELS.includes(m), m);
-  assert.equal(llm.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}).model, 'claude-haiku-4-5');
+  assert.equal(llm.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}).model, 'claude-haiku-5-5');
 });
 
 test('extractJson finds the object inside prose and code fences, and rejects junk', () => {
@@ -75,6 +77,38 @@ test('Anthropic request: messages API with x-api-key and version header', async 
   assert.equal(s.calls[0].init.headers['anthropic-version'], '2023-06-01');
   assert.equal(typeof s.calls[0].body.system, 'string');
   assert.equal(r.draft.client, 'Smile Dental');
+});
+
+test('current Claude models get an effort level and no temperature; older ones keep temperature 0', () => {
+  const modern = llm.anthropicBody({provider: 'anthropic', apiKey: 'k', model: 'claude-haiku-5-5'}, 's', 'u', 2000);
+  assert.equal(modern.temperature, undefined);
+  assert.deepEqual(modern.output_config, {effort: 'low'});
+  assert.ok(modern.max_tokens >= 8000, 'thinking counts toward max_tokens');
+  assert.deepEqual(llm.anthropicBody({provider: 'anthropic', apiKey: 'k', model: 'claude-sonnet-5-5', tier: 'careful'}, 's', 'u', 2000).output_config, {effort: 'medium'});
+  const legacy = llm.anthropicBody({provider: 'anthropic', apiKey: 'k', model: 'claude-haiku-4-5'}, 's', 'u', 2000);
+  assert.equal(legacy.temperature, 0); assert.equal(legacy.output_config, undefined); assert.equal(legacy.max_tokens, 2000);
+});
+
+test('careful tier: stronger default model, overridable per provider; status names both and never the key', () => {
+  assert.equal(llm.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}, 'careful').model, 'claude-sonnet-5-5');
+  assert.equal(llm.llmConfig({OPENAI_API_KEY: 'sk-o', SCOPEFLOW_OPENAI_MODEL_CAREFUL: 'big-1'}, 'careful').model, 'big-1');
+  assert.equal(llm.llmConfig({OPENAI_API_KEY: 'sk-o', SCOPEFLOW_OPENAI_MODEL: 'small-1'}).model, 'small-1');
+  const st = llm.llmStatus({ANTHROPIC_API_KEY: 'sk-secret'}, '2026-10-09');
+  assert.equal(st.model, 'claude-haiku-5-5'); assert.equal(st.careful_model, 'claude-sonnet-5-5'); assert.equal(st.warning, null);
+  assert.ok(!JSON.stringify(st).includes('sk-secret'));
+});
+
+test('model-lifecycle guard: warns 30 days before a configured model retires, and after', () => {
+  assert.equal(llm.retirementWarning('claude-haiku-5-5', '2026-10-09'), null);
+  assert.match(llm.retirementWarning('claude-haiku-4-5', '2026-10-09'), /retire on 2026-10-15 \(in 6 days\)/);
+  assert.equal(llm.retirementWarning('claude-haiku-4-5', '2026-08-01'), null);
+  assert.match(llm.retirementWarning('claude-3-haiku-20240307', '2026-10-09'), /was retired on 2026-04-20/);
+  assert.match(llm.llmStatus({ANTHROPIC_API_KEY: 'k', SCOPEFLOW_ANTHROPIC_MODEL: 'claude-haiku-4-5'}, '2026-10-09').warning, /claude-haiku-4-5/);
+});
+
+test('a refusal from the provider becomes a safe LlmError', async () => {
+  const fetchImpl = async () => new Response(JSON.stringify({stop_reason: 'refusal', content: []}), {status: 200});
+  await assert.rejects(llm.completeJson({system: 's', user: 'u'}, {config: {provider: 'anthropic', apiKey: 'k', model: 'claude-haiku-5-5'}, fetchImpl}), /declined/);
 });
 
 test('provider failures become safe LlmErrors that never echo the key', async () => {

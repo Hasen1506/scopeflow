@@ -2,7 +2,8 @@ import {z} from 'zod';
 import {getUser} from '@/lib/auth/server';
 import {db, json, body, safeOrigin, allowWrite, failure} from '@/lib/server';
 import {publicUrl} from '@/lib/origin';
-import {clientEmailSchema, mailConfig, mailtoLink, sendMail, signatureEmail, reminderEmail, reminderBlock, MailError, MAX_REMINDERS} from '@/lib/mail';
+import {brandEmail, clientEmailSchema, mailConfig, mailtoLink, sendMail, signatureEmail, reminderEmail, reminderBlock, MailError, MAX_REMINDERS} from '@/lib/mail';
+import {loadBrand} from '@/lib/brand-server';
 import type {Scope} from '@/lib/scope';
 type Ctx = {params: Promise<{id: string}>};
 
@@ -69,17 +70,19 @@ export async function POST(request: Request, ctx: Ctx) {
     const content = JSON.parse(row.content) as Scope;
     const reviewUrl = publicUrl(request, '/review/' + row.token);
     const wording = await db().prepare('SELECT email_subject,email_body FROM account_settings WHERE owner=?').bind(user.userId).first<{email_subject: string | null; email_body: string | null}>();
-    const message = reminder
+    const brand = await loadBrand(user.userId);
+    const message = brandEmail(reminder
       ? reminderEmail({title: content.title, client: content.client, version: row.version, reviewUrl, days: Math.floor((Date.now() - Date.parse(row.created)) / 86400_000)})
-      : signatureEmail({title: content.title, client: content.client, version: row.version, reviewUrl, template: {subject: wording?.email_subject ?? undefined, body: wording?.email_body ?? undefined}});
+      : signatureEmail({title: content.title, client: content.client, version: row.version, reviewUrl, template: {subject: wording?.email_subject ?? undefined, body: wording?.email_body ?? undefined}}),
+      brand && {name: brand.name, color: brand.color, logoUrl: brand.logoHash ? publicUrl(request, '/api/brand/' + brand.logoHash) : null});
     const fallback = {review_url: reviewUrl, mailto: mailtoLink(email, message)};
     const config = mailConfig();
     if (!config) return json({sent: false, configured: false, reminder, to: email, ...fallback, ...sendState(project)});
     try {
-      const result = await sendMail(config, email, message, `scopeflow-${reminder ? 'remind' : 'send'}-${id}-${row.version}-${email}-${Math.floor(Date.now() / 60000)}`.slice(0, 256));
+      const result = await sendMail(config, email, message, `scopeflow-${reminder ? 'remind' : 'send'}-${id}-${row.version}-${email}-${Math.floor(Date.now() / 60000)}`.slice(0, 256), {fromName: brand?.name, replyTo: brand?.replyTo});
       const tracked = await db().prepare('UPDATE projects SET last_sent=?, reminders=CASE WHEN ? AND sent_version=? THEN reminders+1 WHEN ? THEN 1 ELSE 0 END, sent_version=? WHERE id=? AND owner=? RETURNING last_sent,sent_version,reminders')
         .bind(new Date().toISOString(), reminder, row.version, reminder, row.version, id, user.userId).first<ProjectRow>();
-      return json({sent: true, configured: true, reminder, to: email, provider: 'resend', message_id: result.id, ...sendState(tracked ?? project)});
+      return json({sent: true, configured: true, reminder, to: email, provider: config.provider, message_id: result.id, ...sendState(tracked ?? project)});
     } catch (e) {
       if (e instanceof MailError) return json({error: e.message + ' Copy the link or use your mail app instead.', code: 'mail_failed', sent: false, configured: true, to: email, ...fallback}, 502);
       throw e;

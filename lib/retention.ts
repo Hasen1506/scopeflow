@@ -1,27 +1,36 @@
+import {lockKey} from '@/db/client';
 import {db} from './server';
 import {defaultRetentionDays} from './settings';
+import {draftDeleteQueries, expiredDraftsQuery, redactionQueries} from './retention-sql';
 
-// Retention for client network data: after N days, the IP address and browser user agent stored
-// with client decisions (versions.decision_context) and client ledger entries (ledger_entries.context)
-// become "redacted". Everything signed stays untouched, so receipts and the hash chain still verify.
-// Runs opportunistically for an owner (on their project list and when they save settings) and for
-// every owner from scripts/redact-expired.mjs (suitable for a daily cron).
+// Retention for client network data: after N days (the project's retention_days, else the owner's
+// context_retention_days, else the server default) the IP address and browser user agent stored
+// with client decisions (versions.decision_context) and client ledger entries
+// (ledger_entries.context) become "redacted". Everything signed stays untouched, so receipts and
+// the hash chain still verify. Projects on legal hold are skipped. Runs opportunistically for an
+// owner (on their project list and when they save settings) and for every owner from
+// scripts/redact-expired.mjs (a daily cron), which also expires archived drafts.
 
-export async function redactExpired(owner: string, days: number | null, now = Date.now()) {
-  if (!days) return {versions: 0, entries: 0};
-  const cutoff = new Date(now - days * 86400_000).toISOString(), at = new Date(now).toISOString();
-  const patch = `(decision_context::jsonb || jsonb_build_object('ip','redacted','user_agent','redacted','redacted_at',?::text))::text`;
+export async function redactExpired(owner: string, now = Date.now()) {
+  const q = redactionQueries(owner, defaultRetentionDays(), new Date(now).toISOString());
   const database = db();
-  const [v, e] = await database.batch([
-    database.prepare(`UPDATE versions SET decision_context=${patch} WHERE project_id IN (SELECT id FROM projects WHERE owner=?) AND decided IS NOT NULL AND decided < ? AND decision_context IS NOT NULL AND decision_context LIKE '{%' AND coalesce(decision_context::jsonb->>'ip','redacted') <> 'redacted'`).bind(at, owner, cutoff),
-    database.prepare(`UPDATE ledger_entries SET context=${patch.replaceAll('decision_context', 'context')} WHERE project_id IN (SELECT id FROM projects WHERE owner=?) AND created < ? AND context IS NOT NULL AND context LIKE '{%' AND coalesce(context::jsonb->>'ip','redacted') <> 'redacted'`).bind(at, owner, cutoff),
-  ], {lock: 'scopeflow:owner:' + owner, redact: true});
+  const [v, e] = await database.batch([database.prepare(q.versions[0]).bind(...q.versions[1]), database.prepare(q.entries[0]).bind(...q.entries[1])], {lock: 'scopeflow:owner:' + owner, redact: true});
   return {versions: v.meta.changes, entries: e.meta.changes};
 }
+export async function applyRetention(owner: string) { return redactExpired(owner); }
 
-/** The owner's effective retention: their own setting, else the server default. */
-export async function retentionDays(owner: string) {
-  const row = await db().prepare('SELECT context_retention_days FROM account_settings WHERE owner=?').bind(owner).first<{context_retention_days: number | null}>();
-  return row?.context_retention_days ?? defaultRetentionDays();
+/** Deletes one draft project (no client decision, no ledger entry, not on legal hold). True when deleted. */
+export async function deleteDraft(id: string, owner: string) {
+  const database = db();
+  const result = await database.batch(draftDeleteQueries(id, owner).map(([sql, params]) => database.prepare(sql).bind(...params)), {lock: lockKey('project', id), bypassImmutability: 'drafts'});
+  return result[4].meta.changes > 0;
 }
-export async function applyRetention(owner: string) { return redactExpired(owner, await retentionDays(owner)); }
+
+/** Deletes this owner's archived drafts past their draft_expiry_days. Returns how many were deleted. */
+export async function expireDrafts(owner: string, now = Date.now()) {
+  const [sql, params] = expiredDraftsQuery(owner, new Date(now).toISOString());
+  const rows = await db().prepare(sql).bind(...params).all<{id: string; owner: string}>();
+  let deleted = 0;
+  for (const row of rows.results) if (await deleteDraft(row.id, row.owner).catch(() => false)) deleted++;
+  return deleted;
+}

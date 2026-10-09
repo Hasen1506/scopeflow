@@ -1,5 +1,6 @@
 import {createHmac, timingSafeEqual} from 'node:crypto';
 import {totals} from './money';
+import {stripeConfig, stripeWebhookSecret} from './stripe';
 
 // PR F: deposit on signature through Razorpay (scaffold).
 //
@@ -17,9 +18,22 @@ export function razorpayConfig(env: Env = process.env): RazorpayConfig | null {
 }
 export function webhookSecret(env: Env = process.env) { return env.RAZORPAY_WEBHOOK_SECRET?.trim() || null; }
 // `reason` is shown to clients, so it names no server settings; `setup` is for whoever runs the server.
-export function paymentsStatus(env: Env = process.env) {
-  if (razorpayConfig(env)) return {enabled: true as const, provider: 'razorpay' as const, webhook: !!webhookSecret(env)};
-  return {enabled: false as const, provider: null, webhook: !!webhookSecret(env), reason: 'Online payment is not available for this scope.', setup: 'Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to enable online deposits.'};
+export type OnlineProvider = 'razorpay' | 'stripe';
+/**
+ * Which provider takes an online payment in `currency`: INR goes to Razorpay when it is set up,
+ * other currencies to Stripe when it is set up; otherwise whichever one is configured.
+ * STRIPE_CURRENCIES (e.g. "USD,EUR,GBP") limits Stripe to those currencies. Pure.
+ */
+export function providerFor(currency: string | undefined, env: Env = process.env): OnlineProvider | null {
+  const only = (env.STRIPE_CURRENCIES ?? '').split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+  const rz = !!razorpayConfig(env), st = !!stripeConfig(env) && (!only.length || only.includes(currency ?? ''));
+  if (currency === 'INR') return rz ? 'razorpay' : st ? 'stripe' : null;
+  return st ? 'stripe' : rz ? 'razorpay' : null;
+}
+export function paymentsStatus(env: Env = process.env, currency?: string) {
+  const provider = providerFor(currency, env), webhook = !!webhookSecret(env) || !!stripeWebhookSecret(env);
+  if (provider) return {enabled: true as const, provider, webhook};
+  return {enabled: false as const, provider: null, webhook, reason: 'Online payment is not available for this scope.', setup: 'Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET (or STRIPE_SECRET_KEY) to enable online payments.'};
 }
 
 /** Amount in the currency's smallest unit (paise for INR, none for JPY), as Razorpay expects. */
@@ -43,14 +57,17 @@ export function depositAmount(content: {fee: number; deposit_pct?: number; tax_p
 }
 
 export class RazorpayError extends Error {}
+/** Razorpay's API origin; RAZORPAY_API_URL overrides it (a test double or a proxy). */
+export const razorpayApi = (env: Env = process.env) => (env.RAZORPAY_API_URL?.trim() || 'https://api.razorpay.com').replace(/\/$/, '');
+const basic = (config: RazorpayConfig) => 'Basic ' + Buffer.from(`${config.keyId}:${config.keySecret}`).toString('base64');
 
 /** Creates a Razorpay order (POST /v1/orders, basic auth). `fetchImpl` is injectable for tests. */
 export async function createOrder(config: RazorpayConfig, order: {amount_minor: number; currency: string; receipt: string; notes: Record<string, string>}, fetchImpl: typeof fetch = fetch) {
   let response: Response;
   try {
-    response = await fetchImpl('https://api.razorpay.com/v1/orders', {
+    response = await fetchImpl(`${razorpayApi()}/v1/orders`, {
       method: 'POST',
-      headers: {Authorization: 'Basic ' + Buffer.from(`${config.keyId}:${config.keySecret}`).toString('base64'), 'Content-Type': 'application/json'},
+      headers: {Authorization: basic(config), 'Content-Type': 'application/json'},
       body: JSON.stringify({amount: order.amount_minor, currency: order.currency, receipt: order.receipt.slice(0, 40), notes: order.notes}),
       signal: AbortSignal.timeout(10000),
     });
@@ -83,4 +100,27 @@ export function paidEvent(payload: unknown, eventId: string | null): PaidEvent |
   if (!e || typeof e.order_id !== 'string' || typeof e.id !== 'string' || typeof e.amount !== 'number' || typeof e.currency !== 'string') return null;
   if (e.status !== undefined && e.status !== 'captured') return null;
   return {event_id: eventId, order_id: e.order_id, payment_id: e.id, amount_minor: e.amount, currency: e.currency};
+}
+
+/** The captured payment of an order (GET /v1/orders/:id/payments), or null when none is captured. For reconciliation. */
+export async function capturedPayment(config: RazorpayConfig, orderId: string, fetchImpl: typeof fetch = fetch, env: Env = process.env): Promise<PaidEvent | null> {
+  let response: Response;
+  try {
+    response = await fetchImpl(`${razorpayApi(env)}/v1/orders/${encodeURIComponent(orderId)}/payments`, {headers: {Authorization: basic(config)}, signal: AbortSignal.timeout(10000)});
+  } catch { throw new RazorpayError('Razorpay could not be reached.'); }
+  const data = await response.json().catch(() => ({})) as {items?: Record<string, unknown>[]; error?: {description?: string}};
+  if (!response.ok || !Array.isArray(data.items)) throw new RazorpayError(`Razorpay refused the lookup${data.error?.description ? ': ' + String(data.error.description).slice(0, 200) : '.'}`);
+  const p = data.items.find(i => i.status === 'captured' && i.order_id === orderId && typeof i.id === 'string' && typeof i.amount === 'number' && typeof i.currency === 'string');
+  return p ? {event_id: null, order_id: orderId, payment_id: p.id as string, amount_minor: p.amount as number, currency: p.currency as string} : null;
+}
+
+/** Refunds part or all of a captured payment (POST /v1/payments/:id/refund). Returns the refund id. */
+export async function razorpayRefund(config: RazorpayConfig, paymentId: string, amount_minor: number, receipt: string, fetchImpl: typeof fetch = fetch, env: Env = process.env) {
+  let response: Response;
+  try {
+    response = await fetchImpl(`${razorpayApi(env)}/v1/payments/${encodeURIComponent(paymentId)}/refund`, {method: 'POST', headers: {Authorization: basic(config), 'Content-Type': 'application/json'}, body: JSON.stringify({amount: amount_minor, receipt: receipt.slice(0, 40)}), signal: AbortSignal.timeout(15000)});
+  } catch { throw new RazorpayError('Razorpay could not be reached.'); }
+  const data = await response.json().catch(() => ({})) as {id?: string; status?: string; error?: {description?: string}};
+  if (!response.ok || typeof data.id !== 'string') throw new RazorpayError(`Razorpay refused the refund${data.error?.description ? ': ' + String(data.error.description).slice(0, 200) : '.'}`);
+  return {id: data.id, status: data.status ?? 'pending'};
 }

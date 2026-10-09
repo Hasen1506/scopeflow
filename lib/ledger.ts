@@ -15,9 +15,11 @@ export const changeOrderSchema = z.object({
   fee_delta: z.number().finite().min(-10000000).max(10000000).default(0),
   days_delta: z.number().int().min(-365).max(365).default(0),
   revisions_delta: z.number().int().min(-50).max(50).default(0),
+  // Hours or money added to (or taken from) the revision bank. Optional, so older entries keep their exact payload.
+  bank_delta: z.number().finite().min(-100000).max(100000).optional(),
 }).strict().refine(
-  c => c.add_items.length || c.remove_item_ids.length || c.fee_delta || c.days_delta || c.revisions_delta,
-  'A change order must change deliverables, fee, timeline or revision rounds.',
+  c => c.add_items.length || c.remove_item_ids.length || c.fee_delta || c.days_delta || c.revisions_delta || c.bank_delta,
+  'A change order must change deliverables, fee, timeline, revision rounds or the revision bank.',
 );
 export const settleSchema = z.object({
   ref_seq: z.number().int().min(1),
@@ -35,6 +37,8 @@ export const goodwillSchema = z.object({
 export const revisionRoundSchema = z.object({
   feedback_date: dateString.refine(Boolean, 'Enter the date feedback arrived'),
   note: z.string().trim().max(2000).default(''),
+  // Hours (or money) the round drew from the revision bank, when the scope has one.
+  used: z.number().finite().min(0).max(100000).optional(),
 }).strict();
 export const clientInputSchema = z.object({
   input_id: z.string().min(1).max(40),
@@ -45,13 +49,17 @@ export const clientInputSchema = z.object({
 
 // PR F: a deposit paid through the payment provider. Appended only by the verified webhook
 // (never by an owner or client request), so it is evidence that the money arrived.
+export const paymentProviders = ['razorpay', 'stripe'] as const;
+export const PROVIDER_LABEL: Record<(typeof paymentProviders)[number], string> = {razorpay: 'Razorpay', stripe: 'Stripe'};
 export const paymentSchema = z.object({
-  provider: z.literal('razorpay'),
-  purpose: z.literal('deposit'),
-  order_id: z.string().min(1).max(64),
-  payment_id: z.string().min(1).max(64),
+  provider: z.enum(paymentProviders),
+  purpose: z.enum(['deposit', 'invoice']),
+  order_id: z.string().min(1).max(255),
+  payment_id: z.string().min(1).max(255),
   amount: z.number().finite().min(0),
   currency: z.string().regex(/^[A-Z]{3}$/),
+  /** For purpose "invoice": the invoice the client paid online. */
+  invoice_number: z.string().min(1).max(40).optional(),
 }).strict();
 
 // A payment the creator received outside Scopeflow (bank transfer, UPI, cash…), recorded by the
@@ -67,6 +75,19 @@ export const paymentReceivedSchema = z.object({
   note: z.string().trim().max(500).default(''),
 }).strict();
 
+// Money returned to the client: recorded by the creator (a refund made outside Scopeflow), or issued
+// through Razorpay or Stripe from the workspace (provider_refund_id is the provider's refund id).
+// It lowers the amount paid; refund_of is the ledger entry of the payment it reverses, when known.
+export const refundSchema = z.object({
+  amount: z.number().finite().positive().max(100000000),
+  method: z.enum([...paymentMethods, ...paymentProviders]),
+  refunded: dateString.refine(Boolean, 'Enter the date of the refund'),
+  reference: z.string().trim().max(80).default(''),
+  note: z.string().trim().max(500).default(''),
+  provider_refund_id: z.string().min(1).max(255).optional(),
+  refund_of: z.number().int().min(1).optional(),
+}).strict();
+
 export const payloadSchemas = {
   change_order: changeOrderSchema,
   settle: settleSchema,
@@ -75,6 +96,7 @@ export const payloadSchemas = {
   client_input: clientInputSchema,
   payment: paymentSchema,
   payment_received: paymentReceivedSchema,
+  refund: refundSchema,
 } as const;
 export type EntryKind = keyof typeof payloadSchemas;
 export const entryKinds = Object.keys(payloadSchemas) as EntryKind[];
@@ -85,10 +107,14 @@ export type RevisionRound = z.infer<typeof revisionRoundSchema>;
 export type ClientInputReceived = z.infer<typeof clientInputSchema>;
 export type Payment = z.infer<typeof paymentSchema>;
 export type PaymentReceived = z.infer<typeof paymentReceivedSchema>;
+export type Refund = z.infer<typeof refundSchema>;
+const methodLabel = (m: Refund['method']) => m === 'razorpay' || m === 'stripe' ? PROVIDER_LABEL[m] : PAYMENT_METHOD_LABEL[m];
 
+/** Who appended an entry: the creator, the client (review link), or Scopeflow itself for verified provider events (payments). */
+export type Actor = 'owner' | 'client' | 'system';
 /** A stored entry. `payload` is null when hidden from the client; `payload_hash` still commits to it. */
 export type LedgerEntry = {
-  seq: number; kind: EntryKind; baseline_version: number; actor: 'owner' | 'client'; created: string;
+  seq: number; kind: EntryKind; baseline_version: number; actor: Actor; created: string;
   payload: unknown; payload_hash: string; prev_hash: string; hash: string;
 };
 
@@ -142,6 +168,8 @@ export type Agreement = {
   change_orders: CoView[]; pending: number;
   goodwill: (Goodwill & {seq: number; created: string})[]; goodwill_value: number; goodwill_hours: number;
   delays: {seq: number; input_id: string; title: string; due: string; received: string; days_late: number; shifted: boolean}[];
+  /** Present only when the approved scope has a revision bank, so agreements without one are unchanged. */
+  bank?: {unit: 'hours' | 'money'; allowed: number; used: number; left: number; over: number; overage_rate: number | null; overage_value: number};
 };
 
 export function addDays(date: string, days: number) {
@@ -161,7 +189,7 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
 
   let items: AgreementItem[] = itemsOf(baseline).map(i => ({...i, source: 'baseline'}));
   const removed: AgreementItem[] = [];
-  let fee = baseline.fee, codays = 0, revisions = baseline.revisions, used = 0, shift = 0;
+  let fee = baseline.fee, codays = 0, revisions = baseline.revisions, used = 0, shift = 0, bankAllowed = baseline.revision_bank?.amount ?? 0, bankUsed = 0;
   const change_orders: CoView[] = [], goodwill: Agreement['goodwill'] = [], delays: Agreement['delays'] = [];
   const inputs = new Map((baseline.client_inputs ?? []).map(i => [i.id, i]));
 
@@ -179,8 +207,10 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
       fee += co.fee_delta;
       codays += co.days_delta;
       revisions += co.revisions_delta;
+      bankAllowed += co.bank_delta ?? 0;
     } else if (e.kind === 'revision_round') {
       used++;
+      bankUsed += (e.payload as RevisionRound).used ?? 0;
     } else if (e.kind === 'goodwill') {
       goodwill.push({...(e.payload as Goodwill), seq: e.seq, created: e.created});
     } else if (e.kind === 'client_input') {
@@ -194,7 +224,14 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
   }
   // SF-12: with no baseline due date there is nothing to move; never report a shift.
   const days = baseline.due ? codays + shift : 0;
-  return {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const b = baseline.revision_bank;
+  const over = b ? r2(Math.max(0, bankUsed - Math.max(0, bankAllowed))) : 0;
+  const bank = b ? {
+    unit: b.unit, allowed: r2(Math.max(0, bankAllowed)), used: r2(bankUsed), left: r2(Math.max(0, bankAllowed - bankUsed)), over,
+    overage_rate: b.overage_rate ?? null, overage_value: b.unit === 'money' ? over : r2(over * (b.overage_rate ?? 0)),
+  } : null;
+  const agreement: Agreement = {
     baseline_version: baselineVersion, currency: baseline.currency,
     items, removed, fee_base: baseline.fee, fee: Math.round(fee * 100) / 100,
     due_base: baseline.due, due: addDays(baseline.due, days), days_shift: days,
@@ -203,22 +240,33 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
     goodwill, goodwill_value: goodwill.reduce((s, g) => s + g.value, 0), goodwill_hours: goodwill.reduce((s, g) => s + g.hours, 0),
     delays,
   };
+  if (bank) agreement.bank = bank;
+  return agreement;
 }
 
-/** Money received against one baseline: Razorpay deposits (provider evidence) and payments the creator recorded. */
-export type PaymentLine = {seq: number; created: string; source: 'razorpay' | 'owner'; amount: number; method: string; received: string; reference: string; note: string};
+/**
+ * Money received against one baseline: online payments (Razorpay or Stripe, provider evidence),
+ * payments the creator recorded, and refunds (negative amounts). `paid` is the net amount.
+ */
+export type PaymentLine = {seq: number; created: string; source: 'razorpay' | 'stripe' | 'owner' | 'refund'; amount: number; method: string; received: string; reference: string; note: string; provider_refund_id?: string; refund_of?: number};
 export function paymentsOf(entries: LedgerEntry[]): {lines: PaymentLine[]; paid: number} {
   const lines: PaymentLine[] = [];
   for (const e of entries) {
     if (!e.payload) continue;
-    if (e.kind === 'payment') { const p = e.payload as Payment; lines.push({seq: e.seq, created: e.created, source: 'razorpay', amount: Number(p.amount) || 0, method: 'Razorpay', received: e.created.slice(0, 10), reference: p.payment_id, note: 'Deposit'}); }
+    if (e.kind === 'payment') { const p = e.payload as Payment; lines.push({seq: e.seq, created: e.created, source: p.provider, amount: Number(p.amount) || 0, method: PROVIDER_LABEL[p.provider] ?? p.provider, received: e.created.slice(0, 10), reference: p.payment_id, note: p.purpose === 'invoice' ? `Invoice ${p.invoice_number ?? ''}`.trim() : 'Deposit'}); }
+    else if (e.kind === 'refund') { const r = e.payload as Refund; lines.push({seq: e.seq, created: e.created, source: 'refund', amount: -r.amount, method: `Refund · ${methodLabel(r.method)}`, received: r.refunded, reference: r.reference || (r.provider_refund_id ?? ''), note: r.note, ...(r.provider_refund_id ? {provider_refund_id: r.provider_refund_id} : {}), ...(r.refund_of ? {refund_of: r.refund_of} : {})}); }
     else if (e.kind === 'payment_received') { const p = e.payload as PaymentReceived; lines.push({seq: e.seq, created: e.created, source: 'owner', amount: p.amount, method: PAYMENT_METHOD_LABEL[p.method], received: p.received, reference: p.reference, note: p.note}); }
   }
   return {lines, paid: Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100};
 }
+/** How much of an online payment can still be refunded (its amount less refunds that name it). */
+export function refundableOf(line: PaymentLine, lines: PaymentLine[]) {
+  if (line.source !== 'razorpay' && line.source !== 'stripe') return 0;
+  return Math.max(0, Math.round((line.amount + lines.filter(l => l.source === 'refund' && l.refund_of === line.seq).reduce((s, l) => s + l.amount, 0)) * 100) / 100);
+}
 
 /** Validates a new entry against the current agreement. Returns an error message or null. */
-export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, agreement: Agreement, actor: 'owner' | 'client'): string | null {
+export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, agreement: Agreement, actor: Actor): string | null {
   if (kind === 'change_order') {
     const co = payload as ChangeOrder;
     const current = new Set(agreement.items.map(i => i.id));
@@ -231,6 +279,8 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
     if (co.days_delta && !baseline.due) return 'The approved scope has no delivery date, so a timeline change cannot apply. Set days_delta to 0, or revise the scope with a delivery date first.';
     if (agreement.fee + co.fee_delta < 0) return 'The fee cannot go below zero.';
     if (agreement.revisions_allowed + co.revisions_delta < 0) return 'Revision rounds cannot go below zero.';
+    if (co.bank_delta && !agreement.bank) return 'The approved scope has no revision bank, so bank_delta cannot apply.';
+    if (co.bank_delta && agreement.bank && agreement.bank.allowed + co.bank_delta < 0) return 'The revision bank cannot go below zero.';
     return null;
   }
   if (kind === 'settle') {
@@ -248,11 +298,24 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
     }
     return null;
   }
+  if (kind === 'refund') {
+    const r = payload as Refund;
+    if (Math.abs(r.amount * 100 - Math.round(r.amount * 100)) > 1e-6) return 'Enter the amount with at most two decimals.';
+    if (r.refunded > addDays(new Date().toISOString().slice(0, 10), 1)) return 'The date of a refund cannot be in the future.';
+    if (actor === 'client') return 'Only the creator records refunds.';
+    return null;
+  }
   if (kind === 'payment_received') {
     const p = payload as PaymentReceived;
     if (Math.abs(p.amount * 100 - Math.round(p.amount * 100)) > 1e-6) return 'Enter the amount with at most two decimals.';
     // One day of slack: the creator's local date can run ahead of UTC.
     if (p.received > addDays(new Date().toISOString().slice(0, 10), 1)) return 'The date a payment arrived cannot be in the future.';
+    return null;
+  }
+  if (kind === 'revision_round') {
+    const r = payload as RevisionRound;
+    if (agreement.bank && r.used === undefined) return `Enter how many ${agreement.bank.unit === 'hours' ? 'hours this round took' : 'of the revision budget this round used'}.`;
+    if (!agreement.bank && r.used !== undefined) return 'The approved scope has no revision bank; leave out the hours used.';
     return null;
   }
   if (kind === 'client_input') {
@@ -276,6 +339,7 @@ export function coSummary(co: ChangeOrder, currency: string, items: Item[] = [])
   if (co.fee_delta) parts.push(`${co.fee_delta > 0 ? '+' : '−'}${formatMoney(Math.abs(co.fee_delta), currency)}`);
   if (co.days_delta) parts.push(signed(co.days_delta, 'day'));
   if (co.revisions_delta) parts.push(signed(co.revisions_delta, 'revision round'));
+  if (co.bank_delta) parts.push(`${co.bank_delta > 0 ? '+' : '−'}${Math.abs(co.bank_delta)} revision bank`);
   return parts.join(' · ');
 }
 export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = [], inputs: {id: string; title: string}[] = []): string {
@@ -284,8 +348,9 @@ export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = 
     case 'change_order': { const co = e.payload as ChangeOrder; return `Change order CO-${e.seq} proposed: ${co.title} (${coSummary(co, currency, items)})`; }
     case 'settle': { const s = e.payload as Settle; return `CO-${s.ref_seq} ${s.outcome}${s.signer ? ' by ' + s.signer : ''}${s.comment ? ': “' + s.comment + '”' : ''}`; }
     case 'goodwill': { const g = e.payload as Goodwill; return `Goodwill: ${g.title} (${formatMoney(g.value, currency)}${g.hours ? `, ${g.hours}h` : ''} not billed)`; }
-    case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${formatDay(r.feedback_date)}${r.note ? ': ' + r.note : ''}`; }
-    case 'payment': { const p = e.payload as Payment; return `Deposit received: ${formatMoney(p.amount, p.currency)} via Razorpay (payment ${p.payment_id})`; }
+    case 'revision_round': { const r = e.payload as RevisionRound; return `Revision round received ${formatDay(r.feedback_date)}${r.used !== undefined ? ` (${r.used} used from the revision bank)` : ''}${r.note ? ': ' + r.note : ''}`; }
+    case 'payment': { const p = e.payload as Payment; return `${p.purpose === 'invoice' ? `Payment for invoice ${p.invoice_number ?? ''}`.trim() : 'Deposit'} received: ${formatMoney(p.amount, p.currency)} via ${PROVIDER_LABEL[p.provider] ?? p.provider} (payment ${p.payment_id})`; }
+    case 'refund': { const r = e.payload as Refund; return `Refund: ${formatMoney(r.amount, currency)} returned ${r.method === 'razorpay' || r.method === 'stripe' ? `through ${PROVIDER_LABEL[r.method]}` : PAYMENT_METHOD_PHRASE[r.method]} on ${formatDay(r.refunded)}${r.reference ? ` (ref. ${r.reference})` : ''}${r.note ? ': ' + r.note : ''}`; }
     case 'payment_received': { const p = e.payload as PaymentReceived; return `Payment received: ${formatMoney(p.amount, currency)} ${PAYMENT_METHOD_PHRASE[p.method]} on ${formatDay(p.received)}${p.reference ? ` (ref. ${p.reference})` : ''}`; }
     case 'client_input': { const c = e.payload as ClientInputReceived; return `Received from client: ${inputs.find(i => i.id === c.input_id)?.title ?? c.input_id} on ${formatDay(c.received)}`; }
   }

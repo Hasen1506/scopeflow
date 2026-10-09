@@ -58,7 +58,7 @@ eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.templates`)[0].results[0].
 
 // AI drafting: disabled with an explanation, both in /api/me and on the endpoint.
 const me = await call('/api/me', {cookie: other});
-eq(me.data.ai, {enabled: false, provider: null, model: null, reason: 'No OPENAI_API_KEY or ANTHROPIC_API_KEY is set on this server.'});
+eq(me.data.ai, {enabled: false, provider: null, model: null, careful_model: null, warning: null, reason: 'No OPENAI_API_KEY or ANTHROPIC_API_KEY is set on this server.'});
 const draft = await call('/api/draft', {method: 'POST', cookie: other, body: {brief: 'A five page website for a dental clinic, launch in six weeks.'}});
 eq(draft.status, 503); eq(draft.data.code, 'ai_disabled');
 ok(/OPENAI_API_KEY or ANTHROPIC_API_KEY/.test(draft.data.error), 'explains why');

@@ -85,6 +85,14 @@ test('insights: aggregates agreements and flags patterns',()=>{
  assert.deepEqual(r.fee_now,{USD:2100,EUR:1800});assert.deepEqual(r.change_order_value,{USD:300});assert.equal(r.change_orders.approval_rate,1);
  assert.equal(r.revision_rounds.projects_over,2);assert.equal(r.clients.length,1);assert.equal(r.clients[0].projects,2);
  assert.ok(r.observations.some(o=>/use 3 revision rounds on average but you include 2/.test(o)));assert.ok(r.observations.some(o=>/Acme/.test(o)));
+ assert.deepEqual(r.creep,{requests:1,caught:{USD:300},approved:{USD:300},declined:{},pending:{}});assert.ok(r.observations.some(o=>/Scope creep caught: \$300/.test(o)));
+});
+test('insights: creep counts declined and pending requests, never withdrawn ones or fee cuts',()=>{
+ const e=(seq,kind,payload)=>({seq,kind,baseline_version:1,actor:'owner',created:'2026-10-01',payload,payload_hash:'',prev_hash:'',hash:''});
+ const co=(seq,fee)=>e(seq,'change_order',{title:'CO '+seq,add_items:[],remove_item_ids:[],fee_delta:fee,days_delta:0,revisions_delta:0,reason:'',request_quote:''});
+ const a=computeAgreement(brand,1,[co(1,200),e(2,'settle',{ref_seq:1,outcome:'declined',signer:'D',comment:'no'}),co(3,150),co(4,90),e(5,'settle',{ref_seq:4,outcome:'withdrawn',signer:'',comment:''}),co(6,-100)]);
+ const r=computeInsights([{project_id:'a',title:'A',client:'Acme',agreement:a}]);
+ assert.deepEqual(r.creep,{requests:2,caught:{USD:350},approved:{},declined:{USD:200},pending:{USD:150}});
 });
 
 // ---- Regression tests for the 2026-10-07 audit fixes ----
@@ -162,7 +170,7 @@ test('email delivery is configured only with RESEND_API_KEY and SCOPEFLOW_MAIL_F
  assert.equal(mail.mailConfigured({}),false);
  assert.equal(mail.mailConfigured({RESEND_API_KEY:'re_x'}),false);
  assert.equal(mail.mailConfigured({SCOPEFLOW_MAIL_FROM:'a@b.co'}),false);
- assert.deepEqual(mail.mailConfig({RESEND_API_KEY:' re_x ',SCOPEFLOW_MAIL_FROM:'Scopeflow <s@b.co>'}),{apiKey:'re_x',from:'Scopeflow <s@b.co>',replyTo:null});
+ assert.deepEqual(mail.mailConfig({RESEND_API_KEY:' re_x ',SCOPEFLOW_MAIL_FROM:'Scopeflow <s@b.co>'}),{provider:'resend',apiKey:'re_x',from:'Scopeflow <s@b.co>',replyTo:null,apiUrl:null});
 });
 test('signature email escapes content and the mailto fallback carries the link',()=>{
  const m=mail.signatureEmail({title:'Logo <b>\r\nBcc: x@evil.test',client:'Ana & Co',version:2,reviewUrl:'https://app.example/review/'+'a'.repeat(64)});

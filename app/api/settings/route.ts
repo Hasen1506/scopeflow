@@ -1,7 +1,7 @@
 import {db, json, ownerAuth, body, safeOrigin, allowWrite, allowRead, failure} from '@/lib/server';
 import {fromRow, settingsSchema, defaultRetentionDays, EMAIL_PLACEHOLDERS, type SettingsRow} from '@/lib/settings';
-import {redactExpired} from '@/lib/retention';
-// Account settings: client-data retention and editable wording (email, default clauses).
+import {expireDrafts, redactExpired} from '@/lib/retention';
+// Account settings: client-data retention, draft expiry and editable wording (email, default clauses).
 export async function GET(request: Request) {
   try {
     const auth = await ownerAuth(request);
@@ -23,10 +23,11 @@ export async function PUT(request: Request) {
     const input = settingsSchema.safeParse(raw);
     if (!input.success) return json({error: input.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}, 400);
     const s = input.data, now = new Date().toISOString(), orNull = (v: string) => v || null;
-    const row = await db().prepare('INSERT INTO account_settings (owner,context_retention_days,email_subject,email_body,default_exclusions,default_terms,updated) VALUES (?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET context_retention_days=excluded.context_retention_days,email_subject=excluded.email_subject,email_body=excluded.email_body,default_exclusions=excluded.default_exclusions,default_terms=excluded.default_terms,updated=excluded.updated RETURNING *')
-      .bind(auth.user, s.context_retention_days, orNull(s.email_subject), orNull(s.email_body), orNull(s.default_exclusions), orNull(s.default_terms), now).first<SettingsRow>();
+    const row = await db().prepare('INSERT INTO account_settings (owner,context_retention_days,email_subject,email_body,default_exclusions,default_terms,draft_expiry_days,updated) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET context_retention_days=excluded.context_retention_days,draft_expiry_days=excluded.draft_expiry_days,email_subject=excluded.email_subject,email_body=excluded.email_body,default_exclusions=excluded.default_exclusions,default_terms=excluded.default_terms,updated=excluded.updated RETURNING *')
+      .bind(auth.user, s.context_retention_days, orNull(s.email_subject), orNull(s.email_body), orNull(s.default_exclusions), orNull(s.default_terms), s.draft_expiry_days, now).first<SettingsRow>();
     // Apply a new retention period right away, not only on the next visit.
-    const redacted = await redactExpired(auth.user, s.context_retention_days ?? defaultRetentionDays());
-    return json({settings: fromRow(row), redacted});
+    const redacted = await redactExpired(auth.user);
+    const expired = await expireDrafts(auth.user);
+    return json({settings: fromRow(row), redacted, expired_drafts: expired});
   } catch (e) { return failure(e); }
 }

@@ -1,8 +1,8 @@
-// Payment copy regression (pure, no server). Razorpay deposits are merged (PR F, #12), so no page
+// Payment copy regression (pure, no server). Razorpay and Stripe payments are built, so no page
 // may still claim that Scopeflow takes no payments, and the pages that describe money must say what
 // the code does: Scopeflow charges creators nothing; a client can pay a creator-set deposit on the
-// review link, after approving, through Razorpay Checkout, into the Razorpay account configured by
-// the server operator (RAZORPAY_KEY_ID/SECRET in lib/razorpay.ts), with no payouts to creators.
+// review link (and open invoices), after approving, through Razorpay or Stripe Checkout, into the
+// account configured by the server operator (lib/razorpay.ts, lib/stripe.ts), with no payouts to creators.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, readdirSync, statSync} from 'node:fs';
@@ -45,14 +45,15 @@ test('the patterns catch the old wording', () => {
     assert.deepEqual(offending(fine), [], fine);
 });
 
-test('terms: Scopeflow is free; client deposits go through Razorpay to the operator-configured account', () => {
+test('terms: Scopeflow is free; client payments go through Razorpay or Stripe to the operator-configured account', () => {
   const terms = read('app/terms/page.tsx');
   assert.match(terms, /Scopeflow itself is free during this beta/);
-  assert.match(terms, /<h2>Client deposits<\/h2>/);
-  assert.match(terms, /through Razorpay Checkout/);
-  assert.match(terms, /Razorpay merchant account the server operator configured, not to an account of the creator/);
-  assert.match(terms, /does not connect creators’ own payment accounts, pay deposits out to creators, or handle refunds/);
-  assert.match(terms, /only after Razorpay confirms it/);
+  assert.match(terms, /<h2>Client payments<\/h2>/);
+  assert.match(terms, /through Razorpay Checkout or Stripe Checkout/);
+  assert.match(terms, /Razorpay or Stripe merchant account the server operator configured, not to an account of the creator/);
+  assert.match(terms, /does not connect creators’ own payment accounts or pay money out to creators/);
+  assert.match(terms, /refund an online payment, in full or in part, through the same provider/);
+  assert.match(terms, /only after Razorpay or Stripe confirms it/);
   // Prices are not repeated in the terms (they had drifted from the Plans page: $9/$19 vs $4).
   const plans = read('app/plans/page.tsx');
   for (const price of terms.match(/\$\d+/g) ?? []) assert.ok(plans.includes(price), `terms price ${price} is not on the Plans page`);
@@ -60,10 +61,10 @@ test('terms: Scopeflow is free; client deposits go through Razorpay to the opera
 
 test('reviewer guide and review page describe the deposit accurately', () => {
   const guide = read('app/reviewer-guide/page.tsx');
-  assert.match(guide, /pay that deposit on the review link after approving, through Razorpay Checkout, into the operator’s Razorpay account/);
+  assert.match(guide, /pay it on the review link after approving, through Razorpay Checkout or Stripe Checkout, into the operator’s merchant account/);
   assert.match(guide, /Saving or approving a scope never charges anyone by itself/);
   const review = read('app/review/[token]/review.tsx');
-  assert.match(review, /Approving or requesting changes does not charge you\. If the scope asks for a deposit, it is paid separately on this page after you approve, through Razorpay/);
+  assert.match(review, /Approving or requesting changes does not charge you\. If the scope asks for a deposit, it is paid separately on this page after you approve, through Razorpay or Stripe/);
 });
 
 test('the code matches the copy: keys come from the server environment, not the creator', async () => {
@@ -71,7 +72,9 @@ test('the code matches the copy: keys come from the server environment, not the 
   // this fails and the terms, guide and privacy notice must be updated with it.
   const rz = read('lib/razorpay.ts');
   assert.match(rz, /env\.RAZORPAY_KEY_ID/);
-  const route = read('app/api/review/[token]/deposit/route.ts');
-  assert.match(route, /const config = razorpayConfig\(\);/);
-  assert.doesNotMatch(route + rz, /account_id|transfers|linked_account/i, 'no Razorpay Route transfers to creators');
+  assert.match(read('lib/stripe.ts'), /env\.STRIPE_SECRET_KEY/);
+  const route = read('lib/checkout-server.ts');
+  assert.match(route, /razorpayConfig\(\)!/);
+  assert.match(route, /stripeConfig\(\)!/);
+  assert.doesNotMatch(route + rz + read('lib/stripe.ts'), /account_id|transfers|linked_account|stripe_account|transfer_data|application_fee/i, 'no Razorpay Route or Stripe Connect transfers to creators');
 });

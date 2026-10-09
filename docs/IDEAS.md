@@ -1,60 +1,72 @@
-# Ideas backlog (not implemented)
+# Ideas backlog: status
 
-Collected while implementing the 2026-10-07 roadmap PRs (A–F plus retention/wording). Each line is a
-candidate, not a commitment; nothing here is built. Roughly ordered by value for effort within each group.
+Collected while implementing the 2026-10-07 roadmap. Everything that can be built in code is now built and
+tested; the last section lists the items that need a contract, an account or a registration outside this
+repository, and what is already in place for each. [DEPLOY.md](DEPLOY.md) says which variables turn each
+feature on.
 
-## Integration follow-ups between the roadmap PRs (small, do right after merging)
-Done since: receipts default to the project time zone, and the deposit charged is `totals().deposit` (the figure on
-the signed scope paper; the old separate formula could differ by a cent).
-- **Receipt shows the deposit-paid ledger entry** (A + F). Tax, deposit and payment terms are printed now.
-- **Unify `lib/time.ts` (C) and `validTimeZone`/`stamp` in `lib/receipt.ts` (A)** into one helper.
-- **OTP for change-order approvals** (B): the same email-code gate before a client approves a change order.
-- **Radar before approval in the UI** (E): the endpoint already works on the latest version; the button lives only
-  in the post-approval ledger panel.
-- **Templates carry currency/tax/deposit defaults** (C + D).
-- **AI draft respects owner default clauses** (D + retention/wording PR).
+## Integration follow-ups: built
+- Receipt shows the deposit-paid ledger entry, tax, deposit and payment terms.
+- One time helper (`lib/time.ts`) for receipts, statements and the ledger.
+- Email/SMS one-time code before a client approves a change order or countersigns.
+- Radar before approval: works on the latest version from the workspace.
+- Templates carry currency, tax, deposit and payment-terms defaults.
+- AI drafts respect the owner's default clauses.
 
-## Trust and legal weight
-- **PAdES-signed PDF with a DSC** and an **RFC 3161 timestamp** (TSA) on the receipt, so the PDF verifies in Acrobat
-  without Scopeflow.
-- **Embed a Unicode font** (e.g. Noto Sans subset) in the receipt; today non-WinAnsi names (Tamil, Hindi, CJK) print as "?".
-- **Aadhaar eSign via an ESP** (Digio, Leegality) as a third assurance tier above email OTP, for high-value work.
-- **BSA 2023 §63 certificate data** generated from the ledger for Indian disputes ("dispute pack": receipt PDF +
-  ledger + chain proof + certificate).
-- **SMS / WhatsApp OTP** (MSG91 or Twilio; Indian DLT sender + template registration needed).
-- **Review-link expiry** (e.g. expire after 30 days). Manual and automatic reminders and the "opened" log are built.
-- **Multi-party signing order** (approver + finance) and multiple signers per version.
-- **Separate `system` ledger actor** for provider events (payments) instead of `client`, so a revoked review link
-  never blocks recording a payment.
-- **Stamp duty flag** for Indian agreements above a threshold, with an e-stamping link.
+## Trust and legal weight: built
+- PAdES-signed PDFs (with a configured document-signing certificate) and RFC 3161 timestamps (B-T).
+- Embedded Unicode fonts (Indian scripts, Greek, Cyrillic) in every PDF, shaped with HarfBuzz.
+- BSA 2023 §63 dispute pack: receipts, statement, invoices, ledger with chain proof, timestamps and the
+  certificate template, in one ZIP.
+- SMS and WhatsApp one-time codes (MSG91 or Twilio).
+- Review-link expiry, manual and automatic reminders, and the "opened" log.
+- Multi-party signing: roles (e.g. finance) that must countersign after the client approves.
+- Separate `system` ledger actor for provider events.
+- Stamp-duty flag in the clarity check for Indian agreements above the threshold.
+- Production refuses to sign with the cookie secret; a dedicated signing secret is required.
 
-## Money
-- **Dual-currency display with an FX rate locked at signature** (INR ↔ USD export work), plus an LUT/GST export note.
-- **Milestone payments** (schedule of amounts and due dates) and **Net-X payment reminders**. Recording offline
-  payments, the balance due, a PDF statement of account and numbered invoices are built. A full GST tax invoice
-  (HSN/SAC codes, place of supply, CGST/SGST/IGST split) is not.
-- **Razorpay Route / Stripe Connect payouts** to each freelancer (KYC per freelancer), refunds, partial payments,
-  a reconciliation job that polls orders when a webhook is missed, and Stripe Checkout for non-INR clients.
-- **Hour-bank or money-budget revisions** as an alternative to a fixed round count.
-- **INR plan pricing** on the Plans page.
+## Money: built
+- Dual-currency line with an FX rate locked at signature (ECB reference rates), and the LUT/GST export note.
+- Payment milestones, Net-X due dates and overdue-invoice reminders.
+- Full GST tax invoices: SAC, place of supply, CGST/SGST/UTGST or IGST, amount in words.
+- Online payments: Razorpay (INR) and Stripe Checkout (other currencies, `STRIPE_CURRENCIES`), for the deposit
+  and for what is open on each invoice (partial payments of the balance); signed webhooks for both and a
+  daily reconciliation that asks the provider about missed webhooks.
+- Refunds: through Razorpay or Stripe from the workspace, or recorded when made outside Scopeflow; both are
+  on the client's record and statement.
+- Hour-bank or money-budget revisions as an alternative to a round count.
+- INR plan pricing on the Plans page.
 
-## AI and scope intelligence
-- **Embedding similarity** for the radar (semantic match of requests to clauses), multilingual (Hindi/Tamil requests).
-- **Running "creep value" in Insights**: total value of out-of-scope requests caught, approved and declined.
-- **Email forwarding into the radar** (Resend inbound or Gmail) and an MCP tool that runs the full radar.
-- **AI rewrite suggestions for lint issues** ("replace 'minor tweaks' with ...") and a domain-specific vocabulary pack.
-- **Template marketplace / shared team templates** with versioning and tags.
-- **Evaluate `gpt-6-luna` as the OpenAI default** (D + E): cheaper than `gpt-4o-mini` and current, but a reasoning
-  model; needs the Chat Completions request re-verified (`max_completion_tokens`, no `temperature`) against a live key.
-- **Model-lifecycle guard**: a scheduled check of the provider deprecation pages (or the Models APIs) that warns before
-  the configured model retires (Claude Haiku 4.5 is listed "not sooner than 15 Oct 2026"); today a test pins known
-  retired ids only.
-- **Show the active model on the AI controls** and let the owner pick a quality tier (fast vs careful) per request.
+## AI and scope intelligence: built
+- Embedding similarity for the radar (OpenAI or Voyage), multilingual, off without a provider key.
+- Running "creep value" in Insights.
+- Email forwarding into the radar (private per-project address, Postmark or generic inbound webhook) and the
+  MCP `run_radar` tool.
+- One-click rewrite suggestions for vague wording in the clarity check, and a vocabulary of adjacent work
+  clients commonly assume is included, per project type (website, brand, content, app).
+- Shared templates with versioning (revision history and restore), tags and share links.
+- Model-lifecycle guard: a daily check of each provider's Models API plus known retirement dates.
+- The active model on the AI controls, with a fast or careful tier per request.
 
-## Product and operations
-- **Retention per project with legal hold**, and an automatic expiry for archived drafts.
-- **Owner branding** on the review page, PDF and emails (logo, colours) and a custom sending domain per account.
-- **Email provider adapter** (Postmark, SES) behind the existing Resend interface.
-- **Plan-tier config** for the beta caps and rate limits (today constants in code).
-- **Drop the cookie-secret fallback for the signing key in production**; move signing to KMS/HSM.
-- **Accessibility pass** on the review page (OTP input, deposit button, focus order).
+## Product and operations: built
+- Retention per project, legal hold, and automatic expiry of archived drafts.
+- Owner branding (logo, colour, reply-to) on the review page, PDFs and emails.
+- Email provider adapter: Resend, Postmark and Amazon SES.
+- Plan-tier configuration for caps and rate limits.
+- Accessibility pass on the review page (focus order, OTP input, payment buttons, inline errors).
+
+## Needs a contract, account or registration outside the code
+- **Aadhaar eSign** through an eSign Service Provider (Digio, Leegality): needs an ESP agreement and API keys.
+  The assurance tiers (name, email code, SMS/WhatsApp code) and the identity evidence in signed receipts are
+  where a third tier would plug in.
+- **KMS or HSM key storage:** needs a cloud KMS account or an HSM. All signing goes through
+  `lib/signing.ts` (`signRecord`, `verifyRecord`) and `lib/pades.ts`, the two places to point at it.
+- **Payouts to each freelancer** (Razorpay Route or Stripe Connect): needs a linked or connected account per
+  freelancer with that freelancer's own KYC. Payments go to the operator's merchant account today.
+- **DLT sender and template registration** for SMS to Indian numbers: done by the business on the DLT portal;
+  MSG91 delivery is built and waits on it.
+- **A custom sending domain per account:** needs each owner's domain verified with the mail provider (DKIM).
+  Emails already carry the owner's name, logo and reply-to.
+- **`gpt-6-luna` as the OpenAI default:** needs a live key to re-verify the Chat Completions request for a
+  reasoning model (`max_completion_tokens`, no `temperature`). It can be tried today with
+  `SCOPEFLOW_OPENAI_MODEL`; the default stays `gpt-4o-mini` until that check is done.

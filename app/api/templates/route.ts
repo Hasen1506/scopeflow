@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const content = templateContent(input.data.content);
     if ('error' in content) return json({error: content.error}, 400);
     const id = 'tpl_' + crypto.randomUUID().replaceAll('-', '').slice(0, 16), now = new Date().toISOString();
-    const r = await db().prepare('INSERT INTO templates (id,owner,name,content,created,updated) SELECT ?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM templates WHERE owner=?) < ? RETURNING *').bind(id, auth.user, input.data.name, JSON.stringify(content.content), now, now, auth.user, TEMPLATE_LIMIT).lock('scopeflow:owner:' + auth.user).first<TemplateRow>();
+    const r = await db().prepare('INSERT INTO templates (id,owner,name,content,tags,created,updated) SELECT ?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM templates WHERE owner=?) < ? RETURNING *').bind(id, auth.user, input.data.name, JSON.stringify(content.content), JSON.stringify(input.data.tags ?? []), now, now, auth.user, TEMPLATE_LIMIT).lock('scopeflow:owner:' + auth.user).first<TemplateRow>();
     if (!r) return json({error: `You can keep up to ${TEMPLATE_LIMIT} templates. Delete one first.`}, 429);
     return json({template: toView(r)}, 201);
   } catch (e) { return failure(e); }

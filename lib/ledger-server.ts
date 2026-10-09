@@ -1,11 +1,11 @@
 import {db} from './server';
 import type {Scope} from './scope';
-import {anchorHash, computeAgreement, entryHash, sha256, GENESIS, type EntryKind, type LedgerEntry} from './ledger';
+import {anchorHash, computeAgreement, entryHash, sha256, GENESIS, type Actor, type EntryKind, type LedgerEntry} from './ledger';
 import {anchorMessage, entryMessage, signRecord, verifyRecord, publicSigningKey, type SignatureState} from './signing';
 
-export const LEDGER_LIMIT = 200;
+import {limits} from './plans';
 type VersionRow = {id: string; project_id: string; version: number; token: string; revoked: number; content: string; status: string; signer: string | null; decided: string | null; signature?: string | null};
-type EntryRow = {seq: number; kind: EntryKind; baseline_version: number; actor: 'owner' | 'client'; payload: string; prev_hash: string; hash: string; created: string; signature?: string | null};
+type EntryRow = {seq: number; kind: EntryKind; baseline_version: number; actor: Actor; payload: string; prev_hash: string; hash: string; created: string; signature?: string | null};
 export type SignedEntry = LedgerEntry & {signature: string | null};
 
 export class LedgerConflict extends Error {}
@@ -68,12 +68,13 @@ export async function loadLedger(projectId: string, {forClient = false} = {}) {
  * revision or revocation cannot slip an entry onto a stale agreement. The write is
  * serialized per project only (SF-05) and the entry hash is signed (SF-04).
  */
-export async function appendEntry(opts: {baseline: VersionRow; expectedHead: string; kind: EntryKind; payload: unknown; actor: 'owner' | 'client'; ref?: string | null; context?: unknown}) {
+export async function appendEntry(opts: {baseline: VersionRow; expectedHead: string; kind: EntryKind; payload: unknown; actor: Actor; ref?: string | null; context?: unknown}) {
   const database = db();
   const {baseline, kind, actor} = opts;
   const last = await database.prepare('SELECT seq,hash,(SELECT COUNT(*) FROM ledger_entries WHERE project_id=?) AS n FROM ledger_entries WHERE project_id=? ORDER BY seq DESC LIMIT 1').bind(baseline.project_id, baseline.project_id).first<{seq: number; hash: string; n: number}>();
   if ((last?.hash ?? GENESIS) !== opts.expectedHead) throw new LedgerConflict('The ledger changed. Reload before trying again.');
-  if ((last?.n ?? 0) >= LEDGER_LIMIT) throw new LedgerConflict(`The beta supports ${LEDGER_LIMIT} ledger entries per project.`);
+  const cap = limits().ledger_entries;
+  if ((last?.n ?? 0) >= cap) throw new LedgerConflict(`Your plan supports ${cap} ledger entries per project.`);
   const payload = JSON.stringify(opts.payload);
   const entry = {seq: (last?.seq ?? 0) + 1, kind, baseline_version: baseline.version, actor, created: new Date().toISOString(), payload_hash: await sha256(payload), prev_hash: last?.hash ?? GENESIS};
   const hash = await entryHash(entry, await anchorOf(baseline));

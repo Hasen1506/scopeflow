@@ -1,4 +1,5 @@
 import { scopeSchema } from '@/lib/scope';
+import {limits} from '@/lib/plans';
 import { lockKey } from '@/db/client';
 import { applyRetention } from '@/lib/retention';
 import { db,json,ownerAuth,body,safeOrigin,allowWrite,allowRead,parseRow,secret,hash,failure } from '@/lib/server';
@@ -19,11 +20,11 @@ export async function POST(request:Request){try{
  if(requestKey){const prior=await existing();if(prior)return prior;}
  const vid=crypto.randomUUID(),token=secret(),now=new Date().toISOString();
  let created;
- // SF-09: the 100-project cap is checked inside the insert, serialized per owner.
+ // SF-09: the project cap (lib/plans.ts) is checked inside the insert, serialized per owner.
  try{created=await db().batch([
-  db().prepare('INSERT INTO projects (id,owner,latest,created) SELECT ?,?,1,? WHERE (SELECT COUNT(*) FROM projects WHERE owner=?) < 100').bind(id,user,now,user),
+  db().prepare('INSERT INTO projects (id,owner,latest,created) SELECT ?,?,1,? WHERE (SELECT COUNT(*) FROM projects WHERE owner=?) < ?').bind(id,user,now,user,limits().projects),
   db().prepare('INSERT INTO versions (id,project_id,version,token,content,status,created) SELECT ?,?,1,?,?,?,? WHERE EXISTS (SELECT 1 FROM projects WHERE id=? AND owner=?)').bind(vid,id,token,JSON.stringify(input.data),'pending',now,id,user),
  ],{lock:lockKey('owner',user)});}catch(e){if(requestKey&&String(e).includes('UNIQUE')){const prior=await existing();if(prior)return prior;}throw e;}
- if(!created[0].meta.changes)return json({error:'The early beta supports 100 projects per account.'},429);
+ if(!created[0].meta.changes)return json({error:`Your plan supports ${limits().projects} projects per account. Archive or delete one to start another.`,code:'plan_limit'},429);
  return reply({id:vid,project_id:id,version:1,revoked:0,content:input.data,status:'pending',created:now,signer:null,comment:null,decided:null,sealed:false},token,false,201);
 }catch(e){return failure(e);}}

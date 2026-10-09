@@ -13,10 +13,12 @@ const llmLib = await import('../../lib/llm.ts');
 // Retired ids (Anthropic: claude-3-5-haiku-20241022 retired 2026-02-19, claude-3-haiku-20240307 retired
 // 2026-04-20; https://docs.anthropic.com/en/docs/about-claude/model-deprecations). Requests to these fail.
 const RETIRED_MODELS = ['claude-3-5-haiku-latest', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-latest', 'claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'gpt-3.5-turbo', 'gpt-4-32k'];
-test('default models are current (checked 2026-10-07), never a retired id', () => {
-  assert.deepEqual(llmLib.DEFAULT_MODELS, {openai: 'gpt-4o-mini', anthropic: 'claude-haiku-4-5'});
+test('default models are current (checked 2026-10-09), never a retired or soon-retiring id', () => {
+  assert.deepEqual(llmLib.DEFAULT_MODELS, {openai: 'gpt-4o-mini', anthropic: 'claude-haiku-5-5'});
+  assert.deepEqual(llmLib.CAREFUL_MODELS, {openai: 'gpt-4o', anthropic: 'claude-sonnet-5-5'});
+  for (const m of [...Object.values(llmLib.DEFAULT_MODELS), ...Object.values(llmLib.CAREFUL_MODELS)]) assert.equal(llmLib.MODEL_RETIREMENTS[m], undefined, m);
   for (const m of Object.values(llmLib.DEFAULT_MODELS)) assert.ok(!RETIRED_MODELS.includes(m), m);
-  assert.equal(llmLib.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}).model, 'claude-haiku-4-5');
+  assert.equal(llmLib.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}).model, 'claude-haiku-5-5');
 });
 
 const scope = scopeSchema.parse({title: 'Website build', client: 'Acme', deliverables: '', items: [

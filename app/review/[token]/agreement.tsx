@@ -5,11 +5,13 @@ import {coSummary, computeAgreement, describeEntry, paymentsOf, type Agreement, 
 import {totals} from '@/lib/money';
 import {checkClientRecord, type RecordCheck, type SealState} from '@/lib/record-check';
 import {formatMoney, type Version} from '@/lib/scope';
+import type {InvoiceView} from '@/lib/invoice-server';
 import {formatInZone, formatDay} from '@/lib/time';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
+import {OtpGate} from './otp-gate';
 
-export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}};
+export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}; invoices?: InvoiceView[]; online_payments?: boolean};
 type Check = {state: 'checking'} | RecordCheck;
 
 /** Recomputes the record's fingerprints locally (lib/record-check.ts), so the client does not have to trust our server's word. */
@@ -23,7 +25,8 @@ function useVerification(scope: Version, ledger: ClientLedger): Check {
   return check;
 }
 
-export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged}: {token: string; scope: Version; ledger: ClientLedger; timeZone?: string; onChanged: () => Promise<void>}) {
+type Identity = {method: string; to: string | null; channel?: 'email' | 'sms' | 'whatsapp'} | null;
+export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged, identity = null, otpSession = '', onOtpVerified}: {token: string; scope: Version; ledger: ClientLedger; timeZone?: string; onChanged: () => Promise<void>; identity?: Identity; otpSession?: string; onOtpVerified?: (session: string) => void}) {
   const a = computeAgreement(scope.content,scope.version,ledger.entries.filter(e=>e.baseline_version===scope.version)), cur = a.currency;
   const check = useVerification(scope, ledger);
   const pending = a.change_orders.filter(c => c.status === 'proposed');
@@ -44,10 +47,12 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
         <div><span>Fee</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>approved at {formatMoney(a.fee_base, cur)}</em>}</div>
         <div><span>Delivery</span><strong>{formatDay(a.due) || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days</em>}</div>
         <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} of {a.revisions_allowed} used</strong></div>
+        {a.bank && <div><span>Revision {a.bank.unit === 'hours' ? 'hours' : 'budget'}</span><strong className={a.bank.over ? 'over' : ''}>{a.bank.unit === 'hours' ? `${a.bank.used}h of ${a.bank.allowed}h used` : `${formatMoney(a.bank.used, a.currency)} of ${formatMoney(a.bank.allowed, a.currency)} used`}</strong></div>}
         <div><span>Extra work not billed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong></div>
       </div>
       {paid > 0 && <p className="fine pay-line" role="note">Payments on the record: <strong>{formatMoney(paid, cur)}</strong> of {formatMoney(total, cur)}{total !== a.fee ? ' with tax' : ''}{balance > 0 ? ` · ${formatMoney(balance, cur)} still due` : ' · paid in full'}.</p>}
-      {pending.map(co => <PendingChangeOrder key={co.seq} token={token} co={co} agreement={a} verified={check.state==='ok'} onChanged={onChanged} />)}
+      {pending.length > 0 && identity && onOtpVerified && <OtpGate token={token} to={identity.to} channel={identity.channel} session={otpSession} onVerified={onOtpVerified} purpose={pending.length > 1 ? 'decisions on these change orders' : 'a decision on this change order'} />}
+      {pending.map(co => <PendingChangeOrder key={co.seq} token={token} co={co} agreement={a} verified={check.state==='ok'} onChanged={onChanged} otpSession={identity ? otpSession : ''} needsOtp={!!identity} />)}
       <h3 className="section-gap">Deliverables now</h3>
       <ul className="diff-list">
         {a.items.map(i => <li key={i.id}>{i.source !== 'baseline' ? <span className="diff-badge diff-add">CO-{i.source}</span> : <span className="diff-badge diff-change">Base</span>}<span>{i.title}{(i.qty > 1 || i.unit) && <span className="item-qty">× {i.qty}{i.unit ? ' ' + i.unit : ''}</span>}</span></li>)}
@@ -70,7 +75,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
   );
 }
 
-function PendingChangeOrder({token, co, agreement, verified, onChanged}: {token: string; co: CoView; agreement: Agreement; verified:boolean; onChanged: () => Promise<void>}) {
+function PendingChangeOrder({token, co, agreement, verified, onChanged, otpSession, needsOtp}: {token: string; co: CoView; agreement: Agreement; verified:boolean; onChanged: () => Promise<void>; otpSession: string; needsOtp: boolean}) {
   const [name, setName] = useState('');
   const [comment, setComment] = useState('');
   const [checked, setChecked] = useState(false);
@@ -83,8 +88,9 @@ function PendingChangeOrder({token, co, agreement, verified, onChanged}: {token:
     if (name.trim().length < 2) return setError('Enter your name to record this decision.');
     if (decision === 'approved' && !checked) return setError('Confirm that you reviewed this change before approving.');
     if (decision === 'declined' && !comment.trim()) return setError('Please say why, so the creator can follow up.');
+    if (needsOtp && !otpSession) return setError('Confirm your email with the code first.');
     setBusy(true);
-    try { await api(`/api/review/${token}/change-order`, post({seq: co.seq, decision, signer: name, comment})); await onChanged(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    try { await api(`/api/review/${token}/change-order`, post({seq: co.seq, decision, signer: name, comment, ...(otpSession ? {otp_session: otpSession} : {})})); await onChanged(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return (
     <div className="change-order" id={'co-' + co.seq}>
@@ -93,12 +99,12 @@ function PendingChangeOrder({token, co, agreement, verified, onChanged}: {token:
       {co.request_quote && <blockquote>“{co.request_quote}”</blockquote>}
       {co.reason && <p className="quiet">{co.reason}</p>}
       <p className="section-gap"><strong>{coSummary(co, cur, agreement.items)}</strong></p>
-      <p className="fine">If approved: fee {formatMoney(agreement.fee, cur)} → {formatMoney(agreement.fee + co.fee_delta, cur)}{co.revisions_delta ? `, revision rounds ${agreement.revisions_allowed} → ${agreement.revisions_allowed + co.revisions_delta}` : ''}{co.days_delta ? `, delivery moves ${co.days_delta > 0 ? 'later' : 'earlier'} by ${Math.abs(co.days_delta)} days` : ''}.</p>
+      <p className="fine">If approved: fee {formatMoney(agreement.fee, cur)} → {formatMoney(agreement.fee + co.fee_delta, cur)}{co.revisions_delta ? `, revision rounds ${agreement.revisions_allowed} → ${agreement.revisions_allowed + co.revisions_delta}` : ''}{co.bank_delta && agreement.bank ? `, revision ${agreement.bank.unit === 'hours' ? 'hours' : 'budget'} ${agreement.bank.allowed} → ${agreement.bank.allowed + co.bank_delta}` : ''}{co.days_delta ? `, delivery moves ${co.days_delta > 0 ? 'later' : 'earlier'} by ${Math.abs(co.days_delta)} days` : ''}.</p>
       <div className="no-print"><label>Your name<input maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
       <label>Comment <span className="quiet">· required if declining</span><textarea rows={2} maxLength={3000} value={comment} onChange={e => setComment(e.target.value)} /></label>
       <label className="consent"><Checkbox checked={checked} onCheckedChange={v => setChecked(v === true)} />I have reviewed CO-{co.seq}, including its effect on the fee and timeline.</label>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="actions"><button className="primary" disabled={busy||!verified} onClick={() => decide('approved')}>{busy ? 'Saving…' : 'Approve change'}</button><button className="secondary" disabled={busy||!verified} onClick={() => decide('declined')}>Decline</button></div></div>
+      <div className="actions"><button className="primary" disabled={busy||!verified||(needsOtp&&!otpSession)} onClick={() => decide('approved')}>{busy ? 'Saving…' : 'Approve change'}</button><button className="secondary" disabled={busy||!verified||(needsOtp&&!otpSession)} onClick={() => decide('declined')}>Decline</button></div></div>
     </div>
   );
 }

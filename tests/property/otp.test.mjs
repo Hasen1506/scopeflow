@@ -56,10 +56,46 @@ test('dev-mode delivery logs the code and never calls the network', async () => 
   try {
     const r = await otp.deliverCode('ada@example.com', otp.otpEmail({code: '111222', title: 'T', version: 1}), {code: '111222', version_id: 'v1', id: 'o1'}, {SCOPEFLOW_OTP_DEV: '1', APP_URL: 'http://localhost:5173', SCOPEFLOW_OTP_DEV_LOG: log});
     assert.equal(r.delivered, 'dev_log');
-    assert.match(lines[0], /code 111222 for version v1 \(a\*\*@example\.com\)/);
-    assert.deepEqual(JSON.parse(readFileSync(log, 'utf8')), {version_id: 'v1', email: 'ada@example.com', code: '111222', at: '2026-10-07T09:00:00.000Z'});
+    assert.match(lines[0], /code 111222 for version v1 \(a\*\*@example\.com by email\)/);
+    assert.deepEqual(JSON.parse(readFileSync(log, 'utf8')), {version_id: 'v1', email: 'ada@example.com', channel: 'email', code: '111222', at: '2026-10-07T09:00:00.000Z'});
     await assert.rejects(otp.deliverCode('ada@example.com', otp.otpEmail({code: '1', title: 'T', version: 1}), {code: '1', version_id: 'v', id: 'o'}, {}), otp.OtpUnavailable);
   } finally { globalThis.fetch = realFetch; console.info = info; }
+});
+
+test('SMS and WhatsApp: providers from env, masked numbers, request shapes, dev-mode log, safe errors', async () => {
+  const sms = await import('../../lib/sms.ts');
+  assert.equal(sms.smsConfig({}), null);
+  const msg91 = sms.smsConfig({MSG91_AUTH_KEY: 'k91', MSG91_OTP_TEMPLATE_ID: 't1'});
+  assert.equal(msg91.provider, 'msg91'); assert.deepEqual(msg91.channels, ['sms']);
+  const twilio = sms.smsConfig({TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok', TWILIO_SMS_FROM: '+15550001', TWILIO_WHATSAPP_FROM: '+15550002', TWILIO_WHATSAPP_CONTENT_SID: 'HX1'});
+  assert.deepEqual(twilio.channels, ['sms', 'whatsapp']);
+  assert.equal(sms.smsConfig({MSG91_AUTH_KEY: 'k', MSG91_OTP_TEMPLATE_ID: 't', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok', TWILIO_SMS_FROM: '+1', SCOPEFLOW_SMS_PROVIDER: 'twilio'}).provider, 'twilio');
+  assert.equal(sms.maskPhone('+919876543210'), '+91******3210');
+  assert.ok(!sms.maskPhone('+15551234567').includes('555123'));
+  const m = sms.smsRequest(msg91, 'sms', '+919876543210', 'text', '123456');
+  assert.equal(m.url, 'https://control.msg91.com/api/v5/flow'); assert.equal(m.init.headers.authkey, 'k91');
+  assert.deepEqual(JSON.parse(m.init.body).recipients, [{mobiles: '919876543210', otp: '123456'}]);
+  const w = sms.smsRequest(twilio, 'whatsapp', '+919876543210', 'text', '654321');
+  const form = new URLSearchParams(w.init.body);
+  assert.equal(form.get('To'), 'whatsapp:+919876543210'); assert.equal(form.get('From'), 'whatsapp:+15550002');
+  assert.equal(form.get('ContentSid'), 'HX1'); assert.equal(form.get('ContentVariables'), '{"1":"654321"}'); assert.equal(form.get('Body'), null);
+  assert.equal(new URLSearchParams(sms.smsRequest(twilio, 'sms', '+919876543210', 'hello 1', '1').init.body).get('Body'), 'hello 1');
+  assert.match(sms.otpSms({code: '123456', title: 'Logo\nSubject: x'}), /^123456 is your Scopeflow code .*"Logo Subject: x"/);
+  assert.ok(otp.otpAvailable({TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok', TWILIO_SMS_FROM: '+1'}, 'sms'));
+  assert.ok(!otp.otpAvailable({TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok', TWILIO_SMS_FROM: '+1'}, 'whatsapp'));
+  assert.deepEqual(otp.otpChannels({SCOPEFLOW_OTP_DEV: '1', APP_URL: 'http://localhost:5173'}), ['email', 'sms', 'whatsapp']);
+  // Provider refusals never echo the token.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({message: 'bad token tok'}), {status: 401});
+  try { await assert.rejects(otp.deliverCode('+919876543210', otp.otpEmail({code: '1', title: 'T', version: 1}), {code: '1', version_id: 'v', id: 'o'}, {TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok', TWILIO_SMS_FROM: '+1'}, 'sms'), e => e instanceof otp.OtpDeliveryError && !e.message.includes('tok')); }
+  finally { globalThis.fetch = realFetch; }
+  // Phone evidence is signed in its own canonical form; the email form is unchanged.
+  const anchor = 'a'.repeat(64);
+  const ev = {method: 'sms_otp', phone: '+919876543210', verified_at: '2026-10-07T09:00:00.000Z', otp_id: 'o1'};
+  assert.match(await otp.evidenceMessage(anchor, ev), /^scopeflow-evidence-v1:a{64}:[0-9a-f]{64}$/);
+  const sig = await otp.signEvidence(anchor, ev);
+  assert.equal(await otp.verifyEvidence(anchor, ev, sig), 'valid');
+  assert.equal(await otp.verifyEvidence(anchor, {...ev, phone: '+919876543211'}, sig), 'invalid');
 });
 
 test('provider delivery sends the code through Resend with an idempotency key', async () => {

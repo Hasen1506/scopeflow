@@ -1,7 +1,10 @@
 import QRCode from 'qrcode';
 import {PdfDocument, wrap, type Font} from './pdf';
+import {drawPdfBrand, type PdfBrand} from './brand';
 import {itemsOf, formatMoney, label, type Scope} from './scope';
-import {totals} from './money';
+import {fxLine, schedule, totals} from './money';
+import {formatDay, stamp} from './time';
+import type {PaymentLine} from './ledger';
 
 // The audit-grade decision receipt: a server-generated PDF of the decided scope with its
 // fingerprints, the Ed25519 signature, signer details, timestamps (UTC and a named time
@@ -12,26 +15,18 @@ export type ReceiptModel = {
   content: Scope; content_sha256: string;
   signer: string | null; decided: string | null; comment: string | null;
   anchor: string; signature: string | null; key: {kid: string; x: string} | null;
-  context: {channel?: string; ip?: string; user_agent?: string; owner_session?: boolean; via_api?: boolean; acknowledged?: boolean; identity?: {method?: string; email?: string; verified_at?: string}; identity_signature?: string | null} | null;
+  context: {channel?: string; ip?: string; user_agent?: string; owner_session?: boolean; via_api?: boolean; acknowledged?: boolean; identity?: {method?: string; email?: string; phone?: string; verified_at?: string}; identity_signature?: string | null} | null;
   ledger: {head: string; count: number} | null;
+  /** Payments on the signed record of this version (Razorpay deposits and payments the creator recorded). */
+  payments?: PaymentLine[];
+  /** Countersignatures on this version, each Ed25519 over the anchor and its own details. */
+  cosigns?: {role: string; signer: string; signed: string; signature: string | null}[];
+  /** RFC 3161 timestamps from an independent authority over this version's fingerprints. */
+  timestamps?: {subject: string; digest: string; tsa: string; gen_time: string}[];
   time_zone: string; generated: string; verify_url: string;
 };
 
-/** True for an IANA zone name this runtime understands. */
-export function validTimeZone(tz: unknown): tz is string {
-  if (typeof tz !== 'string' || !tz || tz.length > 64) return false;
-  try { new Intl.DateTimeFormat('en-GB', {timeZone: tz}); return true; } catch { return false; }
-}
-
-/** "2026-10-07 09:00:00 UTC" plus the same instant in `tz` with its abbreviation and IANA name. */
-export function stamp(iso: string | null, tz: string) {
-  if (!iso) return 'not recorded';
-  const d = new Date(iso);
-  const utc = d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
-  if (tz === 'UTC' || !validTimeZone(tz)) return utc;
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'shortOffset'}).formatToParts(d).map(p => [p.type, p.value]));
-  return `${utc} (${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${parts.timeZoneName}, ${tz})`;
-}
+export {validTimeZone, stamp} from './time';
 
 /** The public verification URL encoded in the QR code. */
 export function verifyUrl(origin: string, project_id: string, version: number, anchor: string) {
@@ -46,7 +41,7 @@ export function qrMatrix(text: string): boolean[][] {
 }
 
 const MARGIN = 48;
-export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
+export function renderReceiptPdf(m: ReceiptModel, brand: PdfBrand | null = null): Uint8Array {
   const doc = new PdfDocument({info: {Title: `Scopeflow decision receipt: ${m.content.title} v${m.version}`, Producer: 'Scopeflow', Subject: `anchor ${m.anchor}`}});
   const W = doc.width - MARGIN * 2;
   let y = 0;
@@ -69,8 +64,9 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   };
 
   page();
-  doc.text(MARGIN, y - 10, 'SCOPEFLOW · DECISION RECEIPT', {size: 9, font: 'bold', gray: 0.35});
-  y -= 30;
+  const branded = drawPdfBrand(doc, brand, {margin: MARGIN, top: y});
+  doc.text(MARGIN, y - 10, brand?.name ? `${brand.name.toUpperCase().slice(0, 50)} · DECISION RECEIPT` : 'SCOPEFLOW · DECISION RECEIPT', {size: 9, font: 'bold', gray: 0.35});
+  y -= Math.max(30, branded);
   para(m.content.title, {size: 18, font: 'bold', gap: 2});
   para(`Prepared for ${m.content.client} · Version ${m.version} · ${label(m.status)}`, {size: 10.5, gray: 0.3, gap: 6});
 
@@ -99,6 +95,7 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   left('Decided', stamp(m.decided, m.time_zone));
   // Identity evidence (email one-time code) when the project required it.
   if (ctx.identity?.method === 'email_otp') left('Identity check', `Email code verified for ${ctx.identity.email ?? 'the client email'} at ${stamp(ctx.identity.verified_at ?? null, m.time_zone)}`);
+  else if (ctx.identity?.method === 'sms_otp' || ctx.identity?.method === 'whatsapp_otp') left('Identity check', `${ctx.identity.method === 'sms_otp' ? 'SMS' : 'WhatsApp'} code verified for ${ctx.identity.phone ?? 'the client phone'} at ${stamp(ctx.identity.verified_at ?? null, m.time_zone)}`);
   else left('Identity check', 'None: the name was typed by the reviewer');
   left('Acknowledged', ctx.acknowledged ? 'Yes: reviewed this version, fee, deliverables and revisions' : 'Not recorded');
   left('Channel', ctx.channel === 'review_link' ? 'Private review link' : (ctx.channel ?? 'not recorded'));
@@ -113,9 +110,12 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   row('Signature (Ed25519)', m.signature ?? 'Not signed (signing is not configured on this server)', 'mono');
   if (m.key) row('Public key', `kid ${m.key.kid} · x ${m.key.x}`, 'mono');
   if (ctx.identity_signature) row('Identity signature', ctx.identity_signature, 'mono');
+  for (const c of m.cosigns ?? []) row('Countersignature', `${c.role}: ${c.signer} · ${stamp(c.signed, m.time_zone)} · signature ${c.signature ?? 'not signed'}`, 'mono');
+  for (const t of m.timestamps ?? []) row('RFC 3161 timestamp', `${t.subject === 'decision' ? 'Decision' : t.subject.startsWith('cosign:') ? 'Countersignature' : 'Record'} timestamped ${stamp(t.gen_time, m.time_zone)} by ${t.tsa} over ${t.digest}`, 'mono');
   if (m.ledger) row('Ledger head', `${m.ledger.head} (${m.ledger.count} ${m.ledger.count === 1 ? 'entry' : 'entries'})`, 'mono');
   row('Verify', m.verify_url, 'mono');
   para('The record fingerprint is SHA-256 of "scopeflow-baseline-v1|project|version|content JSON|signer|decided". The signature is Ed25519 over "scopeflow-anchor-v1:" followed by that fingerprint, checkable with the public key published at /api/signing-key.', {size: 7.5, gray: 0.4});
+  if (m.cosigns?.length) para('A countersignature is Ed25519 over "scopeflow-cosign-v1:" + record fingerprint + ":" + SHA-256 of the JSON {cosigner_id, role, signer, signed}; it adds to the approval and never changes it.', {size: 7.5, gray: 0.4});
 
   heading('Scope of work');
   for (const i of itemsOf(m.content)) {
@@ -129,10 +129,19 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   const t = totals(m.content);
   if (t.tax_pct > 0) { row(`${t.tax_label} (${t.tax_pct}%)`, formatMoney(t.tax, m.content.currency)); row(`Total with ${t.tax_label}`, formatMoney(t.total, m.content.currency)); }
   if (t.deposit_pct > 0) row(`Deposit on signature (${t.deposit_pct}%)`, formatMoney(t.deposit, m.content.currency));
+  for (const l of schedule(m.content, t.total)) row(`Milestone: ${l.title} (${l.pct}%)`, `${formatMoney(l.amount, m.content.currency)}${l.due ? ` · due ${l.due}` : ''}`);
+  if (m.content.fx) row(`In ${m.content.fx.currency}`, fxLine(m.content, t.total));
   if (m.content.payment_terms) row('Payment terms', m.content.payment_terms);
   row('Revision rounds', String(m.content.revisions));
+  if (m.content.revision_bank) { const b = m.content.revision_bank; row(b.unit === 'hours' ? 'Revision hours' : 'Revision budget', `${b.unit === 'hours' ? b.amount + ' hours' : formatMoney(b.amount, m.content.currency)}${b.overage_rate ? ` · then ${formatMoney(b.overage_rate, m.content.currency)} per hour` : ''}`); }
   if (m.content.due) row('Target delivery', m.content.due);
   for (const c of m.content.client_inputs ?? []) row('Client provides', c.title + (c.due ? ` (by ${c.due})` : ''));
+  if (m.payments?.length) {
+    heading('Payments on the record');
+    for (const p of m.payments) row(formatDay(p.received), `${formatMoney(p.amount, m.content.currency)} · ${p.source === 'razorpay' || p.source === 'stripe' ? `${p.note} paid through ${p.method} (payment ${p.reference})` : p.source === 'refund' ? `${p.method}${p.reference ? ` · ref. ${p.reference}` : ''}` : `${p.method}${p.reference ? ` · ref. ${p.reference}` : ''} · recorded by the creator`} · entry ${p.seq}`);
+    const paid = Math.round(m.payments.reduce((s, p) => s + p.amount, 0) * 100) / 100;
+    row('Received in total', formatMoney(paid, m.content.currency), 'bold');
+  }
   if (m.content.exclusions) { heading('Outside this scope'); para(m.content.exclusions); }
   if (m.content.notes) { heading('Working terms'); para(m.content.notes); }
   if (m.comment) { heading('Reviewer comment'); para(m.comment); }
