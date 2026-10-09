@@ -6,7 +6,7 @@ candidate, not a commitment; nothing here is built. Roughly ordered by value for
 ## Integration follow-ups between the roadmap PRs (small, do right after merging)
 Done since: receipts default to the project time zone, and the deposit charged is `totals().deposit` (the figure on
 the signed scope paper; the old separate formula could differ by a cent).
-- **Receipt prints tax, deposit and payment terms** (A + C) and the deposit-paid ledger entry (A + F).
+- **Receipt shows the deposit-paid ledger entry** (A + F). Tax, deposit and payment terms are printed now.
 - **Unify `lib/time.ts` (C) and `validTimeZone`/`stamp` in `lib/receipt.ts` (A)** into one helper.
 - **OTP for change-order approvals** (B): the same email-code gate before a client approves a change order.
 - **Radar before approval in the UI** (E): the endpoint already works on the latest version; the button lives only
@@ -22,9 +22,7 @@ the signed scope paper; the old separate formula could differ by a cent).
 - **BSA 2023 §63 certificate data** generated from the ledger for Indian disputes ("dispute pack": receipt PDF +
   ledger + chain proof + certificate).
 - **SMS / WhatsApp OTP** (MSG91 or Twilio; Indian DLT sender + template registration needed).
-- **"Who opened" log** on review links (first/last view, count), shown to the owner.
-- **Review-link expiry** (e.g. expire after 30 days) and **automatic reminders** on a schedule. Manual reminders
-  (one a day, three per version) are built.
+- **Review-link expiry** (e.g. expire after 30 days). Manual and automatic reminders and the "opened" log are built.
 - **Multi-party signing order** (approver + finance) and multiple signers per version.
 - **Separate `system` ledger actor** for provider events (payments) instead of `client`, so a revoked review link
   never blocks recording a payment.
@@ -33,11 +31,11 @@ the signed scope paper; the old separate formula could differ by a cent).
 ## Money
 - **Dual-currency display with an FX rate locked at signature** (INR ↔ USD export work), plus an LUT/GST export note.
 - **Milestone payments** (schedule of amounts and due dates) and **Net-X payment reminders**. Recording offline
-  payments, the balance due and a PDF statement of account are built; a GST tax invoice is not.
+  payments, the balance due, a PDF statement of account and numbered invoices are built. A full GST tax invoice
+  (HSN/SAC codes, place of supply, CGST/SGST/IGST split) is not.
 - **Razorpay Route / Stripe Connect payouts** to each freelancer (KYC per freelancer), refunds, partial payments,
   a reconciliation job that polls orders when a webhook is missed, and Stripe Checkout for non-INR clients.
 - **Hour-bank or money-budget revisions** as an alternative to a fixed round count.
-- **Per-account default currency, tax and locale** (INR + GST 18% for India) instead of USD for every new draft.
 - **INR plan pricing** on the Plans page.
 
 ## AI and scope intelligence

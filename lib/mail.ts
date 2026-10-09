@@ -79,6 +79,16 @@ export function reminderBlock(state: SendState, version: number, now = Date.now(
   return null;
 }
 
+/**
+ * Whether the daily job should send an automatic reminder: the owner turned it on (auto_days), the
+ * scope has waited that long since it was saved or last emailed, and the manual limits allow it. Pure.
+ */
+export function autoReminderDue(p: SendState & {version: number; created: string; auto_days: number | null}, now = Date.now()) {
+  if (!p.auto_days || reminderBlock(p, p.version, now)) return false;
+  const since = Date.parse(p.sent_version === p.version && p.last_sent ? p.last_sent : p.created);
+  return Number.isFinite(since) && now - since >= p.auto_days * 86400_000;
+}
+
 /** A gentle reminder for a scope still waiting for a decision. Always Scopeflow's own wording. Pure. */
 export function reminderEmail({title, client, version, reviewUrl, days}: {title: string; client: string; version: number; reviewUrl: string; days: number}): SignatureEmail {
   const t = oneLine(title, 160), c = oneLine(client, 120);

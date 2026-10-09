@@ -77,6 +77,13 @@ plan (Starter); if you would rather not pay for it, delete that block and run th
 
 The script is idempotent. It prints how many versions and ledger entries it redacted.
 
+**Automatic reminders.** The same cron job then runs `node scripts/send-reminders.mjs`. For owners who chose
+"Remind clients automatically" in Data controls, it emails a reminder for scopes still awaiting a decision after
+that many days, with the same limits as the manual button (one email a day, three per version). It needs
+`APP_URL`, `RESEND_API_KEY` and `SCOPEFLOW_MAIL_FROM` (the blueprint copies them from the web service); without
+the Resend variables it sends nothing and says so. `node scripts/send-reminders.mjs --dry-run` lists what it
+would send without sending.
+
 ## Keep the OTP dev flags unset in production
 
 `SCOPEFLOW_OTP_DEV` and `SCOPEFLOW_OTP_DEV_LOG` exist only for local development and CI. With
@@ -88,8 +95,8 @@ environment group.
 
 ## After deploying
 
-1. `npm run db:migrate` runs migrations 0004–0009 (client OTP, project time zone, templates, payments,
-   retention settings, reminder tracking). They add tables and columns, and 0008 also replaces the immutability trigger
+1. `npm run db:migrate` runs migrations 0004–0010 (client OTP, project time zone, templates, payments,
+   retention settings, reminder tracking, business profile, invoices and review-link opens). They add tables and columns, and 0008 also replaces the immutability trigger
    functions so that retention may redact IP and user agent (and nothing else) on recorded decisions.
 2. Check `/api/health`, then sign and download one PDF receipt and open its QR code at `/verify`.
 3. If Resend is set: turn on the email code check on a test project and sign through it.

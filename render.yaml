@@ -37,17 +37,20 @@ services:
       - key: SCOPEFLOW_MAIL_REPLY_TO
         sync: false
 
-  # Daily client-data retention (docs/DEPLOY.md, "Client-data retention"): replaces the IP address and
-  # browser user agent on client decisions older than each owner's retention setting with "redacted".
-  # Idempotent; signed fields are never touched. Render cron jobs are not on the free plan, so this
-  # needs the Starter plan; delete this block if you would rather run the script by hand.
+  # Daily jobs (docs/DEPLOY.md):
+  #  1. client-data retention: replaces the IP address and browser user agent on client decisions
+  #     older than each owner's retention setting with "redacted" (signed fields are never touched);
+  #  2. automatic reminders for owners who turned them on (needs the Resend variables; without them
+  #     it sends nothing and says so).
+  # Both are idempotent. Render cron jobs are not on the free plan, so this needs the Starter plan;
+  # delete this block if you would rather run the scripts by hand.
   - type: cron
     name: scopeflow-retention
     runtime: node
     plan: starter
     schedule: "30 20 * * *" # 20:30 UTC = 02:00 IST
     buildCommand: npm ci --omit=dev --ignore-scripts
-    startCommand: node scripts/redact-expired.mjs
+    startCommand: node scripts/redact-expired.mjs && node scripts/send-reminders.mjs
     envVars:
       - key: DATABASE_URL
         fromService:
@@ -57,3 +60,23 @@ services:
       # Optional server-wide default for owners who set no retention in Data controls.
       - key: SCOPEFLOW_CONTEXT_RETENTION_DAYS
         sync: false
+      - key: APP_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: APP_URL
+      - key: RESEND_API_KEY
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: RESEND_API_KEY
+      - key: SCOPEFLOW_MAIL_FROM
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_MAIL_FROM
+      - key: SCOPEFLOW_MAIL_REPLY_TO
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_MAIL_REPLY_TO
