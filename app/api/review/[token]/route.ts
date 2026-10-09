@@ -1,12 +1,13 @@
 import { z } from 'zod';
-import {db,json,body,safeOrigin,allowWrite,allowRead,parseRow,failure,ipKey,hash} from '@/lib/server';
+import {db,json,body,safeOrigin,allowWrite,allowRead,parseRow,failure,ipKey} from '@/lib/server';
 import {loadLedger, anchorOf} from '@/lib/ledger-server';
 import {sha256} from '@/lib/ledger';
 import {anchorMessage, signRecord, publicSigningKey} from '@/lib/signing';
 import {decisionContext, isOwnerSession} from '@/lib/decision';
 import {depositView} from '@/lib/deposit-server';
 import {zoneOrUtc} from '@/lib/time';
-import {OTP_SESSION_TTL_MS, maskEmail, signEvidence, type IdentityEvidence} from '@/lib/otp';
+import {maskEmail, signEvidence, type IdentityEvidence} from '@/lib/otp';
+import {otpEvidence} from '@/lib/otp-server';
 type Ctx={params:Promise<{token:string}>};
 type ReviewRow=Record<string,unknown>&{id:string;project_id:string;version:number;latest:number;owner:string;status:string;content:string;token:string;signature:string|null;decision_context:string|null;require_otp:boolean;client_email:string|null};
 async function find(token:string){if(!/^[a-f0-9]{64}$/.test(token))return null;return db().prepare('SELECT v.*,p.latest,p.owner,p.timezone,p.require_otp,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<ReviewRow>();}
@@ -20,8 +21,8 @@ export async function GET(request:Request,ctx:Ctx){try{const {token}=await ctx.p
  let ledger=null;if(row.version===row.latest&&row.status==='approved'){const l=await loadLedger(row.project_id,{forClient:true});if(l.baseline?.id===row.id)ledger={entries:l.entries,agreement:l.agreement,anchors:l.anchors,head:l.head,seal:l.seal,signatures:l.signatures};}
  // PR F: the deposit due on signature, once approved (null when the scope has none).
  const deposit=row.status==='approved'&&row.version===row.latest?await depositView(row.project_id,row.version,JSON.parse(row.content)):null;
- // PR B: whether this decision needs an email code first, and where it goes (masked).
- const identity_check=requireOtp&&row.status==='pending'?{method:'email_otp',to:clientEmail?maskEmail(clientEmail):null}:null;
+ // PR B: whether this decision (or a pending change-order decision) needs an email code first, and where it goes (masked).
+ const identity_check=requireOtp&&(row.status==='pending'||(ledger&&(ledger.agreement?.pending??0)>0))?{method:'email_otp',to:clientEmail?maskEmail(clientEmail):null}:null;
  return json({scope:{...scope,signature:row.signature??null},previous:previous?JSON.parse(previous.content):null,ledger,signing_key:publicSigningKey(),...(deposit?{deposit}:{}),time_zone:zoneOrUtc(timezone as string|null),...(identity_check?{identity_check}:{})});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const {token}=await ctx.params;const row=await find(token);if(!row)return json({error:'This review link was not found.'},404);
@@ -38,9 +39,8 @@ export async function POST(request:Request,ctx:Ctx){try{
  let evidence:IdentityEvidence|null=null;
  if(row.require_otp){
   if(!input.data.otp_session)return json({error:'Confirm your email with the code we send you before recording a decision.',code:'otp_required'},403);
-  const otp=await db().prepare('SELECT id,email,verified FROM review_otps WHERE version_id=? AND session_hash=? AND verified IS NOT NULL').bind(row.id,await hash(input.data.otp_session)).first<{id:string;email:string;verified:string}>();
-  if(!otp||Date.now()-Date.parse(otp.verified)>OTP_SESSION_TTL_MS)return json({error:'Your email confirmation expired. Send a new code and try again.',code:'otp_required'},403);
-  evidence={method:'email_otp',email:otp.email,verified_at:otp.verified,otp_id:otp.id};
+  evidence=await otpEvidence(row.id,input.data.otp_session);
+  if(!evidence)return json({error:'Your email confirmation expired. Send a new code and try again.',code:'otp_required'},403);
  }
  const decided=new Date().toISOString();
  const anchor=await anchorOf({project_id:row.project_id,version:row.version,content:row.content,signer:input.data.signer,decided});

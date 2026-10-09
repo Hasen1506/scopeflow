@@ -1,13 +1,13 @@
 'use client';
 import {useMemo, useState} from 'react';
 import {AlertTriangle, Info, OctagonAlert, ShieldCheck} from 'lucide-react';
-import {lintScope} from '@/lib/lint';
+import {applyRewrite, lintScope} from '@/lib/lint';
 import type {Scope} from '@/lib/scope';
 
 const icons = {error: OctagonAlert, warn: AlertTriangle, info: Info};
 
 /** Live clarity check for the draft. Advisory only: it never blocks saving. */
-export function LintPanel({scope}: {scope: Scope}) {
+export function LintPanel({scope, onApply}: {scope: Scope; onApply?: (next: Scope) => void}) {
   const [open, setOpen] = useState(false);
   const result = useMemo(() => lintScope(scope), [scope]);
   const serious = result.issues.filter(i => i.severity !== 'info').length;
@@ -23,7 +23,7 @@ export function LintPanel({scope}: {scope: Scope}) {
       <ul>
         {shown.map((issue, n) => {
           const Icon = icons[issue.severity];
-          return <li key={issue.rule + n} className={'lint-' + issue.severity}><Icon size={15} /><span>{issue.message}{issue.fix && <span className="quiet"> {issue.fix}</span>}</span></li>;
+          return <li key={issue.rule + n} className={'lint-' + issue.severity}><Icon size={15} /><span>{issue.message}{issue.fix && <span className="quiet"> {issue.fix}</span>}{onApply && issue.rewrite && <> <button type="button" className="link-button" onClick={() => onApply(applyRewrite(scope, issue))} title={`Replace “${issue.rewrite.find.trim()}” with “${issue.rewrite.replace || '(nothing)'}”`}>{issue.rewrite.replace ? `Use “${issue.rewrite.replace}”` : 'Remove it'}</button></>}</span></li>;
         })}
       </ul>
     </section>

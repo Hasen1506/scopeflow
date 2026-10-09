@@ -26,7 +26,7 @@ const R = `/api/scopes/${project_id}/radar`;
 // Before approval: checks against the latest version.
 {
   const r = await call(R, {method: 'POST', cookie, body: {message: 'Could you also print the business cards?'}});
-  eq(r.status, 200); eq(r.data.basis, 'latest_version'); eq(r.data.ai, {enabled: false, provider: null});
+  eq(r.status, 200); eq(r.data.basis, 'latest_version'); eq(r.data.ai, {enabled: false, provider: null, model: null, quality: null});
   eq(r.data.result.engine, 'keyword'); eq(r.data.result.covered, 'no');
   eq(r.data.result.citations.map(c => [c.id, c.text]), [['X3', 'printed business cards']]);
   eq(r.data.clauses.map(c => c.id), ['D1', 'D2', 'X1', 'X2', 'X3', 'T1', 'R1']);

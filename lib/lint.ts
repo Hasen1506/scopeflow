@@ -1,25 +1,31 @@
 import {formatMoney, itemsOf, type Scope} from './scope';
 
 export type Severity = 'error' | 'warn' | 'info';
-export type LintIssue = {rule: string; severity: Severity; field: string; item_id?: string; message: string; fix?: string};
+export type LintIssue = {rule: string; severity: Severity; field: string; item_id?: string; subfield?: 'title' | 'acceptance'; message: string; fix?: string; rewrite?: Rewrite};
 export type LintResult = {score: number; grade: 'clear' | 'mostly clear' | 'risky' | 'vague'; issues: LintIssue[]};
 
-// Phrases that let either side read the agreement their own way.
-const vague: [RegExp, string][] = [
-  [/\betc\.?(?=\s|$|[,;)])/i, '“etc.” leaves the list open-ended'],
-  [/\band (so on|more)\b/i, 'open-ended list'],
-  [/\bas (needed|required|necessary|appropriate)\b/i, 'no limit on how much'],
-  [/\b(minor|small|quick|light) (tweaks?|changes?|edits?|adjustments?)\b/i, '“minor” means different things to each side'],
-  [/\bunlimited\b/i, 'unlimited work at a fixed fee'],
-  [/\b(ongoing|continuous)\b/i, 'no end point'],
-  [/\b(various|misc(ellaneous)?|assorted)\b/i, 'unspecified contents'],
-  [/\b(tbd|tbc|to be (decided|confirmed|agreed))\b/i, 'undecided term'],
-  [/\b(approximately|around|roughly|about) \d/i, 'approximate quantity'],
-  [/\bagreed (pages|pieces|items|deliverables|content)\b/i, 'refers to a list that is not written down'],
-  [/\b(reasonable|sufficient|adequate)\b/i, 'subjective standard'],
-  [/\b(including but not limited to)\b/i, 'open-ended inclusion'],
-  [/\b(all|any) (necessary|required|other)\b/i, 'open-ended obligation'],
+// Phrases that let either side read the agreement their own way. `fix` says what to write instead;
+// `rewrite`, where a safe wording exists, is the replacement offered as a one-click suggestion.
+type Vague = {re: RegExp; why: string; fix: string; rewrite?: (hit: string, s: Scope) => string};
+const vague: Vague[] = [
+  {re: /,?\s*\betc\.?(?=\s|$|[,;)])/i, why: '“etc.” leaves the list open-ended', fix: 'List every item; anything not listed is outside the scope.', rewrite: () => ''},
+  {re: /,?\s*\band (so on|more)\b/i, why: 'open-ended list', fix: 'Finish the list; anything not listed is outside the scope.', rewrite: () => ''},
+  {re: /\bas (needed|required|necessary|appropriate)\b/i, why: 'no limit on how much', fix: 'Give a number, e.g. “up to 4 per month”.'},
+  {re: /\b(minor|small|quick|light) (tweaks?|changes?|edits?|adjustments?)\b/i, why: '“minor” means different things to each side', fix: 'Tie changes to the revision rounds.', rewrite: (_, s) => s.revisions > 0 ? `changes within the ${s.revisions} included revision round${s.revisions === 1 ? '' : 's'}` : 'changes agreed through a change order'},
+  {re: /\bunlimited (revisions?|rounds?|changes?)\b/i, why: 'unlimited work at a fixed fee', fix: 'Set a number of revision rounds.', rewrite: (_, s) => `${Math.max(1, s.revisions)} revision round${Math.max(1, s.revisions) === 1 ? '' : 's'}`},
+  {re: /\bunlimited\b/i, why: 'unlimited work at a fixed fee', fix: 'Replace it with a number or a limit.'},
+  {re: /\b(ongoing|continuous)\b/i, why: 'no end point', fix: 'Give an end date or a period, e.g. “for 3 months from approval”.'},
+  {re: /\b(various|misc(ellaneous)?|assorted)\b/i, why: 'unspecified contents', fix: 'Name each item.'},
+  {re: /\b(tbd|tbc|to be (decided|confirmed|agreed))\b/i, why: 'undecided term', fix: 'Decide it before sending, or list it as a client input with a due date.'},
+  {re: /\b(approximately|around|roughly|about) (?=\d)/i, why: 'approximate quantity', fix: 'Commit to the number, or give a range with a maximum.', rewrite: () => 'up to '},
+  {re: /\bagreed (pages|pieces|items|deliverables|content)\b/i, why: 'refers to a list that is not written down', fix: 'Write the list into the deliverables.'},
+  {re: /\b(reasonable|sufficient|adequate)\b/i, why: 'subjective standard', fix: 'State the measurable standard (a number, format or test).'},
+  {re: /\b(including but not limited to)\b/i, why: 'open-ended inclusion', fix: 'Make the list exhaustive.', rewrite: () => 'consisting of'},
+  {re: /\b(all|any) (necessary|required|other)\b/i, why: 'open-ended obligation', fix: 'Name what is needed.'},
 ];
+
+/** Where an issue's suggested rewrite applies and what it becomes. */
+export type Rewrite = {find: string; replace: string};
 
 // Adjacent work clients commonly assume is included, by project type.
 const categories: {name: string; detect: RegExp; expect: {term: RegExp; label: string}[]}[] = [
@@ -40,16 +46,19 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
   const issues: LintIssue[] = [];
   const add = (i: LintIssue) => issues.push(i);
   const items = itemsOf(s);
-  const scanVague = (text: string, field: string, item_id?: string) => {
-    for (const [pattern, why] of vague) {
-      const hit = text.match(pattern);
-      if (hit) add({rule: 'vague-language', severity: /unlimited/i.test(hit[0]) ? 'error' : 'warn', field, item_id, message: `“${hit[0]}”: ${why}.`, fix: 'Replace it with an exact list, number or limit.'});
+  const scanVague = (text: string, field: string, item_id?: string, subfield?: 'title' | 'acceptance') => {
+    let seenUnlimited = false;
+    for (const v of vague) {
+      const hit = text.match(v.re);
+      if (!hit) continue;
+      if (/unlimited/i.test(hit[0])) { if (seenUnlimited) continue; seenUnlimited = true; }
+      add({rule: 'vague-language', severity: /unlimited/i.test(hit[0]) ? 'error' : 'warn', field, item_id, ...(subfield ? {subfield} : {}), message: `“${hit[0].replace(/^,?\s*/, '')}”: ${v.why}.`, fix: v.fix, ...(v.rewrite ? {rewrite: {find: hit[0], replace: v.rewrite(hit[0], s)}} : {})});
     }
   };
 
   items.forEach(i => {
-    scanVague(i.title, 'items', i.id);
-    scanVague(i.acceptance, 'items', i.id);
+    scanVague(i.title, 'items', i.id, 'title');
+    scanVague(i.acceptance, 'items', i.id, 'acceptance');
     if (i.qty === 1 && !i.unit && /[a-z]{3,}s$/i.test(i.title.trim()) && !/\d/.test(i.title) && !/(guidelines|graphics|assets|analytics|basics|materials|sessions?)$/i.test(i.title.trim()))
       add({rule: 'missing-quantity', severity: 'info', field: 'items', item_id: i.id, message: `“${i.title}” sounds plural but has quantity 1.`, fix: 'Set the exact number and a unit.'});
   });
@@ -96,4 +105,17 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
   const score = Math.max(0, 100 - issues.reduce((sum, i) => sum + weights[i.severity], 0));
   const grade = score >= 85 ? 'clear' : score >= 65 ? 'mostly clear' : score >= 40 ? 'risky' : 'vague';
   return {score, grade, issues};
+}
+
+/** The scope with one issue's suggested rewrite applied (first occurrence, in the field it was found in). Pure. */
+export function applyRewrite(s: Scope, issue: LintIssue): Scope {
+  const r = issue.rewrite;
+  if (!r) return s;
+  const fix = (text: string) => text.replace(r.find, r.replace).replace(/\s{2,}/g, ' ').replace(/\s+([,.;)])/g, '$1').trim();
+  if (issue.field === 'items' && issue.item_id && issue.subfield) {
+    const items = itemsOf(s).map(i => i.id === issue.item_id ? {...i, [issue.subfield!]: fix(i[issue.subfield!])} : i);
+    return {...s, items};
+  }
+  if (issue.field === 'notes') return {...s, notes: fix(s.notes)};
+  return s;
 }

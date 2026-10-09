@@ -282,6 +282,9 @@ label select{margin-top:7px}
 .input-row{display:grid;grid-template-columns:1fr 160px 34px;gap:8px;align-items:center;margin:8px 0}
 .check-row{display:flex!important;gap:10px;align-items:flex-start;font-weight:var(--fw-1)}
 .check-row input{width:auto;margin-top:5px}
+.ai-quality{border:0;padding:0;margin:10px 0;display:flex;flex-wrap:wrap;gap:4px 18px}
+.ai-quality legend{padding:0;margin-bottom:4px;width:100%}
+.ai-quality .check-row{margin:0}
 .send-box{border:1px solid var(--rule);border-radius:var(--r);padding:4px 16px 16px;margin:18px 0;background:var(--surface-2)}
 .save-bar{position:sticky;bottom:0;z-index:5;margin:24px -30px -30px;padding:16px 30px;border-top:1px solid var(--rule);background:var(--bg);border-radius:0 0 var(--r-lg) var(--r-lg)}
 .save-bar .fine{margin-top:8px}

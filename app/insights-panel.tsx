@@ -27,6 +27,7 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
       <div className="agreement-grid">
         <div><span>Fees at approval</span><strong>{money(data.fee_at_approval)}</strong><em>now {money(data.fee_now)}</em></div>
         <div><span>Captured by change orders</span><strong>{money(data.change_order_value)}</strong><em>{co.approved} approved{co.approval_rate !== null ? ` · ${Math.round(co.approval_rate * 100)}% approval` : ''}</em></div>
+        <div><span>Scope creep caught</span><strong>{money(data.creep.caught)}</strong><em>{data.creep.requests} request{data.creep.requests === 1 ? '' : 's'} · {money(data.creep.approved)} billed{Object.values(data.creep.declined).some(v => v > 0) ? ` · ${money(data.creep.declined)} declined` : ''}</em></div>
         <div><span>Goodwill absorbed</span><strong>{money(data.goodwill_value)}</strong>{data.goodwill_hours > 0 && <em>{data.goodwill_hours}h</em>}</div>
         <div><span>Revision rounds</span><strong>{r.average_used ?? 0} used / {r.average_included ?? 0} sold</strong><em>per project · {r.projects_over} over</em></div>
       </div>

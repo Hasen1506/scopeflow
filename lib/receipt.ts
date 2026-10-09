@@ -2,6 +2,8 @@ import QRCode from 'qrcode';
 import {PdfDocument, wrap, type Font} from './pdf';
 import {itemsOf, formatMoney, label, type Scope} from './scope';
 import {totals} from './money';
+import {formatDay, stamp} from './time';
+import type {PaymentLine} from './ledger';
 
 // The audit-grade decision receipt: a server-generated PDF of the decided scope with its
 // fingerprints, the Ed25519 signature, signer details, timestamps (UTC and a named time
@@ -14,24 +16,12 @@ export type ReceiptModel = {
   anchor: string; signature: string | null; key: {kid: string; x: string} | null;
   context: {channel?: string; ip?: string; user_agent?: string; owner_session?: boolean; via_api?: boolean; acknowledged?: boolean; identity?: {method?: string; email?: string; verified_at?: string}; identity_signature?: string | null} | null;
   ledger: {head: string; count: number} | null;
+  /** Payments on the signed record of this version (Razorpay deposits and payments the creator recorded). */
+  payments?: PaymentLine[];
   time_zone: string; generated: string; verify_url: string;
 };
 
-/** True for an IANA zone name this runtime understands. */
-export function validTimeZone(tz: unknown): tz is string {
-  if (typeof tz !== 'string' || !tz || tz.length > 64) return false;
-  try { new Intl.DateTimeFormat('en-GB', {timeZone: tz}); return true; } catch { return false; }
-}
-
-/** "2026-10-07 09:00:00 UTC" plus the same instant in `tz` with its abbreviation and IANA name. */
-export function stamp(iso: string | null, tz: string) {
-  if (!iso) return 'not recorded';
-  const d = new Date(iso);
-  const utc = d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
-  if (tz === 'UTC' || !validTimeZone(tz)) return utc;
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'shortOffset'}).formatToParts(d).map(p => [p.type, p.value]));
-  return `${utc} (${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${parts.timeZoneName}, ${tz})`;
-}
+export {validTimeZone, stamp} from './time';
 
 /** The public verification URL encoded in the QR code. */
 export function verifyUrl(origin: string, project_id: string, version: number, anchor: string) {
@@ -133,6 +123,12 @@ export function renderReceiptPdf(m: ReceiptModel): Uint8Array {
   row('Revision rounds', String(m.content.revisions));
   if (m.content.due) row('Target delivery', m.content.due);
   for (const c of m.content.client_inputs ?? []) row('Client provides', c.title + (c.due ? ` (by ${c.due})` : ''));
+  if (m.payments?.length) {
+    heading('Payments on the record');
+    for (const p of m.payments) row(formatDay(p.received), `${formatMoney(p.amount, m.content.currency)} · ${p.source === 'razorpay' ? `${p.note} paid through Razorpay (payment ${p.reference})` : `${p.method}${p.reference ? ` · ref. ${p.reference}` : ''} · recorded by the creator`} · entry ${p.seq}`);
+    const paid = Math.round(m.payments.reduce((s, p) => s + p.amount, 0) * 100) / 100;
+    row('Received in total', formatMoney(paid, m.content.currency), 'bold');
+  }
   if (m.content.exclusions) { heading('Outside this scope'); para(m.content.exclusions); }
   if (m.content.notes) { heading('Working terms'); para(m.content.notes); }
   if (m.comment) { heading('Reviewer comment'); para(m.comment); }

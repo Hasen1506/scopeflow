@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {limits} from '@/lib/plans';
 import { scopeSchema } from '@/lib/scope';
 import { clientEmailSchema } from '@/lib/mail';
 import { validTimeZone } from '@/lib/time';
@@ -19,7 +20,7 @@ export async function POST(request:Request,ctx:Ctx){try{
  if(raw.expected_version!==p.latest)return json({error:'A newer version exists. Refresh the project before revising.'},409);
  if(raw.supersede_agreement!==undefined&&typeof raw.supersede_agreement!=='boolean')return json({error:'supersede_agreement must be true or false.'},400);
  const input=scopeSchema.safeParse(raw.content);if(!input.success)return json({error:input.error.issues.map(i=>`${i.path.join('.')}: ${i.message}`).join('; ')},400);
- if(p.latest>=100)return json({error:'The beta supports up to 100 versions per project.'},429);
+ if(p.latest>=limits().versions)return json({error:`Your plan supports up to ${limits().versions} versions per project.`,code:'plan_limit'},429);
  // SF-06: a new version replaces the approved agreement, including approved change
  // orders and recorded rounds. Never do that silently.
  const latest=await db().prepare("SELECT v.status,(SELECT COUNT(*) FROM ledger_entries e WHERE e.project_id=v.project_id AND e.baseline_version=v.version) AS entries FROM versions v WHERE v.project_id=? AND v.version=?").bind(id,p.latest).first<{status:string;entries:number}>();

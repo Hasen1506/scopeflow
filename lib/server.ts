@@ -2,6 +2,7 @@ import { getDatabase } from '@/db/client';
 export {safeOrigin} from '@/lib/origin';
 import { appOrigin } from '@/lib/origin';
 import { getUser } from '@/lib/auth/server';
+import { limits } from '@/lib/plans';
 export function db(){return getDatabase();}
 export function json(data:unknown,status=200,headers:Record<string,string>={}){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...headers}});}
 export async function hash(value:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(x=>x.toString(16).padStart(2,'0')).join('');}
@@ -42,14 +43,14 @@ export async function body(request:Request){if(Number(request.headers.get('conte
 
 // SF-05/SF-13: the rate limiter is a single atomic upsert with no lock, and stale
 // windows are purged opportunistically so the table no longer grows forever.
-export async function allowWrite(subject:string,limit=30){
+export async function allowWrite(subject:string,limit=limits().writes_per_minute){
  const windowId=Math.floor(Date.now()/60000);
  const r=await db().prepare('INSERT INTO rate_limits (id,window_id,hits) VALUES (?,?,1) ON CONFLICT(id) DO UPDATE SET hits=CASE WHEN rate_limits.window_id=excluded.window_id THEN rate_limits.hits+1 ELSE 1 END, window_id=excluded.window_id RETURNING hits').bind(subject,windowId).first<{hits:number}>();
  if(Math.random()<0.01)void db().prepare('DELETE FROM rate_limits WHERE window_id < ?').bind(windowId-2).run().catch(()=>{});
  return (r?.hits??limit+1)<=limit;
 }
 /** Read limit (SF-13); separate counter from writes. */
-export function allowRead(subject:string,limit=240){return allowWrite('read:'+subject,limit);}
+export function allowRead(subject:string,limit=limits().reads_per_minute){return allowWrite('read:'+subject,limit);}
 export function clientIp(request:Request){return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim().slice(0,64)||'unknown';}
 /** Rate-limit key for the caller's network address; only a hash is stored. */
 export async function ipKey(request:Request){return (await hash(clientIp(request))).slice(0,24);}

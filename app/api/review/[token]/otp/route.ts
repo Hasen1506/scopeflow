@@ -3,8 +3,9 @@ import {db, json, body, safeOrigin, allowWrite, failure, hash, secret} from '@/l
 import {MailError} from '@/lib/mail';
 import {OTP_MAX_ATTEMPTS, OTP_SENDS_PER_WINDOW, OTP_TTL_MS, OtpUnavailable, codeHash, deliverCode, generateCode, maskEmail, normalizeCode, otpEmail} from '@/lib/otp';
 import type {Scope} from '@/lib/scope';
+import {loadLedger} from '@/lib/ledger-server';
 type Ctx = {params: Promise<{token: string}>};
-type Row = {id: string; version: number; status: string; content: string; latest: number; require_otp: boolean; client_email: string | null};
+type Row = {id: string; project_id: string; version: number; status: string; content: string; latest: number; require_otp: boolean; client_email: string | null};
 
 const input = z.discriminatedUnion('action', [
   z.object({action: z.literal('send')}).strict(),
@@ -19,10 +20,15 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
     const {token} = await ctx.params;
     if (!/^[a-f0-9]{64}$/.test(token)) return json({error: 'This review link was not found.'}, 404);
-    const row = await db().prepare('SELECT v.id,v.version,v.status,v.content,p.latest,p.require_otp,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<Row>();
+    const row = await db().prepare('SELECT v.id,v.project_id,v.version,v.status,v.content,p.latest,p.require_otp,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<Row>();
     if (!row) return json({error: 'This review link was not found.'}, 404);
     if (!row.require_otp) return json({error: 'This scope does not need an email code.', code: 'otp_not_required'}, 409);
-    if (row.status !== 'pending' || row.version !== row.latest) return json({error: 'This version already has a decision or has been replaced.'}, 409);
+    // A code confirms either the decision on a pending version or one on a change order to the approved latest version.
+    if (row.version !== row.latest) return json({error: 'This version has been replaced. Ask the creator for the latest link.'}, 409);
+    if (row.status !== 'pending') {
+      const ledger = row.status === 'approved' ? await loadLedger(row.project_id, {forClient: true}) : null;
+      if (!ledger?.agreement || ledger.baseline?.id !== row.id || ledger.agreement.pending === 0) return json({error: 'This version already has a decision and no change order is waiting for you.'}, 409);
+    }
     if (!row.client_email) return json({error: 'The creator has not set your email address yet. Ask them to add it, then try again.', code: 'otp_no_email'}, 409);
     if (!await allowWrite('otp:' + row.id, 20)) return json({error: 'Too many attempts. Try again in a minute.'}, 429);
     let raw;

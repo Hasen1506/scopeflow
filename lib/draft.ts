@@ -1,13 +1,14 @@
 import {completeJson, type LlmConfig} from './llm';
 import {lintScope} from './lint';
 import {currencies, scopeSchema, type Scope} from './scope';
+import {applyOwnerDefaults, type OwnerDefaults} from './profile';
 
 // PR D: AI drafting from a brief. The model fills Scopeflow's own scope schema; the result is
 // validated, linted and returned as an unsaved draft. Nothing is saved, shared or sent.
 
 export const BRIEF_MIN = 20, BRIEF_MAX = 4000;
 
-export function draftPrompt(brief: string, currency: string) {
+export function draftPrompt(brief: string, currency: string, defaults: OwnerDefaults = {}) {
   const system = [
     'You turn a freelancer\'s project brief into a precise scope of work. Reply with ONE JSON object and nothing else.',
     'Shape: {"title": string (3-160 chars), "client": string (2-120 chars; "Client" if unknown), "items": [{"title": string, "qty": integer >= 1, "unit": string, "price": number or null, "acceptance": string}], "client_inputs": [{"title": string, "due": ""}], "exclusions": string, "fee": number, "currency": string, "revisions": integer 0-50, "due": "" or "YYYY-MM-DD", "notes": string}.',
@@ -15,6 +16,8 @@ export function draftPrompt(brief: string, currency: string) {
     'Put adjacent work the client might assume is included into "exclusions" (comma separated). Put what the client must supply into "client_inputs".',
     '"notes" holds working terms: what one revision round is, feedback turnaround, and how extra work is handled.',
     `Use the fee and currency from the brief if stated, otherwise fee 0 and currency ${currency}. Allowed currencies: ${currencies.join(', ')}. Set price per item only if the brief gives prices. Use due "" unless the brief gives a date.`,
+    ...(defaults.exclusions ? [`The freelancer always excludes: "${defaults.exclusions.slice(0, 600)}". These are added for you; list only further exclusions specific to this project.`] : []),
+    ...(defaults.notes ? [`The freelancer's standard working terms are added for you: "${defaults.notes.slice(0, 600)}". Put only project-specific terms in "notes".`] : []),
   ].join('\n');
   return {system, user: `Brief:\n"""\n${brief.slice(0, BRIEF_MAX)}\n"""`};
 }
@@ -47,9 +50,14 @@ export function normalizeDraft(raw: unknown, currency: string): Scope {
   return parsed.data;
 }
 
-export async function draftFromBrief(brief: string, currency: string, options: {config?: LlmConfig | null; fetchImpl?: typeof fetch; today?: string} = {}) {
-  const prompt = draftPrompt(brief, currency);
+export async function draftFromBrief(brief: string, currency: string, options: {config?: LlmConfig | null; fetchImpl?: typeof fetch; today?: string; defaults?: OwnerDefaults} = {}) {
+  const defaults = options.defaults ?? {};
+  const prompt = draftPrompt(brief, currency, defaults);
   const raw = await completeJson(prompt, {config: options.config, fetchImpl: options.fetchImpl});
-  const draft = normalizeDraft(raw, currency);
-  return {draft, lint: lintScope(draft, options.today ?? new Date().toISOString().slice(0, 10))};
+  // The owner's standard clauses and commercial defaults always apply, whatever the model returned;
+  // a currency stated in the brief wins over the default currency.
+  const {currency: _default, ...rest} = defaults;
+  const draft = scopeSchema.parse(applyOwnerDefaults(normalizeDraft(raw, currency), rest));
+  const applied = Object.entries(defaults).filter(([, v]) => v !== undefined && v !== '').map(([k]) => k);
+  return {draft, applied, lint: lintScope(draft, options.today ?? new Date().toISOString().slice(0, 10))};
 }

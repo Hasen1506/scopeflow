@@ -45,3 +45,20 @@ export function draftDefaults(p: Profile): Partial<Pick<Scope, 'currency' | 'tax
   if (p.default_payment_terms) out.payment_terms = p.default_payment_terms;
   return out;
 }
+
+export type OwnerDefaults = ReturnType<typeof draftDefaults> & {exclusions?: string; notes?: string};
+const joinClauses = (own: string, extra: string, max: number) => {
+  const a = own.trim(), b = extra.trim();
+  if (!a) return b.slice(0, max);
+  if (!b || b.includes(a)) return (b || a).slice(0, max);
+  return `${a}\n${b}`.slice(0, max);
+};
+/**
+ * A starter template or an AI draft with the owner's own defaults applied: their standard exclusions
+ * and working terms come first (the draft's own text is kept after them), and their currency, tax,
+ * deposit and payment terms replace the draft's. Pure; an empty `d` returns the content unchanged.
+ */
+export function applyOwnerDefaults<T extends Pick<Scope, 'exclusions' | 'notes'>>(content: T, d: OwnerDefaults): T {
+  const {exclusions = '', notes = '', ...commercial} = d;
+  return {...content, ...commercial, exclusions: joinClauses(exclusions, content.exclusions, 3000), notes: joinClauses(notes, content.notes, 3000)};
+}

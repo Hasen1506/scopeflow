@@ -34,7 +34,7 @@ export const writeTools=new Set(['create_scope','revise_scope','propose_change_o
 export function toolExists(name:string){return Object.hasOwn(validators,name);}
 export function validateTool(name:string,args:unknown){return validators[name as keyof typeof validators]?.safeParse(args);}
 function withoutLink(v:Record<string,unknown>){const {token:_token,...safe}=v;return safe;}
-type ToolArgs={content?:unknown;request_id?:string;project_id?:string;expected_version?:number;supersede_agreement?:boolean;message?:string;baseline_version?:number;change_order?:unknown};
+type ToolArgs={content?:unknown;request_id?:string;project_id?:string;expected_version?:number;supersede_agreement?:boolean;message?:string;quality?:'fast'|'careful';baseline_version?:number;change_order?:unknown};
 type ScopeReply={error?:string;code?:string;replayed?:boolean;scope:Record<string,unknown>&{project_id:string};scopes:Record<string,unknown>[];versions:Record<string,unknown>[]};
 export async function runTool(name:string,args:ToolArgs,request:Request,auth:Auth){
  if(Object.hasOwn(ledgerValidators,name))return runLedgerTool(name,args as Parameters<typeof runLedgerTool>[1],request,auth);

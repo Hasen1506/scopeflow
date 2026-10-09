@@ -28,7 +28,6 @@ export function formatDay(day: string | null | undefined) {
   const d = new Date(day + 'T00:00:00Z');
   return Number.isNaN(d.getTime()) ? day : new Intl.DateTimeFormat('en-GB', {timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric'}).format(d);
 }
-/** Zones offered in the editor: the runtime's IANA list when available, plus UTC. */
 /** Whole days since an ISO timestamp, as plain words: "today", "yesterday", "6 days ago". */
 export function daysAgo(iso: string | null | undefined, now = Date.now()) {
   const t = iso ? Date.parse(iso) : NaN;
@@ -36,8 +35,19 @@ export function daysAgo(iso: string | null | undefined, now = Date.now()) {
   const days = Math.max(0, Math.floor((now - t) / 86400000));
   return {days, text: days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`};
 }
+/** Zones offered in the editor: the runtime's IANA list when available, plus UTC. */
 export function timeZones(): string[] {
   const intl = Intl as unknown as {supportedValuesOf?: (key: string) => string[]};
   const list = intl.supportedValuesOf?.('timeZone') ?? ['Asia/Kolkata', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Asia/Singapore', 'Asia/Dubai', 'Australia/Sydney'];
   return ['UTC', ...list.filter(z => z !== 'UTC')];
+}
+
+/** Receipt form: "2026-10-07 09:00:00 UTC" plus the same instant in `tz` with its offset and IANA name. */
+export function stamp(iso: string | null, tz: string) {
+  if (!iso) return 'not recorded';
+  const d = new Date(iso);
+  const utc = d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+  if (tz === 'UTC' || !validTimeZone(tz)) return utc;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'shortOffset'}).formatToParts(d).map(p => [p.type, p.value]));
+  return `${utc} (${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${parts.timeZoneName}, ${tz})`;
 }

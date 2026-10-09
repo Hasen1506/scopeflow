@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {limits} from '@/lib/plans';
 import {db, json, owner, body, safeOrigin, allowWrite, failure} from '@/lib/server';
 import {loadLedger} from '@/lib/ledger-server';
 import {computeAgreement} from '@/lib/ledger';
@@ -6,7 +7,7 @@ import {llmConfig, llmStatus} from '@/lib/llm';
 import {clausesOf, scopeRadar} from '@/lib/radar';
 import type {Scope} from '@/lib/scope';
 type Ctx = {params: Promise<{id: string}>};
-const input = z.object({message: z.string().trim().min(5).max(4000)}).strict();
+const input = z.object({message: z.string().trim().min(5).max(4000), quality: z.enum(['fast', 'careful']).default('fast')}).strict();
 // PR E: scope-creep radar. Checks a pasted client request against the current agreement (or the
 // latest version before approval) and cites the clause it rests on. Records nothing.
 export async function POST(request: Request, ctx: Ctx) {
@@ -17,12 +18,12 @@ export async function POST(request: Request, ctx: Ctx) {
     const {id} = await ctx.params;
     const project = await db().prepare('SELECT id FROM projects WHERE id=? AND owner=?').bind(id, user).first();
     if (!project) return json({error: 'Project not found.'}, 404);
-    const config = llmConfig();
-    if (!await allowWrite((config ? 'radar-ai:' : 'radar:') + user, config ? 10 : 30)) return json({error: 'Too many checks. Try again in a minute.'}, 429);
     let raw;
     try { raw = await body(request); } catch { return json({error: 'Provide valid JSON under 24 KB.'}, 400); }
     const parsed = input.safeParse(raw);
     if (!parsed.success) return json({error: 'Paste the client’s request (5–4000 characters).'}, 400);
+    const config = llmConfig(process.env, parsed.data.quality), careful = !!config && parsed.data.quality === 'careful';
+    if (!await allowWrite((careful ? 'radar-careful:' : config ? 'radar-ai:' : 'radar:') + user, careful ? limits().ai_careful_per_minute : config ? limits().ai_per_minute : 30)) return json({error: 'Too many checks. Try again in a minute.'}, 429);
     const ledger = await loadLedger(id);
     let scope: Scope, agreement, basis: 'agreement' | 'latest_version';
     if (ledger.content && ledger.agreement && ledger.baseline) { scope = ledger.content; agreement = ledger.agreement; basis = 'agreement'; }
@@ -33,6 +34,6 @@ export async function POST(request: Request, ctx: Ctx) {
     }
     const result = await scopeRadar(parsed.data.message, scope, agreement, {config});
     const status = llmStatus();
-    return json({result, basis, clauses: clausesOf(scope, agreement), ai: {enabled: status.enabled, provider: status.provider}});
+    return json({result, basis, clauses: clausesOf(scope, agreement), ai: {enabled: status.enabled, provider: status.provider, model: config?.model ?? null, quality: config ? parsed.data.quality : null}});
   } catch (e) { return failure(e); }
 }

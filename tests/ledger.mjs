@@ -69,6 +69,7 @@ const apiKey=await call('/api/key','POST');status(apiKey,200);
 status(await rpc('get_agreement',{project_id:project},false,{Authorization:'Bearer '+apiKey.value.token}),200);
 const agreement=await rpc('get_agreement',{project_id:project});status(agreement,200);eq(agreement.value.result.structuredContent.fee,2200);
 const checked=await rpc('check_request',{project_id:project,message:'Can you also print the business cards?'});status(checked,200);eq(checked.value.result.structuredContent.heuristic.verdict,'out_of_scope');
+const radared=await rpc('run_radar',{project_id:project,message:'Can you also print the business cards?'});status(radared,200);eq(radared.value.result.structuredContent.result.verdict,'out_of_scope');eq(radared.value.result.structuredContent.basis,'agreement');eq(radared.value.result.structuredContent.result.citations.length>0,true);
 const proposal={project_id:project,baseline_version:1,change_order:{title:'MCP extra round',revisions_delta:1},request_id:randomUUID(),user_confirmed:true};
 eq((await rpc('propose_change_order',{...proposal,user_confirmed:false})).value.error.code,-32602);
 const proposed=await rpc('propose_change_order',proposal);status(proposed,200);eq(proposed.value.result.structuredContent.seq,10);

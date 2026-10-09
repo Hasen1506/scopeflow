@@ -2,8 +2,7 @@ import {PdfDocument, textWidth, wrap, type Font} from './pdf';
 import {paymentsOf, type Agreement, type LedgerEntry, type PaymentLine} from './ledger';
 import {totals} from './money';
 import {formatMoney, type Scope} from './scope';
-import {formatDay} from './time';
-import {stamp} from './receipt';
+import {formatDay, stamp} from './time';
 
 // Statement of account for an approved project: what the agreement says is owed (the current
 // fee after approved change orders, plus tax), every payment on the signed record (Razorpay

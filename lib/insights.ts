@@ -13,6 +13,8 @@ export type Insights = {
   change_orders: {proposed: number; approved: number; declined: number; withdrawn: number; approval_rate: number | null};
   revision_rounds: {included: number; used: number; projects_over: number; average_used: number | null; average_included: number | null};
   client_delays: {count: number; days: number};
+  /** Scope creep caught: out-of-scope work turned into change orders, by outcome (fee increases only; withdrawn ones are left out). */
+  creep: {requests: number; caught: Money; approved: Money; declined: Money; pending: Money};
   clients: ClientInsight[];
   observations: string[];
 };
@@ -24,7 +26,7 @@ export function computeInsights(rows: ProjectAgreement[]): Insights {
     projects: rows.length, fee_at_approval: {}, fee_now: {}, change_order_value: {}, goodwill_value: {}, goodwill_hours: 0,
     change_orders: {proposed: 0, approved: 0, declined: 0, withdrawn: 0, approval_rate: null},
     revision_rounds: {included: 0, used: 0, projects_over: 0, average_used: null, average_included: null},
-    client_delays: {count: 0, days: 0}, clients: [], observations: [],
+    client_delays: {count: 0, days: 0}, creep: {requests: 0, caught: {}, approved: {}, declined: {}, pending: {}}, clients: [], observations: [],
   };
   const clients = new Map<string, ClientInsight>();
   for (const {client, agreement: a} of rows) {
@@ -38,6 +40,11 @@ export function computeInsights(rows: ProjectAgreement[]): Insights {
     ci.projects++;
     for (const co of a.change_orders) {
       out.change_orders[co.status]++;
+      if (co.status !== 'withdrawn' && co.fee_delta > 0) {
+        out.creep.requests++;
+        add(out.creep.caught, c, co.fee_delta);
+        add(out.creep[co.status === 'proposed' ? 'pending' : co.status], c, co.fee_delta);
+      }
       ci.change_orders++;
       if (co.status === 'approved') { ci.approved_change_orders++; add(out.change_order_value, c, co.fee_delta); add(ci.added_value, c, co.fee_delta); }
     }
@@ -62,7 +69,10 @@ export function computeInsights(rows: ProjectAgreement[]): Insights {
   if (rows.length >= 2 && r.average_used !== null && r.average_included !== null && r.average_used > r.average_included)
     o.push(`Clients use ${r.average_used} revision rounds on average but you include ${r.average_included}. Consider pricing in another round.`);
   if (r.projects_over) o.push(`${r.projects_over} of ${rows.length} projects went over their revision allowance.`);
-  for (const [currency, value] of Object.entries(out.change_order_value)) if (value > 0) o.push(`Change orders added ${formatMoney(value, currency)} that would otherwise have been unbilled.`);
+  for (const [currency, value] of Object.entries(out.creep.caught)) if (value > 0) {
+    const approved = out.creep.approved[currency] ?? 0, declined = out.creep.declined[currency] ?? 0;
+    o.push(`Scope creep caught: ${formatMoney(value, currency)} of extra work was put to clients as change orders; ${formatMoney(approved, currency)} was approved and billed${declined ? `, ${formatMoney(declined, currency)} declined (so not done for free)` : ''}.`);
+  }
   for (const [currency, value] of Object.entries(out.goodwill_value)) if (value > 0) o.push(`You absorbed ${formatMoney(value, currency)} of goodwill work${out.goodwill_hours ? ` (${out.goodwill_hours}h)` : ''}.`);
   if (out.client_delays.count) o.push(`Late client inputs moved delivery dates by ${out.client_delays.days} days in total.`);
   const repeat = out.clients.find(c => c.projects > 1 && c.change_orders + c.rounds_over >= c.projects);

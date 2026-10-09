@@ -1,9 +1,10 @@
 import {db, json} from './server';
 import {publicUrl} from './origin';
-import {sha256} from './ledger';
+import {paymentsOf, sha256} from './ledger';
 import {anchorOf, loadLedger} from './ledger-server';
 import {anchorMessage, publicSigningKey, verifyRecord, type SignatureState} from './signing';
-import {renderReceiptPdf, validTimeZone, verifyUrl, type ReceiptModel} from './receipt';
+import {renderReceiptPdf, verifyUrl, type ReceiptModel} from './receipt';
+import {validTimeZone} from './time';
 import {renderStatementPdf, statementModel} from './statement';
 import type {Scope} from './scope';
 
@@ -26,11 +27,12 @@ function keyFor(signature: string | null) {
 export async function receiptModel(request: Request, row: DecidedRow): Promise<ReceiptModel> {
   const content = JSON.parse(row.content) as Scope;
   const anchor = await anchorOf(row);
-  let ledger: ReceiptModel['ledger'] = null;
+  let ledger: ReceiptModel['ledger'] = null, payments: ReceiptModel['payments'] = [];
   if (row.status === 'approved') {
     const l = await loadLedger(row.project_id, {forClient: true});
     const entries = l.entries.filter(e => e.baseline_version === row.version);
     if (entries.length) ledger = {head: entries[entries.length - 1].hash, count: entries.length};
+    payments = paymentsOf(entries).lines;
   }
   let context: ReceiptModel['context'] = null;
   try { context = row.decision_context ? JSON.parse(row.decision_context) : null; } catch { context = null; }
@@ -39,7 +41,7 @@ export async function receiptModel(request: Request, row: DecidedRow): Promise<R
     project_id: row.project_id, version: row.version, status: row.status, content,
     content_sha256: await sha256(JSON.stringify(content)),
     signer: row.signer, decided: row.decided, comment: row.comment,
-    anchor, signature: row.signature, key: keyFor(row.signature), context, ledger,
+    anchor, signature: row.signature, key: keyFor(row.signature), context, ledger, payments,
     time_zone: receiptTimeZone(request, row.timezone), generated: new Date().toISOString(),
     verify_url: verifyUrl(origin, row.project_id, row.version, anchor),
   };
