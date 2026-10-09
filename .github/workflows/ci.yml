@@ -45,6 +45,8 @@ jobs:
       - run: npm ci --include=dev --include=optional
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
+      - name: Install poppler (pdfsig, pdftotext and pdftoppm verify the signed and Unicode PDFs)
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends poppler-utils
       - run: npm run typecheck
       - run: npm run lint
       - name: Property-based, golden and differential tests (pure, no server)
