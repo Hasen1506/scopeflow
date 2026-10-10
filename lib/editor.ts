@@ -54,23 +54,25 @@ const validInput = (x: unknown) => isRecord(x) && typeof x.id === 'string' && ty
 function normalizeItem(i: Record<string, unknown>) {
   return {id: i.id as string, title: i.title as string, qty: typeof i.qty === 'number' && Number.isFinite(i.qty) ? i.qty : 1, unit: typeof i.unit === 'string' ? i.unit : '', price: typeof i.price === 'number' && Number.isFinite(i.price) ? i.price : null, acceptance: typeof i.acceptance === 'string' ? i.acceptance : ''};
 }
+/** A draft as the editor can render it, or null when it is not a scope draft. Malformed list rows are
+ *  dropped instead of crashing the editor (drafts from older builds, edited by hand, or sent to the API). */
+export function normalizeDraft(d: unknown): Scope | null {
+  if (!isRecord(d) || typeof d.title !== 'string' || typeof d.client !== 'string' || typeof d.deliverables !== 'string' || typeof d.exclusions !== 'string' || typeof d.notes !== 'string' || typeof d.due !== 'string' || typeof d.currency !== 'string') return null;
+  return {
+    ...d,
+    fee: typeof d.fee === 'number' && Number.isFinite(d.fee) ? d.fee : 0,
+    revisions: typeof d.revisions === 'number' && Number.isFinite(d.revisions) ? d.revisions : 0,
+    items: Array.isArray(d.items) ? d.items.filter(validItem).map(normalizeItem) : [],
+    client_inputs: Array.isArray(d.client_inputs) ? d.client_inputs.filter(validInput).map((c: {id: string; title: string; due?: unknown}) => ({id: c.id, title: c.title, due: typeof c.due === 'string' ? c.due : ''})) : [],
+  } as unknown as Scope;
+}
 /** The stored draft when it belongs to `account` (null: signed out), is recent and well formed. */
 export function restoreDraft(raw: string | null, now = Date.now(), account: string | null = null): Scope | null {
   if (!raw || raw.length > 200_000) return null;
   try {
     const value = JSON.parse(raw);
     if (value?.v !== 2 || (value.account ?? null) !== account || typeof value.saved_at !== 'number' || now - value.saved_at > MAX_AGE) return null;
-    const d = value.draft;
-    if (!d || typeof d !== 'object' || typeof d.title !== 'string' || typeof d.client !== 'string' || typeof d.deliverables !== 'string' || typeof d.exclusions !== 'string' || typeof d.notes !== 'string' || typeof d.due !== 'string' || typeof d.currency !== 'string') return null;
-    return {
-      ...d,
-      fee: typeof d.fee === 'number' ? d.fee : 0,
-      revisions: typeof d.revisions === 'number' ? d.revisions : 0,
-      // QoL: a draft saved by an older build or edited by hand may hold malformed rows; keep only
-      // rows the editor can render instead of crashing it on load.
-      items: Array.isArray(d.items) ? d.items.filter(validItem).map(normalizeItem) : [],
-      client_inputs: Array.isArray(d.client_inputs) ? d.client_inputs.filter(validInput).map((c: {id: string; title: string; due?: unknown}) => ({id: c.id, title: c.title, due: typeof c.due === 'string' ? c.due : ''})) : [],
-    } as Scope;
+    return normalizeDraft(value.draft);
   } catch {
     return null;
   }
@@ -85,4 +87,14 @@ export function forgetDrafts() {
   for (const get of [() => localStorage, () => sessionStorage]) {
     try { clearDrafts(get()); } catch { /* storage unavailable */ }
   }
+}
+/** The scope fields an unsaved draft may carry (scopeSchema's keys; a unit test keeps them in step). */
+export const DRAFT_FIELDS = ['title', 'client', 'deliverables', 'items', 'client_inputs', 'exclusions', 'fee', 'currency', 'revisions', 'due', 'notes', 'tax_label', 'tax_pct', 'deposit_pct', 'payment_terms', 'milestones', 'fx', 'revision_bank'] as const;
+/** A draft sent to the server, reduced to the editor's fields; null when it is not a scope draft. */
+export function draftForStorage(input: unknown): Scope | null {
+  const draft = normalizeDraft(input) as Record<string, unknown> | null;
+  if (!draft) return null;
+  const kept: Record<string, unknown> = {};
+  for (const k of DRAFT_FIELDS) if (draft[k] !== undefined) kept[k] = draft[k];
+  return kept as unknown as Scope;
 }

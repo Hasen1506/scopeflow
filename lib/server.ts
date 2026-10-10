@@ -6,6 +6,8 @@ import { limits } from '@/lib/plans';
 export function db(){return getDatabase();}
 export function json(data:unknown,status=200,headers:Record<string,string>={}){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...headers}});}
 export async function hash(value:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(x=>x.toString(16).padStart(2,'0')).join('');}
+/** Opaque per-account key the browser sees (not the user id): it scopes unsaved drafts to one account. */
+export async function accountKey(userId:string){return (await hash('draft:'+userId)).slice(0,24);}
 export function secret(){return crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');}
 
 /** How the caller proved who they are. Only browser sessions may see review-link secrets (SF-02). */

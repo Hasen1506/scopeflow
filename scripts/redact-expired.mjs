@@ -4,11 +4,12 @@
 //    else SCOPEFLOW_CONTEXT_RETENTION_DAYS, the IP address and user agent stored with client
 //    decisions and client ledger entries become "redacted" (signed fields stay untouched);
 //  * archived drafts: with the owner's draft_expiry_days set, archived projects that never got a
-//    client decision or ledger entry are deleted that many days after archiving.
+//    client decision or ledger entry are deleted that many days after archiving;
+//  * unsaved scope drafts kept with the account are removed after 90 days without an edit.
 // Projects on legal hold are skipped by both.
 import {createConnection} from '../db/connection.mjs';
 import {postgresQuery} from '../db/client.ts';
-import {draftDeleteQueries, expiredDraftsQuery, redactionQueries} from '../lib/retention-sql.ts';
+import {draftDeleteQueries, expiredDraftsQuery, redactionQueries, staleUnsavedDraftsQuery} from '../lib/retention-sql.ts';
 
 const fallback = Number(process.env.SCOPEFLOW_CONTEXT_RETENTION_DAYS);
 const serverDefault = Number.isInteger(fallback) && fallback >= 1 && fallback <= 3650 ? fallback : null;
@@ -35,5 +36,6 @@ try {
       if (deleted) drafts++;
     } catch (e) { console.error('Draft expiry skipped a project:', e instanceof Error ? e.message : 'unknown'); }
   }
-  console.log(JSON.stringify({redacted_versions: versions, redacted_entries: entries, expired_drafts: drafts, at}));
+  const unsaved = (await run(sql, staleUnsavedDraftsQuery(at))).count;
+  console.log(JSON.stringify({redacted_versions: versions, redacted_entries: entries, expired_drafts: drafts, stale_unsaved_drafts: unsaved, at}));
 } finally { await sql.end(); }

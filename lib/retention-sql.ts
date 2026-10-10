@@ -52,3 +52,13 @@ export function draftDeleteQueries(id: string, owner: string): [string, Param[]]
     ['DELETE FROM review_views WHERE project_id=? AND NOT EXISTS (SELECT 1 FROM projects WHERE id=?)', [id, id]],
   ];
 }
+
+// Unsaved scope drafts kept with the account (the drafts table, one per owner) are removed after
+// UNSAVED_DRAFT_DAYS without an edit. The app also ignores older ones until the job runs.
+export const UNSAVED_DRAFT_DAYS = 90;
+export function unsavedDraftCutoff(now: string) {
+  return new Date(Date.parse(now) - UNSAVED_DRAFT_DAYS * 86400_000).toISOString();
+}
+export function staleUnsavedDraftsQuery(now: string): [string, Param[]] {
+  return ['DELETE FROM drafts WHERE updated < ?', [unsavedDraftCutoff(now)]];
+}
