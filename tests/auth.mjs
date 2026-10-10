@@ -12,7 +12,9 @@ const signup = await fetch(base + '/api/auth/sign-up/email', { method: 'POST', h
 check(signup.status, 200);
 const cookie = await signIn(base, email, password);
 const me = await fetch(base + '/api/me', { headers: { Cookie: cookie } });
-check(me.status, 200); check((await me.json()).signedIn, true);
+check(me.status, 200); const meBody = await me.json(); check(meBody.signedIn, true);
+// The browser keys unsaved drafts by this opaque per-account value (never the user id or email).
+check(/^[0-9a-f]{24}$/.test(meBody.account), true);
 const unauthorized = await fetch(base + '/api/scopes', { headers: { 'oai-authenticated-user-id': 'spoofed', 'oai-authenticated-user-email': email, Cookie: '__sites_local_auth=1' } });
 check(unauthorized.status, 401);
 const wrong = await fetch(base + '/api/auth/sign-in/email', { method: 'POST', headers, body: JSON.stringify({ email, password: 'Wrong-password-123' }) });

@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { authClient } from '@/lib/auth/client';
 import { safeReturnPath } from '@/lib/origin';
+import { forgetDrafts } from '@/lib/editor';
+import { rememberSession } from '@/lib/theme';
 
 export default function AuthForm({ mode, returnTo, token, configured }: {
   mode: string; returnTo: string; token?: string; configured: boolean;
@@ -12,6 +14,8 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const { data: current } = authClient.useSession();
+  const currentEmail = current?.user?.email ?? '';
   const title = mode === 'sign-up' ? 'Create your account' : mode === 'forgot-password' ? 'Reset your password' : mode === 'reset-password' ? 'Choose a new password' : 'Welcome back';
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(''); setMessage('');
@@ -32,6 +36,13 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
         if (result.error) throw new Error(result.error.message || 'This reset link is invalid or expired.');
         setMessage('Password updated. You can now sign in.');
       } else {
+        // Switching accounts: end the current session (and forget its unsaved drafts in this browser)
+        // before signing in, so nothing of the previous account carries over.
+        if (currentEmail && (mode === 'sign-up' || currentEmail.toLowerCase() !== email.toLowerCase())) {
+          await authClient.signOut();
+          rememberSession(false);
+          forgetDrafts();
+        }
         const result = mode === 'sign-up'
           ? await authClient.signUp.email({ email, password, name: String(form.get('name') || '').trim(), callbackURL })
           : await authClient.signIn.email({ email, password, callbackURL });
@@ -45,6 +56,7 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
   }
   return <>
     <p className="eyebrow">YOUR SCOPEFLOW ACCOUNT</p><h1>{title}</h1>
+    {configured && currentEmail && (mode === 'sign-in' || mode === 'sign-up') && <p className="muted-box auth-current" role="status">You are signed in as <b>{currentEmail}</b>. {mode === 'sign-in' ? 'Signing in with another email signs that account out first.' : 'Creating a new account signs that account out first.'} <Link className="help-link" href={safeReturnPath(returnTo)}>Stay signed in</Link></p>}
     {!configured ? <p className="error" role="alert">Sign-in is temporarily unavailable. Please contact support or try again later.</p> :
       <form onSubmit={submit} className="section-gap">
         {mode === 'sign-up' && <><label>Your name<input name="name" autoComplete="name" required minLength={2} maxLength={120} /></label><span className="field-hint">Enter at least 2 characters.</span></>}

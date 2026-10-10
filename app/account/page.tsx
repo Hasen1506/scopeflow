@@ -9,6 +9,7 @@ import {currencyList} from '@/lib/currency';
 import type {Profile} from '@/lib/profile';
 import {BrandSettings} from '@/app/brand-settings';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
+import {forgetDrafts} from '@/lib/editor';
 type Summary={projects:number;versions:number};
 export default function Account(){
  const [summary,setSummary]=useState<Summary|null>(null),[signedOut,setSignedOut]=useState(false),[checking,setChecking]=useState(true);
@@ -28,7 +29,7 @@ export default function Account(){
  async function removeData(){
   if(confirmation!=='DELETE'||busy)return;
   setBusy(true);setError('');
-  try{await api('/api/account',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation})});setSummary({projects:0,versions:0});setConfirmation('');setConfirmOpen(false);setMessage('Your Scopeflow data has been deleted. All previous review links and API tokens are now invalid.');}
+  try{await api('/api/account',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation})});forgetDrafts();setSummary({projects:0,versions:0});setConfirmation('');setConfirmOpen(false);setMessage('Your Scopeflow data has been deleted. All previous review links and API tokens are now invalid.');}
   catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
  async function saveSettings(){if(!settings||busy)return;setBusy(true);setError('');setSettingsNote('');try{const r=await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});setSettings(r.settings);const n=r.redacted.versions+r.redacted.entries,x=r.expired_drafts??0;setSettingsNote('Settings saved.'+(n?` Network details on ${n} older ${n===1?'record were':'records were'} redacted.`:'')+(x?` ${x} archived draft${x===1?' was':'s were'} deleted.`:''));}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
