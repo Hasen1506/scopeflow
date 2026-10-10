@@ -137,6 +137,23 @@ test('BUG-1/2/13/14: editor helpers',()=>{
  assert.deepEqual(editor.restoreDraft(raw,2000),draft);assert.equal(editor.restoreDraft(raw,1000+15*86400000),null);assert.equal(editor.restoreDraft('{bad',0),null);assert.equal(editor.restoreDraft(JSON.stringify({v:1,saved_at:0,draft:{title:1}}),0),null);
  assert.equal(editor.meaningfulDraft(sample,sample,{...sample,title:''}),false);assert.equal(editor.meaningfulDraft(draft,sample,{...sample,title:''}),true);
 });
+test('Drafts belong to one account: never restored for another account or after sign-out',()=>{
+ const draft={...sample,title:'Account A pricing'};
+ const a=editor.serializeDraft(draft,1000,'acct-a');
+ assert.deepEqual(editor.restoreDraft(a,2000,'acct-a'),draft);
+ assert.equal(editor.restoreDraft(a,2000,'acct-b'),null,'another account never gets it');
+ assert.equal(editor.restoreDraft(a,2000,null),null,'nor a signed-out visitor');
+ assert.equal(editor.restoreDraft(editor.serializeDraft(draft,1000,null),2000,'acct-a'),null);
+ // Version 1 drafts carried no owner: they are never restored.
+ assert.equal(editor.restoreDraft(JSON.stringify({v:1,saved_at:1000,draft}),2000,null),null);
+ assert.notEqual(editor.draftKey('acct-a'),editor.draftKey('acct-b'));assert.notEqual(editor.draftKey(null),editor.draftKey('acct-a'));
+ const store=new Map([[editor.draftKey('acct-a'),'a'],[editor.draftKey('acct-b'),'b'],[editor.draftKey(null),'anon'],[editor.LEGACY_DRAFT_KEY,'old'],['scopeflow:signed-in','1']]);
+ const storage={get length(){return store.size;},key:i=>[...store.keys()][i]??null,removeItem:k=>{store.delete(k);}};
+ editor.clearDrafts(storage,'acct-b');
+ assert.deepEqual([...store.keys()].sort(),[editor.draftKey('acct-b'),editor.draftKey(null),'scopeflow:signed-in'].sort(),'other accounts dropped');
+ editor.clearDrafts(storage);
+ assert.deepEqual([...store.keys()],['scopeflow:signed-in'],'sign-out removes every draft');
+});
 test('SF-12: no delivery shift without a baseline due date',()=>{
  const {checkEntry:check}=ledgerModule;const base={...sample,due:''};const a=computeAgreement(base,1,[{seq:1,kind:'change_order',baseline_version:1,actor:'owner',created:'2026-10-01',payload:{title:'Later',reason:'',request_quote:'',add_items:[],remove_item_ids:[],fee_delta:0,days_delta:5,revisions_delta:0},payload_hash:'',prev_hash:'',hash:''},{seq:2,kind:'settle',baseline_version:1,actor:'client',created:'2026-10-02',payload:{ref_seq:1,outcome:'approved',signer:'C',comment:''},payload_hash:'',prev_hash:'',hash:''}]);
  assert.equal(a.days_shift,0);assert.equal(a.due,'');

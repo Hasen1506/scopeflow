@@ -183,7 +183,9 @@ let project, reviewToken;
   ok(/href="https:\/\/muse\.ai\/platform"[^>]*>Meta’s Muse Connector Platform/.test(connect), 'BUG-11 link label matches Meta Muse Connector Platform');
   ok(/<button class="secondary" disabled=""[^>]*>Revoke token/.test(connect) && /id="token-gate"/.test(connect), 'BUG-12 Revoke disabled with a reason until sign-in is confirmed');
   ok(/id="gate-key"/.test(await page('/account')), 'BUG-9 account controls explain why they are disabled');
-  ok(/id="save-reason"/.test(await page('/')), 'BUG-13 the disabled save button has a visible reason');
+  // BUG-13's save-button reason is covered by the saveBlockReason unit test: the signed-out home is now
+  // the landing page (features, no editor), so no draft of any account is rendered there.
+  { const home = await page('/'); ok(/Everything a scope needs/.test(home) && /Scope-creep radar/.test(home) && !/id="save-reason"/.test(home) && !/Live draft preview/.test(home), 'signed-out home is the landing page, without the editor'); }
   ok(/Use at least 8 characters/.test(await page('/auth/sign-up')), 'BUG-4 password hint');
   const apiInfo = await (await fetch(base + '/api')).json();
   eq(apiInfo.version, JSON.parse(readFileSync('package.json', 'utf8')).version); // SF-16
