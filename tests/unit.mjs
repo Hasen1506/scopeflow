@@ -154,6 +154,13 @@ test('Drafts belong to one account: never restored for another account or after 
  editor.clearDrafts(storage);
  assert.deepEqual([...store.keys()],['scopeflow:signed-in'],'sign-out removes every draft');
 });
+test('Server drafts keep only the editor fields, in step with the scope schema',()=>{
+ let inner=scopeSchema;while(inner._def.schema)inner=inner._def.schema; // unwrap superRefine/transform layers
+ assert.deepEqual([...editor.DRAFT_FIELDS].sort(),Object.keys(typeof inner._def.shape==='function'?inner._def.shape():inner.shape).sort());
+ const d=editor.draftForStorage({...sample,stray:'x',items:[{id:'a',title:'A'},{nope:1}]});
+ assert.equal('stray' in d,false);assert.equal(d.items.length,1);assert.equal(d.items[0].qty,1);
+ assert.equal(editor.draftForStorage({title:1}),null);assert.equal(editor.draftForStorage(null),null);
+});
 test('SF-12: no delivery shift without a baseline due date',()=>{
  const {checkEntry:check}=ledgerModule;const base={...sample,due:''};const a=computeAgreement(base,1,[{seq:1,kind:'change_order',baseline_version:1,actor:'owner',created:'2026-10-01',payload:{title:'Later',reason:'',request_quote:'',add_items:[],remove_item_ids:[],fee_delta:0,days_delta:5,revisions_delta:0},payload_hash:'',prev_hash:'',hash:''},{seq:2,kind:'settle',baseline_version:1,actor:'client',created:'2026-10-02',payload:{ref_seq:1,outcome:'approved',signer:'C',comment:''},payload_hash:'',prev_hash:'',hash:''}]);
  assert.equal(a.days_shift,0);assert.equal(a.due,'');

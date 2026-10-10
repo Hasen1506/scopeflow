@@ -113,7 +113,8 @@ Digio or Leegality) and their API keys; it is not built in.
 `render.yaml` defines the `scopeflow-retention` cron job (Render Starter plan). It runs, in order:
 
 1. `node scripts/redact-expired.mjs`: retention redaction (project period, else owner, else server default)
-   and expiry of archived drafts for owners who turned it on; projects on legal hold are skipped by both.
+   and expiry of archived drafts for owners who turned it on (projects on legal hold are skipped by both),
+   and removal of unsaved scope drafts left unedited for 90 days.
 2. `node scripts/send-reminders.mjs`: automatic reminders for unanswered scopes and overdue invoices
    (needs `APP_URL` and the email variables; `--dry-run` lists what it would send).
 3. `node scripts/reconcile-payments.mjs`: records payments whose webhook was lost (calls the web service with
@@ -136,7 +137,7 @@ Render and out of shared environment groups.
    retention settings, reminder tracking, business profile, invoices, review-link opens), 0011 (phone codes,
    link expiry, countersignatures, timestamps), 0012 (GST invoices, invoice reminders, reconciliation) and
    0013 (per-project retention and legal hold, draft expiry, branding, inbound email, template revisions and
-   sharing, payment purposes). They add tables and columns; 0008 replaced the immutability trigger functions
+   sharing, payment purposes) and 0014 (unsaved scope drafts kept with the account). They add tables and columns; 0008 replaced the immutability trigger functions
    so retention may redact IP and user agent (and nothing else).
 2. Check `/api/health` (`signing` should be `dedicated`), then sign and download one PDF receipt and open its
    QR code at `/verify`.
