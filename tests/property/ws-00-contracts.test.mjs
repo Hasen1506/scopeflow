@@ -147,7 +147,9 @@ test('slot placeholders: one file per slot, each names its owner and renders nul
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);
-    assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
+    // changed by WS-07: a slot its owner has implemented no longer renders null; placeholders still must.
+    if (/Phase 0 placeholder/.test(src)) assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
+    else assert.match(src, /^export default function \w+\(/m, s);
   }
 });
 

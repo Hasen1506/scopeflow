@@ -63,7 +63,8 @@ test('reviewer guide and review page describe the deposit accurately', () => {
   const guide = read('app/reviewer-guide/page.tsx');
   assert.match(guide, /pay it on the review link after approving, through Razorpay Checkout or Stripe Checkout, into the operator’s merchant account/);
   assert.match(guide, /Saving or approving a scope never charges anyone by itself/);
-  const review = read('app/review/[token]/review.tsx');
+  // changed by WS-07: the client page's copy moved into the message catalog (SF-09); review.tsx renders it.
+  const review = read('app/review/[token]/review.tsx') + read('messages/en.json');
   assert.match(review, /Approving or requesting changes does not charge you\. If the scope asks for a deposit, it is paid separately on this page after you approve, through Razorpay or Stripe/);
 });
 

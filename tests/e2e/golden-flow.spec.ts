@@ -174,7 +174,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await cpage.reload();
   const pending = cpage.locator('.change-order');
   await expect(pending.getByText('CHANGE ORDER CO-1 · AWAITING YOU')).toBeVisible();
-  await expect(cpage.getByText('Verified in your browser')).toBeVisible();
+  await expect(cpage.getByText('Verified · sealed by Scopeflow')).toBeVisible(); // changed by WS-07: §6.1 chip wording (was "Verified in your browser")
   await expect(pending).toContainText('fee $1,800.00 → $2,200.00');
   await pending.getByLabel('Your name').fill('Ada Client');
   await pending.getByRole('checkbox').check();
@@ -184,7 +184,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   expect(settled).toMatchObject({status: 'approved', seq: 1, receipt: {entry_seq: 2}});
   await expect(cpage.locator('.change-order')).toHaveCount(0);
   await expect(cpage.locator('.agreement-grid')).toContainText('$2,200.00');
-  await expect(cpage.getByText('Verified in your browser')).toBeVisible();
+  await expect(cpage.getByText('Verified · sealed by Scopeflow')).toBeVisible(); // changed by WS-07: §6.1 chip wording (was "Verified in your browser")
 
   await ledger.getByRole('button', {name: 'Refresh ledger'}).click();
   await expect(ledger.locator('.agreement-grid')).toContainText('$2,200.00');
@@ -280,7 +280,8 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await expect(page.getByText('Your Scopeflow data has been deleted.')).toBeVisible();
   expect((await cpage.request.get('/api' + reviewPath)).status()).toBe(404);
   await cpage.reload();
-  await expect(cpage.locator('.error[role=alert]')).toContainText('This review link was not found.');
+  // changed by WS-07: LT-10 link-problem page instead of a raw error with a Reload button.
+  await expect(cpage.getByTestId('link-problem')).toContainText('Ask the person who sent it for a new link.');
 
   await owner.context.close();
   await client.context.close();

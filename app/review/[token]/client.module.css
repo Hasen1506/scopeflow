@@ -1,0 +1,63 @@
+/* Client review page (owner: WS-07). Tokens only; app/globals.css belongs to WS-09. */
+
+/* LT-19: nothing on the client page may be wider than a 390 px phone. */
+.shell{overflow-wrap:anywhere;min-width:0}
+.shell :global(input),.shell :global(textarea),.shell :global(select){max-width:100%;min-width:0;box-sizing:border-box}
+.shell :global(.actions)>*{max-width:100%}
+.shell :global(.mono){overflow-wrap:anywhere;word-break:break-all}
+.shell :global(.receipt-list) :global(li),.shell :global(.payment-list) :global(li){flex-wrap:wrap;gap:var(--s2)}
+
+/* Client header: brand + language picker, no account navigation, no beta badge (LT-13). */
+.header{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);flex-wrap:wrap}
+.picker{display:flex;align-items:center;gap:var(--s2);font-family:var(--font-ui);font-size:var(--fs-2);color:var(--ink-2)}
+.picker select{min-height:36px;padding:0 var(--s3);border:1px solid var(--rule-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);font:inherit;max-width:100%}
+
+/* A mounted slot shows its own markup; until it renders something, the page's own fallback shows. */
+.slot{display:contents}
+
+/* Banners: read-only / closed account / newer version. Calm, not alarming. */
+.banner{border:1px solid var(--rule-strong);border-left:3px solid var(--accent);border-radius:var(--r);background:var(--info-bg);color:var(--ink);padding:var(--s4);margin:0 0 var(--s5)}
+.banner h2{font-size:var(--fs-4);margin:0 0 var(--s2)}
+.banner p{margin:var(--s1) 0 0}
+.bannerWarn{border-left-color:var(--warn);background:var(--warn-bg)}
+
+/* SF-23: the approval moment. Quiet confirmation, then exactly one next step. */
+.success{border:1px solid var(--rule);border-left:3px solid var(--ok);border-radius:var(--r);background:var(--ok-bg);padding:var(--s5);margin-bottom:var(--s4)}
+.success h2{margin:0 0 var(--s2)}
+.next{margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--rule)}
+.next strong{display:block;font-family:var(--font-ui);font-size:var(--fs-1);letter-spacing:var(--label-track);text-transform:uppercase;color:var(--ink-2);margin-bottom:var(--s2)}
+
+/* LT-01: Agreement now. */
+.now{border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--surface);padding:var(--s4);margin:var(--s4) 0}
+.now h3{margin:0}
+.now dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s2) var(--s4);margin:var(--s3) 0 0}
+.now dt{color:var(--ink-2);min-width:0}
+.now dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.now .total{font-weight:var(--fw-3);color:var(--ink);border-top:1px solid var(--rule);padding-top:var(--s2)}
+.now .balance{font-weight:var(--fw-3)}
+
+/* SF-23 / M7: change-order cards with before/after totals incl. tax. */
+.impact{display:grid;gap:var(--s1);margin:var(--s3) 0;padding:var(--s3);border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--rule)}
+.impact span{font-variant-numeric:tabular-nums}
+.coList{list-style:none;padding:0;margin:var(--s3) 0;display:grid;gap:var(--s2)}
+.coItem{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--s2);border:1px solid var(--rule);border-radius:var(--r-sm);padding:var(--s3);background:var(--surface)}
+.coItem em{font-style:normal;color:var(--ink-2)}
+.chipOk{color:var(--ok)}
+.chipBad{color:var(--bad)}
+
+/* M32 data notice and glossary. */
+.notice{margin-top:var(--s4);font-size:var(--fs-2);color:var(--ink-2)}
+.notice summary{cursor:pointer;color:var(--ink)}
+.glossary{margin-top:var(--s3);font-size:var(--fs-2);color:var(--ink-2)}
+.glossary summary{cursor:pointer;color:var(--ink)}
+.glossary ul{margin:var(--s2) 0 0;padding-left:var(--s5)}
+
+/* LT-10 link problems. */
+.problem{max-width:560px;margin:0 auto}
+.problem h1{font-size:var(--fs-5)}
+
+@media (max-width:480px){
+  .now dd{white-space:normal}
+  .shell :global(.actions){flex-direction:column;align-items:stretch}
+  .shell :global(.actions)>:global(*){width:100%;text-align:center}
+}
