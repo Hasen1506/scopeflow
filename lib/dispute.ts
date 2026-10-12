@@ -78,3 +78,103 @@ export function packReadme(m: Section63Model) {
     'The Section 63 certificate is a template, not legal advice: complete, sign and check it against the current Schedule before use.',
   ].join('\n') + '\n';
 }
+
+// ---- WS-03 pack variants -------------------------------------------------------------------------
+// SF-07: the MSMED pack (MSME Samadhaan / Facilitation Council reference under s.18) and SF-24: the
+// consumer evidence pack (Consumer Protection Act 2019 complaint, filed online on e-Daakhil). Both add
+// files to the standard pack; the builders below are pure so their manifests can be golden-tested.
+
+export type PackVariant = 'standard' | 'msmed' | 'consumer';
+export type PackManifestEntry = {name: string; description: string};
+
+export type SamadhaanModel = {
+  supplier: {name: string; address: string; gstin: string; udyam_number: string; category: string; registered_on: string; email: string};
+  buyer: {name: string; email: string; gstin: string; address: string; state: string};
+  project: {id: string; title: string; agreement_date: string | null};
+  acceptance: {day: string | null; basis: string; delivered_on: string | null};
+  pay_by: string | null; agreed_days: number | null; rate_basis: string;
+  invoices: {number: string; issued: string; amount: string; received: string; outstanding: string; interest: string}[];
+  totals: {outstanding: string; interest: string; claimed: string};
+  warnings: string[]; generated: string;
+};
+/** The MSME Samadhaan application fields, filled from the record (check them against the live portal form before filing). */
+export function samadhaanFieldSheet(m: SamadhaanModel) {
+  const f = (k: string, v: string | number | null | undefined) => `${k.padEnd(44)} ${v === null || v === undefined || v === '' ? '(not on the record: fill in)' : v}`;
+  return [
+    'MSME SAMADHAAN: DELAYED PAYMENT APPLICATION, FIELD SHEET',
+    `Pre-filled by Scopeflow on ${m.generated.slice(0, 10)} from the records of project ${m.project.id}. Estimate — confirm with your CA.`,
+    'Portal: https://samadhaan.msme.gov.in (file under MSMED Act 2006, s.18). Check every field against the live form.',
+    '',
+    'A. SUPPLIER (MSE UNIT)',
+    f('Udyam registration number', m.supplier.udyam_number), f('Enterprise category', m.supplier.category), f('Date of Udyam registration', m.supplier.registered_on),
+    f('Name of the unit', m.supplier.name), f('Address', m.supplier.address), f('GSTIN', m.supplier.gstin), f('Email', m.supplier.email),
+    '',
+    'B. BUYER',
+    f('Name of the buyer', m.buyer.name), f('Buyer email', m.buyer.email), f('Buyer GSTIN', m.buyer.gstin), f('Buyer address', m.buyer.address), f('Buyer state', m.buyer.state),
+    f('Buyer type (Central/State/PSU/Private)', null),
+    '',
+    'C. SUPPLY AND ACCEPTANCE',
+    f('Work / agreement', m.project.title), f('Date of agreement (scope approved)', m.project.agreement_date),
+    f('Date of delivery', m.acceptance.delivered_on), f('Date of acceptance', m.acceptance.day), f('Basis of acceptance', m.acceptance.basis),
+    f('Agreed payment period (days, written)', m.agreed_days ?? 'none agreed: 15 days (s.2(b))'), f('Payment due by (s.15)', m.pay_by),
+    '',
+    'D. INVOICES',
+    ...(m.invoices.length ? m.invoices.map(i => `  ${i.number.padEnd(16)} issued ${i.issued}  amount ${i.amount}  received ${i.received}  outstanding ${i.outstanding}  interest ${i.interest}`) : ['  (no invoices)']),
+    '',
+    'E. AMOUNTS CLAIMED',
+    f('Principal outstanding', m.totals.outstanding), f('Interest under s.16 (to date)', m.totals.interest), f('Total claimed', m.totals.claimed),
+    f('Interest rate basis', m.rate_basis === 'per_period' ? "each period's Bank Rate × 3" : 'Bank Rate × 3 on the day payment fell due'),
+    '',
+    'F. DOCUMENTS ENCLOSED IN THIS PACK',
+    '  scope and approval receipts, invoices, acceptance evidence (acceptance.json), ledger proof (chain-proof.json,',
+    '  records.json), interest computation (msmed-interest.csv, msmed-interest.json), BSA 2023 s.63 certificate template.',
+    ...(m.warnings.length ? ['', 'WARNINGS', ...m.warnings.map(w => '  ! ' + w)] : []),
+  ].join('\n') + '\n';
+}
+
+export type ConsumerModel = {
+  title: string; vendor: string; homeowner: string; agreed_on: string | null; currency_total: string; paid: string; balance: string;
+  change_orders: {title: string; status: string; amount: string}[];
+  payments: {date: string; amount: string; method: string; reference: string}[];
+  inspections: {date: string; what: string}[];
+  photos: number; generated: string;
+};
+/** Plain-language summary for a homeowner's complaint (Consumer Protection Act 2019, e-Daakhil). */
+export function consumerSummary(m: ConsumerModel) {
+  return [
+    `What was agreed: ${m.vendor} agreed to "${m.title}" for ${m.homeowner}${m.agreed_on ? ` on ${m.agreed_on.slice(0, 10)}` : ''}, for a total of ${m.currency_total}.`,
+    `What was paid: ${m.paid} (${m.payments.length} stage payment${m.payments.length === 1 ? '' : 's'}, each listed with its UTR or reference in payments.csv). Still due under the agreement: ${m.balance}.`,
+    m.change_orders.length ? `Changes: ${m.change_orders.map(c => `${c.title} (${c.status}, ${c.amount})`).join('; ')}.` : 'Changes: none were agreed.',
+    m.inspections.length ? `Inspections and sign-offs: ${m.inspections.map(i => `${i.date} ${i.what}`).join('; ')}.` : 'Inspections and sign-offs: none are on the record.',
+    m.photos ? `Site photos: ${m.photos} in photos/.` : 'Site photos: none are on the record; add your own photos when you file.',
+    'How to use this pack: file the complaint online at https://edaakhil.nic.in (the District Commission hears claims up to ₹50 lakh). Attach the files listed in MANIFEST.txt. This summary is not legal advice.',
+    `Prepared by Scopeflow on ${m.generated.slice(0, 10)}.`,
+  ].join('\n\n') + '\n';
+}
+/** The consumer pack's files, in order (golden-tested). `photos` site photos, when the record has any. */
+export function consumerPackManifest(photos: string[] = []): PackManifestEntry[] {
+  return [
+    {name: 'summary.txt', description: 'Plain-language summary of the dispute (what was agreed, paid and changed)'},
+    {name: 'scope.json', description: 'The agreed scope / BOQ (bill of quantities) as approved'},
+    {name: 'acceptance/', description: 'Vendor acceptance: the decision receipts (receipt-v*.pdf) for every decided version'},
+    {name: 'change-orders.csv', description: 'Every change order with its status, amount and who decided it'},
+    {name: 'payments.csv', description: 'Stage payments and refunds with dates, methods and UTR / references'},
+    {name: 'inspections.csv', description: 'Inspection sign-offs and inputs recorded on the agreement'},
+    {name: 'timeline.txt', description: 'Timeline of the record, oldest first'},
+    ...photos.map(p => ({name: `photos/${p}`, description: 'Site photo'})),
+    {name: 'statement.pdf', description: 'Statement of account'},
+    {name: 'records.json', description: 'Every version, decision and ledger entry (JSON)'},
+    {name: 'chain-proof.json', description: 'Fingerprints, signatures and the chain check'},
+    {name: 'section63-certificate.pdf', description: 'BSA 2023 s.63 certificate template with the hash of every file'},
+    {name: 'SHA256SUMS.txt', description: 'SHA-256 of every file'},
+  ];
+}
+export const MSMED_PACK_FILES: PackManifestEntry[] = [
+  {name: 'msme-samadhaan-field-sheet.txt', description: 'MSME Samadhaan application fields, filled from the record'},
+  {name: 'msmed-interest.csv', description: 'Interest computation under MSMED s.16 (monthly rests, 3 × Bank Rate), CA worksheet'},
+  {name: 'msmed-interest.json', description: 'The same computation as JSON, with the Bank Rate table and sources'},
+  {name: 'acceptance.json', description: 'Delivery and acceptance evidence (s.2(b)): delivery, acceptance or objection dates'},
+];
+/** CSV cell. */
+export const csvCell = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+export const csv = (rows: unknown[][]) => rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n';

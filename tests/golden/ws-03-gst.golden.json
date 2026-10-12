@@ -1,0 +1,94 @@
+{
+  "25000 + 18% intra": {
+    "taxable": 2500000,
+    "heads": [
+      {
+        "name": "CGST",
+        "rate": 9,
+        "amount": 225000
+      },
+      {
+        "name": "SGST",
+        "rate": 9,
+        "amount": 225000
+      }
+    ],
+    "round_off": 0,
+    "total": 2950000
+  },
+  "100 inclusive intra": {
+    "taxable": 8475,
+    "heads": [
+      {
+        "name": "CGST",
+        "rate": 9,
+        "amount": 763
+      },
+      {
+        "name": "SGST",
+        "rate": 9,
+        "amount": 763
+      }
+    ],
+    "round_off": -1,
+    "total": 10000
+  },
+  "101 inclusive intra": {
+    "taxable": 8559,
+    "heads": [
+      {
+        "name": "CGST",
+        "rate": 9,
+        "amount": 770
+      },
+      {
+        "name": "SGST",
+        "rate": 9,
+        "amount": 770
+      }
+    ],
+    "round_off": 1,
+    "total": 10100
+  },
+  "32500.50 + 18% single": {
+    "taxable": 3250050,
+    "heads": [
+      {
+        "name": "GST",
+        "rate": 18,
+        "amount": 585009
+      }
+    ],
+    "round_off": 0,
+    "total": 3835059
+  },
+  "32500.50 + 18% inter": {
+    "taxable": 3250050,
+    "heads": [
+      {
+        "name": "IGST",
+        "rate": 18,
+        "amount": 585009
+      }
+    ],
+    "round_off": 0,
+    "total": 3835059
+  },
+  "32500.50 + 18% intra": {
+    "taxable": 3250050,
+    "heads": [
+      {
+        "name": "CGST",
+        "rate": 9,
+        "amount": 292505
+      },
+      {
+        "name": "SGST",
+        "rate": 9,
+        "amount": 292505
+      }
+    ],
+    "round_off": 0,
+    "total": 3835060
+  }
+}

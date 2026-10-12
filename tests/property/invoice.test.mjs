@@ -16,7 +16,9 @@ test('tax split: subtotal + tax = total for any amount and rate', () => {
     const c = I.invoiceContent({...base, amount: cents / 100, tax_pct: pct});
     assert.equal(c.total, cents / 100);
     if (pct === 0) { assert.equal(c.tax, null); assert.equal(c.line.amount, c.total); return; }
-    assert.equal(Math.round((c.tax.taxable + c.tax.amount) * 100), cents);
+    // changed by WS-03: per-head GST (plan §9.3) puts any residual paisa on an explicit round-off line.
+    assert.equal(c.breakdown.taxable + c.breakdown.heads.reduce((s, h) => s + h.amount, 0) + c.breakdown.round_off, cents);
+    assert.ok(Math.abs(c.breakdown.round_off) <= 1);
     assert.ok(Math.abs(c.tax.amount - c.tax.taxable * pct / 100) <= 0.01 + 1e-9);
   }), {numRuns: 500});
 });
@@ -33,11 +35,15 @@ test('content: dates, balance before and after, default description', () => {
 });
 
 test('amount checks: two decimals, never more than the balance, nothing when paid in full', () => {
-  assert.equal(I.invoiceProblem(100, 100, 'INR'), null);
-  assert.equal(I.invoiceProblem(0.29, 100, 'INR'), null);
-  assert.match(I.invoiceProblem(100.01, 100, 'INR'), /more than the/);
-  assert.match(I.invoiceProblem(1.005, 100, 'INR'), /two decimals/);
-  assert.match(I.invoiceProblem(1, 0, 'INR'), /paid in full/);
+  // changed by WS-03 (C2): the cap is what is left to invoice (minor units), not the unpaid balance; decimals are amountProblem().
+  const cap = (left) => ({agreement_total: 10000, agreement_taxable: 10000, committed: 10000 - left, committed_taxable: 10000 - left, total: left, taxable: left, gross_total: left, gross_taxable: left, advances: 0, advances_taxable: 0});
+  const b = (v) => ({taxable: v, heads: [], round_off: 0, total: v});
+  assert.equal(I.invoiceProblem(b(10000), cap(10000), 'INR'), null);
+  assert.equal(I.invoiceProblem(b(29), cap(10000), 'INR'), null);
+  assert.equal(I.invoiceProblem(b(10001), cap(10000), 'INR').code, 'exceeds_uninvoiced');
+  assert.match(I.invoiceProblem(b(10001), cap(10000), 'INR').error, /Only ₹100\.00 is left to invoice/);
+  assert.match(I.amountProblem(1.005, 'INR'), /2 decimals/);
+  assert.match(I.invoiceProblem(b(100), cap(0), 'INR').error, /invoiced in full/);
   assert.equal(I.invoiceRequestSchema.safeParse({amount: 5, extra: 1}).success, false);
   assert.deepEqual(I.invoiceRequestSchema.parse({amount: 5}), {amount: 5, description: ''});
   assert.equal(I.invoiceRequestSchema.safeParse({}).success, false);

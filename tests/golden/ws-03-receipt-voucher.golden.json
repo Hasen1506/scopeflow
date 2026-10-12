@@ -1,0 +1,56 @@
+{
+  "content": {
+    "kind": "receipt_voucher",
+    "number": "RV-0001",
+    "issued": "2026-10-09",
+    "received": "2026-10-08",
+    "seller": {
+      "name": "Ada Studio",
+      "address": "12 MG Road, Chennai",
+      "tax_id": "33ABCDE1234F1Z5",
+      "state": "33"
+    },
+    "client": {
+      "name": "Kaveri Foods",
+      "email": "ops@kaveri.test",
+      "gstin": "33AAACK1234F1Z5",
+      "address": "4 Anna Salai, Chennai"
+    },
+    "project": {
+      "id": "golden-project-0001",
+      "title": "Packaging redesign",
+      "version": 1
+    },
+    "currency": "INR",
+    "amount": 590000,
+    "breakdown": {
+      "taxable": 500000,
+      "heads": [
+        {
+          "name": "CGST",
+          "rate": 9,
+          "amount": 45000
+        },
+        {
+          "name": "SGST",
+          "rate": 9,
+          "amount": 45000
+        }
+      ],
+      "round_off": 0,
+      "total": 590000
+    },
+    "place_of_supply": "33",
+    "sac": "998314",
+    "payment": {
+      "ledger_seq": 2,
+      "method": "Bank transfer",
+      "reference": "UTR998877"
+    },
+    "total_in_words": "Five thousand nine hundred rupees only"
+  },
+  "pdf": {
+    "sha256": "c95f39c4a647948292ee8573ca9c8638753d42c18a081d44633a6d54cd472331",
+    "bytes": 3015
+  }
+}

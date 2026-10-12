@@ -39,15 +39,17 @@ eq((await call(I, {method: 'POST', cookie, body: {amount: 100}})).data.code, 'pr
 eq((await call('/api/profile', {method: 'PUT', cookie, body: profile})).data.profile, profile);
 eq((await call(I, {method: 'POST', cookie, body: {amount: 100}})).data.code, 'not_approved');
 eq((await call('/api/review/' + token, {method: 'POST', body: await ack(base, token, {decision: 'approved', signer: 'Ada', comment: '', version: 1})})).status, 200);
-eq((await call(I, {method: 'POST', cookie, body: {amount: 118001}})).status, 400); // total with tax is 1,18,000
+// changed by WS-03 (C2): amounts are the taxable value unless includes_tax; over the agreement is 409 exceeds_uninvoiced.
+eq((await call(I, {method: 'POST', cookie, body: {amount: 118001, includes_tax: true}})).status, 409); // total with tax is 1,18,000
 eq((await call(I, {method: 'POST', cookie, body: {amount: 10.005}})).status, 400);
 eq((await call(I, {method: 'POST', cookie, body: {amount: 10, extra: 1}})).status, 400);
 eq((await call(I, {method: 'POST', cookie: other, body: {amount: 10}})).status, 404);
 const rid = 'inv-' + randomUUID();
-const first = await call(I, {method: 'POST', cookie, body: {amount: 35400, description: 'Deposit (30%)', due_days: 7, request_id: rid}});
+// changed by WS-03: the amount entered here includes GST (the default is now the taxable value).
+const first = await call(I, {method: 'POST', cookie, body: {amount: 35400, includes_tax: true, description: 'Deposit (30%)', due_days: 7, request_id: rid}});
 eq(first.status, 201); eq(first.data.invoice.number, 'AS-0001'); eq(first.data.invoice.amount, 35400);
-eq((await call(I, {method: 'POST', cookie, body: {amount: 35400, description: 'Deposit (30%)', due_days: 7, request_id: rid}})).data, {invoice: first.data.invoice, replayed: true});
-const second = await call(I, {method: 'POST', cookie, body: {amount: 82600}});
+eq((await call(I, {method: 'POST', cookie, body: {amount: 35400, includes_tax: true, description: 'Deposit (30%)', due_days: 7, request_id: rid}})).data, {invoice: first.data.invoice, replayed: true}); // changed by WS-03: includes_tax
+const second = await call(I, {method: 'POST', cookie, body: {amount: 82600, includes_tax: true}}); // changed by WS-03: includes_tax
 eq(second.data.invoice.number, 'AS-0002');
 eq((await call(I, {cookie})).data.invoices.map(i => i.number), ['AS-0001', 'AS-0002']);
 {
@@ -66,7 +68,8 @@ assert.throws(() => localSql(`UPDATE scopeflow.invoices SET amount=1 WHERE proje
 assert.throws(() => localSql(`DELETE FROM scopeflow.invoices WHERE project_id=${q(project_id)}`), /immutable/); passed++;
 // Paid in full: nothing left to invoice.
 eq((await call(`/api/scopes/${project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'payment_received', baseline_version: 1, payload: {amount: 118000, method: 'bank_transfer', received: '2026-10-01'}}})).status, 201);
-eq((await call(I, {method: 'POST', cookie, body: {amount: 1}})).status, 400);
+// changed by WS-03 (C2): invoiced in full, so nothing is left to invoice: 409 exceeds_uninvoiced (was 400 on the paid balance).
+eq((await call(I, {method: 'POST', cookie, body: {amount: 1}})).data.code, 'exceeds_uninvoiced');
 
 // ---- Review-link opens --------------------------------------------------------------------
 const pending = await call('/api/scopes', {method: 'POST', cookie, body: {...scope, title: 'Opens fixture ' + randomUUID().slice(0, 8)}});

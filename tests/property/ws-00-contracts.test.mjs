@@ -133,9 +133,12 @@ test('notify.ts logs the event only and sends nothing; mode.ts is always freelan
 
 test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  for (const f of O.fragments) { assert.deepEqual(f.paths, {}); assert.deepEqual(f.schemas, {}); }
+  // changed by WS-03: workstreams now fill their own fragment (WS-03's documents the invoicing routes); each is still a {paths, schemas} object.
+  for (const f of O.fragments) { assert.equal(typeof f.paths, 'object'); assert.equal(typeof f.schemas, 'object'); }
   const base = {'/b': 1, '/a': 2};
-  assert.equal(JSON.stringify(O.mergeFragments(base, f => f.paths)), JSON.stringify(base));
+  // changed by WS-03: with filled fragments the base keys still come first, in their order.
+  assert.deepEqual(Object.keys(O.mergeFragments(base, f => f.paths)).slice(0, 2), ['/b', '/a']);
+  assert.equal(JSON.stringify(O.mergeFragments(base, f => f.paths, [])), JSON.stringify(base));
   assert.deepEqual(O.mergeFragments(base, f => f.paths, [{paths: {'/c': 3}, schemas: {}}]), {'/b': 1, '/a': 2, '/c': 3});
   assert.throws(() => O.mergeFragments(base, f => f.paths, [{paths: {'/a': 3}, schemas: {}}]), /redefines \/a/);
 });
@@ -147,7 +150,9 @@ test('slot placeholders: one file per slot, each names its owner and renders nul
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);
-    assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
+    // changed by WS-03: a slot its owner has implemented (WS-03: tds-field, msmed-terms) no longer renders null; placeholders still must.
+    if (/Phase 0 placeholder/.test(src)) assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
+    else assert.match(src, /^export default function \w+\(/m, s);
   }
 });
 
