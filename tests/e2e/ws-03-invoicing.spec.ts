@@ -60,7 +60,10 @@ test('ws-03: cap, TDS, change-order tax and MSMED interest in the invoice panel'
   const co = await api(rq, 'POST', `/api/scopes/${project_id}/ledger`, {kind: 'change_order', baseline_version: 1, payload: {title: 'Odd paisa', fee_delta: 7500.50}});
   await api(rq, 'POST', `/api/review/${token}/change-order`, {seq: co.seq, decision: 'approved', signer: 'Meera', comment: ''});
   const inv = await api(rq, 'GET', `/api/scopes/${project_id}/invoices`);
-  expect(inv.change_orders.find((c: {seq: number}) => c.seq === co.seq).display).toBe('+₹7,500.50 + GST ₹1,350.09 = ₹8,850.59');
+  // This seller is GST-registered in Tamil Nadu and the place of supply is the same state, so the CO is
+  // taxed per head (CGST + SGST): ₹1,350.10 / ₹8,850.60, plan §9.3. The single-head figure
+  // (+ GST ₹1,350.09 = ₹8,850.59) is checked in tests/ws-03-invoicing.mjs and the property suite.
+  expect(inv.change_orders.find((c: {seq: number}) => c.seq === co.seq).display).toBe('+₹7,500.50 + CGST + SGST ₹1,350.10 = ₹8,850.60');
 
   // SF-07: micro enterprise, accepted 40 days ago with 15 days to pay: the open invoice is overdue under MSMED.
   await api(rq, 'PUT', `/api/scopes/${project_id}/invoices/terms`, {msme_profile: {udyam_number: 'UDYAM-TN-02-0012345', registered_on: '2026-01-01', category: 'micro'}});
