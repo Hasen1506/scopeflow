@@ -3,6 +3,7 @@
 // deterministic, so every hash and signature is stable. A diff here means the canonical
 // form, the hash inputs or the signing changed, and every receipt already handed to a
 // client would stop verifying. Regenerate deliberately with UPDATE_GOLDEN=1.
+// @covers C1 (WS-02: signing fail-closed and the new wording change no canonical form; this golden stays byte-identical)
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, writeFileSync, existsSync} from 'node:fs';

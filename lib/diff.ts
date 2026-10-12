@@ -82,3 +82,20 @@ export function describeChange(c: ScopeChange, currency: string): string {
     case 'field': return `${c.label}: ${c.before || 'not specified'} → ${c.after || 'not specified'}`;
   }
 }
+
+/** One earlier version as the diff-base rule sees it. `sent`: handed to the client (sent, shared, opened). */
+export type VersionHistory = {version: number; status: string; revoked: boolean; sent: boolean};
+
+/**
+ * H2/M29: which earlier version a token holder's page compares against. Only versions the client
+ * could already see qualify: sent (or opened) or decided, and never revoked; an unsent draft never
+ * does, so its content cannot leak. Default: the last version this client approved, else the last
+ * one sent. `compare` picks another qualifying version ("compare with v…"); anything else is ignored.
+ */
+export function diffBaseVersion(history: VersionHistory[], current: number, compare: number | null = null): number | null {
+  const eligible = history.filter(h => h.version < current && !h.revoked && (h.sent || h.status !== 'pending'));
+  if (compare !== null) return eligible.some(h => h.version === compare) ? compare : null;
+  const approved = eligible.filter(h => h.status === 'approved').map(h => h.version);
+  if (approved.length) return Math.max(...approved);
+  return eligible.length ? Math.max(...eligible.map(h => h.version)) : null;
+}

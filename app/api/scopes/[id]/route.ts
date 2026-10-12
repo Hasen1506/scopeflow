@@ -12,16 +12,28 @@ import { inboundAddress, inboundToken } from '@/lib/inbound';
 import { getUser } from '@/lib/auth/server';
 import { lockKey } from '@/db/client';
 import { db,json,ownerAuth,body,safeOrigin,allowWrite,allowRead,parseRow,secret,failure,hash } from '@/lib/server';
+import { requireFreshSession } from '@/lib/identity';
+import { contactLocked, freezeRoles, invitesFor } from '@/lib/review-link';
+import { otpSpendToday } from '@/lib/otp-server';
+import { maskAddress } from '@/lib/evidence';
+/** WS-08: a tombstoned (closed-account) project is read-only; its trigger error becomes a 409. */
+const closed=(e:unknown)=>String(e).includes('closed this account')?json({error:'This account is closed; the project is read-only.',code:'account_closed'},409):null;
 type Ctx={params:Promise<{id:string}>};
 const PROJECT_COLUMNS='archived,client_email,timezone,require_otp,link_expiry_days,link_issued,client_phone,otp_channel,cosigners,client_gstin,client_state,client_address,retention_days,legal_hold,legal_hold_reason,legal_hold_set,inbound_token';
 type ProjectRow={archived:string|null;client_email:string|null;timezone:string|null;require_otp:boolean;link_expiry_days:number|null;link_issued:string|null;client_phone:string|null;otp_channel:string|null;cosigners:string|null;client_gstin:string|null;client_state:string|null;client_address:string|null;retention_days:number|null;legal_hold:boolean;legal_hold_reason:string|null;legal_hold_set:string|null;inbound_token:string|null};
 /** Owner-facing project settings. */
 function projectSettings(p:ProjectRow){return {archived:p.archived??null,client_email:p.client_email??'',timezone:p.timezone??null,require_otp:!!p.require_otp,link_expiry_days:p.link_expiry_days??null,link_issued:p.link_issued??null,client_phone:p.client_phone??'',otp_channel:(p.otp_channel??'email') as OtpChannel,cosigners:parseCosigners(p.cosigners),client_gstin:p.client_gstin??'',client_state:p.client_state??'',client_address:p.client_address??'',retention_days:p.retention_days??null,legal_hold:!!p.legal_hold,legal_hold_reason:p.legal_hold_reason??'',legal_hold_set:p.legal_hold_set??null,inbound_address:inboundAddress(p.inbound_token)};}
 const LINK_HINT='Review links are shown only in the signed-in Scopeflow workspace, so an API token or connector can never act as the client.';
-export async function GET(request:Request,ctx:Ctx){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const {id}=await ctx.params;const p=await db().prepare(`SELECT latest,${PROJECT_COLUMNS} FROM projects WHERE id=? AND owner=?`).bind(id,auth.user).first<ProjectRow&{latest:number}>();if(!p)return json({error:'Project not found.'},404);const r=await db().prepare('SELECT * FROM versions WHERE project_id=? ORDER BY version DESC').bind(id).all();const latest=r.results[0] as {status:string;created:string}|undefined;const cosigns=await db().prepare('SELECT cosigner_id,role,signer,signed,signature FROM version_cosigns WHERE project_id=? AND version=? ORDER BY signed').bind(id,p.latest).all();return json({versions:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'})),project:{...projectSettings(p),link_expires:latest?linkExpires({...latest,link_issued:p.link_issued,link_expiry_days:p.link_expiry_days}):null},cosigns:cosigns.results});}catch(e){return failure(e);}}
+export async function GET(request:Request,ctx:Ctx){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const {id}=await ctx.params;const p=await db().prepare(`SELECT latest,contact_since,${PROJECT_COLUMNS} FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL`).bind(id,auth.user).first<ProjectRow&{latest:number;contact_since:string|null}>();if(!p)return json({error:'Project not found.'},404);const r=await db().prepare('SELECT * FROM versions WHERE project_id=? ORDER BY version DESC').bind(id).all();const latest=r.results[0] as {status:string;created:string}|undefined;const cosigns=await db().prepare('SELECT cosigner_id,role,signer,signed,signature FROM version_cosigns WHERE project_id=? AND version=? ORDER BY signed').bind(id,p.latest).all();
+ // H5: expiry is per version. C5/M17/H1: contact lock, frozen roles and each role's own link (browser sessions only, like review links).
+ const link=await db().prepare('SELECT link_issued,first_sent,sent_via FROM scopeflow.version_links WHERE project_id=? AND version=?').bind(id,p.latest).first<{link_issued:string|null;first_sent:string|null;sent_via:string|null}>();
+ const frozen=await freezeRoles(id,p.latest);const invites=auth.via==='session'?await invitesFor(id,p.latest):[];
+ const history=(await db().prepare('SELECT field,from_masked,to_masked,reason,at,signature FROM scopeflow.contact_history WHERE project_id=? ORDER BY at').bind(id).all()).results;
+ const ownerSession=r.results.filter(v=>{try{return JSON.parse(String((v as {decision_context?:string|null}).decision_context??'{}')).owner_session===true;}catch{return false;}}).map(v=>(v as {version:number}).version);
+ return json({versions:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'})),project:{...projectSettings(p),link_issued:link?.link_issued??null,link_expires:latest?linkExpires({...latest,link_issued:link?.link_issued??null,link_expiry_days:p.link_expiry_days}):null,contact_locked:await contactLocked(id),contact_since:p.contact_since??null,first_sent:link?.first_sent??null,roles_frozen:frozen!==null,owner_session_versions:ownerSession,otp_spend_today:await otpSpendToday(auth.user)},cosigns:cosigns.results,cosign_links:invites.map(i=>({cosigner_id:i.cosigner_id,role:i.role,name:i.name,to:i.email?maskAddress('email',i.email):i.phone?maskAddress('sms',i.phone):null,cosign_path:'/cosign/'+i.token})),contact_history:history});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);const user=auth.user,session=auth.via==='session';const {id}=await ctx.params;
- const p=await db().prepare('SELECT latest,archived FROM projects WHERE id=? AND owner=?').bind(id,user).first<{latest:number;archived:string|null}>();if(!p)return json({error:'Project not found.'},404);
+ const p=await db().prepare('SELECT latest,archived FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL').bind(id,user).first<{latest:number;archived:string|null}>();if(!p)return json({error:'Project not found.'},404);
  if(p.archived)return json({error:'This project is archived. Restore it before saving a new version.',code:'archived'},409);
  if(!await allowWrite('owner:'+user))return json({error:'Write limit reached. Try again in a minute.'},429);
  let raw;try{raw=await body(request);}catch{return json({error:'Provide valid JSON under 24 KB.'},400);}
@@ -41,7 +53,7 @@ export async function POST(request:Request,ctx:Ctx){try{
  if(!result[0].meta.changes||!result[1].meta.changes)return json({error:'Another revision was saved. Refresh before retrying.'},409);
  const scope={id:vid,project_id:id,version,revoked:0,content:input.data,status:'pending',created:now,signer:null,comment:null,decided:null,sealed:false};
  return json({scope:session?{...scope,token}:scope,review_path:session?`/review/${token}`:null,...(session?{}:{review_link:LINK_HINT})},201);
-}catch(e){return failure(e);}}
+}catch(e){return closed(e)??failure(e);}}
 
 // Project metadata the owner can change without a new version: archive state and the
 // client email used by "Send for signature". Nothing here touches signed content.
@@ -57,8 +69,16 @@ export async function PATCH(request:Request,ctx:Ctx){try{
  // PR B: requiring a code needs somewhere to send it (the client email, or the client phone for
  // SMS/WhatsApp) and a way to deliver it on that channel.
  const d=input.data;
- const current=await db().prepare('SELECT client_email,client_phone,otp_channel,require_otp,legal_hold_set,inbound_token FROM projects WHERE id=? AND owner=?').bind(id,auth.user).first<{client_email:string|null;client_phone:string|null;otp_channel:string|null;require_otp:boolean;legal_hold_set:string|null;inbound_token:string|null}>();
+ const current=await db().prepare('SELECT latest,client_email,client_phone,otp_channel,require_otp,legal_hold_set,inbound_token FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL').bind(id,auth.user).first<{latest:number;client_email:string|null;client_phone:string|null;otp_channel:string|null;require_otp:boolean;legal_hold_set:string|null;inbound_token:string|null}>();
  if(!current)return json({error:'Project not found.'},404);
+ // M16: who confirms decisions (client contact, identity check, countersigners) is changed only from a
+ // freshly signed-in browser session; API tokens, OAuth and MCP get 403 session_required.
+ if(d.client_email!==undefined||d.client_phone!==undefined||d.require_otp!==undefined||d.otp_channel!==undefined||d.cosigners!==undefined){const refused=await requireFreshSession(auth);if(refused)return refused;}
+ // C5: once any version was sent, the client contact changes only through POST /contact-change (old address notified, signed record).
+ const changesEmail=d.client_email!==undefined&&(d.client_email||null)!==(current.client_email??null),changesPhone=d.client_phone!==undefined&&(d.client_phone||null)!==(current.client_phone??null);
+ if((changesEmail||changesPhone)&&await contactLocked(id))return json({error:'The client contact is locked because this project was already sent. Use “Change client contact”: the old address is told about the change and it is recorded.',code:'contact_locked'},409);
+ // M17: countersigning roles are frozen into the version at first send; change them with a new version.
+ if(d.cosigners!==undefined&&await freezeRoles(id,current.latest)!==null)return json({error:'Countersigning roles were fixed when this version was sent. Save a new version to change them.',code:'roles_frozen'},409);
  const email=d.client_email!==undefined?d.client_email:(current.client_email??'');
  const phone=d.client_phone!==undefined?d.client_phone:(current.client_phone??'');
  const channel=(d.otp_channel??current.otp_channel??'email') as OtpChannel;
@@ -69,11 +89,11 @@ export async function PATCH(request:Request,ctx:Ctx){try{
  const now=new Date().toISOString();
  const sets:string[]=[],values:(string|number|boolean|null)[]=[];
  if(d.archived!==undefined){sets.push('archived=?');values.push(d.archived?now:null);}
- if(d.client_email!==undefined){sets.push('client_email=?');values.push(d.client_email||null);}
+ if(d.client_email!==undefined){sets.push('client_email=?');values.push(d.client_email||null);if(changesEmail){sets.push('contact_since=?');values.push(d.client_email?now:null);}}
  if(d.timezone!==undefined){sets.push('timezone=?');values.push(d.timezone||null);}
  if(d.require_otp!==undefined){sets.push('require_otp=?');values.push(d.require_otp);}
  if(d.link_expiry_days!==undefined){sets.push('link_expiry_days=?');values.push(d.link_expiry_days);}
- if(d.client_phone!==undefined){sets.push('client_phone=?');values.push(d.client_phone||null);}
+ if(d.client_phone!==undefined){sets.push('client_phone=?');values.push(d.client_phone||null);if(changesPhone&&!changesEmail){sets.push('contact_since=?');values.push(d.client_phone?now:null);}}
  if(d.otp_channel!==undefined){sets.push('otp_channel=?');values.push(d.otp_channel);}
  for(const k of ['client_gstin','client_state','client_address'] as const)if(d[k]!==undefined){sets.push(`${k}=?`);values.push(d[k]||null);}
  if(d.cosigners!==undefined){sets.push('cosigners=?');values.push(d.cosigners.length?JSON.stringify(d.cosigners):null);}
@@ -86,7 +106,7 @@ export async function PATCH(request:Request,ctx:Ctx){try{
  const row=await (sets.length?db().prepare(`UPDATE projects SET ${sets.join(',')} WHERE id=? AND owner=? RETURNING ${PROJECT_COLUMNS}`).bind(...values,id,auth.user):db().prepare(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE id=? AND owner=?`).bind(id,auth.user)).first<ProjectRow>();
  if(!row)return json({error:'Project not found.'},404);
  return json({project:{id,...projectSettings(row)}});
-}catch(e){return failure(e);}}
+}catch(e){return closed(e)??failure(e);}}
 
 // Deleting one project. Signed client evidence must stay consistent with the SF-04
 // triggers, so only projects with no client decision and no ledger entry can be deleted
