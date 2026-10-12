@@ -12,7 +12,8 @@ import {requestTimestamp, tsaConfig, TsaError} from '@/lib/tsa';
 
 export const headsMessage = (date: string, digest: string) => `scopeflow-heads-v1:${date}:${digest}`;
 export const projectKey = (projectId: string) => createHash('sha256').update('scopeflow-project:' + projectId).digest('hex').slice(0, 32);
-export const isDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
+// An impossible date (2026-13-01) is Invalid Date, whose toISOString() throws, so check the time first.
+export const isDate = (value: string) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const t = Date.parse(value + 'T00:00:00Z'); return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === value; };
 /** A date is final (publishable) once it has ended in UTC. */
 export const isFinal = (date: string, now = Date.now()) => Date.parse(date + 'T00:00:00Z') + 86400_000 <= now;
 
