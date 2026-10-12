@@ -4,7 +4,7 @@ import {mailDevMode, suppress} from '@/lib/mail-outbox';
 
 // Local dev mode only (SCOPEFLOW_OTP_DEV=1 on a localhost APP_URL): fixed test secrets, so the suites
 // can exercise the webhooks without configuring a provider. Never used on a deployed server.
-export const DEV_WEBHOOK_SECRET = 'scopeflow-dev-mail-webhook-secret';
+const DEV_WEBHOOK_SECRET = 'scopeflow-dev-mail-webhook-secret';
 const DEV_RESEND_SECRET = 'whsec_' + Buffer.from('scopeflow-dev-resend-webhook-secret').toString('base64');
 export const runtime = 'nodejs';
 type Ctx = {params: Promise<{provider: string}>};
