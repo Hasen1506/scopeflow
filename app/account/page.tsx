@@ -10,7 +10,7 @@ import {checkGstin, looksLikeGstin} from '@/lib/gstin';
 import {isValidVpa, upiLink, VPA_MESSAGE} from '@/lib/vpa';
 import {currencyList} from '@/lib/currency';
 import {UDYAM_CATEGORIES, msmedEligible, type Profile} from '@/lib/profile';
-import {MODES, MODE_BLURB, MODE_LABEL, modeDefaults, type Mode} from '@/lib/mode';
+import {MODES, MODE_BLURB, MODE_LABEL, modeDefaults, type Mode} from '@/lib/mode-core';
 import {BrandSettings} from '@/app/brand-settings';
 import TimezoneSelect from '@/app/components/slots/timezone-select';
 import PaymentSettings from '@/app/components/slots/payment-settings';
