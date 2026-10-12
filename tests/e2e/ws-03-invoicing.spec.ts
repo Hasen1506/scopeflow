@@ -51,7 +51,7 @@ test('ws-03: cap, TDS, change-order tax and MSMED interest in the invoice panel'
 
   // An invoice of ₹50,000 (taxable value) with TDS 2% technical, issued from the API; the panel shows it.
   await api(rq, 'POST', `/api/scopes/${project_id}/invoices`, {amount: 50000, tds: {section_2025: '393(1) Sl.6(iii)-technical', rate_pct: 2}});
-  await page.reload();
+  await openProject(page, title); // a reload returns to the project list
   await expect(left).toContainText('Up to ₹59,000.00 still to invoice');
   await expect(page.getByTestId('tds-line')).toContainText('TDS expected ₹1,000.00');
   await expect(page.getByTestId('tds-line')).toContainText('net receivable ₹58,000.00');
@@ -65,7 +65,7 @@ test('ws-03: cap, TDS, change-order tax and MSMED interest in the invoice panel'
   // SF-07: micro enterprise, accepted 40 days ago with 15 days to pay: the open invoice is overdue under MSMED.
   await api(rq, 'PUT', `/api/scopes/${project_id}/invoices/terms`, {msme_profile: {udyam_number: 'UDYAM-TN-02-0012345', registered_on: '2026-01-01', category: 'micro'}});
   await api(rq, 'POST', `/api/scopes/${project_id}/acceptance`, {delivered_on: daysAgo(41), accepted_on: daysAgo(40), evidence: 'Client email'});
-  await page.reload();
+  await openProject(page, title); // a reload returns to the project list
   await expect(page.getByTestId('msmed-interest').first()).toContainText(/Interest under MSMED s\.16: ₹[\d,]+\.\d\d \(estimate — confirm with your CA\)/);
 });
 
