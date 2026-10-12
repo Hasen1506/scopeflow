@@ -287,8 +287,9 @@ const b = await project(cookie, {approved: false, settings: {client_email: clien
 // @covers L11 M11
 {
   const aiCookie = await signIn(base, `ws06-ai-${tag}@example.test`);
-  const profile = (await call('/api/profile', {cookie: aiCookie})).data.profile;
-  eq((await call('/api/profile', {method: 'PUT', cookie: aiCookie, body: {...profile, default_currency: 'INR'}})).status, 200);
+  // The owner's default currency is INR (business profile).
+  const mine = await project(aiCookie, {approved: false});
+  sql(`INSERT INTO scopeflow.business_profiles (owner,default_currency,updated) VALUES (${esc(ownerOf(mine.project_id))},'INR',${esc(new Date().toISOString())}) ON CONFLICT (owner) DO UPDATE SET default_currency='INR'`);
   const before = log.filter(l => l.kind === 'ai').length;
   const r = await call('/api/draft', {method: 'POST', cookie: aiCookie, body: {brief: 'A five page website for a dental clinic in Chennai with an online booking form', currency: 'USD'}});
   eq(r.status, 200, JSON.stringify(r.data));
