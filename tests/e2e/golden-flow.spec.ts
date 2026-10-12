@@ -278,9 +278,12 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await page.getByRole('dialog').getByLabel('Type DELETE to confirm').fill('DELETE');
   await page.getByRole('dialog').getByRole('button', {name: 'Permanently delete my data'}).click();
   await expect(page.getByText('Your Scopeflow data has been deleted.')).toBeVisible();
-  expect((await cpage.request.get('/api' + reviewPath)).status()).toBe(404);
+  // changed by WS-08 (H10): the client's decided record outlives the creator's account, read-only.
+  expect((await cpage.request.get('/api' + reviewPath)).status()).toBe(200);
+  const closed = await (await cpage.request.get('/api/account/notice/' + reviewPath.split('/').pop())).json();
+  expect(closed.closed?.message).toContain('The creator closed their ScopeFlow account');
   await cpage.reload();
-  await expect(cpage.locator('.error[role=alert]')).toContainText('This review link was not found.');
+  await expect(cpage.locator('.error[role=alert]')).toHaveCount(0);
 
   await owner.context.close();
   await client.context.close();

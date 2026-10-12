@@ -1,0 +1,10 @@
+.wrap { position: relative; }
+.list {
+  position: absolute; z-index: 20; left: 0; right: 0; margin: 4px 0 0; padding: 4px 0; list-style: none;
+  max-height: 16rem; overflow-y: auto; background: var(--card); color: var(--card-foreground);
+  border: 1px solid var(--border); border-radius: var(--btn-radius);
+}
+.option { padding: 6px 10px; cursor: pointer; }
+.option[aria-selected='true'], .option:hover { background: var(--accent-soft); }
+.group { padding: 4px 10px; font-size: var(--fs-1); color: var(--color-muted-foreground); }
+.hint { display: block; margin-top: 4px; font-size: var(--fs-2); color: var(--color-muted-foreground); }

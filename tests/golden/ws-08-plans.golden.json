@@ -1,0 +1,114 @@
+{
+ "INR": [
+  {
+   "id": "free",
+   "name": "Free",
+   "blurb": "For your first client scope.",
+   "purchasable": false,
+   "seats": 1,
+   "price": "₹0",
+   "per": null,
+   "yearly": null,
+   "lines": [
+    "1 active project (archived ones don’t count)",
+    "25 versions per project",
+    "1 seat",
+    "Free client reviewing",
+    "Clear scope, revisions and decision history",
+    "Print or export your project"
+   ]
+  },
+  {
+   "id": "pro",
+   "name": "Pro",
+   "blurb": "For a working freelancer or studio.",
+   "purchasable": true,
+   "seats": 1,
+   "price": "₹499",
+   "per": "month",
+   "yearly": "or ₹4,499 a year",
+   "lines": [
+    "1,000 active projects (archived ones don’t count)",
+    "200 versions per project",
+    "1 seat",
+    "Invoices, GST tax invoices, statements and reminders",
+    "Change orders, rate card and retainers",
+    "API and ChatGPT connector access"
+   ]
+  },
+  {
+   "id": "agency",
+   "name": "Agency",
+   "blurb": "For a team of three with roles.",
+   "purchasable": true,
+   "seats": 3,
+   "price": "₹1,499",
+   "per": "month",
+   "yearly": "or ₹13,499 a year",
+   "lines": [
+    "5,000 active projects (archived ones don’t count)",
+    "200 versions per project",
+    "3 seats",
+    "Everything in Pro",
+    "3 seats with roles (owner, manager, member, finance)",
+    "Shared rate card and team activity"
+   ]
+  }
+ ],
+ "USD": [
+  {
+   "id": "free",
+   "name": "Free",
+   "blurb": "For your first client scope.",
+   "purchasable": false,
+   "seats": 1,
+   "price": "$0",
+   "per": null,
+   "yearly": null,
+   "lines": [
+    "1 active project (archived ones don’t count)",
+    "25 versions per project",
+    "1 seat",
+    "Free client reviewing",
+    "Clear scope, revisions and decision history",
+    "Print or export your project"
+   ]
+  },
+  {
+   "id": "pro",
+   "name": "Pro",
+   "blurb": "For a working freelancer or studio.",
+   "purchasable": true,
+   "seats": 1,
+   "price": "$6",
+   "per": "month",
+   "yearly": "or $54 a year",
+   "lines": [
+    "1,000 active projects (archived ones don’t count)",
+    "200 versions per project",
+    "1 seat",
+    "Invoices, GST tax invoices, statements and reminders",
+    "Change orders, rate card and retainers",
+    "API and ChatGPT connector access"
+   ]
+  },
+  {
+   "id": "agency",
+   "name": "Agency",
+   "blurb": "For a team of three with roles.",
+   "purchasable": true,
+   "seats": 3,
+   "price": "$18",
+   "per": "month",
+   "yearly": "or $162 a year",
+   "lines": [
+    "5,000 active projects (archived ones don’t count)",
+    "200 versions per project",
+    "3 seats",
+    "Everything in Pro",
+    "3 seats with roles (owner, manager, member, finance)",
+    "Shared rate card and team activity"
+   ]
+  }
+ ]
+}

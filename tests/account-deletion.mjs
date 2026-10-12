@@ -40,24 +40,36 @@ status(await call('/api/account','DELETE',{confirmation:'delete'},true,origin),4
 status(await call('/api/account','DELETE',{confirmation:'DELETE',owner:otherOwner},true,origin),400);
 status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,{...origin,'Content-Type':'text/plain'}),415);
 status(await call('/api/scopes/'+project),200);
-// Inject a failure late in the transaction and prove earlier deletions roll back.
-sql(`CREATE FUNCTION scopeflow.deletion_qa_abort() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.id=${quote(project)} THEN RAISE EXCEPTION 'fictional test failure'; END IF; RETURN OLD; END $$; CREATE TRIGGER deletion_qa_abort BEFORE DELETE ON projects FOR EACH ROW EXECUTE FUNCTION scopeflow.deletion_qa_abort();`);
-try{status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),503);status(await call('/api/review/'+token,'GET',undefined,false),200);status(await call('/api/scopes','GET',undefined,false,ownBearer),200);eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id=${quote('review:'+version)}`)[0].results[0].n,1);eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(project)}`)[0].results[0].n,1);}finally{sql('DROP TRIGGER deletion_qa_abort ON projects; DROP FUNCTION scopeflow.deletion_qa_abort();');}
-status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),200);
-eq((await call('/api/account')).value,{projects:0,versions:0,ledger_entries:0});
-eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(project)}`)[0].results[0].n,0);
-eq((await call('/api/scopes')).value.scopes,[]);
-status(await call('/api/scopes/'+project),404);
-status(await call('/api/review/'+token,'GET',undefined,false),404);
-status(await call('/api/review/'+token,'POST',await ack(base,token,{decision:'approved',signer:'Fictional Reviewer',comment:'',version:1}),false),404);
+// changed by WS-08 (H10/LT-22): deletion keeps the client's record. The approved project (with a
+// ledger entry) is tombstoned and stays readable through its review link, read-only; the owner's own
+// data (API tokens, rate limits, settings) goes. The closure runs in one SECURITY DEFINER call.
+// Inject a failure late in the transaction (the tombstone update) and prove earlier deletions roll back.
+sql(`CREATE FUNCTION scopeflow.deletion_qa_abort() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.id=${quote(project)} THEN RAISE EXCEPTION 'fictional test failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER deletion_qa_abort BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION scopeflow.deletion_qa_abort();`);
+try{status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),503);status(await call('/api/review/'+token,'GET',undefined,false),200);status(await call('/api/scopes','GET',undefined,false,ownBearer),200);eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id=${quote('review:'+version)}`)[0].results[0].n,1);eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(project)}`)[0].results[0].n,1);eq(sql(`SELECT COUNT(*) AS n FROM api_keys WHERE owner=${quote(ownOwner)}`)[0].results[0].n,1);eq(sql(`SELECT owner_deleted FROM projects WHERE id=${quote(project)}`)[0].results[0].owner_deleted,null);}finally{sql('DROP TRIGGER deletion_qa_abort ON projects; DROP FUNCTION scopeflow.deletion_qa_abort();');}
+const closed=await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin);status(closed,200);
+eq([closed.value.deleted,closed.value.projects_kept],[true,1]);
+eq(new Date(closed.value.kept_until).getUTCFullYear(),new Date().getUTCFullYear()+8);
+assert.match(closed.value.message,closed.value.login_deleted?/Your login was deleted too/:/Your login stays active/);passed++;
+eq((await call('/api/account')).value?.projects??0,0);
+eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(project)}`)[0].results[0].n,1);
+eq(sql(`SELECT (owner_deleted IS NOT NULL) AS closed, (retain_until IS NOT NULL) AS kept FROM projects WHERE id=${quote(project)}`)[0].results[0],{closed:true,kept:true});
+// The client's link still opens the decided record, read-only: the database refuses new records on it.
+status(await call('/api/review/'+token,'GET',undefined,false),200);
+assert.throws(()=>sql(`INSERT INTO ledger_entries (id,project_id,seq,kind,baseline_version,actor,payload,ref,prev_hash,hash,created) VALUES (${quote(randomUUID())},${quote(project)},9,'goodwill',1,'owner','{}',NULL,'0','0','2026-10-01')`),/closed this account/);passed++;
+const notice=await call('/api/account/notice/'+token,'GET',undefined,false);status(notice,200);
+assert.match(notice.value.closed.message,/The creator closed their ScopeFlow account; this record is kept for you until/);passed++;
 status(await call('/api/scopes','GET',undefined,false,ownBearer),401);
-eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id=${quote('review:'+version)}`)[0].results[0].n,0);
 eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id IN (${quote('owner:'+ownOwner)},${quote('key:'+ownOwner)})`)[0].results[0].n,0);
 eq(sql(`SELECT COUNT(*) AS n FROM api_keys WHERE owner=${quote(ownOwner)}`)[0].results[0].n,0);
 status(await call('/api/scopes/'+otherProject,'GET',undefined,false,otherBearer),200);
 status(await call('/api/review/'+otherReview,'GET',undefined,false),200);
 eq(sql(`SELECT COUNT(*) AS n FROM ledger_entries WHERE project_id=${quote(otherProject)}`)[0].results[0].n,1);
 eq(sql(`SELECT COUNT(*) AS n FROM rate_limits WHERE id IN (${quote('owner:'+otherOwner)},${quote('key:'+otherOwner)},${quote('review:'+otherVersion)})`)[0].results[0].n,3);
-status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),200);
-status(await call('/api/scopes','POST',content),201);
-console.log(JSON.stringify({passed,selfServiceDeletion:true,confirmationAndBrowserAuth:true,transactionRollback:true,otherAccountPreserved:true,linksAndTokenInvalidated:true,ledgerDeleted:true,freshStart:true}));
+if(closed.value.login_deleted){status(await call('/api/scopes','GET'),401);}
+else{
+ // LT-22: the sign-in service kept the login (and the reply said so): the account starts fresh, without the closed projects.
+ eq((await call('/api/scopes')).value.scopes,[]);
+ status(await call('/api/account','DELETE',{confirmation:'DELETE'},true,origin),200);
+ status(await call('/api/scopes','POST',content),201);
+}
+console.log(JSON.stringify({passed,selfServiceDeletion:true,confirmationAndBrowserAuth:true,transactionRollback:true,otherAccountPreserved:true,clientRecordKept:true,tokensInvalidated:true,loginDeleted:!!closed.value.login_deleted}));
