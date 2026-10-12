@@ -91,7 +91,7 @@ let project, reviewToken;
   assert.throws(() => localSql(`UPDATE versions SET content=replace(content,'500','5000') WHERE id=${quote(versionId)}`), /immutable/); passed++;
   assert.throws(() => localSql(`UPDATE versions SET signer='Someone else' WHERE id=${quote(versionId)}`), /immutable/); passed++;
   assert.throws(() => localSql(`DELETE FROM versions WHERE id=${quote(versionId)}`), /immutable/); passed++;
-  st(await call(`/api/scopes/${project}/ledger`, {method: 'POST', cookie, headers: {Origin: base}, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-20'}}}), 201);
+  st(await call(`/api/scopes/${project}/ledger`, {method: 'POST', cookie, headers: {Origin: base}, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: new Date().toISOString().slice(0, 10)}}}), 201); // changed by WS-05: M8 bounds the date by today and the approval date
   assert.throws(() => localSql(`UPDATE ledger_entries SET payload='{}' WHERE project_id=${quote(project)}`), /append-only/); passed++;
   assert.throws(() => localSql(`DELETE FROM ledger_entries WHERE project_id=${quote(project)}`), /append-only/); passed++;
   assert.throws(() => localSql(`TRUNCATE ledger_entries`), /cannot be truncated/); passed++;
