@@ -125,7 +125,7 @@ test('ws-04: Stripe on the freelancer\'s own key; returning in a NEW tab lands o
   const tab = await fresh.newPage();
   await tab.goto(`/payment-return?status=success&ref=${ref}&session_id=${sessionId}`);
   await tab.waitForURL(new RegExp(`/review/${p.token}\\?payment=success$`));
-  await expect(tab.getByText(/Deposit received: .*300[.,]00/)).toBeVisible();
+  await expect(tab.getByText(/Deposit received: .*300[.,]00/).first()).toBeVisible();
   const ledger = await (await page.request.get(`/api/scopes/${p.project_id}/ledger`)).json();
   expect(ledger.entries.filter((e: {kind: string}) => e.kind === 'payment').map((e: {payload: {provider: string; amount: number}}) => [e.payload.provider, e.payload.amount])).toEqual([['stripe', 300]]);
   await fresh.close();

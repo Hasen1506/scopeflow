@@ -10,7 +10,8 @@ export async function startDoubles() {
   const log = [];
   const rz = {orders: new Map(), payments: new Map(), refunds: new Map(), idem: new Map(), onRefund: null};
   const st = {sessions: new Map(), idem: new Map(), refunds: new Map(), refundIdem: new Map()};
-  const send = (res, status, body) => { res.writeHead(status, {'Content-Type': 'application/json'}); res.end(JSON.stringify(body)); };
+  // The caller may be gone (a test kills the server mid-request): answering then is a no-op.
+  const send = (res, status, body) => { if (res.destroyed || res.writableEnded) return; try { res.writeHead(status, {'Content-Type': 'application/json'}); res.end(JSON.stringify(body)); } catch { /* client gone */ } };
   async function razorpay(req, res, path, body, auth) {
     if (auth === 'Basic ' + Buffer.from('rzp_test_badkey00:bad').toString('base64')) return send(res, 401, {error: {description: 'Authentication failed'}});
     if (req.method === 'GET' && path === '/v1/orders') return send(res, 200, {items: []});
@@ -78,6 +79,7 @@ export async function startDoubles() {
     return send(res, 404, {error: {message: 'Unrecognized request URL'}});
   }
   const server = createServer((req, res) => {
+    req.on('error', () => {}); res.on('error', () => {});
     const parts = [];
     req.on('data', c => parts.push(c));
     req.on('end', async () => {
