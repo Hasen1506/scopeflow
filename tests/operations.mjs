@@ -239,13 +239,22 @@ const payer = await fresh('stripe');
   const p = (await call('/api/profile', {cookie: payer})).data.profile;
   assert.equal((await call('/api/profile', {method: 'PUT', cookie: payer, body: {...p, business_name: 'Asha Design'}})).status, 200);
 }
-const webhook = (session, signature) => { const body = JSON.stringify({id: 'evt_' + randomUUID().slice(0, 12), type: 'checkout.session.completed', data: {object: session}}); return call('/api/payments/stripe/webhook', {method: 'POST', raw: body, headers: {'Stripe-Signature': signature ?? stripeSign(body)}}); };
+// changed by WS-04: client payments go to the freelancer's OWN Stripe account (C3); the operator's
+// STRIPE_SECRET_KEY is refused for client charges in production (`next start`). The freelancer
+// connects their key (the same CI double) and points their webhook at their account's URL.
+const stripeAccount = await call('/api/payment-accounts', {method: 'POST', cookie: payer, body: {kind: 'stripe_keys', secret_key: process.env.STRIPE_SECRET_KEY, webhook_secret: process.env.STRIPE_WEBHOOK_SECRET, currencies: ['EUR', 'GBP']}});
+eq(stripeAccount.status, 201);
+const stripeHook = new URL(stripeAccount.data.account.webhook_url).pathname;
+eq(stripeHook, `/api/payments/stripe/webhook/${stripeAccount.data.account.id}`);
+const webhook = (session, signature) => { const body = JSON.stringify({id: 'evt_' + randomUUID().slice(0, 12), type: 'checkout.session.completed', data: {object: session}}); return call(stripeHook, {method: 'POST', raw: body, headers: {'Stripe-Signature': signature ?? stripeSign(body)}}); };
 {
   const s = await newScope(payer, {deposit_pct: 30, fee: 1000});
   eq((await call(`/api/review/${s.token}/deposit`, {method: 'POST', body: {}})).data.code, 'not_approved');
   eq((await approve(s.token)).status, 200);
   const view = await call('/api/review/' + s.token);
-  eq([view.data.deposit.enabled, view.data.deposit.provider, view.data.ledger.online_payments], [true, 'stripe', true]);
+  // changed by WS-04: ledger.online_payments (review route, not WS-04's) still reads the operator-level
+  // status, which is off in production; the deposit view reads the freelancer's own route.
+  eq([view.data.deposit.enabled, view.data.deposit.provider], [true, 'stripe']);
   const start = await call(`/api/review/${s.token}/deposit`, {method: 'POST', body: {}});
   eq([start.status, start.data.provider, start.data.amount_minor, start.data.currency], [200, 'stripe', 30000, 'EUR']);
   ok(start.data.url.startsWith('https://checkout.stripe.test/c/cs_test_'), start.data.url);
@@ -258,7 +267,7 @@ const webhook = (session, signature) => { const body = JSON.stringify({id: 'evt_
   const paid = await stub(`/_pay/${sessionId}`, 'POST');
   eq((await webhook(paid, 't=1,v1=00')).status, 400);
   eq((await webhook({...paid, payment_status: 'unpaid'})).data, {ignored: 'event'});
-  eq((await webhook({...paid, amount_total: 1})).data, {ignored: 'amount_mismatch'});
+  // changed by WS-04: an amount mismatch is recorded as paid with an alert (M20), not ignored; see tests/ws-04-providers.mjs.
   const recorded = await webhook(paid);
   eq([recorded.status, recorded.data.recorded, recorded.data.ledger], [200, true, true]);
   eq((await webhook(paid)).data, {recorded: false, duplicate: true});

@@ -1,12 +1,14 @@
 import {createHmac, timingSafeEqual} from 'node:crypto';
 
-// Stripe Checkout for clients paying in currencies Razorpay is not set up for (or on servers that
-// use Stripe only). Off unless STRIPE_SECRET_KEY is set; the webhook needs STRIPE_WEBHOOK_SECRET.
-// Same rules as Razorpay: only the verified webhook (or the reconciliation job asking Stripe)
-// marks an order paid, the amount must match the stored order, and the payment is appended once
-// to the signed ledger. STRIPE_API_URL replaces https://api.stripe.com (test doubles).
-// Payouts to each freelancer (Stripe Connect) need a connected account per freelancer with its
-// own KYC, so money goes to the account that owns these keys.
+// Stripe Checkout, always on the FREELANCER's own Stripe account (C3): the key used is the one the
+// freelancer connected (a secret or restricted key, sealed at rest by lib/payment-accounts.ts), so
+// the charge settles to them. Stripe is invite-only for new Indian accounts and India platforms
+// cannot use destination charges, so this is for freelancers who already have Stripe (export
+// clients, non-INR). The operator's STRIPE_SECRET_KEY is refused for client charges in production;
+// it remains for ScopeFlow's own billing and for lookups/refunds of sessions it created earlier.
+// Only the verified webhook, the return page's server-side session lookup or the reconciliation
+// job marks a session paid, and each payment is appended once to the signed ledger.
+// STRIPE_API_URL replaces https://api.stripe.com (test doubles).
 
 type Env = Record<string, string | undefined>;
 export type StripeConfig = {secretKey: string};
@@ -16,7 +18,13 @@ export function stripeConfig(env: Env = process.env): StripeConfig | null {
 }
 export const stripeWebhookSecret = (env: Env = process.env) => env.STRIPE_WEBHOOK_SECRET?.trim() || null;
 export const stripeApi = (env: Env = process.env) => (env.STRIPE_API_URL?.trim() || 'https://api.stripe.com').replace(/\/$/, '');
-export class StripeError extends Error {}
+export class StripeError extends Error {
+  /** HTTP status Stripe answered with (0 when it could not be reached). */
+  readonly status: number;
+  constructor(message: string, status = 0) { super(message); this.status = status; }
+}
+/** Sessions stay payable for 30 minutes (Stripe's minimum), so an abandoned tab cannot pay a stale amount later (H8). */
+export const SESSION_TTL_SEC = 30 * 60;
 
 /** application/x-www-form-urlencoded with Stripe's bracket syntax for nested objects. Pure. */
 export function stripeForm(value: Record<string, unknown>, prefix = ''): string {
@@ -31,20 +39,21 @@ export function stripeForm(value: Record<string, unknown>, prefix = ''): string 
   return parts.filter(Boolean).join('&');
 }
 
-async function call<T>(config: StripeConfig, method: 'GET' | 'POST', path: string, form: Record<string, unknown> | null, {fetchImpl = fetch, env = process.env, idempotencyKey}: {fetchImpl?: typeof fetch; env?: Env; idempotencyKey?: string} = {}): Promise<T> {
+type Opts = {fetchImpl?: typeof fetch; env?: Env; idempotencyKey?: string};
+async function call<T>(config: StripeConfig, method: 'GET' | 'POST', path: string, form: Record<string, unknown> | null, {fetchImpl = fetch, env = process.env, idempotencyKey}: Opts = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetchImpl(stripeApi(env) + path, {method, headers: {Authorization: `Bearer ${config.secretKey}`, ...(form ? {'Content-Type': 'application/x-www-form-urlencoded'} : {}), ...(idempotencyKey ? {'Idempotency-Key': idempotencyKey} : {})}, body: form ? stripeForm(form) : undefined, signal: AbortSignal.timeout(15000)});
   } catch { throw new StripeError('Stripe could not be reached. Try again in a moment.'); }
   const data = await response.json().catch(() => ({})) as T & {error?: {message?: string}};
-  if (!response.ok) throw new StripeError(`Stripe refused the request${data.error?.message ? `: ${String(data.error.message).slice(0, 200)}` : '.'}`);
+  if (!response.ok) throw new StripeError(`Stripe refused the request${data.error?.message ? `: ${String(data.error.message).slice(0, 200)}` : '.'}`, response.status);
   return data;
 }
 
 /** A hosted Checkout Session for one fixed amount. Returns its id and the URL to send the client to. */
-export async function createCheckoutSession(config: StripeConfig, s: {amount_minor: number; currency: string; name: string; description: string; success_url: string; cancel_url: string; metadata: Record<string, string>; idempotencyKey?: string}, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
+export async function createCheckoutSession(config: StripeConfig, s: {amount_minor: number; currency: string; name: string; description: string; success_url: string; cancel_url: string; metadata: Record<string, string>; idempotencyKey?: string; expires_at?: number}, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
   const data = await call<{id?: string; url?: string}>(config, 'POST', '/v1/checkout/sessions', {
-    mode: 'payment', success_url: s.success_url, cancel_url: s.cancel_url, client_reference_id: s.metadata.project_id,
+    mode: 'payment', success_url: s.success_url, cancel_url: s.cancel_url, client_reference_id: s.metadata.project_id, expires_at: s.expires_at,
     line_items: [{quantity: 1, price_data: {currency: s.currency.toLowerCase(), unit_amount: s.amount_minor, product_data: {name: s.name.slice(0, 250), description: s.description.slice(0, 500)}}}],
     metadata: s.metadata, payment_intent_data: {metadata: s.metadata},
   }, {...opts, idempotencyKey: s.idempotencyKey});
@@ -75,14 +84,39 @@ export function stripePaidEvent(payload: unknown): StripePaid | null {
   return paidSession(e.data?.object ?? {}, typeof e.id === 'string' ? e.id : null);
 }
 
-/** Asks Stripe whether a Checkout Session was paid (the reconciliation job). */
+/** Asks Stripe whether a Checkout Session was paid (the reconciliation job, the return page). */
 export async function stripeSessionPaid(config: StripeConfig, sessionId: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
   return paidSession(await call<Session>(config, 'GET', `/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, null, opts), null);
+}
+/** A session's state: still payable (open), paid, or expired. Stripe is the source of truth for reuse (H8). */
+export async function stripeSessionState(config: StripeConfig, sessionId: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
+  const s = await call<Session & {status?: unknown; url?: unknown}>(config, 'GET', `/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, null, opts);
+  const paid = paidSession(s, null);
+  return {paid, state: paid ? 'paid' as const : s.status === 'expired' || s.status === 'complete' ? 'expired' as const : 'open' as const, url: typeof s.url === 'string' ? s.url : null};
+}
+/** Ends a session a newer open amount replaced, so it can no longer be paid (best effort). */
+export async function expireCheckoutSession(config: StripeConfig, sessionId: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
+  try { await call(config, 'POST', `/v1/checkout/sessions/${encodeURIComponent(sessionId)}/expire`, {}, opts); return true; } catch { return false; }
+}
+/** Refunds already made on a payment (reconcile looks for one carrying our request key). */
+export async function stripeRefunds(config: StripeConfig, paymentIntent: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
+  const d = await call<{data?: {id?: unknown; amount?: unknown; metadata?: {scopeflow_request?: unknown}}[]}>(config, 'GET', `/v1/refunds?payment_intent=${encodeURIComponent(paymentIntent)}&limit=100`, null, opts);
+  return (d.data ?? []).filter(r => typeof r.id === 'string').map(r => ({id: r.id as string, amount: Number(r.amount), request: typeof r.metadata?.scopeflow_request === 'string' ? r.metadata.scopeflow_request : null}));
+}
+/** Payouts to the connected account's bank (read-only view, newest first). */
+export async function stripePayouts(config: StripeConfig, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
+  const d = await call<{data?: Record<string, unknown>[]}>(config, 'GET', '/v1/payouts?limit=20', null, opts);
+  return (d.data ?? []).map(p => ({id: String(p.id ?? ''), amount_minor: Number(p.amount) || 0, currency: String(p.currency ?? '').toUpperCase(), status: String(p.status ?? ''), arrival_date: typeof p.arrival_date === 'number' ? new Date(p.arrival_date * 1000).toISOString() : null}));
+}
+/** Checks a key is accepted (GET /v1/balance): only a 401/403 refuses it; anything else is checked again on first use. */
+export async function checkStripeKey(config: StripeConfig, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
+  try { await call(config, 'GET', '/v1/balance', null, opts); }
+  catch (e) { if (e instanceof StripeError && (e.status === 401 || e.status === 403)) throw e; }
 }
 
 /** Refunds part or all of a payment. Returns the Stripe refund id. */
 export async function stripeRefund(config: StripeConfig, paymentIntent: string, amount_minor: number, idempotencyKey: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
-  const data = await call<{id?: string; status?: string}>(config, 'POST', '/v1/refunds', {payment_intent: paymentIntent, amount: amount_minor}, {...opts, idempotencyKey});
+  const data = await call<{id?: string; status?: string}>(config, 'POST', '/v1/refunds', {payment_intent: paymentIntent, amount: amount_minor, metadata: {scopeflow_request: idempotencyKey.slice(0, 250)}}, {...opts, idempotencyKey});
   if (typeof data.id !== 'string') throw new StripeError('Stripe returned no refund.');
   return {id: data.id, status: data.status ?? 'pending'};
 }
