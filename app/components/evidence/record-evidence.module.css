@@ -1,8 +1,8 @@
 /* WS-02: the evidence block of a decided record. Tokens only (app/globals.css belongs to WS-09). */
 .box { border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--paper); padding: 1rem; margin-top: 1rem; }
-.chip { display: inline-block; font-family: var(--font-ui); font-size: 0.8rem; letter-spacing: var(--label-track); border: 1px solid var(--rule); border-radius: var(--btn-radius); padding: 0.15rem 0.6rem; color: var(--ink); }
+.chip { display: inline-block; font-family: var(--font-ui); font-size: var(--fs-1); letter-spacing: var(--label-track); border: 1px solid var(--rule); border-radius: var(--btn-radius); padding: 0.15rem 0.6rem; color: var(--ink); }
 .ok { border-color: var(--ok); color: var(--ok); }
-.flag { color: var(--accent); font-weight: 600; margin: 0.5rem 0; }
-.fingerprint { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; word-break: break-all; color: var(--ink); }
+.flag { color: var(--accent); font-weight: var(--fw-3); margin: 0.5rem 0; }
+.fingerprint { font-family: var(--font-ui); font-variant-numeric: tabular-nums slashed-zero; font-size: var(--fs-1); word-break: break-all; color: var(--ink); }
 .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
-.timeline { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.85rem; }
+.timeline { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: var(--fs-2); }
