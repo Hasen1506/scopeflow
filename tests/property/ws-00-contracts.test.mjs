@@ -116,15 +116,15 @@ test('errors.ts: typed errors map to their status codes; anything else is left t
   assert.equal(E.toResponse('boom'), null);
 });
 
-test('notify.ts logs the event only and sends nothing; mode.ts is always freelancer', async () => {
-  const info = mock.method(console, 'info', () => {});
-  const fetchSpy = mock.method(globalThis, 'fetch', async () => { throw new Error('no network in Phase 0'); });
+// changed by WS-06: notify() now delivers (lib/notify-delivery.ts, loaded on first use; covered by
+// tests/ws-06-messaging.mjs against a database). Pure here: the event list, and an unknown event is
+// refused before anything is loaded, read or sent.
+test('notify.ts lists the events and refuses unknown ones without sending; mode.ts is always freelancer', async () => {
+  const fetchSpy = mock.method(globalThis, 'fetch', async () => { throw new Error('no network'); });
   try {
-    for (const event of NOTIFY_EVENTS) assert.deepEqual(await notify(event, {project_id: 'p1', to: 'client@example.test', data: {secret: 'x'}}), {event, delivered: false, channel: 'log'});
+    assert.deepEqual(await notify('not_an_event', {project_id: 'p1', to: 'client@example.test'}), {event: 'not_an_event', delivered: false, channel: 'log', status: 'skipped', reason: 'unknown_event'});
     assert.equal(fetchSpy.mock.callCount(), 0);
-    assert.equal(info.mock.callCount(), NOTIFY_EVENTS.length);
-    for (const call of info.mock.calls) assert.doesNotMatch(String(call.arguments[0]), /client@example|secret/);
-  } finally { info.mock.restore(); fetchSpy.mock.restore(); }
+  } finally { fetchSpy.mock.restore(); }
   assert.equal(NOTIFY_EVENTS.length, 8);
   assert.equal(await currentMode('any-owner'), 'freelancer');
   assert.deepEqual([...MODES], ['freelancer', 'agency', 'consumer', 'enterprise']);
@@ -133,9 +133,12 @@ test('notify.ts logs the event only and sends nothing; mode.ts is always freelan
 
 test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  for (const f of O.fragments) { assert.deepEqual(f.paths, {}); assert.deepEqual(f.schemas, {}); }
+  // changed by WS-06: workstreams now fill their own fragment (WS-06's documents the messaging routes); each is still a {paths, schemas} object.
+  for (const f of O.fragments) { assert.equal(typeof f.paths, 'object'); assert.equal(typeof f.schemas, 'object'); }
   const base = {'/b': 1, '/a': 2};
-  assert.equal(JSON.stringify(O.mergeFragments(base, f => f.paths)), JSON.stringify(base));
+  // changed by WS-06: with filled fragments the base keys still come first, in their order.
+  assert.deepEqual(Object.keys(O.mergeFragments(base, f => f.paths)).slice(0, 2), ['/b', '/a']);
+  assert.equal(JSON.stringify(O.mergeFragments(base, f => f.paths, [])), JSON.stringify(base));
   assert.deepEqual(O.mergeFragments(base, f => f.paths, [{paths: {'/c': 3}, schemas: {}}]), {'/b': 1, '/a': 2, '/c': 3});
   assert.throws(() => O.mergeFragments(base, f => f.paths, [{paths: {'/a': 3}, schemas: {}}]), /redefines \/a/);
 });
@@ -143,10 +146,13 @@ test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refu
 test('slot placeholders: one file per slot, each names its owner and renders null', () => {
   const slots = ['pay-block', 'whatsapp-share', 'data-notice', 'language-picker', 'co-card', 'retainer-counter', 'rate-card-picker', 'tds-field', 'msmed-terms', 'cosigner-editor', 'contact-change', 'payment-settings', 'timezone-select', 'theme-switcher'];
   const dir = new URL('../../app/components/slots/', import.meta.url);
-  assert.deepEqual(readdirSync(dir).sort(), slots.map(s => s + '.tsx').sort());
+  // changed by WS-06: slots may have a colocated *.module.css; implemented slots (WS-06: whatsapp-share) no longer render null.
+  const implemented = new Set(['whatsapp-share']);
+  assert.deepEqual(readdirSync(dir).filter(f => f.endsWith('.tsx')).sort(), slots.map(s => s + '.tsx').sort());
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);
+    if (implemented.has(s)) { assert.match(src, /export default function \w+\(/, s); continue; }
     assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
   }
 });

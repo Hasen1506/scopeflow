@@ -30,7 +30,8 @@ test('owner wording replaces the default email; subject stays header-safe and HT
   const m = signatureEmail({title: 'Logo <x>', client: 'Ada\r\nBcc: evil@example.test', version: 2, reviewUrl: 'https://s.example/review/abc', template: {subject: 'Sign {title} v{version} {link}', body: 'Hi {client},\n\nPlease review: {link}\nThanks'}});
   assert.equal(m.subject, 'Sign Logo <x> v2');
   assert.ok(!/[\r\n]/.test(m.subject));
-  assert.ok(m.text.startsWith('Hi Ada Bcc: evil@example.test,\n\nPlease review: https://s.example/review/abc\nThanks'));
+  // changed by WS-06 (M19): owner text is link-free, so the address in the client name is defanged.
+  assert.ok(m.text.startsWith('Hi Ada Bcc: evil@example[.]test,\n\nPlease review: https://s.example/review/abc\nThanks'));
   assert.ok(m.html.includes('<a href="https://s.example/review/abc">https://s.example/review/abc</a>'));
   assert.ok(!m.html.includes('<x>'));
   const subjectOnly = signatureEmail({title: 'T', client: 'C', version: 1, reviewUrl: 'https://s.example/r', template: {subject: 'Custom {title}'}});
