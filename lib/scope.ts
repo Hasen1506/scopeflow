@@ -18,6 +18,9 @@ export const itemSchema = z.object({
   unit: z.string().trim().max(40).default(''),
   price: z.number().finite().min(0).max(10000000).nullable().default(null),
   acceptance: z.string().trim().max(1000).default(''),
+  // Phase 0 (M6, WS-01): optional price per unit; when present the line total is qty × unit_price.
+  // Omitted when unset, so items signed before it existed keep their canonical form.
+  unit_price: z.number().finite().min(0).max(10000000).optional(),
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
 
@@ -57,6 +60,29 @@ export const revisionBankSchema = z.object({
 }).strict();
 export type RevisionBank = z.infer<typeof revisionBankSchema>;
 
+// Phase 0 contract shapes (see the optional fields at the end of scopeSchema).
+// A retainer: a recurring period with quotas of agreed deliverables (WS-05).
+export const retainerSchema = z.object({
+  period: z.enum(['monthly']),
+  quotas: z.array(z.object({item_id: stableId, qty: z.number().finite().positive().max(100000)}).strict()).max(60),
+  carry_over: z.enum(['none', 'cap']),
+  renewal: z.enum(['auto', 'manual']).optional(),
+}).strict();
+export type Retainer = z.infer<typeof retainerSchema>;
+// TDS the client is expected to deduct (WS-03, plan §9.4): an explicit input, never a default.
+export const tdsSchema = z.object({
+  section_2025: z.enum(['393(1) Sl.6(iii)-professional', '393(1) Sl.6(iii)-technical', '393(1) Sl.6(i)-contractor-ind-huf', '393(1) Sl.6(i)-contractor-other', '393(1) Sl.6(ii)', 'other']),
+  legacy_label: z.enum(['194J(b)', '194J(a)', '194C', '194M']).nullable(),
+  rate_pct: z.number().finite().min(0).max(100),
+  base: z.literal('taxable_value'),
+}).strict();
+export type Tds = z.infer<typeof tdsSchema>;
+// MSMED Act payment terms (WS-03): days after acceptance agreed in writing (at most 45 by law).
+export const msmedSchema = z.object({
+  agreed_days: z.number().int().min(1).max(45).optional(),
+}).strict();
+export type Msmed = z.infer<typeof msmedSchema>;
+
 export const scopeSchema = z.object({
   title: z.string().trim().min(3).max(160),
   client: z.string().trim().min(2).max(120),
@@ -80,6 +106,15 @@ export const scopeSchema = z.object({
   milestones: z.array(milestoneSchema).min(1).max(12).optional(),
   fx: fxSchema.optional(),
   revision_bank: revisionBankSchema.optional(),
+  // Phase 0 contracts: optional and omitted when unset, like the terms above, so canonical hashes of
+  // existing content never change. Shapes are owned by WS-01 (this file); behaviour by the
+  // workstream named on each line, which may tighten the shape before anything uses it.
+  client_country: z.string().regex(/^[A-Z]{2}$/, 'Use a two-letter country code, e.g. IN').optional(), // H13, WS-01
+  engagement: z.enum(['project', 'retainer']).optional(), // SF-05, WS-05
+  retainer: retainerSchema.optional(), // SF-05, WS-05
+  tds: tdsSchema.optional(), // H19, WS-03 (never defaulted)
+  msmed: msmedSchema.optional(), // SF-07, WS-03
+  language: z.enum(['en', 'hi', 'ta']).optional(), // SF-09, WS-07
 }).strict().superRefine((s, ctx) => {
   if (!s.items?.length && s.deliverables.length < 5) ctx.addIssue({code: 'custom', path: ['deliverables'], message: 'Add at least one deliverable'});
   const unique = (list: {id: string}[] | undefined, path: string) => {

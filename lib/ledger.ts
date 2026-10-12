@@ -98,8 +98,20 @@ export const payloadSchemas = {
   payment_received: paymentReceivedSchema,
   refund: refundSchema,
 } as const;
-export type EntryKind = keyof typeof payloadSchemas;
-export const entryKinds = Object.keys(payloadSchemas) as EntryKind[];
+/** Kinds the ledger accepts today. */
+export type ActiveEntryKind = keyof typeof payloadSchemas;
+/**
+ * Phase 0: kinds reserved for later workstreams. They are part of EntryKind so code can name them,
+ * but no payload schema exists yet and checkEntry() refuses them until the owner (WS-05, on request
+ * of WS-03/WS-04) enables them by adding a payload schema.
+ */
+export const plannedEntryKinds = ['baseline_superseded', 'tds_credit', 'excess_payment', 'delivery_accepted', 'payment_claim_confirmed', 'period_open', 'usage', 'period_close'] as const;
+export type PlannedEntryKind = (typeof plannedEntryKinds)[number];
+export type EntryKind = ActiveEntryKind | PlannedEntryKind;
+/** The enabled kinds (unchanged by Phase 0). */
+export const entryKinds = Object.keys(payloadSchemas) as ActiveEntryKind[];
+/** True when `kind` has a payload schema, i.e. can be appended. */
+export function entryKindEnabled(kind: string): kind is ActiveEntryKind { return Object.hasOwn(payloadSchemas, kind); }
 export type ChangeOrder = z.infer<typeof changeOrderSchema>;
 export type Settle = z.infer<typeof settleSchema>;
 export type Goodwill = z.infer<typeof goodwillSchema>;
@@ -267,6 +279,7 @@ export function refundableOf(line: PaymentLine, lines: PaymentLine[]) {
 
 /** Validates a new entry against the current agreement. Returns an error message or null. */
 export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, agreement: Agreement, actor: Actor): string | null {
+  if (!entryKindEnabled(kind)) return 'This kind of entry is not enabled yet.';
   if (kind === 'change_order') {
     const co = payload as ChangeOrder;
     const current = new Set(agreement.items.map(i => i.id));
@@ -353,5 +366,7 @@ export function describeEntry(e: LedgerEntry, currency: string, items: Item[] = 
     case 'refund': { const r = e.payload as Refund; return `Refund: ${formatMoney(r.amount, currency)} returned ${r.method === 'razorpay' || r.method === 'stripe' ? `through ${PROVIDER_LABEL[r.method]}` : PAYMENT_METHOD_PHRASE[r.method]} on ${formatDay(r.refunded)}${r.reference ? ` (ref. ${r.reference})` : ''}${r.note ? ': ' + r.note : ''}`; }
     case 'payment_received': { const p = e.payload as PaymentReceived; return `Payment received: ${formatMoney(p.amount, currency)} ${PAYMENT_METHOD_PHRASE[p.method]} on ${formatDay(p.received)}${p.reference ? ` (ref. ${p.reference})` : ''}`; }
     case 'client_input': { const c = e.payload as ClientInputReceived; return `Received from client: ${inputs.find(i => i.id === c.input_id)?.title ?? c.input_id} on ${formatDay(c.received)}`; }
+    // Phase 0: planned kinds are never stored yet; their owners replace this generic line.
+    default: return 'Ledger entry: ' + e.kind.replaceAll('_', ' ');
   }
 }

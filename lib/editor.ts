@@ -89,7 +89,8 @@ export function forgetDrafts() {
   }
 }
 /** The scope fields an unsaved draft may carry (scopeSchema's keys; a unit test keeps them in step). */
-export const DRAFT_FIELDS = ['title', 'client', 'deliverables', 'items', 'client_inputs', 'exclusions', 'fee', 'currency', 'revisions', 'due', 'notes', 'tax_label', 'tax_pct', 'deposit_pct', 'payment_terms', 'milestones', 'fx', 'revision_bank'] as const;
+// Phase 0 (contracts commit): the optional fields client_country … language added to scopeSchema.
+export const DRAFT_FIELDS = ['title', 'client', 'deliverables', 'items', 'client_inputs', 'exclusions', 'fee', 'currency', 'revisions', 'due', 'notes', 'tax_label', 'tax_pct', 'deposit_pct', 'payment_terms', 'milestones', 'fx', 'revision_bank', 'client_country', 'engagement', 'retainer', 'tds', 'msmed', 'language'] as const;
 /** A draft sent to the server, reduced to the editor's fields; null when it is not a scope draft. */
 export function draftForStorage(input: unknown): Scope | null {
   const draft = normalizeDraft(input) as Record<string, unknown> | null;

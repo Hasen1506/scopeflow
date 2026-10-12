@@ -1,0 +1,944 @@
+{
+ "source": "scopeflow IMPLEMENTATION_PLAN.md §14 (12 Oct 2026), planned against 5e59e44",
+ "items": [
+  {
+   "id": "C1",
+   "severity": "Critical",
+   "item": "Production records are unsigned (signing: off)",
+   "primary": "WS-02",
+   "supporting": [
+    "WS-10"
+   ]
+  },
+  {
+   "id": "C2",
+   "severity": "Critical",
+   "item": "Unlimited over-invoicing (cap is total-paid, not total-invoiced)",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "C3",
+   "severity": "Critical",
+   "item": "Client payments settle into the operator's Razorpay/Stripe account (PA risk)",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "C4",
+   "severity": "Critical",
+   "item": "Superseding an agreement erases recorded payments",
+   "primary": "WS-04",
+   "supporting": [
+    "WS-05"
+   ]
+  },
+  {
+   "id": "C5",
+   "severity": "Critical",
+   "item": "Approvals not attributable (owner self-approval, repointable OTP)",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "C6",
+   "severity": "Critical",
+   "item": "Cookie-secret-derived key trusted for verification in production",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "C7",
+   "severity": "Critical",
+   "item": "\"Immutable\" only to honest app code (bypassable triggers, table-owner role)",
+   "primary": "WS-10",
+   "supporting": [
+    "WS-01"
+   ]
+  },
+  {
+   "id": "H1",
+   "severity": "High",
+   "item": "Anyone with the client link can countersign as any role",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "H2",
+   "severity": "High",
+   "item": "Unsent earlier drafts leak to the client via `previous`/diff",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "H3",
+   "severity": "High",
+   "item": "Rate limits bypassable with spoofed X-Forwarded-For",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "H4",
+   "severity": "High",
+   "item": "Revoking/rotating an approved version kills the client's record",
+   "primary": "WS-02",
+   "supporting": [
+    "WS-07",
+    "WS-09"
+   ]
+  },
+  {
+   "id": "H5",
+   "severity": "High",
+   "item": "Rotating any version's link restarts the latest link's expiry",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "H6",
+   "severity": "High",
+   "item": "Captured money can miss the ledger (plan cap / stale baseline / silent)",
+   "primary": "WS-05",
+   "supporting": [
+    "WS-04"
+   ]
+  },
+  {
+   "id": "H7",
+   "severity": "High",
+   "item": "Payments \"enabled\" without any way to confirm them",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "H8",
+   "severity": "High",
+   "item": "Double-payment windows (Stripe hourly key, stale Razorpay orders, over-coverage)",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "H9",
+   "severity": "High",
+   "item": "Refunds race and double-spend",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "H10",
+   "severity": "High",
+   "item": "Account deletion destroys client evidence and GST invoices",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "H11",
+   "severity": "High",
+   "item": "Deposit never appears on a tax invoice / receipt voucher",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "H12",
+   "severity": "High",
+   "item": "Invoices can't be cancelled; no credit notes; number length unchecked",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "H13",
+   "severity": "High",
+   "item": "Place of supply treats any foreign currency as export",
+   "primary": "WS-01",
+   "supporting": []
+  },
+  {
+   "id": "H14",
+   "severity": "High",
+   "item": "Refund issued at provider but not recorded",
+   "primary": "WS-04",
+   "supporting": [
+    "WS-05"
+   ]
+  },
+  {
+   "id": "H15",
+   "severity": "High",
+   "item": "Render free plan, migrations on every boot, crons never run",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "H16",
+   "severity": "High",
+   "item": "APP_URL drift in render.yaml; MCP resource mismatch on onrender host",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "H17",
+   "severity": "High",
+   "item": "Change-order approvals carry no content proof",
+   "primary": "WS-05",
+   "supporting": [
+    "WS-02"
+   ]
+  },
+  {
+   "id": "H18",
+   "severity": "High",
+   "item": "Clients are never told about change orders",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "H19",
+   "severity": "High",
+   "item": "TDS not modelled; invoices stay part-paid forever and reminders nag",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "M1",
+   "severity": "Medium",
+   "item": "GST reverse calc: tax != rate x taxable",
+   "primary": "WS-01",
+   "supporting": [
+    "WS-03"
+   ]
+  },
+  {
+   "id": "M2",
+   "severity": "Medium",
+   "item": "CGST and SGST unequal by a paisa",
+   "primary": "WS-01",
+   "supporting": []
+  },
+  {
+   "id": "M3",
+   "severity": "Medium",
+   "item": "Float money everywhere (round2 bugs)",
+   "primary": "WS-01",
+   "supporting": []
+  },
+  {
+   "id": "M4",
+   "severity": "Medium",
+   "item": "Zero-decimal currencies break (¥333.33 deposit, perpetual ¥0.33 balance)",
+   "primary": "WS-01",
+   "supporting": [
+    "WS-04"
+   ]
+  },
+  {
+   "id": "M5",
+   "severity": "Medium",
+   "item": "Scope money fields accept arbitrary precision",
+   "primary": "WS-01",
+   "supporting": []
+  },
+  {
+   "id": "M6",
+   "severity": "Medium",
+   "item": "Item price meaning ambiguous (qty ignored)",
+   "primary": "WS-01",
+   "supporting": []
+  },
+  {
+   "id": "M7",
+   "severity": "Medium",
+   "item": "CO price shown pre-tax but invoiced with tax",
+   "primary": "WS-03",
+   "supporting": [
+    "WS-05",
+    "WS-07"
+   ]
+  },
+  {
+   "id": "M8",
+   "severity": "Medium",
+   "item": "Late client-input / feedback dates not bounded",
+   "primary": "WS-05",
+   "supporting": []
+  },
+  {
+   "id": "M9",
+   "severity": "Medium",
+   "item": "Milestone shares float with change orders",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "M10",
+   "severity": "Medium",
+   "item": "Payment allocation quirky (paid_before only first invoice; negative left)",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "M11",
+   "severity": "Medium",
+   "item": "AI draft ignores explicit currency",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "M12",
+   "severity": "Medium",
+   "item": "Project cap counts archived projects",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "M13",
+   "severity": "Medium",
+   "item": "No per-account plans/billing",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "M14",
+   "severity": "Medium",
+   "item": "OTP session not single-use",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "M15",
+   "severity": "Medium",
+   "item": "OTP/SMS cost abuse",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "M16",
+   "severity": "Medium",
+   "item": "API tokens/agents can weaken identity checks",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "M17",
+   "severity": "Medium",
+   "item": "Cosigner roles editable after approval",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "M18",
+   "severity": "Medium",
+   "item": "`send` silently rewrites client email",
+   "primary": "WS-06",
+   "supporting": [
+    "WS-02"
+   ]
+  },
+  {
+   "id": "M19",
+   "severity": "Medium",
+   "item": "Outbound mail abusable for phishing/spam",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "M20",
+   "severity": "Medium",
+   "item": "Amount mismatch silently dropped",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "M21",
+   "severity": "Medium",
+   "item": "Webhooks hitting cap/stale baseline return 200",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "M22",
+   "severity": "Medium",
+   "item": "OAuth consent phishing via dynamic registration",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "M23",
+   "severity": "Medium",
+   "item": "OAuth token hygiene (code burn, replay, refresh revoke, reuse)",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "M24",
+   "severity": "Medium",
+   "item": "Connected-apps UI coarse",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "M25",
+   "severity": "Medium",
+   "item": "DB adapter rewrites SQL by regex; CTE mutations skip lock",
+   "primary": "WS-01",
+   "supporting": []
+  },
+  {
+   "id": "M26",
+   "severity": "Medium",
+   "item": "GETs write to the DB (rate-limit upsert, redaction on list)",
+   "primary": "WS-10",
+   "supporting": [
+    "WS-08"
+   ]
+  },
+  {
+   "id": "M27",
+   "severity": "Medium",
+   "item": "Neon Auth round trip on every request",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "M28",
+   "severity": "Medium",
+   "item": "Errors masked as \"try again\" 503s; non-idempotent decision retry",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "M29",
+   "severity": "Medium",
+   "item": "Diff only against version-1",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "M30",
+   "severity": "Medium",
+   "item": "Health check hides misconfiguration",
+   "primary": "WS-10",
+   "supporting": [
+    "WS-02"
+   ]
+  },
+  {
+   "id": "M31",
+   "severity": "Medium",
+   "item": "Cron chain all-or-nothing",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "M32",
+   "severity": "Medium",
+   "item": "Client IPs kept forever; no client notice (DPDP/GDPR)",
+   "primary": "WS-08",
+   "supporting": [
+    "WS-07"
+   ]
+  },
+  {
+   "id": "L1",
+   "severity": "Low",
+   "item": "content_sha256 echo is theatre",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "L2",
+   "severity": "Low",
+   "item": "\"Signature\" language overclaims",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "L3",
+   "severity": "Low",
+   "item": "Expiry message shows UTC date",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "L4",
+   "severity": "Low",
+   "item": "Reconciliation window 30 days, oldest first, 200 cap",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "L5",
+   "severity": "Low",
+   "item": "Stripe return depends on sessionStorage",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "L6",
+   "severity": "Low",
+   "item": "FX source lacks rates for AED, SAR, LKR, BDT, NPR, PKR, KES, NGN",
+   "primary": "WS-01",
+   "supporting": []
+  },
+  {
+   "id": "L7",
+   "severity": "Low",
+   "item": "Inbound email accepts any sender",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "L8",
+   "severity": "Low",
+   "item": "workspace.tsx is an 85 KB single component; dense one-line routes",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "L9",
+   "severity": "Low",
+   "item": "Themes absent (no ThemeProvider, no dark mode)",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "L10",
+   "severity": "Low",
+   "item": "Build risk on small instances (cpus:2, webpack, dev deps)",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "L11",
+   "severity": "Low",
+   "item": "Hard-coded model IDs; AI 502s when a model retires",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "L12",
+   "severity": "Low",
+   "item": "Decision on a just-replaced version: 409 and comment lost",
+   "primary": "WS-02",
+   "supporting": [
+    "WS-07"
+   ]
+  },
+  {
+   "id": "L13",
+   "severity": "Low",
+   "item": "Plans page copy conflicts with caps",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "L14",
+   "severity": "Low",
+   "item": "Test gaps; no real Razorpay payload fixtures",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "LT-01",
+   "severity": "High",
+   "item": "Client never sees the updated total with GST after COs",
+   "primary": "WS-07",
+   "supporting": [
+    "WS-01"
+   ]
+  },
+  {
+   "id": "LT-02",
+   "severity": "High",
+   "item": "No way for the client to pay (no UPI/QR/how-to-pay)",
+   "primary": "WS-04",
+   "supporting": [
+    "WS-07"
+   ]
+  },
+  {
+   "id": "LT-03",
+   "severity": "High",
+   "item": "No WhatsApp share",
+   "primary": "WS-06",
+   "supporting": [
+    "WS-09"
+   ]
+  },
+  {
+   "id": "LT-04",
+   "severity": "Medium",
+   "item": "Default currency USD; no onboarding for currency/GST/UPI",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "LT-05",
+   "severity": "Medium",
+   "item": "Workspace shows approval as still pending (stale status)",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "LT-06",
+   "severity": "Medium",
+   "item": "Validation shows raw schema keys; banner persists; no field errors",
+   "primary": "WS-09",
+   "supporting": [
+    "WS-10"
+   ]
+  },
+  {
+   "id": "LT-07",
+   "severity": "Medium",
+   "item": "Negative prices silently zeroed; huge values accepted in editor",
+   "primary": "WS-09",
+   "supporting": [
+    "WS-01"
+   ]
+  },
+  {
+   "id": "LT-08",
+   "severity": "Medium",
+   "item": "Recorded CO can only be withdrawn (no revise); withdraw timed out",
+   "primary": "WS-05",
+   "supporting": []
+  },
+  {
+   "id": "LT-09",
+   "severity": "Medium",
+   "item": "Verify page needs 64-char fingerprint the page never shows",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "LT-10",
+   "severity": "Medium",
+   "item": "Bad/unknown link page is a dead end (Reload loops)",
+   "primary": "WS-07",
+   "supporting": []
+  },
+  {
+   "id": "LT-11",
+   "severity": "Low",
+   "item": "Password label/hint run together for screen readers",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "LT-12",
+   "severity": "Low",
+   "item": "\"×1 concepts\" plurals; casing inconsistent",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "LT-13",
+   "severity": "Low",
+   "item": "Jargon; \"EARLY BETA\" shown to clients",
+   "primary": "WS-07",
+   "supporting": [
+    "WS-08"
+   ]
+  },
+  {
+   "id": "LT-14",
+   "severity": "Low",
+   "item": "CO with fee but no deliverable; approved CO not merged into \"Deliverables now\"",
+   "primary": "WS-05",
+   "supporting": [
+    "WS-07"
+   ]
+  },
+  {
+   "id": "LT-15",
+   "severity": "Low",
+   "item": "En/em-dash normalized to hyphen (unverified)",
+   "primary": "WS-07",
+   "supporting": []
+  },
+  {
+   "id": "LT-16",
+   "severity": "Low",
+   "item": "Time-zone select has ~389 raw options",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "LT-17",
+   "severity": "Low",
+   "item": "GSTIN free text in Data controls; UPI free text, no QR/intent",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "LT-18",
+   "severity": "Info",
+   "item": "No theme switcher at HEAD (A/B themes on unmerged branch)",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "LT-19",
+   "severity": "Info",
+   "item": "Mobile 390 px untested",
+   "primary": "WS-07",
+   "supporting": [
+    "WS-09"
+   ]
+  },
+  {
+   "id": "LT-20",
+   "severity": "Info",
+   "item": "Browser Back from /account seemed to do nothing",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "LT-21",
+   "severity": "High",
+   "item": "Recorded offline payment never marks the deposit paid",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "LT-22",
+   "severity": "Medium",
+   "item": "\"Delete account\" leaves the login alive",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "QA-01",
+   "severity": "Medium",
+   "item": "/receipt and /statement timed out on both hosts",
+   "primary": "WS-03",
+   "supporting": [
+    "WS-02"
+   ]
+  },
+  {
+   "id": "QA-02",
+   "severity": "Low",
+   "item": "Footer receipt-check routed \"not-a-receipt\" to /verify",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "QA-03",
+   "severity": "Low",
+   "item": "Status chip \"Fingerprints match · not signed\" confusing",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "SF-01",
+   "severity": "Feature",
+   "item": "WhatsApp share (wa.me) everywhere",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "SF-02",
+   "severity": "Feature",
+   "item": "UPI QR + intent on client page (direct to freelancer)",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "SF-03",
+   "severity": "Feature",
+   "item": "Share-target capture (PWA Web Share Target)",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "SF-04",
+   "severity": "Feature",
+   "item": "Forward-to-bot on ScopeFlow's WhatsApp number",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "SF-05",
+   "severity": "Feature",
+   "item": "Retainers with monthly quotas",
+   "primary": "WS-05",
+   "supporting": []
+  },
+  {
+   "id": "SF-06",
+   "severity": "Feature",
+   "item": "Rate card / price book",
+   "primary": "WS-05",
+   "supporting": []
+  },
+  {
+   "id": "SF-07",
+   "severity": "Feature",
+   "item": "MSMED terms, interest calculator, Samadhaan/ODR pack",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "SF-08",
+   "severity": "Feature",
+   "item": "TDS input (never defaulted)",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "SF-09",
+   "severity": "Feature",
+   "item": "Hindi and Tamil client page",
+   "primary": "WS-07",
+   "supporting": []
+  },
+  {
+   "id": "SF-10",
+   "severity": "Feature",
+   "item": "WhatsApp OTP via ScopeFlow WABA",
+   "primary": "WS-06",
+   "supporting": [
+    "WS-02"
+   ]
+  },
+  {
+   "id": "SF-11",
+   "severity": "Feature",
+   "item": "INR/GST/UPI onboarding defaults",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "SF-12",
+   "severity": "Feature",
+   "item": "Billing (subscriptions, entitlements)",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "SF-13",
+   "severity": "Feature",
+   "item": "Client email when a CO is proposed",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "SF-14",
+   "severity": "Feature",
+   "item": "Product analytics (activation funnel)",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "SF-15",
+   "severity": "Feature",
+   "item": "Aadhaar eSign tier (optional)",
+   "primary": "WS-02",
+   "supporting": []
+  },
+  {
+   "id": "SF-16",
+   "severity": "Feature",
+   "item": "Insights tab made full (₹ recovered as hero)",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "SF-17",
+   "severity": "Feature",
+   "item": "Workspace mode toggle (Freelancer / Agency / Consumer / Enterprise)",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "SF-18",
+   "severity": "Feature",
+   "item": "Templates as a proper section (versioning, tags, sharing)",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "SF-19",
+   "severity": "Feature",
+   "item": "Three email providers with roles and fallback",
+   "primary": "WS-06",
+   "supporting": []
+  },
+  {
+   "id": "SF-20",
+   "severity": "Feature",
+   "item": "Payment accounts: BYO Razorpay / Stripe, Route later, escrow adapter",
+   "primary": "WS-04",
+   "supporting": []
+  },
+  {
+   "id": "SF-21",
+   "severity": "Feature",
+   "item": "Theme switcher A/B",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "SF-22",
+   "severity": "Feature",
+   "item": "Vertical template packs (wedding/event vendor, interiors/renovation BOQ, CA retainer)",
+   "primary": "WS-09",
+   "supporting": []
+  },
+  {
+   "id": "SF-23",
+   "severity": "Feature",
+   "item": "Delight: CO cards, approval moment, creep counter",
+   "primary": "WS-07",
+   "supporting": [
+    "WS-09"
+   ]
+  },
+  {
+   "id": "SF-24",
+   "severity": "Feature",
+   "item": "Consumer evidence pack (homeowner side)",
+   "primary": "WS-03",
+   "supporting": []
+  },
+  {
+   "id": "SF-25",
+   "severity": "Feature",
+   "item": "Enterprise audit export",
+   "primary": "WS-08",
+   "supporting": []
+  },
+  {
+   "id": "SF-26",
+   "severity": "Feature",
+   "item": "MCP tools for new features",
+   "primary": "WS-10",
+   "supporting": [
+    "WS-05",
+    "WS-03"
+   ]
+  },
+  {
+   "id": "OP-01",
+   "severity": "Ops",
+   "item": "render.yaml URL drift",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "OP-02",
+   "severity": "Ops",
+   "item": "Migrations on boot",
+   "primary": "WS-10",
+   "supporting": []
+  },
+  {
+   "id": "OP-03",
+   "severity": "Ops",
+   "item": "Cron needs (Starter, split jobs)",
+   "primary": "WS-10",
+   "supporting": []
+  }
+ ]
+}
