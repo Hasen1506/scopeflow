@@ -22,15 +22,13 @@ const O = await import('../../lib/openapi/index.ts');
 const PLANNED = ['baseline_superseded', 'tds_credit', 'excess_payment', 'delivery_accepted', 'payment_claim_confirmed', 'period_open', 'usage', 'period_close'];
 const ACTIVE = ['change_order', 'settle', 'goodwill', 'revision_round', 'client_input', 'payment', 'payment_received', 'refund'];
 
-test('EntryKind: enabled kinds unchanged; planned kinds are named but refused', async () => {
-  assert.deepEqual(L.entryKinds, ACTIVE);
+// changed by WS-05: the planned kinds are now enabled, each with its payload schema (tests/property/ws-05-ledger.test.mjs covers their rules).
+test('EntryKind: the original kinds keep their order; planned kinds are named and enabled', async () => {
+  assert.deepEqual(L.entryKinds, [...ACTIVE, ...PLANNED]);
   assert.deepEqual([...L.plannedEntryKinds], PLANNED);
-  const b = await approve({title: 'Kinds fixture', client: 'Acme', deliverables: 'Logo design', exclusions: '', fee: 1000, currency: 'INR', revisions: 2, due: '', notes: ''});
-  const agreement = L.computeAgreement(b.content, 1, []);
   for (const k of PLANNED) {
-    assert.equal(L.entryKindEnabled(k), false, k);
-    assert.equal(L.payloadSchemas[k], undefined, k);
-    for (const actor of ['owner', 'client', 'system']) assert.equal(L.checkEntry(k, {}, b.content, agreement, actor), 'This kind of entry is not enabled yet.');
+    assert.equal(L.entryKindEnabled(k), true, k);
+    assert.equal(typeof L.payloadSchemas[k].safeParse, 'function', k);
   }
   for (const k of ACTIVE) assert.equal(L.entryKindEnabled(k), true, k);
   assert.equal(L.entryKindEnabled('toString'), false);
@@ -133,9 +131,10 @@ test('notify.ts logs the event only and sends nothing; mode.ts is always freelan
 
 test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  for (const f of O.fragments) { assert.deepEqual(f.paths, {}); assert.deepEqual(f.schemas, {}); }
+  // changed by WS-05: its fragment (index 4, lib/openapi/ws-05.ts) now documents the periods and rate-card routes.
+  for (const [n, f] of O.fragments.entries()) if (n !== 4) { assert.deepEqual(f.paths, {}); assert.deepEqual(f.schemas, {}); }
   const base = {'/b': 1, '/a': 2};
-  assert.equal(JSON.stringify(O.mergeFragments(base, f => f.paths)), JSON.stringify(base));
+  assert.equal(JSON.stringify(O.mergeFragments(base, f => f.paths, O.fragments.filter((_, n) => n !== 4))), JSON.stringify(base)); // changed by WS-05: its fragment is not empty
   assert.deepEqual(O.mergeFragments(base, f => f.paths, [{paths: {'/c': 3}, schemas: {}}]), {'/b': 1, '/a': 2, '/c': 3});
   assert.throws(() => O.mergeFragments(base, f => f.paths, [{paths: {'/a': 3}, schemas: {}}]), /redefines \/a/);
 });
@@ -144,9 +143,12 @@ test('slot placeholders: one file per slot, each names its owner and renders nul
   const slots = ['pay-block', 'whatsapp-share', 'data-notice', 'language-picker', 'co-card', 'retainer-counter', 'rate-card-picker', 'tds-field', 'msmed-terms', 'cosigner-editor', 'contact-change', 'payment-settings', 'timezone-select', 'theme-switcher'];
   const dir = new URL('../../app/components/slots/', import.meta.url);
   assert.deepEqual(readdirSync(dir).sort(), slots.map(s => s + '.tsx').sort());
+  // changed by WS-05: co-card, retainer-counter and rate-card-picker are implemented (no longer null placeholders).
+  const implemented = new Set(['co-card', 'retainer-counter', 'rate-card-picker']);
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);
+    if (implemented.has(s)) { assert.match(src, /export default function \w+\(/, s); continue; }
     assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
   }
 });

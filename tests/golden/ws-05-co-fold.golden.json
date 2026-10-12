@@ -1,0 +1,202 @@
+{
+  "anchor": "d9bd7c3f4a8e57279a398766237d0abd46f8eedf91e8cf0808f71686e84e8f27",
+  "head": "670b1e65bb58dc944ce6b4f739e5cd5f8ae0f101e478b16dc75735c5ce0a0a9a",
+  "entries": [
+    {
+      "seq": 1,
+      "kind": "change_order",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:01:00.000Z",
+      "payload_hash": "58bd7c8a714561781a3d25b3f429026d431ce045dd09e4b46d505590b8e1539a",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "payload": {
+        "title": "Extra reel",
+        "reason": "Not in the agreed deliverables",
+        "request_quote": "Can you also cut a 15 s reel?",
+        "add_items": [
+          {
+            "id": "co_reel",
+            "title": "15 s reel",
+            "qty": 1,
+            "unit": "",
+            "price": 7500.5,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 7500.5,
+        "days_delta": 0,
+        "revisions_delta": 0
+      },
+      "hash": "8c2bd372cb75737614dda4a9d3b7983779e4c32a1c5a44aee63a237ef711e349",
+      "signature": "d229274fdc7f9fe5.ECchyggj7fJ9je9y1-nH_4kI0CfAQZG2koPsgcKJ6a0f3NgZn6VRhee4lLJdMhtqSD6uqeDWPZYHGAAa2TrDAA"
+    },
+    {
+      "seq": 2,
+      "kind": "change_order",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:01:30.000Z",
+      "payload_hash": "2217baba970d381ef067f45d40f13347269d31bdb94e9e8d08de04cc823e582e",
+      "prev_hash": "8c2bd372cb75737614dda4a9d3b7983779e4c32a1c5a44aee63a237ef711e349",
+      "payload": {
+        "title": "Behind-the-scenes stills",
+        "reason": "",
+        "request_quote": "",
+        "add_items": [
+          {
+            "id": "co_bts",
+            "title": "BTS stills",
+            "qty": 10,
+            "unit": "photos",
+            "price": 1000,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 1000,
+        "days_delta": 0,
+        "revisions_delta": 0
+      },
+      "hash": "c6853030dbdc63553a490afc484cd6edcbb127110e1ea919fc5e26794cd94ae8",
+      "signature": "d229274fdc7f9fe5.RT2PcTKamfoWsi5EpzaHZTw2XIgsm4pzNSfQRFGs8o_iMKPt5Dy3erVH448LBiB6HsEyR4gY1EImHNyxPtvXAg"
+    },
+    {
+      "seq": 3,
+      "kind": "settle",
+      "baseline_version": 1,
+      "actor": "client",
+      "created": "2026-10-07T09:02:00.000Z",
+      "payload_hash": "5b33150f60f6e024f91f79d3e5683ef71c187fa1154879ccf1535ec76ec52516",
+      "prev_hash": "c6853030dbdc63553a490afc484cd6edcbb127110e1ea919fc5e26794cd94ae8",
+      "payload": {
+        "ref_seq": 1,
+        "outcome": "approved",
+        "signer": "Ada Client",
+        "comment": "",
+        "acknowledged": true,
+        "co_sha256": "7f5e223ece1553dc16123e79f1e3ba52361337848f357a2e0acf979a5f7f6224",
+        "total_incl_tax_minor": 885059
+      },
+      "hash": "5c6fcceb7da9e36fb04901e99c257999f62e03372db151fd0902695c7574a133",
+      "signature": "d229274fdc7f9fe5.7-Z3qKuMB_-AsyrgjeqvLNjBTeqWTrxYoi_JsP_ZB3WwZGtaBxewtqZ5xOfcV400LTHJruGIV7h5fhX2qGWjAQ"
+    },
+    {
+      "seq": 4,
+      "kind": "settle",
+      "baseline_version": 1,
+      "actor": "client",
+      "created": "2026-10-07T09:02:30.000Z",
+      "payload_hash": "588068a52054e254b9f7526f1c3e92d70e3ee2c38bea74fce4fce9a1dfbf93fa",
+      "prev_hash": "5c6fcceb7da9e36fb04901e99c257999f62e03372db151fd0902695c7574a133",
+      "payload": {
+        "ref_seq": 2,
+        "outcome": "declined",
+        "signer": "Ada Client",
+        "comment": "Not this month",
+        "acknowledged": true,
+        "co_sha256": "513bbb5281e7d7ea645c41dcd617b714775f3e957960e5823d31efa90c1ba089",
+        "total_incl_tax_minor": 118000
+      },
+      "hash": "670b1e65bb58dc944ce6b4f739e5cd5f8ae0f101e478b16dc75735c5ce0a0a9a",
+      "signature": "d229274fdc7f9fe5.eDtuiCDl8rFR3YUENAIi5csz4j1ewPkOAfnl95KSQA04NSIHhlVDXGesh1EIcdBwraWPTEPqW0Qy6PI7S-HsAQ"
+    }
+  ],
+  "agreement": {
+    "baseline_version": 1,
+    "currency": "INR",
+    "items": [
+      {
+        "id": "film",
+        "title": "Brand film",
+        "qty": 1,
+        "unit": "60 s cut",
+        "price": 25000,
+        "acceptance": "Final 4K master delivered",
+        "source": "baseline"
+      },
+      {
+        "id": "co_reel",
+        "title": "15 s reel",
+        "qty": 1,
+        "unit": "",
+        "price": 7500.5,
+        "acceptance": "",
+        "source": 1
+      }
+    ],
+    "removed": [],
+    "fee_base": 25000,
+    "fee": 32500.5,
+    "due_base": "2026-12-15",
+    "due": "2026-12-15",
+    "days_shift": 0,
+    "revisions_allowed": 2,
+    "revisions_used": 0,
+    "rounds_over": 0,
+    "change_orders": [
+      {
+        "title": "Extra reel",
+        "reason": "Not in the agreed deliverables",
+        "request_quote": "Can you also cut a 15 s reel?",
+        "add_items": [
+          {
+            "id": "co_reel",
+            "title": "15 s reel",
+            "qty": 1,
+            "unit": "",
+            "price": 7500.5,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 7500.5,
+        "days_delta": 0,
+        "revisions_delta": 0,
+        "seq": 1,
+        "created": "2026-10-07T09:01:00.000Z",
+        "status": "approved",
+        "settled_by": "Ada Client",
+        "settled_at": "2026-10-07T09:02:00.000Z",
+        "comment": ""
+      },
+      {
+        "title": "Behind-the-scenes stills",
+        "reason": "",
+        "request_quote": "",
+        "add_items": [
+          {
+            "id": "co_bts",
+            "title": "BTS stills",
+            "qty": 10,
+            "unit": "photos",
+            "price": 1000,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 1000,
+        "days_delta": 0,
+        "revisions_delta": 0,
+        "seq": 2,
+        "created": "2026-10-07T09:01:30.000Z",
+        "status": "declined",
+        "settled_by": "Ada Client",
+        "settled_at": "2026-10-07T09:02:30.000Z",
+        "comment": "Not this month"
+      }
+    ],
+    "pending": 0,
+    "goodwill": [],
+    "goodwill_value": 0,
+    "goodwill_hours": 0,
+    "delays": [],
+    "deliverables": "Brand film (1 60 s cut)\n15 s reel [CO-1]"
+  },
+  "totals_minor": {
+    "fee": 3250050,
+    "tax": 585009,
+    "total": 3835059
+  }
+}

@@ -1,10 +1,13 @@
 import {z} from 'zod';
 import {db, json, owner, body, safeOrigin, allowWrite, allowRead, failure} from '@/lib/server';
-import {payloadSchemas, checkEntry, verifyChain, paymentsOf, type Refund} from '@/lib/ledger';
-import {loadLedger, appendEntry, LedgerConflict} from '@/lib/ledger-server';
+import {payloadSchemas, checkEntry, verifyChain, paymentsOf, type Refund, type Settle, type ChangeOrder} from '@/lib/ledger';
+import {loadLedger, appendEntry, appendEntries, LedgerConflict} from '@/lib/ledger-server';
+import {entryContext} from '@/lib/ledger-math';
 type Ctx = {params: Promise<{id: string}>};
 
-const ownerKinds = ['change_order', 'goodwill', 'revision_round', 'client_input', 'payment_received', 'refund', 'settle'] as const;
+// WS-05: tds_credit and delivery_accepted are owner-recordable too; retainer usage goes through
+// /api/scopes/[id]/periods (it proposes overage change orders).
+const ownerKinds = ['change_order', 'goodwill', 'revision_round', 'client_input', 'payment_received', 'refund', 'settle', 'tds_credit', 'delivery_accepted'] as const;
 const requestSchema = z.object({
   kind: z.enum(ownerKinds),
   baseline_version: z.number().int().min(1),
@@ -16,9 +19,9 @@ function unsalted(payload: string) { const {salt: _salt, ...rest} = JSON.parse(p
 async function ownedProject(request: Request, id: string) {
   const user = await owner(request);
   if (!user) return {error: json({error: 'Sign in or provide a valid API token.'}, 401)};
-  const project = await db().prepare('SELECT id,archived FROM projects WHERE id=? AND owner=?').bind(id, user).first<{id: string; archived: string | null}>();
+  const project = await db().prepare('SELECT id,archived,timezone FROM projects WHERE id=? AND owner=?').bind(id, user).first<{id: string; archived: string | null; timezone: string | null}>();
   if (!project) return {error: json({error: 'Project not found.'}, 404)};
-  return {user, archived: !!project.archived};
+  return {user, archived: !!project.archived, timezone: project.timezone};
 }
 async function view(id: string) {
   const ledger = await loadLedger(id);
@@ -58,11 +61,20 @@ export async function POST(request: Request, ctx: Ctx) {
     const {kind, baseline_version, request_id} = input.data;
     const parsed = payloadSchemas[kind].safeParse(input.data.payload);
     if (!parsed.success) return json({error: parsed.error.issues.map(i => `${i.path.join('.') || kind}: ${i.message}`).join('; ')}, 400);
+    // Retainer overage and rate-card provenance are written by Scopeflow's own routes only.
+    if (kind === 'change_order' && (parsed.data as ChangeOrder).overage) return json({error: 'Overage change orders are proposed by the retainer usage log.'}, 400);
 
     const ledger = await loadLedger(id);
     if (!ledger.baseline || !ledger.content || !ledger.agreement) return json({error: (await view(id)).reason}, 409);
     if (ledger.baseline.version !== baseline_version) return json({error: `The approved baseline is version ${ledger.baseline.version}. Read the agreement again before adding to it.`}, 409);
 
+    const withdraw = kind === 'settle' && (parsed.data as Settle).outcome === 'withdrawn';
+    // LT-08: withdrawing is idempotent. A second click (or a retry after a timeout) finds the CO
+    // already withdrawn and answers 200 without writing or waiting on a lock.
+    if (withdraw) {
+      const co = ledger.agreement.change_orders.find(c => c.seq === (parsed.data as Settle).ref_seq);
+      if (co?.status === 'withdrawn') return json({replayed: true, seq: co.seq, ...(await view(id))}, 200);
+    }
     const ref = kind === 'settle' ? 'settle:' + (parsed.data as {ref_seq: number}).ref_seq : request_id ? 'req:' + request_id : null;
     if (request_id && kind === 'settle') {
       // SF-14: a settle is keyed by the change order, not the request_id. Report an
@@ -79,7 +91,17 @@ export async function POST(request: Request, ctx: Ctx) {
         return json({replayed: true, seq: prior.seq, ...(await view(id))}, 200);
       }
     }
-    const problem = checkEntry(kind, parsed.data, ledger.content, ledger.agreement, 'owner');
+    const context = entryContext(access.timezone, ledger.baseline.decided);
+    const revises = kind === 'change_order' ? (parsed.data as ChangeOrder).revises : undefined;
+    let problem: string | null;
+    if (revises !== undefined) {
+      // LT-08: "Revise CO" withdraws CO-n and proposes its replacement in one transaction.
+      const old = ledger.agreement.change_orders.find(c => c.seq === revises);
+      if (!old) return json({error: `CO-${revises} does not exist, so it cannot be revised.`}, 400);
+      if (old.status !== 'proposed') return json({error: `CO-${revises} is already ${old.status}; only a change order awaiting the client can be revised.`, code: 'not_revisable'}, 409);
+      const rest = {...ledger.agreement, change_orders: ledger.agreement.change_orders.map(c => c.seq === revises ? {...c, status: 'withdrawn' as const} : c), pending: ledger.agreement.pending - 1};
+      problem = checkEntry(kind, parsed.data, ledger.content, rest, 'owner', context);
+    } else problem = checkEntry(kind, parsed.data, ledger.content, ledger.agreement, 'owner', context);
     // SF-11: hidden goodwill exposes only its payload hash to the client; a random salt
     // stops anyone confirming a guessed value or title against that hash.
     const stored = kind === 'goodwill' && (parsed.data as {visible: boolean}).visible === false ? {...(parsed.data as object), salt: crypto.randomUUID()} : parsed.data;
@@ -91,10 +113,25 @@ export async function POST(request: Request, ctx: Ctx) {
       if (r.amount > paid + 0.005) return json({error: `A refund cannot be more than the ${paid.toFixed(2)} paid so far.`, code: 'refund_exceeds_paid'}, 400);
     }
     try {
-      const entry = await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind, payload: stored, actor: 'owner', ref});
+      if (revises !== undefined) {
+        const [, entry] = await appendEntries({baseline: ledger.baseline, expectedHead: ledger.head, entries: [
+          {kind: 'settle', payload: {ref_seq: revises, outcome: 'withdrawn', signer: '', comment: ''}, actor: 'owner', ref: 'settle:' + revises},
+          {kind, payload: stored, actor: 'owner', ref},
+        ]});
+        return json({seq: entry.seq, withdrawn: revises, ...(await view(id))}, 201);
+      }
+      const entry = await appendEntry({baseline: ledger.baseline, expectedHead: ledger.head, kind, payload: stored, actor: 'owner', ref, ...(withdraw ? {lock: false} : {})});
       return json({seq: entry.seq, ...(await view(id))}, 201);
     } catch (e) {
-      if (e instanceof LedgerConflict) return json({error: e.message}, e.message.includes('supports') ? 429 : 409);
+      if (e instanceof LedgerConflict) {
+        if (withdraw) {
+          // A concurrent click won the race: report the withdrawal it recorded.
+          const now = await loadLedger(id);
+          const co = now.agreement?.change_orders.find(c => c.seq === (parsed.data as Settle).ref_seq);
+          if (co?.status === 'withdrawn') return json({replayed: true, seq: co.seq, ...(await view(id))}, 200);
+        }
+        return json({error: e.message}, e.message.includes('supports') ? 429 : 409);
+      }
       throw e;
     }
   } catch (e) { return failure(e); }
