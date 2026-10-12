@@ -36,7 +36,10 @@ export async function GET(request: Request) {
     try { encryptionKey(); } catch { encryption = false; }
     const routes = Object.fromEntries(['INR', 'USD', 'EUR', 'GBP'].map(c => { const r = chooseRoute(active, c); return [c, {status: r.status, online: r.online ? {provider: r.online.provider, via: r.online.via} : null, upi: !!r.upi, warnings: r.warnings}]; }));
     const warnings = [...new Set(Object.values(routes).flatMap(r => r.warnings))];
-    return json({accounts: accounts.map(a => view(request, a)), routes, readiness: {payments: warnings.length ? 'misconfigured' : active.length ? 'ready' : 'none', warnings, encryption},
+    // Misconfigured means one of the owner's own accounts cannot confirm payments (H7); the operator's
+    // keys being refused in production (C3) is a warning, not the owner's misconfiguration.
+    const misconfigured = Object.values(routes).some(r => r.status === 'misconfigured');
+    return json({accounts: accounts.map(a => view(request, a)), routes, readiness: {payments: misconfigured ? 'misconfigured' : active.length ? 'ready' : 'none', warnings, encryption},
       razorpay_oauth: !!partnerConfig(), route_enabled: routeEnabled()});
   } catch (e) { return failure(e); }
 }
