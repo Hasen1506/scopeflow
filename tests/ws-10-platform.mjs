@@ -193,7 +193,8 @@ const owner = await signIn(base, `ws10-${Date.now()}@example.test`);
   eq(Number((await one("SELECT COUNT(*) AS n FROM scopeflow.ledger_entries WHERE project_id=$1 AND kind='payment_received'", [project_id])).n), 1);
   const reused = await rpc('record_payment_received', {...args, amount: 301});
   ok(reused.isError, 'a request_id reused for a different payment is refused');
-  eq(Number((await one("SELECT COUNT(*) AS n FROM scopeflow.idempotency_keys WHERE key=$1 AND status=200", [request_id])).n), 1);
+  // The stored reply is the first one: the ledger route's 201 Created, replayed as is.
+  eq(Number((await one("SELECT COUNT(*) AS n FROM scopeflow.idempotency_keys WHERE key=$1 AND status=201", [request_id])).n), 1);
   const usage = await rpc('propose_retainer_usage', {project_id, baseline_version: 1, item_id: 'logo', qty: 1, request_id: 'ws10-use-' + Date.now(), user_confirmed: true});
   ok(usage.isError && usage.structuredContent.code === 'retainer_unavailable', 'usage waits for WS-05 to enable retainers: ' + JSON.stringify(usage));
   eq((await rpc('issue_invoice', {project_id, amount: 1, request_id: 'x', user_confirmed: true})) === undefined, true, 'invalid arguments are a JSON-RPC error, not a tool result');
