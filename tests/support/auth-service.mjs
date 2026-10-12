@@ -11,7 +11,7 @@ const auth = betterAuth({
   basePath: '/',
   secret: randomBytes(32).toString('hex'),
   database: memoryAdapter({ user: [], session: [], account: [], verification: [] }),
-  trustedOrigins: ['http://localhost:5173'],
+  trustedOrigins: ['http://localhost:5173', 'http://localhost:5734'], // changed by WS-04: tests/ws-04-providers.mjs runs its own server on :5734
   emailAndPassword: { enabled: true, requireEmailVerification: false },
   advanced: { useSecureCookies: true, cookiePrefix: 'neon-auth' },
   rateLimit: { enabled: false },
