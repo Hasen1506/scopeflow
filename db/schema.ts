@@ -1,4 +1,4 @@
-import { pgSchema, text, integer, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgSchema, text, integer, bigint, smallint, doublePrecision, index, uniqueIndex } from 'drizzle-orm/pg-core';
 const schema = pgSchema('scopeflow');
 export const projects = schema.table('projects', {id:text('id').primaryKey(),owner:text('owner').notNull(),latest:integer('latest').notNull(),created:text('created').notNull()},t=>[index('idx_projects_owner').on(t.owner)]);
 export const versions = schema.table('versions', {id:text('id').primaryKey(),projectId:text('project_id').notNull().references(()=>projects.id),version:integer('version').notNull(),token:text('token').notNull(),revoked:integer('revoked').notNull().default(0),content:text('content').notNull(),status:text('status').notNull().default('pending'),signer:text('signer'),comment:text('comment'),created:text('created').notNull(),decided:text('decided')},t=>[uniqueIndex('idx_versions_project_version').on(t.projectId,t.version),uniqueIndex('idx_versions_token').on(t.token)]);
@@ -8,3 +8,7 @@ export const rateLimits = schema.table('rate_limits',{id:text('id').primaryKey()
 // Append-only, hash-chained record of what happens after a version is approved.
 // Rows are never updated; a change order is settled by a later row with ref 'settle:<seq>'.
 export const ledgerEntries = schema.table('ledger_entries',{id:text('id').primaryKey(),projectId:text('project_id').notNull().references(()=>projects.id),seq:integer('seq').notNull(),kind:text('kind').notNull(),baselineVersion:integer('baseline_version').notNull(),actor:text('actor').notNull(),payload:text('payload').notNull(),ref:text('ref'),prevHash:text('prev_hash').notNull(),hash:text('hash').notNull(),created:text('created').notNull()},t=>[uniqueIndex('idx_ledger_project_seq').on(t.projectId,t.seq),uniqueIndex('idx_ledger_project_ref').on(t.projectId,t.ref)]);
+
+// Numbered invoices (0010). amount_minor / currency_exponent (0015, WS-01) are generated from
+// amount and currency: exact integer minor units for every issued invoice. Rows are immutable.
+export const invoices = schema.table('invoices',{id:text('id').primaryKey(),owner:text('owner').notNull(),projectId:text('project_id').notNull().references(()=>projects.id),seq:integer('seq').notNull(),number:text('number').notNull(),version:integer('version').notNull(),amount:doublePrecision('amount').notNull(),currency:text('currency').notNull(),issued:text('issued').notNull(),requestId:text('request_id'),content:text('content').notNull(),currencyExponent:smallint('currency_exponent'),amountMinor:bigint('amount_minor',{mode:'number'})},t=>[uniqueIndex('invoices_owner_seq_key').on(t.owner,t.seq),index('idx_invoices_project').on(t.projectId)]);

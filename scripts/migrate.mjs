@@ -28,8 +28,15 @@ export async function applyPostgresMigrations(sql, directory = new URL('../db/mi
   });
 }
 
+/** The connection string migrations use: DATABASE_MIGRATION_URL (owner role) when set, else DATABASE_URL. */
+export function migrationUrl(env = process.env) {
+  return env.DATABASE_MIGRATION_URL?.trim() || env.DATABASE_URL;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const sql = createConnection();
+  // C7 (WS-10): migrations run as the table-owner role when DATABASE_MIGRATION_URL is set (preDeploy
+  // only); the runtime DATABASE_URL can then be a role that does not own the tables.
+  const sql = createConnection(migrationUrl());
   try {
     const applied = await applyPostgresMigrations(sql);
     console.log(applied.length ? `Applied: ${applied.join(', ')}` : 'Database migrations are up to date.');
