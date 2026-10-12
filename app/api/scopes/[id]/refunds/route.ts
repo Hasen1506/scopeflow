@@ -104,7 +104,8 @@ async function finalize(p: PendingRefund, status: number) {
   let failed = false;
   try {
     const seq = await finalizeRefund(p);
-    if (seq) return json({seq, refund_id: p.provider_refund_id}, status);
+    // A replay (status 200: the same request_id while the first was still recording) says so.
+    if (seq) return json({seq, refund_id: p.provider_refund_id, ...(status === 200 ? {replayed: true} : {})}, status);
   } catch (e) {
     // H6/H14: the provider refunded but the record could not take it (WS-05 MoneyEntryError, or any
     // other failure): alert the owner (payment_alerts + notify) and answer 500; reconcile finalises it.
