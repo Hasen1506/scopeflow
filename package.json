@@ -9,7 +9,7 @@
     "install:ci": "node scripts/install-ci.mjs",
     "dev": "next dev --hostname 127.0.0.1 --port 5173",
     "build": "next build --webpack",
-    "build:capped": "NODE_OPTIONS=--max-old-space-size=460 next build --webpack",
+    "build:capped": "SCOPEFLOW_BUILD_SKIP_TYPECHECK=1 NODE_OPTIONS=--max-old-space-size=460 next build --webpack",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",

@@ -66,6 +66,9 @@ test('build fits a small instance: no hard-coded cpus, capped heap in CI and on 
   assert.doesNotMatch(config, /cpus:\s*\d/);
   const pkg = JSON.parse(read('package.json'));
   assert.match(pkg.scripts['build:capped'], /--max-old-space-size=460/);
+  // The capped build skips only Next's in-build type check (tsc runs as its own CI step first).
+  assert.match(pkg.scripts['build:capped'], /SCOPEFLOW_BUILD_SKIP_TYPECHECK=1/);
+  assert.match(read('.github/workflows/ci.yml'), /npm run typecheck[\s\S]*npm run build:capped/);
   assert.match(web.buildCommand, /build:capped/);
   assert.match(web.buildCommand, /npm prune --omit=dev/);
   for (const c of crons) assert.match(c.buildCommand, /--omit=dev/);

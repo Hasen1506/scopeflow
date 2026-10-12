@@ -47,7 +47,8 @@ the repository using [render.yaml](../render.yaml). Alternatively, create a
 Render supplies `PORT`; Next listens on `0.0.0.0` and uses that port. The
 Blueprint (WS-10) puts the web service on Render's **Starter** plan: the free plan
 spins down when idle, and its cold starts broke MCP clients and review links. The
-build runs with a 460 MB heap (`build:capped`, L10) so it fits a 512 MB instance,
+build runs with a 460 MB heap (`build:capped`, L10) so it fits a 512 MB instance
+(it skips only Next's in-build type check; `npm run typecheck` gates CI first),
 and dev dependencies are pruned from the runtime image after the build. Neon's
 free plan is also subject to its current storage, compute, and authentication
 limits. Check each provider's dashboard/pricing before choosing production capacity.

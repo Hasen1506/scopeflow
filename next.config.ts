@@ -47,6 +47,10 @@ const nextConfig: NextConfig = {
   // L10: no hard-coded build parallelism. NEXT_BUILD_CPUS caps the static-generation workers on a
   // small build machine; unset, Next picks its default.
   ...(buildCpus() ? { experimental: { cpus: buildCpus() } } : {}),
+  // L10: Next's in-build type check alone needs more than the 460 MB heap of a 512 MB instance.
+  // `npm run build:capped` skips it; `npm run typecheck` (tsc) gates CI before every build, and
+  // main is only built after CI passed.
+  ...(process.env.SCOPEFLOW_BUILD_SKIP_TYPECHECK === "1" ? { typescript: { ignoreBuildErrors: true } } : {}),
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
