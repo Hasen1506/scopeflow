@@ -28,6 +28,13 @@ export async function call(path, {method = 'GET', cookie, body, headers = {}, ra
   let json; try { json = JSON.parse(text); } catch { json = {text}; }
   return {status: r.status, json};
 }
+// changed by WS-10 (M26): read limits live in the server's memory, not in scopeflow.rate_limits, so
+// clearing the limits also asks the local test server to drop its in-memory read windows.
+export async function clearLimits(db) {
+  await db.query('DELETE FROM scopeflow.rate_limits');
+  const operator = process.env.SCOPEFLOW_ADMIN_TOKEN || process.env.SCOPEFLOW_CRON_SECRET;
+  if (operator) await fetch(base + '/api/readiness?scope=read-limits', {method: 'DELETE', headers: {Authorization: 'Bearer ' + operator}}).catch(() => {});
+}
 export const sha = value => createHash('sha256').update(value).digest('hex');
 export const scope = (title, extra = {}) => ({title, client: 'Fictional Client', deliverables: '', items: [{id: 'logo', title: 'Logo suite', qty: 1, unit: '', price: 900, acceptance: ''}, {id: 'guide', title: 'Brand guidelines', qty: 12, unit: 'pages', price: 600, acceptance: ''}], client_inputs: [], exclusions: 'Social media templates', fee: 1500, currency: 'USD', revisions: 2, due: '2027-01-15', notes: 'Fictional test record.', ...extra});
 

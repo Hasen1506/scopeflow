@@ -69,15 +69,19 @@ const owner = await signIn(base, `ws10-${Date.now()}@example.test`);
 // ---------------------------------------------------------------------------------------------
 {
   await project(owner, 'TEST WS-10 read-only list');
-  // Backends flush table statistics lazily (up to ~10 s after a write), so wait until the counters
-  // stop moving before and after the reads.
-  const read = async () => { await db.query('SELECT pg_stat_clear_snapshot()'); const r = await one("SELECT coalesce(sum(n_tup_ins),0)::bigint AS ins, coalesce(sum(n_tup_upd),0)::bigint AS upd, coalesce(sum(n_tup_del),0)::bigint AS del FROM pg_stat_user_tables WHERE schemaname='scopeflow'"); return {ins: Number(r.ins), upd: Number(r.upd), del: Number(r.del)}; };
-  const counters = async () => { let last = await read(); for (let i = 0; i < 12; i++) { await sleep(1500); const now = await read(); if (JSON.stringify(now) === JSON.stringify(last)) return now; last = now; } return last; };
+  // Backends flush table statistics lazily: a backend that flushed less than a second ago holds the
+  // next counts until it has been idle for up to 10 s (PGSTAT_IDLE_INTERVAL). So a reading only
+  // counts once the counters have not moved for longer than that, before and after the reads.
+  const read = async () => { await db.query('SELECT pg_stat_clear_snapshot()'); const rows = (await db.query("SELECT relname, n_tup_ins::bigint AS ins, n_tup_upd::bigint AS upd, n_tup_del::bigint AS del FROM pg_stat_user_tables WHERE schemaname='scopeflow'")).rows; return Object.fromEntries(rows.map(r => [r.relname, {ins: Number(r.ins), upd: Number(r.upd), del: Number(r.del)}])); };
+  const counters = async () => { let last = await read(), since = Date.now(); const deadline = Date.now() + 60_000; while (Date.now() < deadline) { await sleep(1000); const now = await read(); if (JSON.stringify(now) !== JSON.stringify(last)) { last = now; since = Date.now(); } else if (Date.now() - since > 11_000) break; } return last; };
+  const total = c => Object.values(c).reduce((t, r) => ({ins: t.ins + r.ins, upd: t.upd + r.upd, del: t.del + r.del}), {ins: 0, upd: 0, del: 0});
+  const changed = (a, b) => Object.fromEntries(Object.entries(b).map(([t, r]) => [t, {ins: r.ins - (a[t]?.ins ?? 0), upd: r.upd - (a[t]?.upd ?? 0), del: r.del - (a[t]?.del ?? 0)}]).filter(([, d]) => d.ins || d.upd || d.del));
   await call('/api/scopes', {cookie: owner}); // warm
   const before = await counters();
   for (let i = 0; i < 50; i++) eq((await call('/api/scopes', {cookie: owner})).status, 200);
   const after = await counters();
-  eq({ins: after.ins - before.ins, upd: after.upd - before.upd, del: after.del - before.del}, {ins: 0, upd: 0, del: 0}, 'GET /api/scopes x 50 wrote to the database');
+  const [b, a] = [total(before), total(after)];
+  eq({ins: a.ins - b.ins, upd: a.upd - b.upd, del: a.del - b.del}, {ins: 0, upd: 0, del: 0}, 'GET /api/scopes x 50 wrote to the database: ' + JSON.stringify(changed(before, after)));
 }
 
 // ---------------------------------------------------------------------------------------------
