@@ -24,6 +24,9 @@ async function call(path, {method = 'GET', cookie, body, headers = {}, raw = fal
   return {status: r.status, data, headers: r.headers};
 }
 const q = s => `'${String(s).replaceAll("'", "''")}'`;
+// One fictional owner writes all through this suite; each block starts with fresh rate-limit windows so
+// the owner's per-minute write limit (30) never answers before the check a block is about.
+const freshLimits = () => localSql('DELETE FROM scopeflow.rate_limits');
 const logLines = () => existsSync(LOG) ? readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : [];
 const lastCode = versionId => logLines().filter(l => l.version_id === versionId && l.code).at(-1);
 const pastCooldown = versionId => localSql(`UPDATE scopeflow.review_otps SET created=to_char((created::timestamptz - interval '11 minutes') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE version_id=${q(versionId)}`);
@@ -50,6 +53,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- H2 (live-test repro #5): an unsent draft never leaks through a later version's link ----------
 // @covers H2
+freshLimits();
 {
   const v1 = await create({fee: 5000, items: [{id: 'i_logo', title: 'Logo suite', qty: 1, unit: '', price: 5000, acceptance: ''}], notes: 'TEST internal: floor price 3,500'});
   const v2 = await revise(v1.project_id, 1, {fee: 4000, items: [{id: 'i_logo', title: 'Logo suite', qty: 1, unit: '', price: 4000, acceptance: ''}]});
@@ -64,6 +68,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- M29: diff base = last version this client approved, else last sent; drafts never offered ----
 // @covers M29 H2
+freshLimits();
 {
   const v1 = await create();
   eq((await decide(v1.token, {decision: 'changes_requested', comment: 'TEST more logos'})).status, 200);
@@ -83,6 +88,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- L12: deciding a replaced version answers 409 with a pointer to the newer one --------------
 // @covers L12
+freshLimits();
 {
   const v1 = await create();
   const body = await ack(base, v1.token, {decision: 'approved', signer: 'Ada Client', comment: 'TEST typed comment', version: 1});
@@ -98,6 +104,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- L1: the rendered content's fingerprint must match the stored content ---------------------
 // @covers L1
+freshLimits();
 {
   const s = await create();
   const r = await decide(s.token, {content_sha256: createHash('sha256').update(JSON.stringify({...content(), title: 'tampered'})).digest('hex')});
@@ -109,6 +116,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- C5: owner self-approval is allowed and flagged everywhere --------------------------------------
 // @covers C5
+freshLimits();
 {
   const s = await create();
   const r = await decide(s.token, {}, {cookie});
@@ -127,6 +135,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- C5: contact lock after first send; two-step change notifies the old address; signed record ---
 // @covers C5 M16
+freshLimits();
 {
   const s = await create();
   eq((await patch(s.project_id, {client_email: 'old.client@example.test'})).status, 200); // not sent yet: editable
@@ -158,6 +167,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- C5 (E-equivalent at the API): code verified to a masked address, on the receipt too --------
 // @covers C5
+freshLimits();
 {
   const s = await create();
   eq((await patch(s.project_id, {client_email: 'sam@example.test', require_otp: true})).status, 200);
@@ -174,6 +184,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- M14: a code session backs one record only -------------------------------------------------
 // @covers M14
+freshLimits();
 {
   const s = await create();
   eq((await patch(s.project_id, {client_email: 'm14@example.test', require_otp: true})).status, 200);
@@ -192,6 +203,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- M15: cooldown, 5 codes per version per day, metering -----------------------------------------
 // @covers M15
+freshLimits();
 {
   const s = await create();
   eq((await patch(s.project_id, {client_email: 'm15@example.test', require_otp: true})).status, 200);
@@ -209,6 +221,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- M16: API tokens cannot weaken identity checks ----------------------------------------------
 // @covers M16
+freshLimits();
 {
   const s = await create();
   eq((await patch(s.project_id, {client_email: 'm16@example.test', require_otp: true})).status, 200);
@@ -224,6 +237,7 @@ const pdfText = bytes => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[
 
 // ---- H1 + M17 + M14: each countersigner has their own link and code; roles frozen at first send ---
 // @covers H1 M17 M14
+freshLimits();
 let h1;
 {
   const s = await create();
@@ -264,6 +278,7 @@ let h1;
 
 // ---- H4: revoking a decided version keeps the client's record, read-only -------------------------
 // @covers H4
+freshLimits();
 {
   const co = {title: 'TEST extra', reason: '', request_quote: '', add_items: [{id: 'i_extra', title: 'Extra', qty: 1, unit: '', price: 100, acceptance: ''}], remove_item_ids: [], fee_delta: 100, days_delta: 0, revisions_delta: 0};
   const proposed = await call(`/api/scopes/${h1.project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'change_order', baseline_version: 1, payload: co, request_id: 'ws02-h4-' + randomUUID().slice(0, 8)}});
@@ -298,6 +313,7 @@ let h1;
 
 // ---- H5: rotating one version's link never restarts another version's expiry ----------------------
 // @covers H5
+freshLimits();
 {
   const v1 = await create();
   eq((await patch(v1.project_id, {link_expiry_days: 7})).status, 200);
@@ -314,6 +330,7 @@ let h1;
 
 // ---- L3: the expiry names the project's zone ("13 Oct 2026, 1:30 am IST") ------------------------
 // @covers L3
+freshLimits();
 {
   const s = await create();
   eq((await patch(s.project_id, {link_expiry_days: 7, timezone: 'Asia/Kolkata'})).status, 200);
@@ -330,6 +347,7 @@ let h1;
 
 // ---- LT-09: verify with the 16-character short form plus the project --------------------------------
 // @covers LT-09
+freshLimits();
 {
   const s = await create();
   const r = await decide(s.token);
@@ -346,6 +364,7 @@ let h1;
 
 // ---- C6: a record sealed with the cookie-derived key does not verify as "valid" in production ------
 // @covers C6
+freshLimits();
 {
   const s = await create();
   const S = await import('../lib/signing.ts');
@@ -368,6 +387,7 @@ let h1;
 
 // ---- WS-10 request (M28): a retried decision with the same Idempotency-Key is not applied twice ----
 // @covers M28
+freshLimits();
 {
   const s = await create();
   const body = await ack(base, s.token, {decision: 'approved', signer: 'Ada Client', comment: '', version: 1});
