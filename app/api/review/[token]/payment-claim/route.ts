@@ -5,7 +5,8 @@ import {paymentOptions} from '@/lib/deposit-server';
 import {maskRef, parseUtr} from '@/lib/upi';
 import type {Scope} from '@/lib/scope';
 type Ctx = {params: Promise<{token: string}>};
-const input = z.object({purpose: z.enum(['deposit', 'invoice', 'balance']), invoice_seq: z.number().int().min(1).optional(), amount_minor: z.number().int().positive().max(1e13), method: z.enum(['upi', 'bank_transfer']).default('upi'), utr: z.string().trim().min(6).max(40), payer_name: z.string().trim().max(120).default(''), note: z.string().trim().max(300).default('')}).strict();
+// utr min(1): a too-short reference reaches parseUtr and gets code invalid_utr (not the generic schema error)
+const input = z.object({purpose: z.enum(['deposit', 'invoice', 'balance']), invoice_seq: z.number().int().min(1).optional(), amount_minor: z.number().int().positive().max(1e13), method: z.enum(['upi', 'bank_transfer']).default('upi'), utr: z.string().trim().min(1).max(40), payer_name: z.string().trim().max(120).default(''), note: z.string().trim().max(300).default('')}).strict();
 
 // "I've paid" from the client page (LT-02): the client paid the freelancer directly (UPI or bank
 // transfer) and gives the UTR / UPI reference. Nothing counts as paid until the freelancer
