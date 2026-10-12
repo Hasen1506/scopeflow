@@ -4,7 +4,9 @@
 // @covers M3 M4 M5 L6
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {signIn, ack, localSql} from './support/local.mjs';
+import {signIn, ack, localSql as runSql} from './support/local.mjs';
+// tests/support/sql.mjs answers one {results} object per statement; these checks run one statement each.
+const localSql = command => runSql(command)[0].results;
 const base = process.env.SCOPEFLOW_TEST_URL || 'http://localhost:5173';
 assert.equal(new URL(base).hostname, 'localhost', 'Local fixtures only.');
 let passed = 0;
