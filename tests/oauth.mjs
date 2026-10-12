@@ -63,9 +63,14 @@ const approve2 = await fetch(base + '/api/oauth/authorize', {method: 'POST', red
 const code2 = new URL(approve2.headers.get('location')).searchParams.get('code');
 const issued = await token({grant_type: 'authorization_code', code: code2, code_verifier: verifier, redirect_uri: redirect, client_id: client.client_id, resource: base + '/mcp'});
 eq(issued.status, 200);
-const tokens = await json(issued);
-ok(tokens.access_token.startsWith('sfo_') && tokens.refresh_token && tokens.token_type === 'Bearer');
+const replayed = await json(issued);
+ok(replayed.access_token.startsWith('sfo_') && replayed.refresh_token && replayed.token_type === 'Bearer');
 eq((await token({grant_type: 'authorization_code', code: code2, code_verifier: verifier, redirect_uri: redirect, client_id: client.client_id})).status, 400); // single use
+// changed by WS-10 (M23): replaying a code also revokes the tokens of its first exchange, so the rest of the suite uses a fresh grant.
+eq((await rpc('tools/call', {name: 'list_scopes', arguments: {}}, {Authorization: 'Bearer ' + replayed.access_token})).status, 401);
+const approve3 = await fetch(base + '/api/oauth/authorize', {method: 'POST', redirect: 'manual', headers: {Cookie: cookie, Origin: base, 'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({...params, decision: 'approve'})});
+const tokens = await json(await token({grant_type: 'authorization_code', code: new URL(approve3.headers.get('location')).searchParams.get('code'), code_verifier: verifier, redirect_uri: redirect, client_id: client.client_id, resource: base + '/mcp'}));
+ok(tokens.access_token.startsWith('sfo_') && tokens.refresh_token);
 
 // The access token works on /mcp, not on the REST API (audience-bound), and agents get no review links.
 const listed = await json(await rpc('tools/call', {name: 'list_scopes', arguments: {}}, {Authorization: 'Bearer ' + tokens.access_token}));

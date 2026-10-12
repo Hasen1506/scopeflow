@@ -1,0 +1,31 @@
+{
+  "id": "evt_1Q0TESTcheckout0001",
+  "object": "event",
+  "api_version": "2025-09-30.clover",
+  "created": 1760245800,
+  "livemode": false,
+  "pending_webhooks": 1,
+  "type": "checkout.session.completed",
+  "data": {
+    "object": {
+      "id": "cs_test_a1TESTsession0000000000000000",
+      "object": "checkout.session",
+      "amount_subtotal": 150000,
+      "amount_total": 150000,
+      "currency": "eur",
+      "customer_details": {
+        "email": "client@example.test",
+        "name": "Fictional Client"
+      },
+      "metadata": {
+        "project": "TEST-project",
+        "version": "1",
+        "purpose": "deposit"
+      },
+      "mode": "payment",
+      "payment_intent": "pi_3Q0TESTintent000000000001",
+      "payment_status": "paid",
+      "status": "complete"
+    }
+  }
+}

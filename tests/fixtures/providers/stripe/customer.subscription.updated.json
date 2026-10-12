@@ -1,0 +1,40 @@
+{
+  "id": "evt_1Q0TESTsubupdated01",
+  "object": "event",
+  "created": 1760245800,
+  "livemode": false,
+  "type": "customer.subscription.updated",
+  "data": {
+    "object": {
+      "id": "sub_1Q0TESTsubscription01",
+      "object": "subscription",
+      "customer": "cus_TESTcustomer01",
+      "status": "active",
+      "cancel_at_period_end": false,
+      "current_period_start": 1760245800,
+      "current_period_end": 1762924200,
+      "items": {
+        "object": "list",
+        "data": [
+          {
+            "id": "si_TESTitem01",
+            "price": {
+              "id": "price_TESTpro01",
+              "currency": "eur",
+              "unit_amount": 900,
+              "recurring": {
+                "interval": "month"
+              }
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "account": "TEST-owner"
+      }
+    },
+    "previous_attributes": {
+      "status": "incomplete"
+    }
+  }
+}

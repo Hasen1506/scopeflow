@@ -37,6 +37,8 @@ jobs:
       SCOPEFLOW_PDF_SIGN_KEY: /tmp/scopeflow-sign.key
       # Reference rates from the same local service; the reconciliation route's bearer secret.
       SCOPEFLOW_FX_URL: http://127.0.0.1:55434/fx
+      # WS-10 for WS-01: FBIL reference rates from the same local double (v2 shape), never the public API.
+      SCOPEFLOW_FBIL_URL: http://127.0.0.1:55434/fbil
       SCOPEFLOW_CRON_SECRET: ci-only-cron-secret
       # Stripe test double (EUR and GBP only, so the INR deposit suite still sees payments off), the
       # embeddings double for the meaning-match radar, and email forwarding into the radar.
@@ -49,6 +51,8 @@ jobs:
       SCOPEFLOW_EMBEDDINGS_URL: http://127.0.0.1:55434/embeddings
       SCOPEFLOW_INBOUND_DOMAIN: in.scopeflow.test
       SCOPEFLOW_INBOUND_SECRET: ci-only-inbound-secret-0123
+      # WS-10 (H3): behind one trusted proxy, like Render; the client is the right-most X-Forwarded-For hop.
+      SCOPEFLOW_TRUSTED_HOPS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,7 +68,12 @@ jobs:
       - run: npm run lint
       - name: Property-based, golden and differential tests (pure, no server)
         run: npm run test:props
-      - run: npm run build
+      # WS-10 (L14): every matrix item of a landed workstream needs a test tagged @covers <ID>.
+      - name: Coverage gate (@covers tags)
+        run: node scripts/check-coverage.mjs
+      # WS-10 (L10): the production build must fit a 512 MB instance (460 MB heap cap).
+      - name: Build under the memory cap
+        run: npm run build:capped
       - run: npm run db:migrate
       - name: Throwaway PDF signing certificate
         run: openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/scopeflow-sign.key -out /tmp/scopeflow-sign.crt -days 7 -subj "/CN=Scopeflow CI Signer"
@@ -76,8 +85,9 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://localhost:5173/api/health && break; sleep 1; done
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:55433/ok && break; sleep 1; done
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:55434/ && break; sleep 1; done
-      # Runs first, on the fresh database and auth fixture. No retries, no quarantine.
-      - name: Golden E2E (Playwright)
+      # Runs first, on the fresh database and auth fixture. No retries, no quarantine. Includes the
+      # Pixel 7 / iPhone 13 mobile projects (playwright.config.ts).
+      - name: Golden E2E (Playwright, desktop and mobile)
         run: npm run test:e2e
       - run: npm run test:local
       - name: Live property and differential tests (API, database triggers)

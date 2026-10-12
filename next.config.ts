@@ -34,12 +34,19 @@ const securityHeaders = [
   ...(isProduction ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
 ];
 
+function buildCpus() {
+  const n = Number(process.env.NEXT_BUILD_CPUS);
+  return Number.isInteger(n) && n >= 1 && n <= 64 ? n : undefined;
+}
+
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
   // harfbuzzjs loads its WebAssembly from its own folder at runtime (PDF text shaping), so it is not bundled.
   serverExternalPackages: ["harfbuzzjs"],
-  experimental: { cpus: 2 },
+  // L10: no hard-coded build parallelism. NEXT_BUILD_CPUS caps the static-generation workers on a
+  // small build machine; unset, Next picks its default.
+  ...(buildCpus() ? { experimental: { cpus: buildCpus() } } : {}),
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
