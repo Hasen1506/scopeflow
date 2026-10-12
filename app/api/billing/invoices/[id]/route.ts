@@ -9,7 +9,7 @@ export async function GET(request: Request, ctx: Ctx) {
     if (!await allowRead('owner:' + auth.user)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     const {id} = await ctx.params;
     if (!/^[0-9a-f-]{36}$/.test(id)) return json({error: 'Invoice not found.'}, 404);
-    const row = await db().prepare('SELECT content FROM billing_invoices WHERE id=? AND owner=?').bind(id, auth.user).first<{content: string}>();
+    const row = await db().prepare('SELECT content FROM scopeflow.billing_invoices WHERE id=? AND owner=?').bind(id, auth.user).first<{content: string}>();
     if (!row) return json({error: 'Invoice not found.'}, 404);
     return json({invoice: {id, ...JSON.parse(row.content)}});
   } catch (e) { return failure(e); }

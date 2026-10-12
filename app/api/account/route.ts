@@ -46,7 +46,7 @@ export async function DELETE(request:Request){try{
  // delete-user endpoint is enabled; otherwise the login stays and we say so.
  let loginDeleted=false;
  try{const r=await getAuth().deleteUser({});loginDeleted=!r.error;}catch{loginDeleted=false;}
- if(loginDeleted)await database.prepare('UPDATE owner_tombstones SET login_deleted=true WHERE owner=?').bind(id).run().catch(()=>{});
+ if(loginDeleted)await database.prepare('UPDATE scopeflow.owner_tombstones SET login_deleted=true WHERE owner=?').bind(id).run().catch(()=>{});
  // SF-04: the only path allowed past the immutability triggers; leave an audit line.
  console.warn('Scopeflow account closed by its owner',JSON.stringify({owner_hash:(await hash(id)).slice(0,16),projects_kept:kept,login_deleted:loginDeleted,at:now}));
  return json({deleted:true,projects_kept:kept,kept_until:kept?until:null,login_deleted:loginDeleted,

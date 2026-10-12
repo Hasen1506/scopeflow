@@ -171,7 +171,7 @@ export function billingInvoiceContent(p: {number: string; issued: string; seller
 async function database() { return (await import('./server')).db(); }
 export type AccountPlanRow = PlanRow & {owner: string; provider: string | null; provider_subscription: string | null; provider_customer: string | null; interval: string | null; updated: string};
 export async function planRowFor(owner: string) {
-  return (await database()).prepare('SELECT * FROM accounts_plans WHERE owner=?').bind(owner).first<AccountPlanRow>();
+  return (await database()).prepare('SELECT * FROM scopeflow.accounts_plans WHERE owner=?').bind(owner).first<AccountPlanRow>();
 }
 /** The plan `owner` is entitled to right now (M13). */
 export async function planStateFor(owner: string, now = Date.now()): Promise<PlanState> { return resolvePlan(await planRowFor(owner), now); }
@@ -180,7 +180,7 @@ export async function limitsFor(owner: string, now = Date.now()): Promise<Limits
 
 /** Records an admin event for the audit export (SF-25). Never throws. */
 export async function auditEvent(owner: string, kind: string, detail: Record<string, unknown>, actor = 'owner') {
-  try { await (await database()).prepare('INSERT INTO audit_events (id,owner,kind,detail,actor,created) VALUES (?,?,?,?,?,?)').bind(randomUUID(), owner, kind, JSON.stringify(detail), actor, new Date().toISOString()).run(); }
+  try { await (await database()).prepare('INSERT INTO scopeflow.audit_events (id,owner,kind,detail,actor,created) VALUES (?,?,?,?,?,?)').bind(randomUUID(), owner, kind, JSON.stringify(detail), actor, new Date().toISOString()).run(); }
   catch { console.error('Scopeflow audit event not recorded:', kind); }
 }
 
@@ -221,7 +221,7 @@ export async function startCheckout(owner: string, plan: PlanId, interval: Inter
   }
   // A checkout in progress never changes what the account can do (resolvePlan ignores 'pending').
   if (!current || current.status === 'pending' || current.status === 'expired') {
-    await db.prepare('INSERT INTO accounts_plans (owner,plan,status,provider,provider_subscription,provider_customer,interval,updated) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,provider=excluded.provider,provider_subscription=excluded.provider_subscription,provider_customer=excluded.provider_customer,interval=excluded.interval,period_end=NULL,grace_until=NULL,updated=excluded.updated')
+    await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,provider,provider_subscription,provider_customer,interval,updated) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,provider=excluded.provider,provider_subscription=excluded.provider_subscription,provider_customer=excluded.provider_customer,interval=excluded.interval,period_end=NULL,grace_until=NULL,updated=excluded.updated')
       .bind(owner, plan, 'pending', provider, subscription, customer, interval, now).run();
   }
   await auditEvent(owner, 'billing.checkout_started', {plan, interval, provider, currency});
@@ -234,13 +234,13 @@ export async function startCheckout(owner: string, plan: PlanId, interval: Inter
  */
 export async function applyPlanUpdate(provider: BillingProvider, eventId: string, kind: string, u: PlanUpdate, now = Date.now()) {
   const db = await database(), at = new Date(now).toISOString();
-  const row = (u.owner ? await planRowFor(u.owner) : null) ?? await db.prepare('SELECT * FROM accounts_plans WHERE provider=? AND provider_subscription=?').bind(provider, u.subscription).first<AccountPlanRow>();
+  const row = (u.owner ? await planRowFor(u.owner) : null) ?? await db.prepare('SELECT * FROM scopeflow.accounts_plans WHERE provider=? AND provider_subscription=?').bind(provider, u.subscription).first<AccountPlanRow>();
   const owner = u.owner ?? row?.owner ?? null;
   if (!owner) return {applied: false, reason: 'unknown_subscription'} as const;
-  const first = await db.prepare('INSERT INTO billing_events (provider,event_id,owner,kind,received) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING RETURNING event_id').bind(provider, eventId, owner, kind, at).first();
+  const first = await db.prepare('INSERT INTO scopeflow.billing_events (provider,event_id,owner,kind,received) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING RETURNING event_id').bind(provider, eventId, owner, kind, at).first();
   if (!first) return {applied: false, reason: 'duplicate'} as const;
   const next = nextPlanRow(row, u, now);
-  await db.prepare('INSERT INTO accounts_plans (owner,plan,status,period_end,grace_until,provider,provider_customer,provider_subscription,interval,updated) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,period_end=excluded.period_end,grace_until=excluded.grace_until,provider=excluded.provider,provider_customer=coalesce(excluded.provider_customer,accounts_plans.provider_customer),provider_subscription=excluded.provider_subscription,interval=excluded.interval,updated=excluded.updated')
+  await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,period_end,grace_until,provider,provider_customer,provider_subscription,interval,updated) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,period_end=excluded.period_end,grace_until=excluded.grace_until,provider=excluded.provider,provider_customer=coalesce(excluded.provider_customer,accounts_plans.provider_customer),provider_subscription=excluded.provider_subscription,interval=excluded.interval,updated=excluded.updated')
     .bind(owner, next.plan, next.status, next.period_end, next.grace_until, provider, u.customer ?? null, u.subscription, next.interval, at).run();
   let invoice: string | null = null;
   if (u.payment && isPlanId(next.plan)) invoice = await issueBillingInvoice(owner, provider, next.plan as PlanId, next.interval, u.payment, at);
@@ -257,10 +257,10 @@ async function issueBillingInvoice(owner: string, provider: BillingProvider, pla
   // Numbers are taken and the invoice inserted in one statement under a lock, so they have no gaps.
   const contentFor = (number: string) => JSON.stringify(billingInvoiceContent({number, issued, seller: billingSeller(), buyer, plan, interval, period: {start: payment.period_start ?? null, end: payment.period_end ?? null}, currency: payment.currency, total_minor: payment.amount_minor, provider, payment: payment.id}));
   for (let attempt = 0; attempt < 3; attempt++) {
-    const seqRow = await db.prepare('SELECT coalesce(max(seq),0)+1 AS seq FROM billing_invoices').first<{seq: number}>();
+    const seqRow = await db.prepare('SELECT coalesce(max(seq),0)+1 AS seq FROM scopeflow.billing_invoices').first<{seq: number}>();
     const seq = Number(seqRow?.seq ?? 1), number = `SF-${year}-${String(seq).padStart(5, '0')}`;
     try {
-      const r = await db.prepare('INSERT INTO billing_invoices (id,owner,seq,number,provider,provider_payment,amount_minor,currency,issued,content) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (provider, provider_payment) DO NOTHING RETURNING number')
+      const r = await db.prepare('INSERT INTO scopeflow.billing_invoices (id,owner,seq,number,provider,provider_payment,amount_minor,currency,issued,content) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (provider, provider_payment) DO NOTHING RETURNING number')
         .bind(id, owner, seq, number, provider, payment.id, payment.amount_minor, payment.currency, issued, contentFor(number)).lock('scopeflow:billing-invoices').first<{number: string}>();
       return r?.number ?? null;
     } catch (e) { if (!String(e).includes('UNIQUE')) throw e; }

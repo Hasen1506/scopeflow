@@ -29,14 +29,14 @@ export async function GET(request: Request) {
       d.prepare(`SELECT project_id,seq,kind,baseline_version,actor,created,prev_hash,hash,signature,payload FROM ledger_entries WHERE project_id IN (${mine}) ORDER BY project_id,seq`).bind(owner).all(),
       d.prepare(`SELECT project_id,version,cosigner_id,role,signer,signed,signature FROM version_cosigns WHERE project_id IN (${mine}) ORDER BY signed`).bind(owner).all(),
       d.prepare(`SELECT project_id,version,first_viewed,last_viewed,views FROM review_views WHERE project_id IN (${mine}) ORDER BY last_viewed`).bind(owner).all(),
-      d.prepare('SELECT id,kind,detail,actor,created FROM audit_events WHERE owner=? ORDER BY created').bind(owner).all(),
+      d.prepare('SELECT id,kind,detail,actor,created FROM scopeflow.audit_events WHERE owner=? ORDER BY created').bind(owner).all(),
       d.prepare('SELECT * FROM account_settings WHERE owner=?').bind(owner).first<SettingsRow>(),
       d.prepare("SELECT to_regclass('scopeflow.contact_history') IS NOT NULL AS present").first<{present: boolean}>(),
     ]);
     // WS-02's contact_history (when present): every column, as recorded.
     let contacts: ContactRow[] = [];
     if (contactTable?.present) {
-      const rows = await d.prepare(`SELECT project_id, row_to_json(c)::text AS detail FROM contact_history c WHERE project_id IN (${mine})`).bind(owner).all<{project_id: string; detail: string}>();
+      const rows = await d.prepare(`SELECT project_id, row_to_json(c)::text AS detail FROM scopeflow.contact_history c WHERE project_id IN (${mine})`).bind(owner).all<{project_id: string; detail: string}>();
       contacts = rows.results.map(r => { const detail = JSON.parse(r.detail) as Record<string, unknown>; return {project_id: r.project_id, at: String(detail.at ?? detail.created ?? ''), detail}; });
     }
     const decisions = await Promise.all(versions.results.map(async v => ({project_id: v.project_id, version: v.version, status: v.status, signer: v.signer, decided: v.decided, signature: v.signature, anchor: await anchorOf(v)})));
