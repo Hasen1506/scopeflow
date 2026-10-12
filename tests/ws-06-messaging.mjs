@@ -111,11 +111,16 @@ async function project(cookie, {settings = {}, approved = true, ...extra} = {}) 
   return {project_id, token, P: '/api/scopes/' + project_id};
 }
 const proposeCo = (cookie, P, title, fee_delta) => call(P + '/ledger', {method: 'POST', cookie, body: {kind: 'change_order', baseline_version: 1, payload: {title, reason: '', request_quote: '', add_items: [], remove_item_ids: [], fee_delta, days_delta: 0, revisions_delta: 0}, request_id: randomUUID()}});
+// The local auth fixture trusts only the main server's origin (:5173), so accounts sign in there; the
+// session cookie (same fixture, same cookie secret) is then valid on this suite's server too.
+const authBase = process.env.SCOPEFLOW_TEST_URL || 'http://localhost:5173';
+assert.equal(new URL(authBase).hostname, 'localhost');
+const login = email => signIn(authBase, email);
 const ownerOf = id => sql(`SELECT owner FROM scopeflow.projects WHERE id=${esc(id)}`)[0].owner;
 const tag = randomUUID().slice(0, 8);
 
 await startServer();
-const cookie = await signIn(base, `ws06-owner-${tag}@example.test`);
+const cookie = await login(`ws06-owner-${tag}@example.test`);
 
 // ---- H18 / SF-13: client email when a change order is proposed ------------------------------------
 // @covers H18 SF-13
@@ -198,7 +203,7 @@ const b = await project(cookie, {approved: false, settings: {client_email: clien
   eq([r.data.code, r.data.domain], ['confirm_new_domain', `fresh-${tag}.example`]);
   eq(mails(`new-${tag}@fresh-${tag}.example`).length, 0, 'nothing sent before the owner confirms');
 
-  const capCookie = await signIn(base, `ws06-cap-${tag}@example.test`);
+  const capCookie = await login(`ws06-cap-${tag}@example.test`);
   const d = await project(capCookie, {approved: false, settings: {client_email: `d-${tag}@cap-ws06.example`}});
   const e = await project(capCookie, {approved: false, settings: {client_email: `e-${tag}@cap-ws06.example`}});
   const owner = ownerOf(d.project_id);
@@ -233,7 +238,7 @@ const b = await project(cookie, {approved: false, settings: {client_email: clien
 // ---- SF-04: forward-to-bot webhook ------------------------------------------------------------------
 // @covers SF-04
 {
-  const botCookie = await signIn(base, `ws06-bot-${tag}@example.test`);
+  const botCookie = await login(`ws06-bot-${tag}@example.test`);
   const h = await project(botCookie, {tax_pct: 18, tax_label: 'GST'});
   const owner = ownerOf(h.project_id);
   const phone = '+9198' + String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
@@ -286,7 +291,7 @@ const b = await project(cookie, {approved: false, settings: {client_email: clien
 // ---- L11 / M11: model fallback and the draft currency -----------------------------------------------
 // @covers L11 M11
 {
-  const aiCookie = await signIn(base, `ws06-ai-${tag}@example.test`);
+  const aiCookie = await login(`ws06-ai-${tag}@example.test`);
   // The owner's default currency is INR (business profile).
   const mine = await project(aiCookie, {approved: false});
   sql(`INSERT INTO scopeflow.business_profiles (owner,default_currency,updated) VALUES (${esc(ownerOf(mine.project_id))},'INR',${esc(new Date().toISOString())}) ON CONFLICT (owner) DO UPDATE SET default_currency='INR'`);
