@@ -268,10 +268,14 @@ test('stripe: form encoding, signature check, paid events and provider choice', 
   assert.equal(stripe.stripePaidEvent({type: 'checkout.session.completed', data: {object: {...session, payment_status: 'unpaid'}}}), null);
   assert.equal(stripe.stripePaidEvent({type: 'payment_intent.created', data: {object: session}}), null);
   assert.equal(stripe.stripeConfig({STRIPE_SECRET_KEY: 'pk_test_1'}), null, 'a publishable key is refused');
-  const both = {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's', STRIPE_SECRET_KEY: 'sk_test_1'};
+  // changed by WS-04: operator Razorpay keys need RAZORPAY_WEBHOOK_SECRET (H7), and outside development
+  // they never take a client payment (C3; covered in tests/property/ws-04-payments.test.mjs).
+  const both = {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's', RAZORPAY_WEBHOOK_SECRET: 'w', STRIPE_SECRET_KEY: 'sk_test_1'};
   assert.equal(rz.providerFor('INR', both), 'razorpay');
   assert.equal(rz.providerFor('USD', both), 'stripe');
-  assert.equal(rz.providerFor('USD', {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's'}), 'razorpay');
+  assert.equal(rz.providerFor('USD', {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's', RAZORPAY_WEBHOOK_SECRET: 'w'}), 'razorpay');
+  assert.equal(rz.providerFor('INR', {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's'}), null, 'no webhook secret: misconfigured');
+  assert.equal(rz.providerFor('INR', {...both, NODE_ENV: 'production'}), null, 'operator keys refused in production');
   assert.equal(rz.providerFor('INR', {STRIPE_SECRET_KEY: 'sk_test_1'}), 'stripe');
   assert.equal(rz.providerFor('INR', {}), null);
   assert.equal(rz.providerFor('USD', {STRIPE_SECRET_KEY: 'sk_test_1', STRIPE_CURRENCIES: 'eur, gbp'}), null, 'STRIPE_CURRENCIES limits Stripe');

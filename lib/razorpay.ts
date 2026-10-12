@@ -151,7 +151,7 @@ export async function fetchPayment(config: RazorpayCredential, paymentId: string
  * so a retried request (or a crash and a reconcile) never refunds twice (H9). Returns the refund id.
  */
 export async function razorpayRefund(config: RazorpayCredential, paymentId: string, amount_minor: number, receipt: string, fetchImpl: typeof fetch = fetch, env: Env = process.env, idempotencyKey?: string) {
-  const data = await call<{id?: string; status?: string}>(config, 'POST', `/v1/payments/${encodeURIComponent(paymentId)}/refund`, {amount: amount_minor, receipt: receipt.slice(0, 40), notes: idempotencyKey ? {scopeflow_request: idempotencyKey.slice(0, 250)} : {}}, 'refund', {fetchImpl, env, idempotencyKey, timeoutMs: 15000});
+  const data = await call<{id?: string; status?: string}>(config, 'POST', `/v1/payments/${encodeURIComponent(paymentId)}/refund`, {amount: amount_minor, receipt: receipt.slice(0, 40), ...(idempotencyKey ? {notes: {scopeflow_request: idempotencyKey.slice(0, 250)}} : {})}, 'refund', {fetchImpl, env, idempotencyKey, timeoutMs: 15000});
   if (typeof data.id !== 'string') throw new RazorpayError('Razorpay returned no refund.');
   return {id: data.id, status: data.status ?? 'pending'};
 }

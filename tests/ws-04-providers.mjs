@@ -259,6 +259,7 @@ try {
   // ---- H8 (Razorpay): the open amount changes; a capture on the old order is excess, with an alert -----
   {
     // @covers H8 H6
+    const rz = await rzOwner('h8'); // a fresh owner: write limits are per owner per minute
     const p = await project(rz.cookie);
     const a = await call(`/api/review/${p.token}/deposit`, {method: 'POST', body: {}});
     eq(a.data.amount_minor, 300000);
@@ -285,6 +286,7 @@ try {
   // ---- M20: captured 5,000 against an order of 5,900: 5,000 recorded and the owner alerted ------------
   {
     // @covers M20
+    const rz = await rzOwner('m20'); // a fresh owner: write limits are per owner per minute
     const p = await project(rz.cookie, {fee: 5000, tax_pct: 18, tax_label: 'GST', deposit_pct: 100});
     const start = await call(`/api/review/${p.token}/deposit`, {method: 'POST', body: {}});
     eq(start.data.amount_minor, 590000);
@@ -300,6 +302,7 @@ try {
   // ---- M21 + H6: recording fails -> event stored, 500, owner alerted; reconcile processes it -----------
   {
     // @covers M21 H6
+    const rz = await rzOwner('m21'); // a fresh owner: write limits are per owner per minute
     const p = await project(rz.cookie, {}, {approved: false});
     const order = 'order_' + randomUUID().replaceAll('-', '').slice(0, 14);
     localSql(`INSERT INTO scopeflow.payments (id,project_id,version,provider,order_id,amount_minor,currency,status,created,purpose,account_id) VALUES ('${randomUUID()}',${esc(p.project_id)},1,'razorpay',${esc(order)},300000,'INR','created','${new Date().toISOString()}','deposit',${esc(rz.account)})`);
@@ -325,6 +328,7 @@ try {
   // ---- H9: concurrent refunds -------------------------------------------------------------------------
   {
     // @covers H9
+    const rz = await rzOwner('h9'); // a fresh owner: write limits are per owner per minute
     const p = await paidDeposit(rz, {fee: 1000});
     const R = `/api/scopes/${p.project_id}/refunds`;
     const calls0 = refundCalls(p.pay.id);
@@ -347,6 +351,7 @@ try {
   // ---- H9: killed between the provider call and the append -> reconcile finalises the refund ----------
   {
     // @covers H9 H14
+    const rz = await rzOwner('kill'); // a fresh owner: write limits are per owner per minute
     const p = await paidDeposit(rz, {fee: 1000});
     let issued = null;
     D.rz.onRefund = async r => { issued = r; await stopServer('SIGKILL'); };
@@ -369,6 +374,7 @@ try {
   // ---- H14: the baseline changes between the provider refund and the append -> still recorded ----------
   {
     // @covers H14 C4
+    const rz = await rzOwner('h14'); // a fresh owner: write limits are per owner per minute
     const p = await paidDeposit(rz, {fee: 1000});
     let token2 = null;
     D.rz.onRefund = async () => { token2 = await supersede(rz.cookie, p.project_id, 1); };
@@ -384,6 +390,7 @@ try {
   // ---- L4: 250 unreconciled orders: newest 200 first, the cursor resumes ------------------------------
   {
     // @covers L4
+    const rz = await rzOwner('l4'); // a fresh owner: write limits are per owner per minute
     const p = await project(rz.cookie);
     const now = Date.now();
     const ids = Array.from({length: 250}, (_, i) => 'order_L4' + String(i).padStart(4, '0') + randomUUID().replaceAll('-', '').slice(0, 6));

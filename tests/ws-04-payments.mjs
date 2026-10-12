@@ -70,6 +70,7 @@ const owner = await signIn(base, `ws04-${Date.now()}@example.test`);
 // ---- LT-02 / SF-02: UPI direct, "I've paid" claim, owner confirms -> deposit covered ----------------
 {
   // @covers LT-02 SF-02 C3
+  const owner = await signIn(base, `ws04-upi-${Date.now()}@example.test`); // changed: a fresh owner per block (write limits are per owner per minute)
   const accounts = await call('/api/payment-accounts', {cookie: owner});
   eq([accounts.status, accounts.data.readiness.payments], [200, 'none']);
   eq((await call('/api/payment-accounts', {method: 'POST', cookie: owner, body: {kind: 'upi', vpa: 'not-a-vpa', payee_name: 'Asha Design'}})).status, 400);
@@ -134,6 +135,7 @@ const owner = await signIn(base, `ws04-${Date.now()}@example.test`);
 // ---- Stripe BYO validation: keys are checked before they are stored --------------------------------
 {
   // @covers SF-20
+  const owner = await signIn(base, `ws04-accounts-${Date.now()}@example.test`);
   eq((await call('/api/payment-accounts', {method: 'POST', cookie: owner, body: {kind: 'stripe_keys', secret_key: 'pk_test_wrong'}})).status, 400);
   eq((await call('/api/payment-accounts', {method: 'POST', cookie: owner, body: {kind: 'razorpay_route', linked_account_id: 'acc_ABCDEF123'}})).data.code, 'route_disabled', 'Route stays off without SCOPEFLOW_ROUTE_ENABLED');
   const oauth = await fetch(base + '/api/payment-accounts/razorpay/connect', {headers: {Cookie: owner}, redirect: 'manual'});

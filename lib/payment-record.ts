@@ -4,7 +4,8 @@ import {loadLedger, LedgerConflict} from './ledger-server';
 import {appendMoneyEntry} from './ledger-hooks';
 import {clientInvoices, todayIn} from './invoice-server';
 import {agreementTotals} from './agreement-totals';
-import {classifyCapture, depositOpen, moneyState} from './money-ledger';
+import {balanceOpen, classifyCapture, depositOpen, moneyState} from './money-ledger';
+import {entryKindEnabled} from './ledger';
 import {raiseAlert} from './payment-accounts-server';
 import {fromMinor, toMinor} from './minor';
 import type {Scope} from './scope';
@@ -84,7 +85,9 @@ async function appendPayment(order: OrderRow, event: PaidEvent, channel: Payment
       const tz = (await database.prepare('SELECT timezone FROM projects WHERE id=?').bind(order.project_id).first<{timezone: string | null}>())?.timezone ?? null;
       const inv = (await clientInvoices(order.project_id, ledger.baseline.version, ledger.entries, tz)).find(i => i.seq === order.invoice_seq);
       open = inv ? toMinor(inv.open, content.currency) : event.amount_minor;
-    } else open = depositOpen(state);
+    // A deposit order counts toward the deposit. A legacy order (purpose unset, created before
+    // checkout stored it) or one on an agreement without a deposit counts toward the balance.
+    } else open = order.purpose === 'deposit' && t.deposit > 0 ? depositOpen(state) : balanceOpen(state, t.total);
     // A capture in another currency than its order cannot be applied: all of it is flagged.
     const cls = order.currency !== event.currency ? {apply_minor: 0, excess_minor: event.amount_minor, short_minor: 0} : classifyCapture({open_minor: open, order_minor: orderMinor, captured_minor: event.amount_minor});
     const payload = {provider, purpose: order.purpose === 'invoice' ? 'invoice' : 'deposit', order_id: event.order_id, payment_id: event.payment_id, amount: fromMinor(event.amount_minor, event.currency), currency: event.currency,
@@ -122,6 +125,8 @@ async function appendPayment(order: OrderRow, event: PaidEvent, channel: Payment
 /** Appends the `excess_payment` flag for a recorded overpayment, once (ref excess:<order>); reconcile repairs a missing one. */
 async function ensureExcessEntry(order: Pick<OrderRow, 'project_id' | 'outcome' | 'excess_minor' | 'superseded_at' | 'currency'>, event: PaidEvent, paymentSeq: number, reason?: 'currency_mismatch' | 'superseded_order' | 'overpaid', provider: OnlineProvider = 'razorpay') {
   if (order.outcome !== 'excess' || !(Number(order.excess_minor) > 0)) return;
+  // Phase 0 ledgers do not accept the kind yet (WS-05 enables it); the payment row and the alert carry the excess meanwhile.
+  if (!entryKindEnabled('excess_payment')) return;
   const database = db(), ref = 'excess:' + event.order_id;
   for (let attempt = 0; attempt < 4; attempt++) {
     if (await database.prepare('SELECT 1 AS x FROM ledger_entries WHERE project_id=? AND ref=?').bind(order.project_id, ref).first()) return;

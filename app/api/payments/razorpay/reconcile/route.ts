@@ -5,6 +5,7 @@ import {StripeError, stripeRefunds, stripeSessionPaid} from '@/lib/stripe';
 import {razorpayFor, raiseAlert, stripeFor} from '@/lib/payment-accounts-server';
 import {drainInbox, finalizeRefund, PaymentRecordError, recordPaidPayment, REFUND_COLUMNS, type PendingRefund, type RecordResult} from '@/lib/payment-record';
 import {operatorRazorpay, operatorStripe} from '@/lib/payment-accounts';
+import {entryKindEnabled} from '@/lib/ledger';
 
 // Payment reconciliation for Razorpay and Stripe (daily job, scripts/reconcile-payments.mjs), the
 // third line of defence after the webhook and the Checkout verify route / return page:
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     // 1. Paid orders without their ledger entry, or an excess payment without its flag.
     const missing = await database.prepare(`SELECT p.provider,p.order_id,p.payment_id,p.amount_minor,p.received_minor,p.currency,p.account_id FROM payments p WHERE p.provider IN ('razorpay','stripe') AND p.status='paid' AND p.payment_id IS NOT NULL
       AND (NOT EXISTS (SELECT 1 FROM ledger_entries l WHERE l.project_id=p.project_id AND l.ref='payment:'||p.order_id)
-        OR (p.outcome='excess' AND NOT EXISTS (SELECT 1 FROM ledger_entries l WHERE l.project_id=p.project_id AND l.ref='excess:'||p.order_id)))`).all<{provider: 'razorpay' | 'stripe'; order_id: string; payment_id: string; amount_minor: number | string; received_minor: number | string | null; currency: string; account_id: string | null}>();
+        ${entryKindEnabled('excess_payment') ? "OR (p.outcome='excess' AND NOT EXISTS (SELECT 1 FROM ledger_entries l WHERE l.project_id=p.project_id AND l.ref='excess:'||p.order_id))" : ''})`).all<{provider: 'razorpay' | 'stripe'; order_id: string; payment_id: string; amount_minor: number | string; received_minor: number | string | null; currency: string; account_id: string | null}>();
     for (const m of missing.results) await record({event_id: null, order_id: m.order_id, payment_id: m.payment_id, amount_minor: Number(m.received_minor ?? m.amount_minor), currency: m.currency}, m.provider === 'stripe' ? 'stripe_reconcile' : 'razorpay_reconcile', {ensureLedger: true, provider: m.provider});
     // 2. Refunds not yet on the record.
     const refunds: {request_id: string; status: string; seq?: number | null}[] = [];
