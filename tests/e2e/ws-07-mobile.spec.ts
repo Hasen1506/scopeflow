@@ -8,7 +8,7 @@ import {createHash} from 'node:crypto';
 // @covers LT-19
 
 const sha = (t: string) => createHash('sha256').update(t).digest('hex');
-const FROZEN = new Date('Wed 2026-10-07 2:30 PM IST (UTC+05:30)');
+const FROZEN = new Date('2026-10-07T14:30:00+05:30');
 const PHONES = {
   'Pixel 7': devices['Pixel 7'],
   'iPhone 13': devices['iPhone 13'],

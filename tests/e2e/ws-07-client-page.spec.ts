@@ -8,7 +8,7 @@ import {existsSync, readFileSync, writeFileSync} from 'node:fs';
 // @covers LT-01 LT-10 LT-13 LT-15 SF-09 SF-23 M7 M32 H4 H10 L12
 
 const sha = (t: string) => createHash('sha256').update(t).digest('hex');
-const FROZEN = new Date('Wed 2026-10-07 2:30 PM IST (UTC+05:30)');
+const FROZEN = new Date('2026-10-07T14:30:00+05:30');
 const GOLDEN = new URL('../golden/ws-07-client-copy.golden.txt', import.meta.url);
 type Made = {project_id: string; token: string; version: number};
 

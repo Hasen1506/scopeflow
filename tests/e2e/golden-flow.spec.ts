@@ -134,7 +134,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   const decision = cpage.waitForResponse(r => r.url().endsWith(reviewPath.replace('/review/', '/api/review/')) && r.request().method() === 'POST');
   await cpage.getByRole('button', {name: 'Approve this scope'}).click();
   const {receipt} = await (await decision).json();
-  await expect(cpage.getByText('Your receipt')).toBeVisible();
+  await expect(cpage.getByText('Your receipt', {exact: true})).toBeVisible(); // changed by WS-07: success copy also says "Keep your receipt"
   await expect(cpage.getByRole('heading', {name: 'Approved'})).toBeVisible();
 
   // The receipt is verifiable with nothing but the published public key.
