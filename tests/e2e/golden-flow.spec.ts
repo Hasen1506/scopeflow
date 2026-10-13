@@ -100,8 +100,8 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await rows.nth(1).getByLabel('Unit').fill('pages');
   await rows.nth(0).getByLabel('Done when').fill('SVG, PNG and PDF in colour and mono');
   await rows.nth(2).getByLabel('Deliverable 3').fill('Social launch templates'); // edit
-  await rows.nth(2).getByRole('button', {name: 'Move up'}).click(); // reorder: templates before guidelines
-  await expect(rows.nth(0).getByLabel('Move up')).toBeDisabled();
+  await rows.nth(2).getByRole('button', {name: /^Move .+ up$/}).click(); // reorder: templates before guidelines
+  await expect(rows.nth(0).getByRole('button', {name: /^Move .+ up$/})).toBeDisabled();
   await expect(page.locator('.paper .deliverable')).toHaveText([/Logo suite/, /Social launch templates/, /Brand guidelines.*12 pages/]);
   await expect(editor.getByText('Itemised total: $1,800.00')).toBeVisible();
   await page.getByLabel('Project fee').fill('1800');

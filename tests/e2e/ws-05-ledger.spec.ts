@@ -77,7 +77,6 @@ test('ws-05: CO-1 +₹7,500.50 approved on the client page; the receipt carries 
 
 // @covers LT-08
 test('ws-05: withdrawing a change order answers in under 2 s and a double click records it once', async ({page, baseURL}) => {
-  page.on('dialog', d => d.accept());
   await signUp(page, baseURL!, 'withdraw');
   const title = 'TEST WS-05 withdraw e2e ' + Date.now();
   const p = await approvedProject(page, baseURL!, inrScope(title));
@@ -87,15 +86,20 @@ test('ws-05: withdrawing a change order answers in under 2 s and a double click 
   const row = (t: string) => ledger.locator('ol.timeline > li').filter({hasText: t}).filter({has: page.getByRole('button', {name: 'Withdraw'})});
 
   const posted = page.waitForResponse(r => r.url().endsWith(`/api/scopes/${p.project_id}/ledger`) && r.request().method() === 'POST');
-  const t0 = Date.now();
+  // UX-C41: withdrawal is confirmed in an in-app dialog (no native confirm); the timing starts at the confirm.
   await row('TEST first change').getByRole('button', {name: 'Withdraw'}).click();
+  const confirmFirst = page.getByRole('dialog', {name: 'Withdraw CO-1?'});
+  await expect(confirmFirst).toContainText('The client will no longer be able to approve it.');
+  const t0 = Date.now();
+  await confirmFirst.getByRole('button', {name: 'Withdraw CO-1'}).click();
   expect((await posted).status()).toBe(201);
   expect(Date.now() - t0).toBeLessThan(2000);
   await expect(ledger.getByRole('status')).toContainText('CO-1 withdrawn');
 
   let posts = 0;
   page.on('request', r => { if (r.url().endsWith(`/api/scopes/${p.project_id}/ledger`) && r.method() === 'POST') posts++; });
-  await row('TEST second change').getByRole('button', {name: 'Withdraw'}).dblclick();
+  await row('TEST second change').getByRole('button', {name: 'Withdraw'}).click();
+  await page.getByRole('dialog', {name: `Withdraw CO-${second}?`}).getByRole('button', {name: `Withdraw CO-${second}`}).dblclick();
   await expect(ledger.getByRole('status')).toContainText(`CO-${second} withdrawn`);
   expect(posts).toBeLessThanOrEqual(2);
   const view = await (await page.request.get(`/api/scopes/${p.project_id}/ledger`)).json();

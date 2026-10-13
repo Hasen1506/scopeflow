@@ -1,5 +1,5 @@
 'use client';
-import {useEffect, useId, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 import {Copy, Search} from 'lucide-react';
 import type {RadarResult} from '@/lib/radar';
 import type {Agreement, ChangeOrder} from '@/lib/ledger';
@@ -51,7 +51,11 @@ export function ScopeCheck({projectId, busy, onDraft, onLogRound, onRevise, ai: 
   useEffect(() => { if (given) return; let live = true; api('/api/me').then(me => { if (live && me.ai) setLoaded(me.ai); }, () => {}); return () => { live = false; }; }, [given]);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
-  const [copied, setCopied] = useState(false);
+  // UX-C29: "Copied" resets after 2 s, and a failed copy says so.
+  const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
+  const flagCopy = (state: 'ok' | 'fail') => { setCopied(state); if (copyTimer.current) clearTimeout(copyTimer.current); copyTimer.current = setTimeout(() => setCopied('idle'), state === 'ok' ? 2000 : 4000); };
   const v = result && verdicts[result.verdict];
   async function check() {
     setError(''); setChecking(true); setResult(null);
@@ -75,7 +79,7 @@ export function ScopeCheck({projectId, busy, onDraft, onLogRound, onRevise, ai: 
           <p className="fine">{result.engine === 'llm' ? `An AI reading (${used?.provider === 'anthropic' ? 'Anthropic' : 'OpenAI'}${used?.model ? ', ' + used.model : ''}) checked against the numbered clauses; it must cite clauses that exist.` : `A keyword check against your deliverables and exclusions${used?.enabled ? '' : ' (AI check off: no OPENAI_API_KEY or ANTHROPIC_API_KEY on this server)'}.`} Read the request yourself before replying.</p>
           <label>Suggested reply<textarea rows={3} readOnly value={result.reply} onFocus={e => e.target.select()} /></label>
           <div className="actions">
-            <button type="button" className="secondary" onClick={async () => { try { await navigator.clipboard.writeText(result.reply); setCopied(true); } catch { setCopied(false); } }}><Copy size={15} />{copied ? 'Copied' : 'Copy reply'}</button>
+            <button type="button" className="secondary" onClick={async () => { try { await navigator.clipboard.writeText(result.reply); flagCopy('ok'); } catch { flagCopy('fail'); } }}><Copy size={15} />{copied === 'ok' ? 'Copied' : 'Copy reply'}</button>{copied === 'fail' && <span className="error-text" role="status">Copy failed. Select the reply and copy it.</span>}
             {onDraft && result.change_order && <button type="button" className="primary" disabled={busy} onClick={() => onDraft(result.change_order!)}>Draft change order</button>}
             {onLogRound && result.verdict === 'revision' && result.rounds_left > 0 && <button type="button" className="secondary" disabled={busy} onClick={() => onLogRound(message.trim().slice(0, 300))}>Log as revision round</button>}
             {onRevise && (result.verdict === 'out_of_scope' || result.verdict === 'ambiguous') && <button type="button" className="primary" disabled={busy} onClick={onRevise}>Revise the scope</button>}

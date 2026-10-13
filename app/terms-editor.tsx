@@ -32,7 +32,7 @@ export function MilestonesEditor({scope, onChange}: {scope: Scope; onChange: (m:
       ))}
       <div className="items-foot">
         <button type="button" className="secondary" onClick={() => onChange([...list, {id: newId('m'), title: list.length ? '' : 'On signature', pct: Math.max(0, Math.round((100 - sum) * 100) / 100) || 50, due: ''}])}><Plus size={16} />Add milestone</button>
-        {list.length > 0 && <span className={Math.abs(sum - 100) > 0.01 ? 'warn-text' : 'fine'} role="status">Adds up to {sum}%{Math.abs(sum - 100) > 0.01 ? ' (needs 100%)' : ''}{scope.deposit_pct ? ' · remove the deposit above: the first milestone replaces it' : ''}</span>}
+        {list.length > 0 && <span className={Math.abs(sum - 100) > 0.01 ? 'warn-text' : 'fine'}>Adds up to {sum}%{Math.abs(sum - 100) > 0.01 ? ' (needs 100%)' : ''}{scope.deposit_pct ? ' · remove the deposit above: the first milestone replaces it' : ''}</span>}
       </div>
     </fieldset>
   );

@@ -399,6 +399,11 @@ label select{margin-top:7px}
 .agreement-grid strong.over{color:var(--bad)}
 .agreement-grid em{display:block;font-size:var(--fs-1);color:var(--ink-3);font-style:normal;font-family:var(--font-ui)}
 .agreement-grid meter{width:100%;height:6px;margin-top:6px;accent-color:var(--accent)}
+/* UX-C47: a used-up or overdrawn allowance reads as a warning, not as progress */
+.agreement-grid meter::-webkit-meter-optimum-value{background:var(--accent)}
+.agreement-grid meter.over::-webkit-meter-optimum-value{background:var(--bad)}
+.agreement-grid meter.over::-moz-meter-bar{background:var(--bad)}
+.agreement-grid meter.over{accent-color:var(--bad)}
 .agreement-view .agreement-grid strong{font-size:var(--fs-4)}
 .ledger-form{border:1px solid var(--rule-strong);border-radius:var(--r);padding:4px 16px 16px;margin:14px 0;background:var(--surface-2);animation:sf-fade-up var(--dur-3) var(--ease)}
 .change-order{border:1px solid var(--rule-strong);border-left:3px solid var(--accent);border-radius:var(--r);padding:18px;margin:18px 0;background:var(--surface-2)}
@@ -976,3 +981,34 @@ form[data-attempted] label:has(input:invalid)+.field-hint,form[data-attempted] .
 form[data-attempted] .password-field:has(input:invalid)+.field-hint{margin-top:6px}
 form[data-attempted] .password-field:has(input:invalid)~#password-hint{color:var(--bad)}
 main#content:focus{outline:none}
+/* UX-C12, C41: one line that says what cannot be undone (dialogs, irreversible warnings); not quiet fine print */
+.consequence{display:block;margin:var(--s2) 0;padding:6px 0 6px 12px;border-left:3px solid var(--warn);color:var(--ink);font-size:var(--fs-2);font-weight:var(--fw-2)}
+[data-slot=dialog-content] .consequence{margin:0}
+[data-slot=dialog-content] form{display:grid;gap:var(--s3)}
+
+/* UX-C40: no brand colour saved: a neutral swatch next to "Not set" */
+.color-row input[type="color"].unset{opacity:.45}
+/* UX-C17: Archived reads differently from Draft at a glance (dashed edge, struck dot) */
+.stage-archived{border:1px dashed currentColor;background:transparent}
+.stage-archived::before{border-style:dashed}
+/* UX-C51: wide screens: the sticky paper preview scrolls inside the viewport, so its lower half can sit next to the form */
+@media screen and (min-width:901px){.preview-col{max-height:calc(100vh - 40px);overflow:auto;overscroll-behavior:contain}}
+@media print{.preview-col{max-height:none;overflow:visible}}
+/* UX-C56: multiply art turns to a dark blob on dark and cobalt pages; invert it and screen it instead */
+:root[data-scheme="dark"] .plate img,:root[data-scheme="dark"] .empty-state img,:root[data-scheme="dark"] .footer-art,
+:root[data-theme="a"] .plate img,:root[data-theme="a"] .empty-state img,:root[data-theme="a"] .footer-art{mix-blend-mode:screen;filter:invert(1) hue-rotate(180deg)}
+/* UX-C58: on dark and cobalt pages the overlay is near the page hue; darken it so dialogs separate */
+:root[data-scheme="dark"] [data-slot=dialog-overlay],:root[data-theme="a"] [data-slot=dialog-overlay]{background:rgba(0,0,0,.7)!important}
+/* UX-C48: phones: the most-used icon buttons and dismiss get 44px targets; text buttons a taller hit area */
+@media (max-width:760px){
+  .icon{width:44px;height:44px}
+  .template-chip .icon{width:40px;height:40px}
+  .dismiss{width:40px;height:40px}
+  .link-button,.help-link{padding-block:6px}
+}
+/* UX-C26: insights refetching after a filter change */
+.insights-body.is-loading .agreement-grid,.insights-body.is-loading .insights-hero,.insights-body.is-loading .table-scroll{opacity:.6;transition:opacity var(--dur-1) var(--ease)}
+/* UX-C54: the monthly table scrolls sideways on phones; mixed-currency hero amounts wrap and step down a size */
+.table-scroll{overflow-x:auto;max-width:100%}
+.insights-hero strong{overflow-wrap:anywhere}
+.insights-hero.multi strong{font-size:var(--fs-5)}

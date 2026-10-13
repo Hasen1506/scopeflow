@@ -18,12 +18,15 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
   // SF-16: filters (period, client, currency) re-read the route; the CSV export uses the same query.
   const [period, setPeriod] = useState('all'), [client, setClient] = useState(''), [currency, setCurrency] = useState(''), [inr, setInr] = useState(false), [fx, setFx] = useState<Fx[]>([]);
   const qs = new URLSearchParams({...(period !== 'all' ? {period} : {}), ...(client ? {client} : {}), ...(currency ? {currency} : {})}).toString();
+  // UX-C26: a refetch dims the numbers (aria-busy) instead of leaving stale ones looking current; errors offer a retry.
+  const [loading, setLoading] = useState(false), [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!signedIn) return;
     let live = true;
-    api('/api/insights' + (qs ? '?' + qs : '')).then(d => { if (live) setData(d); }, e => { if (live) setError((e as Error).message); });
+    queueMicrotask(() => { if (live) { setLoading(true); setError(''); } });
+    api('/api/insights' + (qs ? '?' + qs : '')).then(d => { if (live) setData(d); }, e => { if (live) setError((e as Error).message); }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, [signedIn, qs]);
+  }, [signedIn, qs, attempt]);
   // INR equivalent: amounts with a locked rate are converted on the server; the rest use today's reference rate, named with its source.
   const unconverted = Object.keys(data?.recovered?.inr.unconverted ?? {}).join(',');
   useEffect(() => {
@@ -33,7 +36,7 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
     return () => { live = false; };
   }, [inr, unconverted]);
   if (!signedIn) return <EmptyState title="Patterns across your projects">Sign in to see where scope actually moves: change orders, rounds and goodwill.</EmptyState>;
-  if (error) return <p className="error" role="alert">{error}</p>;
+  if (error) return <p className="error" role="alert">Couldn’t load insights ({error}). <button type="button" className="help-link" onClick={() => setAttempt(n => n + 1)}>Retry</button></p>;
   if (!data) return <Skeleton cards={2} lines={2} label="Loading insights…" />;
   const filtered = !!qs;
   if (!data.projects && !filtered) return <EmptyState title="No approved agreements yet">Insights appear once a client approves a scope and you start recording change orders, rounds and goodwill.</EmptyState>;
@@ -47,9 +50,9 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
   </div>;
   if (!data.projects) return <div className="section-gap">{filters}<p className="fine">No approved agreements match these filters.</p></div>;
   return (
-    <div className="section-gap">
+    <div className={'section-gap insights-body' + (loading ? ' is-loading' : '')} aria-busy={loading || undefined}>
       {filters}
-      {rec && <section className="insights-hero" aria-label="Recovered from change orders">
+      {rec && <section className={'insights-hero' + (Object.keys(inr ? {} : rec.last_12).length > 1 ? ' multi' : '')} aria-label="Recovered from change orders">
         <span className="eyebrow">{Object.keys(rec.last_12).every(c => c === 'INR') || inr ? '₹ recovered' : 'Recovered'} · last 12 months</span>
         <strong>{inr ? formatMoney(Math.round(inrValue * 100) / 100, 'INR') : money(rec.last_12)}</strong>
         <em>{money(rec.this_month)} this month · {rec.change_orders} change order{rec.change_orders === 1 ? '' : 's'} paid for · {money(rec.total)} all time</em>
@@ -83,8 +86,8 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
       </>}
       {data.series?.some(x => x.change_orders || Object.keys(x.recovered).length || Object.keys(x.goodwill).length) && <>
         <h3 className="section-gap">By month</h3>
-        <table className="insights-series"><caption className="sr-only">Change orders, money recovered and goodwill by month</caption><thead><tr><th scope="col">Month</th><th scope="col">Change orders</th><th scope="col">Recovered</th><th scope="col">Goodwill</th></tr></thead>
-          <tbody>{data.series.filter(x => x.change_orders || Object.keys(x.recovered).length || Object.keys(x.goodwill).length).map(x => <tr key={x.month}><th scope="row">{x.month}</th><td>{x.change_orders}</td><td>{money(x.recovered)}</td><td>{money(x.goodwill)}</td></tr>)}</tbody></table>
+        <div className="table-scroll"><table className="insights-series"><caption className="sr-only">Change orders, money recovered and goodwill by month</caption><thead><tr><th scope="col">Month</th><th scope="col">Change orders</th><th scope="col">Recovered</th><th scope="col">Goodwill</th></tr></thead>
+          <tbody>{data.series.filter(x => x.change_orders || Object.keys(x.recovered).length || Object.keys(x.goodwill).length).map(x => <tr key={x.month}><th scope="row">{x.month}</th><td>{x.change_orders}</td><td>{money(x.recovered)}</td><td>{money(x.goodwill)}</td></tr>)}</tbody></table></div>
       </>}
       {data.observations.length > 0 && <ul className="observations">{data.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>}
       <h3 className="section-gap">By client</h3>

@@ -9,6 +9,7 @@ import type {Retainer} from '@/lib/scope';
 import {formatMoney} from '@/lib/scope';
 import {fromMinor} from '@/lib/minor';
 import {api, post} from './ui';
+import {useConfirm} from './a11y';
 import styles from './components/ws-05/ws-05.module.css';
 
 type PeriodsView = {baseline_version: number; currency: string; retainer: RetainerView; terms: Retainer; statement?: RetainerStatement};
@@ -16,6 +17,7 @@ const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000
 
 export function RetainerPanel({projectId, items, onChanged}: {projectId: string; items: {id: string; title: string}[]; onChanged?: () => void}) {
   const [view, setView] = useState<PeriodsView | null>(null);
+  const [confirm, confirmDialog] = useConfirm(); // UX-C41: closing a period is confirmed in-app
   const [statement, setStatement] = useState<RetainerStatement | null>(null);
   const [itemId, setItemId] = useState('');
   const [qty, setQty] = useState('1');
@@ -58,7 +60,7 @@ export function RetainerPanel({projectId, items, onChanged}: {projectId: string;
           <button type="submit" className="primary" disabled={busy}>Log usage</button>
         </div>
       </form>
-      {current && !current.closed_seq && <div className="actions"><button className="secondary" disabled={busy} onClick={() => { if (window.confirm(`Close ${current.period}? Usage can no longer be logged against it.`)) void act({action: 'close', period: current.period}, () => `${current.period} closed.`); }}>Close {current.period}</button></div>}
+      {current && !current.closed_seq && <div className="actions"><button className="secondary" disabled={busy} onClick={async () => { if (await confirm({title: `Close ${current.period}?`, consequence: 'Usage can no longer be logged against it.', confirmLabel: `Close ${current.period}`, cancelLabel: 'Keep it open'})) void act({action: 'close', period: current.period}, () => `${current.period} closed.`); }}>Close {current.period}</button></div>}
       {view.retainer.periods.length > 0 && <div className="actions">{view.retainer.periods.map(p => <button key={p.period} className="link-button" onClick={() => api(`/api/scopes/${projectId}/periods?period=${p.period}`).then(r => setStatement(r.statement), e => setError((e as Error).message))}>Statement {p.period}</button>)}</div>}
       {statement && (
         <table className={styles.table} aria-label={`Retainer statement ${statement.period}`}>
@@ -74,6 +76,7 @@ export function RetainerPanel({projectId, items, onChanged}: {projectId: string;
       )}
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="muted-box" role="status">{notice}</p>}
+      {confirmDialog}
     </section>
   );
 }
