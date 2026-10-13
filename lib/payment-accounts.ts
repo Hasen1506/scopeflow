@@ -83,8 +83,8 @@ export function chooseRoute(accounts: Pick<PaymentAccount, 'id' | 'kind' | 'stat
   const oauth = () => {
     const a = find('razorpay_oauth');
     if (!a) return null;
-    if (!partner) { warnings.push('Razorpay OAuth account connected but RAZORPAY_PARTNER_CLIENT_ID/SECRET are not set.'); return null; }
-    if (!a.public.has_webhook_secret && !partner.webhookSecret) { warnings.push('Razorpay account connected without a webhook secret (RAZORPAY_PARTNER_WEBHOOK_SECRET): payments could not be confirmed.'); return null; }
+    if (!partner) { warnings.push('Razorpay account connected, but Razorpay sign-in is not set up on this server yet.'); return null; }
+    if (!a.public.has_webhook_secret && !partner.webhookSecret) { warnings.push('Razorpay account connected without a webhook secret: payments could not be confirmed.'); return null; }
     return {provider: 'razorpay' as const, via: 'oauth' as const, account_id: a.id};
   };
   const keys = () => {
@@ -121,7 +121,7 @@ export function chooseRoute(accounts: Pick<PaymentAccount, 'id' | 'kind' | 'stat
     }
     const hook = opProvider === 'razorpay' ? env.RAZORPAY_WEBHOOK_SECRET?.trim() : env.STRIPE_WEBHOOK_SECRET?.trim();
     if (opProvider === 'razorpay' && !hook) {
-      warnings.push('RAZORPAY_KEY_ID/SECRET are set but RAZORPAY_WEBHOOK_SECRET is not: payments could not be confirmed.');
+      warnings.push('This server’s Razorpay keys have no webhook secret: payments could not be confirmed.');
       return {upi, online: null, status: upi ? 'upi_only' : 'misconfigured', warnings};
     }
     return {upi, online: {provider: opProvider, via: 'operator', account_id: null}, status: 'ready', warnings};

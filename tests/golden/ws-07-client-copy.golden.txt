@@ -32,7 +32,7 @@ Weekly check-ins
 
 Prepared with Scopeflow
 Awaiting review
-Everything look right?
+Does everything look right?
 
 Review the deliverables, fee, and working terms. Approve this version or describe what needs to change.
 

@@ -170,9 +170,10 @@ export function fieldErrors(issues: FieldIssue[]): Record<string, string> {
 }
 export const VALIDATION_BANNER = 'Check the highlighted fields: ';
 /** The banner above the save bar: names the fields by their labels. */
-export function validationBanner(fields: Record<string, string>) {
+export function validationBanner(fields: Record<string, string>, problem?: string | null) {
   const names = [...new Set(Object.keys(fields).map(f => FIELD_LABELS[f] ?? f))];
-  return VALIDATION_BANNER + names.join(', ') + '.';
+  // B-2: a cross-field problem (deposit vs payment schedule) is named, not just the field.
+  return VALIDATION_BANNER + names.join(', ') + '.' + (problem ? ' ' + problem : '');
 }
 
 /** UX-C40: the brand colour field, checked as it is typed with the server's own rule (empty means "not set"). */
