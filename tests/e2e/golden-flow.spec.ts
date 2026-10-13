@@ -134,7 +134,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   const decision = cpage.waitForResponse(r => r.url().endsWith(reviewPath.replace('/review/', '/api/review/')) && r.request().method() === 'POST');
   await cpage.getByRole('button', {name: 'Approve this scope'}).click();
   const {receipt} = await (await decision).json();
-  await expect(cpage.getByText('Your receipt')).toBeVisible();
+  await expect(cpage.getByText('Your receipt', {exact: true})).toBeVisible(); // changed by WS-07: success copy also says "Keep your receipt"
   await expect(cpage.getByRole('heading', {name: 'Approved'})).toBeVisible();
 
   // The receipt is verifiable with nothing but the published public key.
@@ -174,7 +174,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await cpage.reload();
   const pending = cpage.locator('.change-order');
   await expect(pending.getByText('CHANGE ORDER CO-1 · AWAITING YOU')).toBeVisible();
-  await expect(cpage.getByText('Verified in your browser')).toBeVisible();
+  await expect(cpage.getByText('Verified · sealed by Scopeflow')).toBeVisible(); // changed by WS-07: §6.1 chip wording (was "Verified in your browser")
   await expect(pending).toContainText('fee $1,800.00 → $2,200.00');
   await pending.getByLabel('Your name').fill('Ada Client');
   await pending.getByRole('checkbox').check();
@@ -184,7 +184,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   expect(settled).toMatchObject({status: 'approved', seq: 1, receipt: {entry_seq: 2}});
   await expect(cpage.locator('.change-order')).toHaveCount(0);
   await expect(cpage.locator('.agreement-grid')).toContainText('$2,200.00');
-  await expect(cpage.getByText('Verified in your browser')).toBeVisible();
+  await expect(cpage.getByText('Verified · sealed by Scopeflow')).toBeVisible(); // changed by WS-07: §6.1 chip wording (was "Verified in your browser")
 
   await ledger.getByRole('button', {name: 'Refresh ledger'}).click();
   await expect(ledger.locator('.agreement-grid')).toContainText('$2,200.00');
@@ -283,6 +283,9 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   const closed = await (await cpage.request.get('/api/account/notice/' + reviewPath.split('/').pop())).json();
   expect(closed.closed?.message).toContain('The creator closed their ScopeFlow account');
   await cpage.reload();
+  // integration: WS-07 expected its LT-10 link-problem page here (it replaced the base 'not found' error), but WS-08 (H10) keeps the
+  // decided record readable after account deletion (the API above returns 200), so the page shows the record, not a link problem.
+  // Both agree no raw error is shown.
   await expect(cpage.locator('.error[role=alert]')).toHaveCount(0);
 
   await owner.context.close();
