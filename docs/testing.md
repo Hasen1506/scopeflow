@@ -67,6 +67,18 @@ integration. Files under `tests/fixtures/` and `__golden__` do not count.
   against a stubbed `fetch` (`tests/property/mail.test.mjs`): header-safe subject, escaped HTML,
   and every provider or network failure surfaces as `MailError`.
 
+### Pinned fast-check seed
+
+`tests/support/fc-setup.mjs` is the one place fast-check is configured
+(`fc.configureGlobal({seed, numRuns, endOnFailure})`). `npm run test:props` loads it with
+`node --import`, and every property, differential and golden suite that uses fast-check also
+imports it first, so a single file run with `node --test <file>` gets the same seed. Per-property
+`numRuns` values are unchanged.
+
+- Default: a fixed seed (`20261007`), so two runs generate identical inputs and identical counts.
+- Explore: `FC_SEED=$RANDOM npm run test:props` (or any integer) tries a different random
+  stream; `FC_SEED=<seed from a failure>` replays it. CI never sets `FC_SEED`.
+
 ## Golden records
 
 - `tests/golden/*.golden.json`: a signed approval receipt and a 4-entry ledger built by the

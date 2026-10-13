@@ -1,4 +1,5 @@
 // Invariants of canonical scope hashing and signed-content verification.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, scopeArb, shuffleKeys, prng, freezeClock, tick} from '../support/property.mjs';

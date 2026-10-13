@@ -1,6 +1,7 @@
 // "Send for signature" mail, with the provider stubbed (no network): whatever the scope's
 // title or client says, the message stays header-safe and HTML-escaped, and provider
 // failures surface as MailError (the route then returns the copy-link / mailto fallback).
+import '../support/fc-setup.mjs';
 import {test, mock} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

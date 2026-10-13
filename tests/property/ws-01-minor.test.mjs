@@ -1,4 +1,5 @@
 // WS-01: integer minor units (M3) and currency exponents (M4). Pure; seeded fast-check.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

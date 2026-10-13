@@ -5,6 +5,7 @@
 // it up (half-up on the exact value) while the float code sometimes rounded it down because the
 // binary product was a hair below the half (e.g. 1.005 → 1.00). Each such case is checked to be
 // exactly such a tie, and the new value is the exact half-up one.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

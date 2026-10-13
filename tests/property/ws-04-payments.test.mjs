@@ -1,6 +1,7 @@
 // WS-04 pure tests (no server, no network): the project-wide money fold (C4, LT-21, M4), capture
 // classification (H8, M20), payment routing without custody (C3, SF-20), UPI URIs (LT-02, SF-02),
 // the Checkout signature (H7), sealed secrets and the escrow stub (SF-20). Seeded (FC_SEED).
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';

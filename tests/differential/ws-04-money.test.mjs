@@ -4,6 +4,7 @@
 // baselines may differ, and there the new fold counts what the old one dropped (tested in
 // tests/property/ws-04-payments.test.mjs).
 // @covers C4
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, tick} from '../support/property.mjs';

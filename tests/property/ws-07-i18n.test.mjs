@@ -1,6 +1,7 @@
 // WS-07 SF-09: client-page message catalogs and language selection. Pure: no server, no network,
 // frozen clock, seeded properties.
 // @covers SF-09
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

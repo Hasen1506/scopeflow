@@ -1,4 +1,5 @@
 // Calendar dates (delivery, client inputs) are shown as "15 Dec 2026" everywhere. Pure, no server.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

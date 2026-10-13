@@ -1,5 +1,6 @@
 // Clarity check rewrites (lib/lint.ts): a suggestion replaces only the vague phrase, in the field it
 // was found in, and applying every suggestion leaves no vague phrase that had one.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

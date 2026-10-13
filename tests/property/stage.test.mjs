@@ -1,4 +1,5 @@
 // Project stage model behind the Projects home and the project page (pure, no server).
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

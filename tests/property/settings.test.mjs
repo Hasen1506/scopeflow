@@ -1,6 +1,7 @@
 // Retention + editable wording (account settings), and QoL: restoring a malformed local draft.
 // Pure (no server): settings validation, template filling, the owner-worded signature email,
 // the server default retention, and restoreDraft sanitising list rows.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

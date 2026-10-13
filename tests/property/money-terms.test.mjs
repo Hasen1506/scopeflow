@@ -1,6 +1,7 @@
 // Money terms (pure): GSTIN checks and the CGST/SGST/IGST split, amounts in words, place of supply,
 // tax invoice content, the payment schedule, the locked exchange rate, Net-X, invoice payment
 // status and reminders, the revision bank, reference-rate parsing and Razorpay order lookups.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

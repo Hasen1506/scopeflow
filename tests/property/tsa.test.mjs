@@ -1,5 +1,6 @@
 // RFC 3161 timestamps (lib/tsa.ts, lib/der.ts) against a real openssl TSA: our request is accepted,
 // the token is read and its signature verified, and openssl independently verifies the same token.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
