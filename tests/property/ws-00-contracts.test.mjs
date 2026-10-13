@@ -100,7 +100,8 @@ test('agreementTotals and moneyState: Phase 0 bodies agree with today\'s totals(
   const {entries} = await ledgerWith({title: 'Refund fixture', client: 'Acme', deliverables: 'Logo design', exclusions: '', fee: 1000, currency: 'INR', revisions: 2, due: '', notes: ''}, {payments: [600], refunds: [100]});
   const ms = moneyState(entries, {baseline_version: 1, currency: 'INR', total: 100000, deposit: 0});
   assert.deepEqual([ms.received, ms.refunded, ms.by_purpose.recorded, ms.by_purpose.refund], [60000, 10000, 60000, 10000]);
-  assert.equal(moneyState(entries, {baseline_version: 2, currency: 'INR', total: 100000, deposit: 0}).received, 0); // Phase 0: per-baseline, as today
+  // changed by WS-04: money is project-scoped (C4), so another baseline sees the same payments.
+  assert.equal(moneyState(entries, {baseline_version: 2, currency: 'INR', total: 100000, deposit: 0}).received, 60000);
 });
 
 test('errors.ts: typed errors map to their status codes; anything else is left to failure()', async () => {
@@ -133,7 +134,7 @@ test('notify.ts logs the event only and sends nothing; mode.ts is always freelan
 
 test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes)
+  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes) and WS-04's (payment routes)
   for (const f of O.fragments) { assert.equal(typeof f.paths, 'object'); assert.equal(typeof f.schemas, 'object'); }
   const base = {'/b': 1, '/a': 2};
   // changed by WS-10: with filled fragments the base keys still come first, in their order.
@@ -146,11 +147,13 @@ test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refu
 test('slot placeholders: one file per slot, each names its owner and renders null', () => {
   const slots = ['pay-block', 'whatsapp-share', 'data-notice', 'language-picker', 'co-card', 'retainer-counter', 'rate-card-picker', 'tds-field', 'msmed-terms', 'cosigner-editor', 'contact-change', 'payment-settings', 'timezone-select', 'theme-switcher'];
   const dir = new URL('../../app/components/slots/', import.meta.url);
-  assert.deepEqual(readdirSync(dir).sort(), slots.map(s => s + '.tsx').sort());
+  // changed by WS-04: slots may have a colocated *.module.css, so only *.tsx files are compared.
+  assert.deepEqual(readdirSync(dir).filter(f => f.endsWith('.tsx')).sort(), slots.map(s => s + '.tsx').sort());
   // changed by WS-02: cosigner-editor and contact-change are implemented (no longer null placeholders).
   // changed by WS-05: co-card, retainer-counter and rate-card-picker are implemented (no longer null placeholders).
+  // changed by WS-04: pay-block and payment-settings are implemented (no longer null placeholders).
   // integration: union of the implemented slots from each merged workstream.
-  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker']);
+  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker', 'pay-block', 'payment-settings']);
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);

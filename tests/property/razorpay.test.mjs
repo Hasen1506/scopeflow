@@ -14,9 +14,12 @@ test('payments are off without keys, with a reason; webhook secret is separate',
   assert.equal(rz.razorpayConfig({}), null);
   assert.equal(rz.razorpayConfig({RAZORPAY_KEY_ID: 'rzp_test_x'}), null);
   assert.deepEqual(rz.razorpayConfig({RAZORPAY_KEY_ID: 'rzp_test_x', RAZORPAY_KEY_SECRET: 's'}), {keyId: 'rzp_test_x', keySecret: 's'});
-  assert.match(rz.paymentsStatus({}).setup, /RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET \(or STRIPE_SECRET_KEY\)/);
+  // changed by WS-04: client payments go to the freelancer's own accounts (C3); the setup hint says so.
+  assert.match(rz.paymentsStatus({}).setup, /freelancer’s own UPI ID, Razorpay or Stripe account/);
   assert.doesNotMatch(rz.paymentsStatus({}).reason, /RAZORPAY|KEY|SECRET/, 'the client-facing reason names no server settings');
-  assert.equal(rz.paymentsStatus({RAZORPAY_WEBHOOK_SECRET: 'w'}).webhook, true);
+  // changed by WS-04: `webhook` now means "an enabled route can confirm payments"; a secret alone enables nothing.
+  assert.equal(rz.paymentsStatus({RAZORPAY_WEBHOOK_SECRET: 'w'}).webhook, false);
+  assert.equal(rz.webhookSecret({RAZORPAY_WEBHOOK_SECRET: 'w'}), 'w');
   assert.equal(rz.webhookSecret({RAZORPAY_WEBHOOK_SECRET: '  '}), null);
 });
 

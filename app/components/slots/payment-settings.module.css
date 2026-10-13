@@ -1,0 +1,11 @@
+.wrap { display: grid; gap: 1.25rem; }
+.card { border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface); padding: 1rem 1.25rem; display: grid; gap: .75rem; }
+.card h3 { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); }
+.row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+.row label { display: grid; gap: .25rem; font-size: var(--fs-2); line-height: var(--lh-2); min-width: 12rem; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.item { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; border-top: 1px solid var(--rule); padding-top: .5rem; font-size: var(--fs-2); line-height: var(--lh-2); }
+.mono { font-family: var(--font-ui); color: var(--ink-2); word-break: break-all; }
+.fine { color: var(--ink-2); font-size: var(--fs-1); line-height: var(--lh-1); margin: 0; }
+.warn { color: var(--warn); background: var(--warn-bg); border-radius: var(--r); padding: .5rem .75rem; margin: 0; font-size: var(--fs-2); line-height: var(--lh-2); }
+.ok { color: var(--ok); }

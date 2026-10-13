@@ -14,7 +14,8 @@ const auth = betterAuth({
   basePath: '/',
   secret: randomBytes(32).toString('hex'),
   database: memoryAdapter({ user: [], session: [], account: [], verification: [] }),
-  trustedOrigins: [appOrigin],
+  // integration: union of HEAD's configurable app origin and WS-04's provider server on :5734 (tests/ws-04-providers.mjs).
+  trustedOrigins: [...new Set([appOrigin, 'http://localhost:5173', 'http://localhost:5734'])],
   emailAndPassword: { enabled: true, requireEmailVerification: false },
   advanced: { useSecureCookies: true, cookiePrefix: 'neon-auth' },
   rateLimit: { enabled: false },
