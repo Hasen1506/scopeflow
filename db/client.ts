@@ -1,7 +1,7 @@
 import { getConnection } from './connection.mjs';
 
 type Value = string | number | boolean | null;
-type Sql = {
+export type Sql = {
   unsafe(query: string, values?: Value[]): Promise<Record<string, unknown>[] & { count: number }>;
   begin<T>(callback: (transaction: Sql) => Promise<T>, mode?: string): Promise<T>;
 };
@@ -11,15 +11,76 @@ type Result<T> = { results: T[]; meta: { changes: number } };
 type BatchOptions = { lock?: string | null; bypassImmutability?: boolean | 'drafts'; redact?: boolean };
 const tables = 'projects|versions|api_keys|rate_limits|ledger_entries|oauth_clients|oauth_codes|oauth_tokens|templates|payments|account_settings|review_otps|business_profiles|invoices|review_views|version_cosigns|timestamps|invoice_reminders|inbound_messages|template_revisions|drafts';
 
-// Existing application SQL uses positional ? parameters. Translate only outside
-// quoted strings, and keep all application tables in a private database schema.
+// Existing application SQL uses positional ? parameters. WS-01 (M25): a tokenizer, not a regex,
+// finds them: `?` inside string literals ('…', E'…' with backslash escapes), quoted identifiers
+// ("…"), dollar-quoted bodies ($$…$$, $tag$…$tag$), and -- / nested /* */ comments is left alone.
+// Outside those, `??` is a literal `?` (the JSONB key-exists operator), `?|` and `?&` are the JSONB
+// any/all operators, and every other `?` becomes the next $n. Application tables are moved into
+// the private `scopeflow` schema, again only outside literals and comments.
+
+export type SqlSegment = {kind: 'code' | 'string' | 'identifier' | 'dollar' | 'comment'; text: string};
+
+/** Split SQL into code and non-code (literal, identifier, comment) segments. Unterminated literals run to the end. */
+export function tokenizeSql(query: string): SqlSegment[] {
+  const out: SqlSegment[] = [];
+  let i = 0, code = '';
+  const flush = () => { if (code) { out.push({kind: 'code', text: code}); code = ''; } };
+  const take = (kind: SqlSegment['kind'], end: number) => { flush(); out.push({kind, text: query.slice(i, end)}); i = end; };
+  while (i < query.length) {
+    const c = query[i], n = query[i + 1];
+    if (c === "'" ) {
+      const escaped = /[eE]/.test(query[i - 1] ?? '') && !/[A-Za-z0-9_$]/.test(query[i - 2] ?? '');
+      let j = i + 1;
+      while (j < query.length) {
+        if (escaped && query[j] === '\\') { j += 2; continue; }
+        if (query[j] === "'") { if (query[j + 1] === "'") { j += 2; continue; } j++; break; }
+        j++;
+      }
+      take('string', Math.min(j, query.length));
+    } else if (c === '"') {
+      let j = i + 1;
+      while (j < query.length) { if (query[j] === '"') { if (query[j + 1] === '"') { j += 2; continue; } j++; break; } j++; }
+      take('identifier', Math.min(j, query.length));
+    } else if (c === '-' && n === '-') {
+      const j = query.indexOf('\n', i);
+      take('comment', j < 0 ? query.length : j);
+    } else if (c === '/' && n === '*') {
+      let depth = 1, j = i + 2;
+      while (j < query.length && depth) {
+        if (query[j] === '/' && query[j + 1] === '*') { depth++; j += 2; }
+        else if (query[j] === '*' && query[j + 1] === '/') { depth--; j += 2; }
+        else j++;
+      }
+      take('comment', j);
+    } else if (c === '$' && !/[A-Za-z0-9_]/.test(query[i - 1] ?? '')) {
+      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(query.slice(i));
+      if (!m) { code += c; i++; continue; }
+      const close = query.indexOf(m[0], i + m[0].length);
+      take('dollar', close < 0 ? query.length : close + m[0].length);
+    } else { code += c; i++; }
+  }
+  flush();
+  return out;
+}
+
+const TABLE_RE = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE)\\s+(${tables})\\b`, 'gi');
 export function postgresQuery(query: string) {
   let parameter = 0;
-  return query.split(/('(?:[^']|'')*'|"(?:[^"]|"")*")/g).map((part, index) => {
-    if (index % 2) return part;
-    return part.replace(new RegExp(`\\b(FROM|JOIN|INTO|UPDATE)\\s+(${tables})\\b`, 'gi'), '$1 scopeflow.$2')
-      .replace(/\?/g, () => `$${++parameter}`);
-  }).join('');
+  return tokenizeSql(query).map(seg => seg.kind !== 'code' ? seg.text : seg.text
+    .replace(TABLE_RE, '$1 scopeflow.$2')
+    .replace(/\?\?|\?[|&](?![|&])|\?/g, m => (m === '??' ? '?' : m.length === 2 ? m : `$${++parameter}`))).join('');
+}
+
+/**
+ * True when a statement writes, so it must run in a read-write transaction and take its lock:
+ * INSERT/UPDATE/DELETE/MERGE, a WITH whose CTEs modify data (`WITH n AS (UPDATE …) INSERT …`),
+ * or a locking read (SELECT … FOR UPDATE/SHARE). Keywords inside literals and comments don't count.
+ */
+export function isMutation(query: string) {
+  const code = tokenizeSql(query).filter(s => s.kind === 'code').map(s => s.text).join(' ');
+  if (/^\s*(INSERT|UPDATE|DELETE|MERGE)\b/i.test(code)) return true;
+  if (/^\s*WITH\b/i.test(code) && /\b(INSERT|UPDATE|DELETE|MERGE)\b/i.test(code)) return true;
+  return /\bFOR\s+(NO\s+KEY\s+UPDATE|UPDATE|KEY\s+SHARE|SHARE)\b/i.test(code);
 }
 
 // Values PostgreSQL cannot store or compare (a NUL character in text, an integer outside
@@ -30,7 +91,7 @@ export class InvalidInputError extends Error {
   constructor(cause: unknown) { super('The input contains a value that cannot be stored.', { cause }); this.name = 'InvalidInputError'; }
 }
 
-function mutation(query: string) { return /^\s*(INSERT|UPDATE|DELETE)\b/i.test(query); }
+const mutation = isMutation;
 
 // SF-05: there is no longer one global lock for every write and read batch.
 // Single statements are atomic and correctness rests on conditional INSERT/UPDATEs
@@ -61,7 +122,10 @@ class Statement {
     }
   }
   async all<T = Record<string, unknown>>(): Promise<Result<T>> {
-    const sql = getConnection() as unknown as Sql;
+    return this.allOn<T>(getConnection() as unknown as Sql);
+  }
+  /** Run on a given connection (tests pass a spy). Writes with a lock key run in a transaction that takes the lock first. */
+  async allOn<T = Record<string, unknown>>(sql: Sql): Promise<Result<T>> {
     if (!mutation(this.query) || !this.lockOn) return this.execute<T>(sql);
     const key = this.lockOn;
     return sql.begin(async transaction => {

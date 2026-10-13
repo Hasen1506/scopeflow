@@ -42,12 +42,16 @@ test('GST split: halves add up within a state, IGST across states, exports flagg
   }), {numRuns: 500});
 });
 
-test('place of supply: GSTIN, then address, then export, then the supplier', () => {
-  assert.deepEqual(G.placeOfSupply({client_gstin: '29AAGCB7383J1Z4', client_state: '07', currency: 'INR', seller_state: '33'}), {code: '29', basis: 'gstin'});
-  assert.deepEqual(G.placeOfSupply({client_gstin: '', client_state: '07', currency: 'INR', seller_state: '33'}), {code: '07', basis: 'address'});
-  assert.deepEqual(G.placeOfSupply({client_state: '96', currency: 'INR', seller_state: '33'}), {code: '96', basis: 'export'});
-  assert.deepEqual(G.placeOfSupply({currency: 'USD', seller_state: '33'}), {code: '96', basis: 'export'});
-  assert.deepEqual(G.placeOfSupply({currency: 'INR', seller_state: '33'}), {code: '33', basis: 'supplier'});
+// changed by WS-01 (H13): the recipient's location decides, never the currency; a client outside India
+// is zero-rated only with forex confirmation. See tests/property/ws-01-gst.test.mjs.
+test('place of supply: GSTIN, then a foreign recipient, then address, then the supplier', () => {
+  const pos = p => (({code, basis, supply}) => ({code, basis, supply}))(G.placeOfSupply(p));
+  assert.deepEqual(pos({client_gstin: '29AAGCB7383J1Z4', client_state: '07', currency: 'INR', seller_state: '33'}), {code: '29', basis: 'gstin', supply: 'inter'});
+  assert.deepEqual(pos({client_gstin: '', client_state: '07', currency: 'INR', seller_state: '33'}), {code: '07', basis: 'address', supply: 'inter'});
+  assert.deepEqual(pos({client_state: '96', currency: 'INR', seller_state: '33'}), {code: '96', basis: 'address', supply: 'inter'});
+  assert.deepEqual(pos({client_state: '96', forex_confirmed: true, currency: 'INR', seller_state: '33'}), {code: '96', basis: 'export', supply: 'export'});
+  assert.deepEqual(pos({currency: 'USD', seller_state: '33'}), {code: '33', basis: 'supplier', supply: 'intra'});
+  assert.deepEqual(pos({currency: 'INR', seller_state: '33'}), {code: '33', basis: 'supplier', supply: 'intra'});
   assert.equal(G.isGstLabel('GST'), true); assert.equal(G.isGstLabel('IGST 18%'), true); assert.equal(G.isGstLabel('VAT'), false); assert.equal(G.isGstLabel('Gastro tax'), false);
 });
 
@@ -78,8 +82,11 @@ test('tax invoice content: split matches the tax, words, milestone and FX; plain
     assert.equal(c.gst.lut_arn, ''); // tax was charged, so not under the LUT
     assert.ok(c.gst.total_in_words.endsWith('only'));
   }), {numRuns: 300});
-  const exported = I.invoiceContent({...base, tax_pct: 0, tax_label: 'GST', currency: 'USD', amount: 1000, gst});
+  // changed by WS-01 (H13): a client outside India is an export by location (state 96), not because
+  // the invoice is in USD; a USD invoice with no client location is taxed in the supplier's state.
+  const exported = I.invoiceContent({...base, tax_pct: 0, tax_label: 'GST', currency: 'USD', amount: 1000, gst: {...gst, client_state: '96'}});
   assert.deepEqual([exported.gst.kind, exported.gst.igst, exported.gst.lut_arn, exported.gst.total_in_words], ['export', 0, 'AD330925000123X', '']);
+  assert.equal(I.invoiceContent({...base, tax_pct: 18, tax_label: 'GST', currency: 'USD', amount: 1000, gst}).gst.kind, 'intra');
   assert.equal(I.invoiceContent({...base, tax_label: 'VAT', amount: 1000, gst}).gst, undefined);
   assert.equal(I.invoiceContent({...base, amount: 1000, gst: {...gst, seller_state: ''}}).gst, undefined);
   const m = I.invoiceContent({...base, amount: 94400, gst, milestone: {id: 'm1', title: 'On signature', pct: 40}, fx: {currency: 'USD', rate: 0.012, as_of: '2026-10-01', source: 'ECB'}});

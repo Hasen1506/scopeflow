@@ -1,0 +1,156 @@
+{
+  "inclusive_100_intra": {
+    "taxable": "₹84.75",
+    "heads": [
+      "CGST 9% ₹7.63",
+      "SGST 9% ₹7.63"
+    ],
+    "round_off": "-₹0.01",
+    "total": "₹100.00",
+    "minor": {
+      "taxable": 8475,
+      "heads": [
+        {
+          "name": "CGST",
+          "rate": 9,
+          "amount": 763
+        },
+        {
+          "name": "SGST",
+          "rate": 9,
+          "amount": 763
+        }
+      ],
+      "round_off": -1,
+      "total": 10000
+    }
+  },
+  "inclusive_101_intra": {
+    "taxable": "₹85.59",
+    "heads": [
+      "CGST 9% ₹7.70",
+      "SGST 9% ₹7.70"
+    ],
+    "round_off": "₹0.01",
+    "total": "₹101.00",
+    "minor": {
+      "taxable": 8559,
+      "heads": [
+        {
+          "name": "CGST",
+          "rate": 9,
+          "amount": 770
+        },
+        {
+          "name": "SGST",
+          "rate": 9,
+          "amount": 770
+        }
+      ],
+      "round_off": 1,
+      "total": 10100
+    }
+  },
+  "exclusive_25000_intra": {
+    "taxable": "₹25,000.00",
+    "heads": [
+      "CGST 9% ₹2,250.00",
+      "SGST 9% ₹2,250.00"
+    ],
+    "round_off": "₹0.00",
+    "total": "₹29,500.00",
+    "minor": {
+      "taxable": 2500000,
+      "heads": [
+        {
+          "name": "CGST",
+          "rate": 9,
+          "amount": 225000
+        },
+        {
+          "name": "SGST",
+          "rate": 9,
+          "amount": 225000
+        }
+      ],
+      "round_off": 0,
+      "total": 2950000
+    }
+  },
+  "exclusive_25000_inter": {
+    "taxable": "₹25,000.00",
+    "heads": [
+      "IGST 18% ₹4,500.00"
+    ],
+    "round_off": "₹0.00",
+    "total": "₹29,500.00",
+    "minor": {
+      "taxable": 2500000,
+      "heads": [
+        {
+          "name": "IGST",
+          "rate": 18,
+          "amount": 450000
+        }
+      ],
+      "round_off": 0,
+      "total": 2950000
+    }
+  },
+  "co_32500_50_single_head": {
+    "taxable": "₹32,500.50",
+    "heads": [
+      "GST 18% ₹5,850.09"
+    ],
+    "round_off": "₹0.00",
+    "total": "₹38,350.59",
+    "minor": {
+      "taxable": 3250050,
+      "heads": [
+        {
+          "name": "GST",
+          "rate": 18,
+          "amount": 585009
+        }
+      ],
+      "round_off": 0,
+      "total": 3835059
+    }
+  },
+  "co_32500_50_intra": {
+    "taxable": "₹32,500.50",
+    "heads": [
+      "CGST 9% ₹2,925.05",
+      "SGST 9% ₹2,925.05"
+    ],
+    "round_off": "₹0.00",
+    "total": "₹38,350.60",
+    "minor": {
+      "taxable": 3250050,
+      "heads": [
+        {
+          "name": "CGST",
+          "rate": 9,
+          "amount": 292505
+        },
+        {
+          "name": "SGST",
+          "rate": 9,
+          "amount": 292505
+        }
+      ],
+      "round_off": 0,
+      "total": 3835060
+    }
+  },
+  "jpy_1000_deposit_33_333": {
+    "fee": 1000,
+    "tax_label": "Tax",
+    "tax_pct": 0,
+    "tax": 0,
+    "total": 1000,
+    "deposit_pct": 33.333,
+    "deposit": 333,
+    "balance": 667
+  }
+}

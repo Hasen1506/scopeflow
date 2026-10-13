@@ -89,8 +89,10 @@ test('agreementTotals and moneyState: Phase 0 bodies agree with today\'s totals(
     const a = agreementTotals(b.content, entries);
     assert.equal(a.fee, Math.round(agreement.fee * 100)); assert.equal(a.tax, Math.round(t.tax * 100)); assert.equal(a.total, Math.round(t.total * 100));
     assert.equal(a.deposit, Math.round(signed.deposit * 100));
-    assert.deepEqual(a.heads, tax ? [{label: 'GST', rate: tax, amount: Math.round(t.tax * 100)}] : []);
-    assert.deepEqual(a.milestones, schedule(b.content, t.total).map(l => ({...l, amount: Math.round(l.amount * 100)})));
+    // changed by WS-01: heads carry the GstHead name next to the label (single undivided GST head here).
+    assert.deepEqual(a.heads, tax ? [{name: 'GST', label: 'GST', rate: tax, amount: Math.round(t.tax * 100)}] : []);
+    // changed by WS-01: the milestone schedule is frozen at baseline approval (shares of the signed total).
+    assert.deepEqual(a.milestones, schedule(b.content, signed.total).map(l => ({...l, amount: Math.round(l.amount * 100)})));
     const ms = moneyState(entries, {baseline_version: 1, currency: 'INR', total: a.total, deposit: a.deposit});
     const paid = L.paymentsOf(entries).paid;
     assert.equal(ms.received, Math.round(paid * 100)); assert.equal(ms.refunded, 0); assert.equal(ms.tds_credited, 0);
