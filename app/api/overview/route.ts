@@ -42,7 +42,9 @@ export async function GET(request: Request) {
       agreements.push({project_id: row.project_id, title: content.title, client: content.client, agreement});
       const agreed = totals(content, agreement.fee);
       const proposed = agreement.change_orders.filter(c => c.status === 'proposed');
-      const {paid} = paymentsOf(entries);
+      // integration: C4 (WS-04) — money belongs to the project, so payments recorded against an earlier, superseded
+      // baseline still count (WS-05 supersede); the agreement itself is still the current version's.
+      const {paid} = paymentsOf(byProject.get(row.project_id) ?? []);
       return {
         project_id: row.project_id, version: row.version, currency: agreement.currency,
         quoted_fee: content.fee, quoted_total: quoted.total,

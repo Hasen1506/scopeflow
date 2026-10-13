@@ -77,3 +77,8 @@ CI on 92f093b failed 13 e2e tests. Every one passed on its own WS branch, so eac
   the golden flow seeds its ids.
 - **ws-all-live-scenarios #2.** This test was written in WS-09 and first ran once every WS was merged. Its CO-2 decline
   now fills in a reason, which both the WS-07 card and CoCard require.
+- **Overview paid after a supersede (WS-04 × WS-05).** `/api/overview` counted payments only on the current baseline. Under C4
+  (WS-04), money belongs to the project, so after a supersede the ₹3,000 paid on v1 showed as 0. The overview's `paid` now
+  comes from every ledger entry on the project. The agreement itself still comes from the current version
+  (ws-all-live-scenarios #4).
+- **ws-all-live-scenarios runs serially.** Each failure hid the tests after it, so this suite surfaced its failures one round at a time.
