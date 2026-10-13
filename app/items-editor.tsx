@@ -66,8 +66,8 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
 }
 
 /**
- * R4-02: one price field per row. A line total ("Price", for all of the qty) or, per unit, "Price per unit" with the
- * line total it makes shown under it. The switch keeps the money the same; it is offered per unit only when the
+ * R4-02: one price field per row. A line total ("Price", for all of the qty) or, per unit, "Price each" with the
+ * line total it makes shown under it (no "unit" in these names: the row's Unit field keeps its label to itself). The switch keeps the money the same; it is offered per unit only when the
  * line total divides exactly by the qty, so switching never changes what the client pays.
  */
 function PriceField({item, name, currency, perUnit, onLine, onUnit, onMode}: {item: Item; name: string; currency: string; perUnit: boolean; onLine: (price: number | null) => void; onUnit: (unit: number | null) => void; onMode: (perUnit: boolean) => void}) {
@@ -79,7 +79,7 @@ function PriceField({item, name, currency, perUnit, onLine, onUnit, onMode}: {it
   const note = perUnit ? (line != null ? `= ${formatMoney(line, currency)} for ${item.qty}` : `× ${item.qty}`) : item.qty > 1 ? `Total for all ${item.qty}` : '';
   return (
     <div className="price-cell">
-      <label>{perUnit ? `Price per unit (${currency})` : `Price (${currency})`}
+      <label>{perUnit ? `Price each (${currency})` : `Price (${currency})`}
         <input type="number" min={0} step="0.01" placeholder="optional" value={value ?? ''} aria-invalid={!!problem} aria-describedby={describedBy(!!problem && id, !!note && hint)}
           onChange={e => { const v = e.target.value === '' ? null : num(e.target.value, 0); if (perUnit) onUnit(v); else onLine(v); }} />
       </label>
@@ -87,7 +87,7 @@ function PriceField({item, name, currency, perUnit, onLine, onUnit, onMode}: {it
       {(note || perUnit || canPerUnit) && <span className="fine block price-mode">
         {note && <span id={hint}>{note}</span>}
         {perUnit ? <button type="button" className="link-button" aria-label={`Enter a line total for ${name}`} onClick={() => onMode(false)}>Enter a line total</button>
-          : canPerUnit ? <button type="button" className="link-button" aria-label={`Price ${name} per unit`} onClick={() => onMode(true)}>Price per unit</button> : null}
+          : canPerUnit ? <button type="button" className="link-button" aria-label={`Price ${name} each`} onClick={() => onMode(true)}>Price each</button> : null}
       </span>}
     </div>
   );

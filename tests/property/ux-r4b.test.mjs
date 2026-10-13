@@ -95,7 +95,9 @@ test('R4-02: the editor, change-order form, lint, diff and receipt read line tot
   const ed = read('app/items-editor.tsx');
   assert.match(ed, /itemsTotal\(items, currency\)/);
   assert.doesNotMatch(ed, /i\.price \?\? 0/);
-  assert.match(ed, /Price per unit \(\$\{currency\}\)/);
+  assert.match(ed, /Price each \(\$\{currency\}\)/);
+  // getByLabel('Unit') must find only the Unit field (e2e golden flow): no other label or name in a row says "unit".
+  assert.doesNotMatch(ed.slice(ed.indexOf('function PriceField')), /aria-label=\{`[^`]*unit/i);
   assert.match(ed, /withUnitPrice\(item, unit\)/); assert.match(ed, /withLinePrice\(item, price\)/);
   assert.match(read('app/ledger-panel.tsx'), /itemsTotal\(add, cur\)\.total/);
   assert.match(read('lib/lint.ts'), /itemsTotal\(items, s\.currency\)/);
@@ -153,7 +155,8 @@ test('R4-04: agreement money figures never break mid-number; a narrow card gives
   const ag = read('app/review/[token]/agreement.tsx');
   assert.match(ag, /<strong className="money-fig">\{formatMoney\(a\.fee, cur\)\}/);
   assert.match(ag, /<strong className="money-fig">\{formatMoney\(a\.goodwill_value, cur\)\}/);
-  assert.match(ag, /'\+'\) \+ '\\u2060' \+ fmt/, 'sign joined to its figure');
+  assert.match(ag, /const sign = \(n: number\) => fig\(\(n < 0 \? '−' : '\+'\) \+ fmt\(/, 'sign and figure are one nowrap span');
+  assert.match(ag, /<span key=\{i\} className="whitespace-nowrap">\{figs\[Number\(p\)\]\}<\/span>/);
   assert.match(read('app/ledger-panel.tsx'), /<strong className="money-fig">\{formatMoney\(a\.fee, cur\)\}/);
   // Every money tile on the insights panel is marked (figures joined by " + " wrap between them only).
   const ins = read('app/insights-panel.tsx');
@@ -180,4 +183,10 @@ test('R4-05/R4-06: templates keep the typed name, client and client email (chip 
 test('R4-02: item schema still takes either form (unchanged contract)', () => {
   assert.equal(itemSchema.parse({id: 'a', title: 'Logo', qty: 3, unit_price: 1000}).unit_price, 1000);
   assert.equal(itemSchema.parse({id: 'a', title: 'Logo', qty: 3, price: 3000}).price, 3000);
+});
+
+test('R4-09/R4-11: /share notify checkbox uses check-row; the template notice asks for the client only when none was kept', () => {
+  const share = read('app/share/share-client.tsx'), state = read('app/workspace/state.tsx');
+  assert.match(share, /<label className="check-row">[^]*?<input type="checkbox" checked=\{canEmail \? data\.notify_client : false\}[^]*?<span>Email the client when I propose a change order or issue an invoice<\/span><\/label>/);
+  assert.match(state, /Edit it freely; set \$\{names\.client\?'the':'the client,'\} price and exact quantities before saving\./);
 });

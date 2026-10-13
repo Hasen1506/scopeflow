@@ -149,7 +149,7 @@ function ProjectShare({projectId}: {projectId: string}) {
       <WhatsAppShare kind="scope" phone={s.phone} lang={s.lang} values={{client: s.client, title: s.title, link: s.link}} projectId={projectId} />
     </div>}
     {(() => { const canEmail = data.client_email; const why = canEmail ? '' : 'Add the client’s email on the project first.'; return <>
-      <label className={styles.actions}><input type="checkbox" checked={canEmail ? data.notify_client : false} disabled={!canEmail} aria-describedby={why ? 'ps-email-why' : undefined} onChange={e => void toggle(e.target.checked)} /> Email the client when I propose a change order or issue an invoice</label>
+      <label className="check-row">{/* R4-09: box beside its label at 390 */}<input type="checkbox" checked={canEmail ? data.notify_client : false} disabled={!canEmail} aria-describedby={why ? 'ps-email-why' : undefined} onChange={e => void toggle(e.target.checked)} /><span>Email the client when I propose a change order or issue an invoice</span></label>
       {why && <p id="ps-email-why" className={styles.fine}>{why}</p>}</>; })()}
     {data.change_orders.length > 0 && <><h2>Change orders</h2><ul className={styles.list}>{data.change_orders.map(c => <li className={styles.item} key={c.seq} data-testid={`co-${c.seq}`}>
       <span><strong>CO-{c.seq}</strong> {c.title}{c.amount ? ` · ${c.amount}` : ''} <span className={styles.fine}>({c.status})</span></span>
