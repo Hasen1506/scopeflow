@@ -6,20 +6,20 @@ import { authClient } from '@/lib/auth/client';
 import { safeReturnPath } from '@/lib/origin';
 import { forgetDrafts } from '@/lib/editor';
 import { rememberSession } from '@/lib/theme';
+import { AuthProblem, AUTH_COPY, authProblem } from '@/lib/auth/problem';
+import { zoneToAdopt } from '@/lib/time';
 
-type AuthError = { message?: string; status?: number; code?: string } | null | undefined;
-/** Turns an auth-service error into words that say whose problem it is: wrong details, too many tries, or the service. */
-class AuthProblem extends Error { constructor(message: string, readonly credentials: boolean) { super(message); } }
-function problem(error: AuthError, mode: string): AuthProblem {
-  const status = error?.status ?? 0, code = error?.code ?? '';
-  if (status === 429) return new AuthProblem('Too many attempts. Wait a minute, then try again.', false);
-  if (status >= 500 || (!status && !error?.message)) return new AuthProblem('Sign-in is having trouble on our side, so nothing was wrong with your details. Please try again in a moment.', false);
-  if (mode === 'sign-in' && (status === 401 || status === 403 || /INVALID_EMAIL_OR_PASSWORD|INVALID_PASSWORD|USER_NOT_FOUND/.test(code))) {
-    if (/EMAIL_NOT_VERIFIED/.test(code)) return new AuthProblem('Verify your email first: open the link we sent you, then sign in.', false);
-    return new AuthProblem('That email and password don’t match. Check them and try again.', true);
-  }
-  return new AuthProblem(error?.message || (mode === 'sign-up' ? 'We couldn’t create the account. Check your details and try again.' : 'Unable to sign in.'), true);
+/** #17: an account with no saved time zone takes this browser's, so projects made through the API aren't UTC. Best effort. */
+async function adoptBrowserZone() {
+  try {
+    const me = await fetch('/api/me', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
+    if (!me?.signedIn || !me.defaults) return;
+    const zone = zoneToAdopt(me.defaults.timezone, Intl.DateTimeFormat().resolvedOptions().timeZone);
+    if (zone) await fetch('/api/workspace/account', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timezone: zone }) });
+  } catch { /* the account keeps no zone; it can be set on /account */ }
 }
+
+
 
 export default function AuthForm({ mode, returnTo, token, configured, explicitReturn = true }: {
   mode: string; returnTo: string; token?: string; configured: boolean;
@@ -67,20 +67,25 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
           rememberSession(false);
           forgetDrafts();
         }
-        const result = mode === 'sign-up'
-          ? await authClient.signUp.email({ email, password, name: String(form.get('name') || '').trim(), callbackURL })
-          : await authClient.signIn.email({ email, password, callbackURL });
-        if (result.error) throw problem(result.error as AuthError, mode);
+        // #3: the SDK may return {error} or throw a normalized error (401 invalid_credentials);
+        // both go through authProblem so the copy and the password clearing are the same.
+        let result: { error?: unknown };
+        try {
+          result = mode === 'sign-up'
+            ? await authClient.signUp.email({ email, password, name: String(form.get('name') || '').trim(), callbackURL })
+            : await authClient.signIn.email({ email, password, callbackURL });
+        } catch (thrown) { throw authProblem(thrown, mode); }
+        if (result.error) throw authProblem(result.error, mode);
         const session = await authClient.getSession();
         // LT-04/SF-11: a new account without a specific destination starts with onboarding.
         const next = mode === 'sign-up' && !explicitReturn ? '/onboarding' : destination;
-        if (session.data?.user) { router.push(next); router.refresh(); }
+        if (session.data?.user) { await adoptBrowserZone(); router.push(next); router.refresh(); }
         else setMessage('Check your email to verify your account, then sign in.');
       }
     } catch (error) {
       // Wrong details: clear the password so the next try starts clean. Service trouble: keep what was typed.
-      if (error instanceof AuthProblem) { if (error.credentials && passwordRef.current) passwordRef.current.value = ''; setError(error.message); }
-      else if (error instanceof TypeError) setError('We couldn’t reach Scopeflow. Check your connection and try again.');
+      if (error instanceof AuthProblem) { if (error.credentials && passwordRef.current) { passwordRef.current.value = ''; passwordRef.current.focus(); } setError(error.message); }
+      else if (error instanceof TypeError) setError(AUTH_COPY.offline);
       else setError(error instanceof Error ? error.message : 'Please try again.');
     }
     finally { setBusy(false); }

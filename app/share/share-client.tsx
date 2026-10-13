@@ -134,12 +134,16 @@ function ProjectShare({projectId}: {projectId: string}) {
   if (!data) return <p role="status">Loading…</p>;
   const s = data.share;
   return <section className={styles.panel} aria-labelledby="ps-h">
-    <h1 id="ps-h">Tell your client{s ? `: ${s.title}` : ''}</h1>
+    {/* #28: a way back, and the project title as a quiet line rather than a display-size H1. */}
+    <p className={styles.fine}><Link className="help-link" href={'/?project=' + encodeURIComponent(projectId)}>← Back to project</Link></p>
+    <div><h1 id="ps-h" className={styles.title}>Tell your client</h1>{s && <p className={styles.subtitle}>{s.title}</p>}</div>
     {s && <div className={styles.actions} role="group" aria-label="Review link">
       <button className="secondary" onClick={() => { void copyText(s.link).then(ok => { if (!ok) { toast.error(COPY_FAILED); return; } void fetch(`/api/scopes/${encodeURIComponent(projectId)}/notifications`, post({shared: 'link'})); toast.success('Review link copied.'); }); }}><Copy size={14} aria-hidden="true" />Copy link</button>
       <WhatsAppShare kind="scope" phone={s.phone} lang={s.lang} values={{client: s.client, title: s.title, link: s.link}} projectId={projectId} />
     </div>}
-    <label className={styles.actions}><input type="checkbox" checked={data.notify_client} onChange={e => void toggle(e.target.checked)} /> Email the client when I propose a change order or issue an invoice{!data.client_email ? ' (add the client’s email on the project first)' : ''}</label>
+    {(() => { const canEmail = data.client_email; const why = canEmail ? '' : 'Add the client’s email on the project first.'; return <>
+      <label className={styles.actions}><input type="checkbox" checked={canEmail ? data.notify_client : false} disabled={!canEmail} aria-describedby={why ? 'ps-email-why' : undefined} onChange={e => void toggle(e.target.checked)} /> Email the client when I propose a change order or issue an invoice</label>
+      {why && <p id="ps-email-why" className={styles.fine}>{why}</p>}</>; })()}
     {data.change_orders.length > 0 && <><h2>Change orders</h2><ul className={styles.list}>{data.change_orders.map(c => <li className={styles.item} key={c.seq} data-testid={`co-${c.seq}`}>
       <span><strong>CO-{c.seq}</strong> {c.title}{c.amount ? ` · ${c.amount}` : ''} <span className={styles.fine}>({c.status})</span></span>
       {s && <ClientNotice email={c.email} kind="change_order" phone={s.phone} lang={s.lang} values={{client: s.client, title: s.title, seq: c.seq, co_title: c.title, amount: c.amount ?? undefined, link: s.link}} projectId={projectId} />}

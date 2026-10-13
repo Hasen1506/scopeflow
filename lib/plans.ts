@@ -105,6 +105,21 @@ export function planCards(currency: 'INR' | 'USD', money: (n: number) => string,
     const p = PLANS[id], monthly = currency === 'INR' ? p.price.INR : p.price.USD, year = currency === 'INR' ? p.price.INR_year : p.price.USD_year;
     return {id, name: p.name, blurb: p.blurb, purchasable: p.purchasable, seats: p.seats,
       price: money(monthly), per: monthly ? 'month' : null, yearly: year ? `or ${money(year)} a year` : null,
-      lines: [projectCapLine(p.limits), `${p.limits.versions} versions per project`, p.seats > 1 ? `${p.seats} seats` : '1 seat', ...p.features]};
+      // A feature line that already names the seats ("3 seats with roles…") replaces the bare count.
+      lines: [projectCapLine(p.limits), `${p.limits.versions} versions per project`, ...(p.features.some(f => /\bseats?\b/i.test(f)) ? [] : [p.seats > 1 ? `${p.seats} seats` : '1 seat']), ...p.features]};
   });
+}
+
+/**
+ * #7: the one story /plans tells about accounts without a subscription, in visitor words (no
+ * "server", no env names). While the default is a free beta tier, it says so and explains that the
+ * Free card is what applies after the beta; when the default is a card that is shown (Free), there is
+ * nothing extra to say. Pure.
+ */
+export function defaultPlanNote(fallback: Plan, shown: readonly PlanId[] = ['free', 'pro', 'agency']): {title: string; body: string} | null {
+  if (shown.includes(fallback.id)) return null;
+  const l = fallback.limits, caps = `${projectCapLine(l)}, ${l.versions} versions and ${l.ledger_entries} record entries per project`;
+  if (fallback.id === 'beta') return {title: 'Free during the early beta',
+    body: `While Scopeflow is in early beta, every account gets ${caps}, free, with no subscription. The Free plan below is what an account without a paid plan gets once the beta ends; we’ll tell you before that happens.`};
+  return {title: `Included without a subscription: ${fallback.name}`, body: `Every account without a paid plan gets ${caps}.`};
 }

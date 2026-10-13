@@ -57,3 +57,30 @@ export function newProjectZone(accountZone: string | null | undefined, browserZo
   if (validTimeZone(browserZone)) return browserZone;
   return null;
 }
+
+/** #34: legacy IANA aliases some runtimes still report (Chrome in India gives "Asia/Calcutta"). */
+const ZONE_ALIASES: Record<string, string> = {'Asia/Calcutta': 'Asia/Kolkata', 'Asia/Katmandu': 'Asia/Kathmandu', 'Asia/Saigon': 'Asia/Ho_Chi_Minh', 'Asia/Rangoon': 'Asia/Yangon', 'Europe/Kiev': 'Europe/Kyiv', 'America/Buenos_Aires': 'America/Argentina/Buenos_Aires', 'Etc/UTC': 'UTC', 'Etc/GMT': 'UTC', 'GMT': 'UTC', 'Universal': 'UTC', 'Zulu': 'UTC'};
+/** The canonical name for a zone (aliases mapped, falling back to the alias if this runtime lacks the canonical one). Pure. */
+export function canonicalZone(tz: string): string;
+export function canonicalZone(tz: string | null | undefined): string | null;
+export function canonicalZone(tz: string | null | undefined): string | null {
+  if (!tz) return null;
+  const c = ZONE_ALIASES[tz];
+  return c && validTimeZone(c) ? c : tz;
+}
+/**
+ * #17: the zone a project created through the API starts in, server side: the zone the request names,
+ * else the account's saved zone, else none (UTC). Canonical names. Pure.
+ */
+export function serverProjectZone(requested: unknown, accountZone: string | null | undefined): string | null {
+  for (const z of [requested, accountZone]) if (validTimeZone(z)) return canonicalZone(z);
+  return null;
+}
+/**
+ * #17: the browser zone to save as the account's zone right after sign-in/sign-up, only when the
+ * account has none saved yet (so API-created projects stop defaulting to UTC). Null = save nothing. Pure.
+ */
+export function zoneToAdopt(savedAccountZone: string | null | undefined, browserZone: string | null | undefined): string | null {
+  if (validTimeZone(savedAccountZone) || !validTimeZone(browserZone)) return null;
+  return canonicalZone(browserZone);
+}

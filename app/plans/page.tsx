@@ -2,7 +2,7 @@ import type {Metadata} from 'next';
 import Link from 'next/link';
 import {Header} from '../ui';
 import {NextStep} from '../workflow';
-import {activePlan, planCards, projectCapLine} from '@/lib/plans';
+import {activePlan, defaultPlanNote, planCards} from '@/lib/plans';
 import {billingStatus} from '@/lib/billing';
 import {formatMoney} from '@/lib/currency';
 import {getUser} from '@/lib/auth/server';
@@ -30,12 +30,14 @@ async function operatorView() {
 
 export default async function Plans({searchParams}: Props){
  const q = await searchParams, currency = q.currency?.toUpperCase() === 'USD' ? 'USD' : 'INR';
- const money = (n: number) => formatMoney(n, currency);
- const cards = planCards(currency, money), fallback = activePlan(), billing = billingStatus();
+ // #26: whole prices without paise/cents (₹499, not ₹499.00).
+ const money = (n: number) => { const s = formatMoney(n, currency); return Number.isInteger(n) ? s.replace(/[.,]00(?=\D*$)/, '') : s; };
+ const cards = planCards(currency, money), billing = billingStatus();
+ const beta = defaultPlanNote(activePlan(), cards.map(c => c.id));
  const operator = !billing.enabled && await operatorView();
  const chosen = cards.some(c => c.id === q.plan) ? q.plan : undefined;
  return <><Header/><main id="content" tabIndex={-1} className="shell">
-  <div className="page-heading"><div><p className="eyebrow">ACCOUNT · PLANS</p><h1>Start small.<br/><em>Keep reviewing free.</em></h1></div><p>Client reviewing is always free.<br/>{currency === 'INR' ? 'Prices include GST.' : 'Prices in US dollars.'}</p></div>
+  <div className="page-heading"><div><p className="eyebrow">ACCOUNT · PLANS</p><h1>Start small.{' '}<br/><em>Keep reviewing free.</em></h1></div><p>Client reviewing is always free.{' '}<br/>{currency === 'INR' ? 'Prices include GST.' : 'Prices in US dollars.'}</p></div>
   <NextStep title={billing.enabled ? 'Pick the plan that fits' : 'Upgrades open soon'}>{billing.enabled ? 'Upgrade any time; your projects and records stay as they are. Cancel and you keep the plan until the end of the paid period.' : <>Every feature is free during the early beta, so there is nothing to choose yet. Want a paid plan when it opens? <Link className="help-link" href="/support">Contact us</Link>.</>}</NextStep>
   {operator && billing.reason && <p className="muted-box" data-testid="operator-billing-note"><strong>Operator note (only you see this):</strong> {billing.reason}</p>}
   {q.checkout === 'done' && <p className="muted-box" role="status">Payment received. Your plan updates as soon as the payment provider confirms it, usually within a minute.</p>}
@@ -44,8 +46,9 @@ export default async function Plans({searchParams}: Props){
    <Link className={currency === 'INR' ? 'primary' : 'secondary'} href="/plans" aria-current={currency === 'INR' ? 'page' : undefined}>Indian rupees</Link>
    <Link className={currency === 'USD' ? 'primary' : 'secondary'} href="/plans?currency=USD" aria-current={currency === 'USD' ? 'page' : undefined}>US dollars</Link>
   </nav>
-  <Upgrade currency={currency} enabled={billing.enabled} localDouble={billing.local_double} cards={cards} chosen={chosen}/>
-  <div className="muted-box section-gap">Accounts without a subscription work under this server’s default plan, {fallback.name}: {projectCapLine(fallback.limits)}, {fallback.limits.versions} versions and {fallback.limits.ledger_entries} record entries per project. Deposits a creator asks a client for are separate and go to the creator’s own payment account; see the <Link className="help-link" href="/terms">terms</Link>.</div>
+  {beta && <section className="muted-box section-gap" aria-labelledby="h-beta" data-testid="beta-note"><h2 id="h-beta" className="h-sub">{beta.title}</h2><p>{beta.body}</p></section>}
+  <Upgrade currency={currency} enabled={billing.enabled} localDouble={billing.local_double} cards={cards} chosen={chosen} betaName={beta ? activePlan().name : undefined}/>
+  <p className="fine section-gap">Deposits you ask a client for are separate from your plan: they go straight to your own payment account. See the <Link className="help-link" href="/terms">terms</Link>.</p>
   <p className="fine section-gap"><Link className="help-link" href="/">Back to projects</Link></p>
  </main></>;
 }

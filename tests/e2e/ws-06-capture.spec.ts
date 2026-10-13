@@ -43,7 +43,9 @@ test('ws-06: after proposing a change order the project shows "Client emailed ·
   expect(co.status()).toBe(201);
 
   await page.goto('/share?project=' + encodeURIComponent(p.project_id));
-  await expect(page.getByRole('heading', {name: `Tell your client: ${title}`})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Tell your client'})).toBeVisible();
+  await expect(page.getByText(title, {exact: true}).first()).toBeVisible();
+  await expect(page.getByRole('link', {name: /Back to project/})).toHaveAttribute('href', '/?project=' + encodeURIComponent(p.project_id));
   // LT-03: "Share on WhatsApp" next to "Copy link", opening the client's chat with the review link.
   const group = page.getByRole('group', {name: 'Review link'});
   await expect(group.getByRole('button', {name: 'Copy link'})).toBeVisible();

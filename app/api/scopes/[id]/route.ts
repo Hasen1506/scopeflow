@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {limits} from '@/lib/plans';
 import { scopeSchema } from '@/lib/scope';
 import { clientEmailSchema } from '@/lib/mail';
-import { validTimeZone } from '@/lib/time';
+import { canonicalZone, validTimeZone } from '@/lib/time';
 import { otpAvailable, otpUnavailableMessage, type OtpChannel } from '@/lib/otp';
 import { cosignersSchema, parseCosigners } from '@/lib/cosign';
 import { gstinState, stateCodes } from '@/lib/gst';
@@ -90,7 +90,7 @@ export async function PATCH(request:Request,ctx:Ctx){try{
  const sets:string[]=[],values:(string|number|boolean|null)[]=[];
  if(d.archived!==undefined){sets.push('archived=?');values.push(d.archived?now:null);}
  if(d.client_email!==undefined){sets.push('client_email=?');values.push(d.client_email||null);if(changesEmail){sets.push('contact_since=?');values.push(d.client_email?now:null);}}
- if(d.timezone!==undefined){sets.push('timezone=?');values.push(d.timezone||null);}
+ if(d.timezone!==undefined){sets.push('timezone=?');values.push(canonicalZone(d.timezone||null));}
  if(d.require_otp!==undefined){sets.push('require_otp=?');values.push(d.require_otp);}
  if(d.link_expiry_days!==undefined){sets.push('link_expiry_days=?');values.push(d.link_expiry_days);}
  if(d.client_phone!==undefined){sets.push('client_phone=?');values.push(d.client_phone||null);if(changesPhone&&!changesEmail){sets.push('contact_since=?');values.push(d.client_phone?now:null);}}
