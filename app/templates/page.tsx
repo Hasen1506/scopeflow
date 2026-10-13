@@ -6,7 +6,7 @@ import {Copy, GitCompare, History, Link2, Tag} from 'lucide-react';
 import {Header, api, post} from '../ui';
 import {formatMoney} from '@/lib/scope';
 import {filterTemplates, revisionDiff, type RevisionView, type TemplateView} from '@/lib/template-store';
-import {MODES, type Mode} from '@/lib/mode';
+import {MODES, type Mode} from '@/lib/mode-core'; // integration: client page uses WS-08's pure module (lib/mode.ts reads the database)
 
 const MODE_LABEL: Record<Mode, string> = {freelancer: 'Freelancer', agency: 'Agency', consumer: 'Home & events', enterprise: 'Enterprise'};
 
