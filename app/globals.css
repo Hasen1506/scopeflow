@@ -127,7 +127,7 @@ label select{margin-top:7px}
 
 /* ---- Header ------------------------------------------------------------------------------- */
 .skip-link{position:absolute;left:12px;top:-60px;z-index:60;background:var(--accent);color:var(--on-accent);padding:8px 14px;border-radius:var(--r-sm);font-family:var(--font-ui);font-weight:var(--fw-ui);transition:top var(--dur-2) var(--ease)}
-.skip-link:focus{top:12px}
+.skip-link:focus,.skip-link:focus-visible{top:12px;outline:2px solid var(--focus);outline-offset:3px}
 .topbar{position:relative;min-height:76px;padding:0 max(20px,4%);display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:1px solid var(--rule)}
 :root .topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:5px;background:var(--ticks);opacity:.55;pointer-events:none}
 .brand{display:flex;align-items:center;gap:11px;font-family:var(--font-display);font-size:var(--fs-5);line-height:var(--lh-6);letter-spacing:-.01em;text-decoration:none;color:var(--ink)}
@@ -938,3 +938,41 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 .theme-switch select:hover:not(:disabled){color:var(--ink)}
 @media (max-width:900px){.theme-switch{order:2;margin-left:auto}}
 @media print{.theme-switch{display:none}}
+
+/* Responsive header: below ~720px the nav, Account menu and theme controls sit behind one Menu button. */
+.menu-toggle{display:none}
+@media (max-width:720px){
+  .topbar{flex-wrap:wrap;row-gap:0}
+  .menu-toggle{order:2;margin-left:auto;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:8px 12px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);background:transparent;color:var(--ink);font-family:var(--font-ui);font-size:var(--fs-2);font-weight:var(--fw-ui)}
+  .menu-toggle:hover,.menu-toggle[aria-expanded=true]{background:var(--accent-soft)}
+  .topbar .nav-wrap{display:none}
+  .topbar.menu-open .nav-wrap{order:3;display:flex;flex-direction:column;align-items:stretch;gap:12px;width:100%;padding:12px 0 6px;border-top:1px solid var(--rule);margin-top:10px}
+  .topbar.menu-open .navlinks{order:0;flex-direction:column;align-items:stretch;flex-wrap:nowrap;width:auto;margin:0;padding:0;overflow:visible;white-space:normal;-webkit-mask-image:none;mask-image:none;gap:2px}
+  .topbar.menu-open .navlinks a,.topbar.menu-open .navlinks .help-link,.topbar.menu-open .nav-menu{display:flex;width:100%;min-height:44px;align-items:center;text-align:left;justify-content:flex-start}
+  .topbar.menu-open .theme-switch{order:0;margin-left:0;align-self:flex-start}
+}
+@media print{.menu-toggle{display:none}}
+
+/* Plans: one action per card, Pro recommended. */
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;align-items:stretch}
+.plan-card{display:flex;flex-direction:column}
+.plan-card .bullets{flex:1}
+.plan-card.is-recommended{border:2px solid var(--accent);box-shadow:var(--shadow-2)}
+.plan-card.is-chosen{outline:2px dashed var(--accent);outline-offset:4px}
+.plan-flag{position:absolute;top:-12px;right:20px;background:var(--accent);color:var(--on-accent);font-family:var(--font-ui);font-size:var(--fs-1);font-weight:var(--fw-3);letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:var(--r-pill)}
+.plan-action{margin-top:18px;min-height:44px}
+.plan-action>a,.plan-action>button{width:100%;justify-content:center;text-align:center}
+.plan-action-placeholder{display:block;height:44px}
+
+/* Auth form states. */
+.password-field{display:flex;gap:8px;align-items:stretch}
+.password-field input{flex:1;min-width:0}
+.password-toggle{flex:0 0 auto;min-width:64px;padding:0 12px;border:1px solid var(--rule-strong);border-radius:var(--r-sm);background:transparent;color:var(--ink);font-family:var(--font-ui);font-size:var(--fs-2)}
+.password-toggle:hover{background:var(--accent-soft)}
+.password-label{display:block;font-family:var(--font-ui);font-size:var(--fs-2);font-weight:var(--fw-ui);margin:18px 0 0;color:var(--ink)}
+.password-label+.password-field{margin-top:8px}
+.auth-consent{margin-top:14px}
+form[data-attempted] label:has(input:invalid)+.field-hint,form[data-attempted] .password-field:has(input:invalid)+.field-hint{display:block}
+form[data-attempted] .password-field:has(input:invalid)+.field-hint{margin-top:6px}
+form[data-attempted] .password-field:has(input:invalid)~#password-hint{color:var(--bad)}
+main#content:focus{outline:none}

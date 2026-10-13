@@ -186,7 +186,7 @@ let project, reviewToken;
   // BUG-13's save-button reason is covered by the saveBlockReason unit test: the signed-out home is now
   // the landing page (features, no editor), so no draft of any account is rendered there.
   { const home = await page('/'); ok(/Everything a scope needs/.test(home) && /Scope-creep radar/.test(home) && !/id="save-reason"/.test(home) && !/Live draft preview/.test(home), 'signed-out home is the landing page, without the editor'); }
-  ok(/Use at least 8 characters/.test(await page('/auth/sign-up')), 'BUG-4 password hint');
+  ok(/At least 8 characters/.test(await page('/auth/sign-up')), 'BUG-4 password hint');
   const apiInfo = await (await fetch(base + '/api')).json();
   eq(apiInfo.version, JSON.parse(readFileSync('package.json', 'utf8')).version); // SF-16
 }

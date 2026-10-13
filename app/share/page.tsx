@@ -13,5 +13,5 @@ export const metadata: Metadata = {title: 'Share with Scopeflow', manifest: '/ma
 export const dynamic = 'force-dynamic';
 
 export default function SharePage() {
-  return <><Header /><main id="main" className="shell"><Suspense fallback={<p role="status">Loading…</p>}><ShareClient /></Suspense><PwaSetup /></main></>;
+  return <><Header /><main id="content" tabIndex={-1} className="shell"><Suspense fallback={<p role="status">Loading…</p>}><ShareClient /></Suspense><PwaSetup /></main></>;
 }

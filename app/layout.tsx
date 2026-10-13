@@ -38,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="b" data-mode="system" data-scheme="light" className={`${fraunces.variable} ${instrument.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: sessionScript }} /></head>
-      <body className="antialiased"><a className="skip-link" href="#main">Skip to content</a>{children}<SiteFooter /><ThemeProvider /><Toaster position="bottom-center" duration={2600} /></body>
+      <body className="antialiased"><a className="skip-link" href="#content">Skip to content</a>{children}<SiteFooter /><ThemeProvider /><Toaster position="bottom-center" duration={2600} /></body>
     </html>
   );
 }

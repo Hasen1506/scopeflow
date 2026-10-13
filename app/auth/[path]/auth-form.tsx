@@ -1,11 +1,25 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { authClient } from '@/lib/auth/client';
 import { safeReturnPath } from '@/lib/origin';
 import { forgetDrafts } from '@/lib/editor';
 import { rememberSession } from '@/lib/theme';
+
+type AuthError = { message?: string; status?: number; code?: string } | null | undefined;
+/** Turns an auth-service error into words that say whose problem it is: wrong details, too many tries, or the service. */
+class AuthProblem extends Error { constructor(message: string, readonly credentials: boolean) { super(message); } }
+function problem(error: AuthError, mode: string): AuthProblem {
+  const status = error?.status ?? 0, code = error?.code ?? '';
+  if (status === 429) return new AuthProblem('Too many attempts. Wait a minute, then try again.', false);
+  if (status >= 500 || (!status && !error?.message)) return new AuthProblem('Sign-in is having trouble on our side, so nothing was wrong with your details. Please try again in a moment.', false);
+  if (mode === 'sign-in' && (status === 401 || status === 403 || /INVALID_EMAIL_OR_PASSWORD|INVALID_PASSWORD|USER_NOT_FOUND/.test(code))) {
+    if (/EMAIL_NOT_VERIFIED/.test(code)) return new AuthProblem('Verify your email first: open the link we sent you, then sign in.', false);
+    return new AuthProblem('That email and password don’t match. Check them and try again.', true);
+  }
+  return new AuthProblem(error?.message || (mode === 'sign-up' ? 'We couldn’t create the account. Check your details and try again.' : 'Unable to sign in.'), true);
+}
 
 export default function AuthForm({ mode, returnTo, token, configured, explicitReturn = true }: {
   mode: string; returnTo: string; token?: string; configured: boolean;
@@ -16,12 +30,20 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [attempted, setAttempted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const { data: current } = authClient.useSession();
   const currentEmail = current?.user?.email ?? '';
   const title = mode === 'sign-up' ? 'Create your account' : mode === 'forgot-password' ? 'Reset your password' : mode === 'reset-password' ? 'Choose a new password' : 'Welcome back';
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setError(''); setMessage('');
-    const form = new FormData(event.currentTarget);
+    event.preventDefault();
+    // The form is noValidate so problems show inline, in the app's own words, next to each field.
+    const el = event.currentTarget;
+    for (const field of Array.from(el.elements) as HTMLInputElement[]) if (field.name) { if (field.validity.valid) field.removeAttribute('aria-invalid'); else field.setAttribute('aria-invalid', 'true'); }
+    if (!el.checkValidity()) { setAttempted(true); setError(''); (el.querySelector(':invalid') as HTMLElement | null)?.focus(); return; }
+    setBusy(true); setError(''); setMessage('');
+    const form = new FormData(el);
     const email = String(form.get('email') || '').trim();
     const password = String(form.get('password') || '');
     // SF-03: re-check the destination on the client too; never navigate off-site.
@@ -48,28 +70,43 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
         const result = mode === 'sign-up'
           ? await authClient.signUp.email({ email, password, name: String(form.get('name') || '').trim(), callbackURL })
           : await authClient.signIn.email({ email, password, callbackURL });
-        if (result.error) throw new Error(result.error.message || 'Unable to sign in.');
+        if (result.error) throw problem(result.error as AuthError, mode);
         const session = await authClient.getSession();
         // LT-04/SF-11: a new account without a specific destination starts with onboarding.
         const next = mode === 'sign-up' && !explicitReturn ? '/onboarding' : destination;
         if (session.data?.user) { router.push(next); router.refresh(); }
         else setMessage('Check your email to verify your account, then sign in.');
       }
-    } catch (error) { setError(error instanceof Error ? error.message : 'Please try again.'); }
+    } catch (error) {
+      // Wrong details: clear the password so the next try starts clean. Service trouble: keep what was typed.
+      if (error instanceof AuthProblem) { if (error.credentials && passwordRef.current) passwordRef.current.value = ''; setError(error.message); }
+      else if (error instanceof TypeError) setError('We couldn’t reach Scopeflow. Check your connection and try again.');
+      else setError(error instanceof Error ? error.message : 'Please try again.');
+    }
     finally { setBusy(false); }
   }
+  const busyLabel = mode === 'sign-up' ? 'Creating account…' : mode === 'forgot-password' ? 'Sending link…' : mode === 'reset-password' ? 'Updating password…' : 'Signing in…';
   return <>
     <p className="eyebrow">YOUR SCOPEFLOW ACCOUNT</p><h1>{title}</h1>
     {configured && currentEmail && (mode === 'sign-in' || mode === 'sign-up') && <p className="muted-box auth-current" role="status">You are signed in as <b>{currentEmail}</b>. {mode === 'sign-in' ? 'Signing in with another email signs that account out first.' : 'Creating a new account signs that account out first.'} <Link className="help-link" href={safeReturnPath(returnTo)}>Stay signed in</Link></p>}
     {!configured ? <p className="error" role="alert">Sign-in is temporarily unavailable. Please contact support or try again later.</p> :
-      <form onSubmit={submit} className="section-gap">
+      <form onSubmit={submit} className="section-gap" noValidate data-attempted={attempted ? '' : undefined} aria-busy={busy}>
         {/* LT-11: each label names only its field (the hint sits outside the label); hints are tied by aria-describedby. */}
         {mode === 'sign-up' && <><label>Your name<input name="name" autoComplete="name" required minLength={2} maxLength={120} aria-describedby="name-hint" /></label><span id="name-hint" className="field-hint">Enter at least 2 characters.</span></>}
         {mode !== 'reset-password' && <><label>Email<input name="email" type="email" autoComplete="email" required maxLength={254} aria-describedby="email-hint" /></label><span id="email-hint" className="field-hint">Enter a full email address, like name@example.com.</span></>}
-        {mode !== 'forgot-password' && <><label>Password<input name="password" type="password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} aria-describedby={mode === 'sign-in' ? undefined : 'password-hint'} /></label>{mode !== 'sign-in' && <span id="password-hint" className="fine block">Use at least 8 characters. A longer passphrase is stronger.</span>}</>}
-        <button className="primary section-gap" disabled={busy || (mode === 'reset-password' && !token)}>{busy ? 'Please wait…' : mode === 'sign-up' ? 'Create account' : mode === 'forgot-password' ? 'Send reset link' : mode === 'reset-password' ? 'Update password' : 'Sign in'}</button>
+        {mode !== 'forgot-password' && <>
+          <label className="password-label" htmlFor="auth-password">{mode === 'reset-password' ? 'New password' : 'Password'}</label>
+          <div className="password-field">
+            <input ref={passwordRef} id="auth-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} aria-describedby={mode === 'sign-in' ? 'password-error' : 'password-hint'} />
+            <button type="button" className="password-toggle" aria-controls="auth-password" aria-pressed={showPassword} aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(v => !v)}>{showPassword ? 'Hide' : 'Show'}</button>
+          </div>
+          {mode === 'sign-in' ? <span id="password-error" className="field-hint">Enter your password (at least 8 characters).</span> : <span id="password-hint" className="fine block">At least 8 characters. A longer passphrase is stronger.</span>}
+        </>}
+        {mode === 'sign-up' && <p className="fine auth-consent">By creating an account you agree to the <Link className="help-link" href="/terms">Terms of use</Link> and the <Link className="help-link" href="/privacy">Privacy notice</Link>.</p>}
+        <button className="primary section-gap" disabled={busy || (mode === 'reset-password' && !token)}>{busy ? busyLabel : mode === 'sign-up' ? 'Create account' : mode === 'forgot-password' ? 'Send reset link' : mode === 'reset-password' ? 'Update password' : 'Sign in'}</button>
+        <p className="sr-only" aria-live="polite">{busy ? busyLabel : ''}</p>
       </form>}
-    {error && <p className="error" role="alert">{error}</p>}
+    {error && <div className="error" role="alert">{error}</div>}
     {message && <p className="muted-box" role="status">{message}</p>}
     {/* Only the ways out that make sense from this form (the sign-in page no longer links to itself). */}
     <p className="fine section-gap auth-switch">

@@ -7,5 +7,5 @@ import PayBlock from '../../components/slots/pay-block';
 export const metadata = {title: 'Pay — Scopeflow', robots: {index: false, follow: false}, referrer: 'no-referrer'};
 export default async function Page({params}: {params: Promise<{token: string}>}) {
   const {token} = await params;
-  return <><Header/><main id="main" className="review-shell"><p className="eyebrow">PAYMENT</p><PayBlock token={token}/><p className="fine section-gap"><a className="help-link" href={`/review/${token}`}>See the agreement and its record</a></p></main></>;
+  return <><Header/><main id="content" tabIndex={-1} className="review-shell"><p className="eyebrow">PAYMENT</p><PayBlock token={token}/><p className="fine section-gap"><a className="help-link" href={`/review/${token}`}>See the agreement and its record</a></p></main></>;
 }

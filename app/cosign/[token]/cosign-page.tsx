@@ -20,7 +20,7 @@ export function CosignPage({token}: {token: string}) {
   const load = useCallback(async () => { setData(await api('/api/cosign/' + token)); }, [token]);
   useEffect(() => { let live = true; api('/api/cosign/' + token).then(d => { if (live) setData(d); }, e => { if (live) setError((e as Error).message); }); return () => { live = false; }; }, [token]);
   const tz = data?.time_zone ?? 'UTC';
-  return <><Header /><main id="main" className="review-shell">
+  return <><Header /><main id="content" tabIndex={-1} className="review-shell">
     {error && <div className="error" role="alert">{error}</div>}
     {data && <>
       <p className="eyebrow">COUNTERSIGN · {data.role.role.toUpperCase()} · VERSION {data.scope.version}</p>

@@ -12,7 +12,7 @@ async function signUp(page: Page) {
   await page.goto('/auth/sign-up?return_to=%2F');
   await page.getByLabel('Your name').fill(OWNER.name);
   await page.getByLabel('Email').fill(OWNER.email);
-  await page.getByLabel('Password').fill(OWNER.password);
+  await page.getByLabel('Password', {exact: true}).fill(OWNER.password);
   await page.getByRole('button', {name: 'Create account'}).click();
   await expect(page.getByRole('button', {name: 'Sign out'})).toBeVisible();
 }

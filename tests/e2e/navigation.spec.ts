@@ -32,7 +32,7 @@ test('navigation: Projects home, one-tap next steps, the project page and the Ac
   await page.goto('/auth/sign-up?return_to=%2F');
   await page.getByLabel('Your name').fill(OWNER.name);
   await page.getByLabel('Email').fill(OWNER.email);
-  await page.getByLabel('Password').fill(OWNER.password);
+  await page.getByLabel('Password', {exact: true}).fill(OWNER.password);
   await page.getByRole('button', {name: 'Create account'}).click();
 
   // Signed-in owners land on the Projects home; with nothing saved, the next step is the first scope.

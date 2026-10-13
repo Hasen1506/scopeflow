@@ -11,7 +11,7 @@ export default function SharedTemplate({token}: {token: string}) {
   const [t, setT] = useState<{name: string; content: Scope; tags: string[]; revision: number} | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => { api(`/api/templates/shared/${token}`).then(d => setT(d.template), e => setError(e.message)); api('/api/me').then(d => setSignedIn(!!d.signedIn), () => setSignedIn(false)); }, [token]);
   async function add() { setBusy(true); setError(''); try { await api(`/api/templates/shared/${token}`, post({})); router.push('/templates'); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
-  return <><Header /><main id="main" className="shell" aria-busy={!t && !error}>
+  return <><Header /><main id="content" tabIndex={-1} className="shell" aria-busy={!t && !error}>
     <div className="page-heading"><div><p className="eyebrow">SHARED TEMPLATE</p><h1>{t?.name ?? 'Template'}</h1>{t && <p className="quiet">Revision {t.revision}{t.tags.length ? ` · ${t.tags.join(', ')}` : ''}</p>}</div></div>
     {error && <p className="error" role="alert">{error}</p>}
     {!t && !error && <div className="paper"><Skeleton lines={6} label="Loading the template…" /></div>}

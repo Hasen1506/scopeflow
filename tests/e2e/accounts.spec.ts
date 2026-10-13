@@ -12,13 +12,13 @@ async function signUp(page: Page, who: typeof A) {
   await page.goto('/auth/sign-up?return_to=%2F');
   await page.getByLabel('Your name').fill(who.name);
   await page.getByLabel('Email').fill(who.email);
-  await page.getByLabel('Password').fill(who.password);
+  await page.getByLabel('Password', {exact: true}).fill(who.password);
   await page.getByRole('button', {name: 'Create account'}).click();
   await expect(page.getByRole('tab', {name: /Projects \(0\)/})).toBeVisible();
 }
 async function signInAs(page: Page, who: typeof A) {
   await page.getByLabel('Email').fill(who.email);
-  await page.getByLabel('Password').fill(who.password);
+  await page.getByLabel('Password', {exact: true}).fill(who.password);
   await page.getByRole('button', {name: 'Sign in'}).click();
   await expect(page.getByRole('tab', {name: /Projects \(0\)/})).toBeVisible();
 }
