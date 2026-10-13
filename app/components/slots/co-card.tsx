@@ -8,6 +8,7 @@ import {useEffect, useRef, useState} from 'react';
 import {coSha256, coSummary, coTotals, pctOfMinor, type Agreement, type CoView} from '@/lib/ledger';
 import {formatMoney, type Scope} from '@/lib/scope';
 import {fromMinor, toMinor} from '@/lib/minor';
+import {afterConsent} from '@/lib/a11y';
 import {api, post} from '@/app/ui';
 import styles from '../ws-05/ws-05.module.css';
 
@@ -31,6 +32,7 @@ export default function CoCard({co, agreement, scope, mode, token, otpSession, n
   const [comment, setComment] = useState('');
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState('');
+  const consentError = `Confirm that you reviewed CO-${co.seq} before recording a decision.`;
   const [saving, setSaving] = useState(false);
   const inflight = useRef(false);
   useEffect(() => { let live = true; void coSha256(co, scope).then(h => { if (live) setHash(h); }); return () => { live = false; }; }, [co, scope]);
@@ -43,7 +45,7 @@ export default function CoCard({co, agreement, scope, mode, token, otpSession, n
     setError('');
     if (!verified) return setError('Wait for the record check to pass before recording a decision.');
     if (name.trim().length < 2) return setError('Enter your name to record this decision.');
-    if (!checked) return setError(`Confirm that you reviewed CO-${co.seq} before recording a decision.`);
+    if (!checked) return setError(consentError);
     if (decision === 'declined' && !comment.trim()) return setError('Please say why, so the creator can follow up.');
     if (needsOtp && !otpSession) return setError('Confirm your email with the code first.');
     if (!hash) return setError('Still preparing the fingerprint of this change order. Try again in a moment.');
@@ -70,7 +72,7 @@ export default function CoCard({co, agreement, scope, mode, token, otpSession, n
         <div className="no-print">
           <label>Your name<input maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
           <label>Comment <span className="quiet">· required if declining</span><textarea rows={2} maxLength={3000} value={comment} onChange={e => setComment(e.target.value)} /></label>
-          <label className="consent"><input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />I have reviewed CO-{co.seq}, including its effect on the fee{t.tax.pct > 0 ? ` and ${t.tax.label}` : ''} and timeline.</label>
+          <label className="consent"><input type="checkbox" checked={checked} onChange={e => { const on = e.target.checked; setChecked(on); setError(x => afterConsent(x, consentError, on)); }} />I have reviewed CO-{co.seq}, including its effect on the fee{t.tax.pct > 0 ? ` and ${t.tax.label}` : ''} and timeline.</label>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="actions"><button className="primary" disabled={saving || !verified} onClick={() => decide('approved')}>{saving ? 'Saving…' : 'Approve change'}</button><button className="secondary" disabled={saving || !verified} onClick={() => decide('declined')}>Decline</button></div>
         </div>

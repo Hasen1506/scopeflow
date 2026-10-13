@@ -8,7 +8,7 @@ import {type LedgerView} from '../ledger-panel';
 import {stageOf,trackerSteps,nextStep} from '@/lib/stage';
 import {api,post,type ApiError} from '../ui';
 import {rememberSession} from '@/lib/theme';
-import {fieldErrors,validationBanner,VALIDATION_BANNER,type FieldIssue,numberProblems,saveBlockReason,draftKey,serializeDraft,normalizeDraft,meaningfulDraft,templateKeep} from '@/lib/editor';
+import {fieldErrors,validationBanner,VALIDATION_BANNER,type FieldIssue,numberProblems,saveBlockReason,draftKey,serializeDraft,normalizeDraft,meaningfulDraft,templateKeep,readDraftEmail,writeDraftEmail} from '@/lib/editor';
 import {templates as starterTemplates} from '@/lib/templates';
 import {feeCheck} from '@/lib/money';
 import {newProjectZone} from '@/lib/time';
@@ -74,6 +74,8 @@ export function useWorkspace(){
   if(accountRef.current===undefined){accountRef.current=who;const {stored,from,kept,known,undo:keptUndo}=await restoreOnLoad(who);
    if(known){synced.current=kept?JSON.stringify(kept):null;setKeptDraft(kept);}if(keptUndo)setUndo({draft:keptUndo,isSample:false});
    if(stored){setDraft(stored);setIsSample(false);if(who===null){setTrying(true);setTabState('project');}setNotice(from==='account'?'Restored the unsaved draft kept with your account.':from==='tab'?'Restored your unsaved draft from this tab.':'Restored your unsaved draft from this browser. It is now kept with your account.');}
+   // R5-05: the unsaved draft's client email, kept in this tab (back from /templates with Use template).
+   if(!new URLSearchParams(location.search).get('project')){const e=readDraftEmail(()=>sessionStorage,who);if(e)setClientEmail(e);}
    setAccount(who);}
   setSignedIn(me.signedIn);rememberSession(!!me.signedIn);setMailOn(!!me.mail);setAccountZone(me.defaults?.timezone??null);if(me.ai)setAi(me.ai);setOtpChannels(me.otp_channels??(me.otp?['email']:[]));if(me.signedIn){const [d]=await Promise.all([api('/api/scopes'),loadOverview()]);setScopes(d.scopes);if(!landed.current){landed.current=true;if(!new URLSearchParams(location.search).get('project')&&nav.current.unchanged(navAt))setTabState('home');}try{const t=await api('/api/templates');setLibrary(t.templates);}catch{/* starters stay available */}try{const [st,pr]=await Promise.all([api('/api/settings'),api('/api/profile').catch(()=>null)]);setDefaults({exclusions:st.settings.default_exclusions??'',notes:st.settings.default_terms??'',...(pr?draftDefaults(pr.profile):{})});}catch{/* defaults stay empty */}}}catch(e){setError((e as Error).message);}finally{setLoading(false);}},[loadOverview]);
  // Load the account, restore an unsaved draft kept in this browser (BUG-14) and open ?project= deep links.
@@ -121,6 +123,7 @@ export function useWorkspace(){
   if(account===null){const key=draftKey(null);const id=setTimeout(()=>{try{if(keepText!==null)sessionStorage.setItem(key,serializeDraft(draft,Date.now(),null));else sessionStorage.removeItem(key);}catch{/* storage unavailable */}},300);return()=>clearTimeout(id);}
   if(keepText===synced.current||(keepText===null&&synced.current===undefined))return;
   const id=setTimeout(()=>{void syncDraft(keepText===null?null:draft,keepText);},1200);return()=>clearTimeout(id);},[draft,active,account,keepText,syncDraft,syncRetry]);
+ useEffect(()=>{if(!active&&account!==undefined)writeDraftEmail(()=>sessionStorage,account,clientEmail);},[clientEmail,active,account]);
  function tryEditor(){setTrying(true);setTab('project');requestAnimationFrame(()=>window.scrollTo({top:0}));}
  // UX-C41/N1: replacing an unsaved draft is confirmed in the in-app dialog too.
  const [confirm,confirmDialog]=useConfirm();

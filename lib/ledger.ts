@@ -479,7 +479,7 @@ export function changeOrderMoneyProblems(co: {fee_delta?: number; add_items?: {p
   co.add_items?.forEach((i, n) => { check(['add_items', n, 'price'], i.price); check(['add_items', n, 'unit_price'], i.unit_price); });
   return out;
 }
-const CO_FIELD: Record<string, string> = {fee_delta: 'Fee change', price: 'price', unit_price: 'unit price'};
+const CO_FIELD: Record<string, string> = {fee_delta: 'Fee change', price: 'price', unit_price: 'price each'};
 function coFieldLabel(path: (string | number)[]) {
   return path.map(p => typeof p === 'number' ? String(p + 1) : p === 'add_items' ? 'Added deliverable' : CO_FIELD[p] ?? p).join(' ');
 }

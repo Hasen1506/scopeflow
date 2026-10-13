@@ -325,13 +325,16 @@ label select{margin-top:7px}
 .item-num{flex:0 0 auto;display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-ui);font-variant-numeric:tabular-nums}
 .item-main{display:flex;gap:8px;align-items:center}
 .item-tools{display:flex;gap:4px}
+/* R5-03: on phones the title takes the whole first line (number + title) and the move/remove tools wrap below it. */
+@media (max-width:600px){.item-main{flex-wrap:wrap}.item-main>input{flex:1 1 calc(100% - 34px);min-width:0}.item-tools{flex:1 0 100%;justify-content:flex-end}}
 .item-meta{display:grid;grid-template-columns:80px 1fr 1fr;gap:8px}
 .item-meta label,.item-accept{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2)}
 .item-meta input,.item-accept input{padding:7px 9px;font-size:var(--fs-2);margin-top:3px}
 /* R4-02: the price cell holds its label, the line total it makes and the per-unit / line-total switch. */
 .item-meta .price-cell{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2);min-width:0}
 .item-meta .price-cell label{margin:0;font-size:inherit;color:inherit}
-.price-mode{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-top:3px;font-variant-numeric:tabular-nums}
+/* R5 polish: two classes so the later .block utility can't turn it back into a block (the note and its link ran together at 390). */
+.price-cell .price-mode{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin-top:3px;font-variant-numeric:tabular-nums}
 .price-mode .link-button{font-size:var(--fs-1)}
 .input-row{display:grid;grid-template-columns:1fr 160px 34px;gap:8px;align-items:center;margin:8px 0}
 .milestone-row{grid-template-columns:minmax(8rem,1fr) 5.5rem 9.5rem auto 34px}.milestone-row .fine{text-align:right;white-space:nowrap}

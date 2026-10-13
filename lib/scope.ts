@@ -21,7 +21,7 @@ export const itemSchema = z.object({
   acceptance: z.string().trim().max(1000).default(''),
   // Phase 0 (M6, WS-01): optional price per unit; when present the line total is qty × unit_price.
   // Omitted when unset, so items signed before it existed keep their canonical form.
-  unit_price: z.number().finite().min(0, "Unit price can't be negative").max(10000000).optional(),
+  unit_price: z.number().finite().min(0, "Price each can't be negative").max(10000000).optional(),
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
 
@@ -190,7 +190,7 @@ const FIELD_LABELS: Record<string, string> = {
   fee: 'Fee', currency: 'Currency', revisions: 'Revisions', due: 'Delivery date', notes: 'Notes', tax_label: 'Tax label', tax_pct: 'Tax rate',
   deposit_pct: 'Deposit', payment_terms: 'Payment terms', milestones: 'Payment schedule', fx: 'Second currency', revision_bank: 'Revision bank',
   client_country: 'Client country', engagement: 'Engagement', retainer: 'Retainer', tds: 'TDS', msmed: 'MSMED terms', language: 'Language',
-  price: 'price', unit_price: 'unit price', qty: 'quantity', unit: 'unit', acceptance: 'acceptance', pct: 'share', amount: 'amount', overage_rate: 'overage rate',
+  price: 'price', unit_price: 'price each', qty: 'quantity', unit: 'unit', acceptance: 'acceptance', pct: 'share', amount: 'amount', overage_rate: 'overage rate',
   rate: 'rate', as_of: 'rate date', source: 'rate source', id: 'id',
 };
 /** A human label for an issue path: ['items', 2, 'price'] → "Item 3 price", ['fee'] → "Fee". */

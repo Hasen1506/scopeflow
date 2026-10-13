@@ -1,5 +1,6 @@
 /* WS-02 slots: ContactChange and CosignerEditor. Tokens only. */
-.panel { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 1rem; background: var(--paper); }
+/* R5-01: an app panel (its labels, fields and status lines use the app inks), so it sits on --surface, not --paper. */
+.panel { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 1rem; background: var(--surface); color: var(--ink); }
 /* Visual #11: stacked identity panels (Change client contact, Countersigners) no longer touch. */
 .panel + .panel { margin-top: var(--s4, 1rem); }
 .locked { color: var(--ink); font-size: var(--fs-2); }

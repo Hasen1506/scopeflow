@@ -8,7 +8,7 @@ import {api, post, type ApiError} from '../ui';
 import WhatsAppShare, {ClientNotice} from '../components/slots/whatsapp-share';
 import {formatMoney} from '@/lib/currency';
 import {COPY_FAILED, copyText} from '@/lib/clipboard';
-import {exactUnitPrice, itemsTotal} from '@/lib/money';
+import {amountStep, coFeeState, exactUnitPrice, itemsTotal, unitFromLine} from '@/lib/money';
 import {withUnitPrice} from '@/lib/editor';
 import styles from './share.module.css';
 
@@ -88,18 +88,22 @@ function Verdict({capture, review, project}: {capture: Capture; review: Review; 
 function ChangeOrderDraft({capture, radar, review, project}: {capture: Capture; radar: Radar; review: Review; project?: Project}) {
   const co = radar.change_order!;
   const [title, setTitle] = useState(co.title ?? 'Additional work'), [items, setItems] = useState<Item[]>(co.add_items ?? []);
-  const [fee, setFee] = useState<string>(co.fee_delta ? String(co.fee_delta) : ''), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  // R5-02: '' = the owner has not typed a fee, so it follows the items' total (coFeeState); clearing the field goes back to that.
+  const [fee, setFee] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [confirmedFor, setConfirmedFor] = useState('');
   const [proposed, setProposed] = useState<{seq: number; email: Email; amount: string | null} | null>(null);
   // R4-03: a change-order item's `price` is its line total. The field here is a price per unit, so it is kept as
   // unit_price and the fee is the sum of the line totals (qty × unit), exactly as the agreement will show them.
-  const computed = useMemo(() => itemsTotal(items, radar.currency).total, [items, radar.currency]);
-  const unitOf = (it: Item) => { const u = exactUnitPrice(it, radar.currency); return u ?? (typeof it.price === 'number' ? Math.round(it.price / Math.max(1, it.qty) * 100) / 100 : null); };
+  const feeState = useMemo(() => coFeeState(fee, items, radar.currency, {suggested: co.fee_delta, tax_pct: radar.tax_pct, tax_label: radar.tax_label}), [fee, items, radar.currency, radar.tax_pct, radar.tax_label, co.fee_delta]);
+  // The confirmation holds only for the exact fee and items total it was given for.
+  const mismatchKey = feeState.mismatch ? `${fee}|${feeState.items_total}` : '', confirmed = !!mismatchKey && confirmedFor === mismatchKey;
+  const unitOf = (it: Item) => exactUnitPrice(it, radar.currency) ?? (typeof it.price === 'number' ? unitFromLine(it.price, it.qty, radar.currency) : null);
+  const step = amountStep(radar.currency);
   const setQty = (i: number, qty: number) => setItems(list => list.map((x, n) => { if (n !== i) return x; const u = x.unit_price == null && typeof x.price === 'number' ? exactUnitPrice(x, radar.currency) : null; return u != null ? withUnitPrice({...x, qty}, u) : {...x, qty}; }));
-  const feeValue = fee === '' ? computed : Number(fee);
-  const withTax = Math.round(feeValue * (1 + (radar.tax_pct || 0) / 100) * 100) / 100;
+  const feeValue = feeState.fee;
   const source = (id: string) => radar.prices.find(p => p.item_id === id);
   const setItem = (i: number, patch: Partial<Item>) => setItems(list => list.map((x, n) => n === i ? {...x, ...patch} : x));
   async function propose() {
+    if (feeState.mismatch && !confirmed) { setError('The fee change is not the items total. Use the items total, or tick “Propose with this fee” to confirm it.'); return; }
     setBusy(true); setError('');
     try {
       const payload = {title, reason: co.reason ?? '', request_quote: co.request_quote ?? capture.text.slice(0, 2000), add_items: items.map(({unit_price, ...i}) => ({...i, price: typeof i.price === 'number' && Number.isFinite(i.price) ? i.price : null, ...(typeof unit_price === 'number' && Number.isFinite(unit_price) ? {unit_price} : {})})), fee_delta: Number.isFinite(feeValue) ? feeValue : 0, days_delta: co.days_delta ?? 0, revisions_delta: co.revisions_delta ?? 0};
@@ -117,13 +121,17 @@ function ChangeOrderDraft({capture, radar, review, project}: {capture: Capture; 
     {items.map((it, i) => <div className={styles.grid} key={it.id}>
       <label className={styles.field}>Deliverable<input value={it.title} onChange={e => setItem(i, {title: e.target.value})} maxLength={200} /></label>
       <label className={styles.field}>Qty<input type="number" min={1} value={it.qty} onChange={e => setQty(i, Math.max(1, Math.round(Number(e.target.value)) || 1))} /></label>
-      <label className={styles.field}>Unit price ({radar.currency})<input type="number" min={0} step="0.01" value={unitOf(it) ?? ''} onChange={e => setItems(list => list.map((x, n) => n === i ? withUnitPrice(x, e.target.value === '' ? null : Number(e.target.value)) : x))} data-testid="co-unit-price" /></label>
+      <label className={styles.field}>Price each ({radar.currency})<input type="number" min={0} step={step} value={unitOf(it) ?? ''} onChange={e => setItems(list => list.map((x, n) => n === i ? withUnitPrice(x, e.target.value === '' ? null : Number(e.target.value)) : x))} data-testid="co-unit-price" /></label>
       {it.qty > 1 && unitOf(it) != null && <p className={styles.fine} data-testid="co-line-total">{it.qty} × {formatMoney(unitOf(it)!, radar.currency)} = {formatMoney(itemsTotal([it], radar.currency).total, radar.currency)}</p>}
       {source(it.id) && <p className={styles.fine}>{source(it.id)!.source === 'rate_card' ? `From your rate card: ${source(it.id)!.matched}` : `From your earlier scope: ${source(it.id)!.matched}`}</p>}
     </div>)}
-    <label className={styles.field}>Fee change ({radar.currency})<input type="number" step="0.01" value={fee === '' ? (computed || '') : fee} onChange={e => setFee(e.target.value)} data-testid="co-fee" /></label>
-    <p data-testid="co-total"><strong>{formatMoney(feeValue || 0, radar.currency)}</strong>{radar.tax_pct ? ` + ${radar.tax_label} ${radar.tax_pct}% = ${formatMoney(withTax, radar.currency)}` : ''}</p>
-    <div className={styles.actions}><button className="primary" disabled={busy}>Propose change order</button><span className={styles.fine}>Your client is emailed and can approve or decline it.</span></div>
+    <label className={styles.field}>Fee change ({radar.currency})<input type="number" step={step} value={fee === '' ? (feeState.fee || '') : fee} onChange={e => setFee(e.target.value)} aria-describedby={feeState.mismatch ? 'co-fee-warn' : undefined} data-testid="co-fee" /></label>
+    {feeState.following && feeState.priced > 0 && <p className={styles.fine}>The total of the items; type a fee to change it.</p>}
+    {feeState.mismatch && <div className={styles.warn} id="co-fee-warn" data-testid="co-fee-warn"><p className="flush">{feeState.message}</p>
+      <span className={styles.actions}><button type="button" className="help-link" onClick={() => { setFee(''); setError(''); }}>Use the items total</button></span>
+      <label className="check-row"><input type="checkbox" checked={confirmed} onChange={e => { setConfirmedFor(e.target.checked ? mismatchKey : ''); if (e.target.checked) setError(''); }} data-testid="co-fee-confirm" /><span>Propose with this fee</span></label></div>}
+    <p data-testid="co-total"><strong>{formatMoney(Number.isFinite(feeValue) ? feeValue : 0, radar.currency)}</strong>{radar.tax_pct && feeState.with_tax != null ? ` + ${radar.tax_label} ${radar.tax_pct}% = ${formatMoney(feeState.with_tax, radar.currency)}` : ''}</p>
+    <div className={styles.actions}><button className="primary" disabled={busy} aria-describedby={feeState.mismatch && !confirmed ? 'co-fee-warn' : undefined}>Propose change order</button><span className={styles.fine}>Your client is emailed and can approve or decline it.</span></div>
     {error && <p className="error" role="alert">{error}</p>}
   </form>;
 }

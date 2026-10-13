@@ -8,6 +8,7 @@ import {api, post, Skeleton, type ApiError} from '@/app/ui';
 import {Checkbox} from '@/components/ui/checkbox';
 import {ScopeDiff} from '@/app/scope-diff';
 import {formatDay, formatInZone} from '@/lib/time';
+import {afterConsent} from '@/lib/a11y';
 import {LANG_STORAGE_KEY, isLang, pickLang, translator, type Lang} from '@/lib/i18n';
 import PayBlock from '@/app/components/slots/pay-block';
 import DataNotice from '@/app/components/slots/data-notice';
@@ -204,7 +205,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
             <label>{t('decide.name')}<input id="signer-name" autoComplete="name" aria-required="true" maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
             <label>{t('decide.comment')} <span className="quiet">{t('decide.commentHint')}</span><textarea id="decision-comment" rows={3} maxLength={3000} value={comment} onChange={e => setComment(e.target.value)} aria-describedby="comment-kept" /></label>
             <p className="fine" id="comment-kept">{t('decide.commentKept')}</p>
-            <label className="consent"><Checkbox id="decide-consent" aria-required="true" aria-invalid={(!!decideError && !checked) || undefined} checked={checked} onCheckedChange={v => setChecked(v === true)} />{t('decide.consent', {version: scope.version})}</label>
+            <label className="consent"><Checkbox id="decide-consent" aria-required="true" aria-invalid={(!!decideError && !checked) || undefined} checked={checked} onCheckedChange={v => { setChecked(v === true); setDecideError(e => afterConsent(e, t('decide.errConsent'), v === true)); }} />{t('decide.consent', {version: scope.version})}</label>
             {decideError && <div className="error" role="alert" id="decide-error"><p className="flush">{decideError}</p>{unavailable && <p className="flush">{resting && <span data-testid="decide-cooldown">{t(cooldown === 1 ? 'decide.retryInOne' : 'decide.retryIn', {seconds: cooldown})} </span>}<a className="help-link" href={tellSenderHref(t, scope.version, typeof location === 'undefined' ? '' : location.href, comment)} data-testid="tell-sender">{t('decide.tellSender')}</a></p>}</div>}
             <div className="actions"><button className="primary" disabled={resting} aria-disabled={busy || resting || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={busy || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={busy || resting} aria-describedby={decideError ? 'decide-error' : undefined} onClick={() => decide('changes_requested')}>{t('decide.requestChanges')}</button></div>
             {identity && !otpSession && <p className="fine" id="decide-needs-code">{t('decide.needsCode')}</p>}

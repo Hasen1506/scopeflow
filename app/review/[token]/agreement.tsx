@@ -7,6 +7,7 @@ import {formatMoney, type Version} from '@/lib/scope';
 import {fromMinor} from '@/lib/minor';
 import type {InvoiceView} from '@/lib/invoice-server';
 import {formatInZone, formatDay} from '@/lib/time';
+import {afterConsent} from '@/lib/a11y';
 import {tEn, type Lang, type Translate} from '@/lib/i18n';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
@@ -193,7 +194,7 @@ function PendingChangeOrder({token, co, agreement, scope, impact, verified, onCh
       <p className="fine">{effect}</p>
       {!readonly && <div className="no-print"><label>{t('co.name')}<input maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
       <label>{t('co.comment')} <span className="quiet">{t('co.commentHint')}</span><textarea rows={2} maxLength={3000} value={comment} onChange={e => setComment(e.target.value)} /></label>
-      <label className="consent"><Checkbox checked={checked} onCheckedChange={v => setChecked(v === true)} />{t('co.consent', {seq: co.seq})}</label>
+      <label className="consent"><Checkbox checked={checked} onCheckedChange={v => { setChecked(v === true); setError(e => afterConsent(e, t('co.errConsent'), v === true)); }} />{t('co.consent', {seq: co.seq})}</label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions"><button className="primary" disabled={busy || !verified || (needsOtp && !otpSession)} onClick={() => decide('approved')}>{busy ? t('decide.saving') : t('co.approve')}</button><button className="secondary" disabled={busy || !verified || (needsOtp && !otpSession)} onClick={() => decide('declined')}>{t('co.decline')}</button></div></div>}
     </div>

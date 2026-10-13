@@ -7,6 +7,7 @@ import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {formatMoney,hasDepositScheduleConflict,DEPOSIT_SCHEDULE_CONFLICT} from '@/lib/scope';
 import {bannerAfterFix} from '@/lib/editor';
+import {computable} from '@/lib/money';
 import {StageChip,StageTracker,NextStep} from '../workflow';
 import {Header,Paper,Skeleton} from '../ui';
 import Landing from '../landing';
@@ -57,7 +58,7 @@ export default function Workspace(){
      {settingsStep(w)}
      <div className="notice-dock">{shownError&&<p className="error" role="alert">{shownError}</p>}{notice&&<p className="muted-box" role="status"><span>{notice}</span><button type="button" className="dismiss" aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={14}/></button></p>}{undo&&<p className="muted-box" role="status"><span>Your previous draft was replaced. <button className="help-link" onClick={undoReplace}>Undo</button> <button className="help-link" onClick={()=>setUndo(null)}>Dismiss</button></span></p>}</div>
     </div>
-    <div className="preview-col"><div className="preview-bar no-print"><p className="eyebrow">{active&&!changed?'The locked scope':'Live draft preview'}</p><button className="secondary" onClick={()=>window.print()}><Printer size={16}/>Print / PDF</button></div><Paper scope={preview} version={active?active.version+(changed?1:0):1} status={active&&!changed?active.status:'draft'}/><p className="fine no-print">A workflow approval record. Reviewer names are self-reported; this is not a verified electronic signature.</p></div></div>
+    <div className="preview-col"><div className="preview-bar no-print"><p className="eyebrow">{active&&!changed?'The locked scope':'Live draft preview'}</p><button className="secondary" onClick={()=>window.print()}><Printer size={16}/>Print / PDF</button></div><Paper scope={computable(preview)} version={active?active.version+(changed?1:0):1} status={active&&!changed?active.status:'draft'}/><p className="fine no-print">A workflow approval record. Reviewer names are self-reported; this is not a verified electronic signature.</p></div></div>
     </div>
    </TabsContent>
   </Tabs></>}</main>
