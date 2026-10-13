@@ -33,7 +33,7 @@ const pdfText = async (path, cookie) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 const daysAgo = n => new Date(Date.now() - n * 86400_000).toISOString().slice(0, 10);
-const gstSeller = {business_name: 'TEST Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z5', gst_state: '33', sac_code: '998314', payment_details: 'UPI ada@okbank'};
+const gstSeller = {business_name: 'TEST Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z7', gst_state: '33', sac_code: '998314', payment_details: 'UPI ada@okbank'}; // integration: checksum-valid GSTIN (WS-08 LT-17 validation)
 
 /** A fresh owner with a business profile and an approved scope. */
 async function approved(name, scope, profile = {business_name: 'TEST Studio'}) {
