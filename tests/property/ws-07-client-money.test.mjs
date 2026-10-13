@@ -33,7 +33,8 @@ test('LT-01: Agreement now after CO-1 approved and CO-2 declined = fee ₹32,500
   const entries = await liveLedger();
   const now = M.agreementNow(liveScope, entries, 0, 1);
   assert.equal(now.fee, 3250050);
-  assert.deepEqual(now.heads, [{label: 'GST', rate: 18, amount: 585009}]);
+  // integration: WS-01 heads carry the GstHead name next to the label (single undivided GST head here).
+  assert.deepEqual(now.heads, [{name: 'GST', label: 'GST', rate: 18, amount: 585009}]);
   assert.equal(now.tax, 585009);
   assert.equal(now.total, 3835059);
   assert.equal(now.balance, 3835059);

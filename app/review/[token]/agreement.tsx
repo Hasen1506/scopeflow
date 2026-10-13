@@ -12,12 +12,13 @@ import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 import CoCard from '@/app/components/slots/co-card';
 import RetainerCounter from '@/app/components/slots/retainer-counter';
+import type {RetainerView} from '@/lib/retainer'; // integration: WS-05's real RetainerCounter props replace the placeholder's Record<string, unknown>
 import {OtpGate} from './otp-gate';
 import {SlotOr} from './slot';
 import {agreementNow, coImpact, type AgreementNow, type CoImpact} from './money-view';
 import styles from './client.module.css';
 
-export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}; invoices?: InvoiceView[]; online_payments?: boolean; retainer?: unknown};
+export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}; invoices?: InvoiceView[]; online_payments?: boolean; retainer?: RetainerView | null}; // integration: was `unknown` against the Phase 0 placeholder
 /** WS-05 may attach a preformatted one-line summary to a change order; shown when present. */
 type CoShown = CoView & {display?: string};
 type Check = {state: 'checking'} | RecordCheck;
