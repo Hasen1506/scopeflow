@@ -34,15 +34,18 @@ export function MilestonesEditor({scope, onChange}: {scope: Scope; onChange: (m:
   const titles = list.map(m => m.title), nameOf = (i: number) => rowName(titles, i, 'untitled milestone');
   const update = (i: number, patch: Partial<Milestone>) => onChange(list.map((m, j) => (j === i ? {...m, ...patch} : m)));
   const remove = (i: number) => { const next = list.filter((_, j) => j !== i); onChange(next.length ? next : undefined); };
+  // R4-10: a too-short title is flagged once the owner leaves the field (or when it arrives short), never while
+  // they are retyping it, like the client email (UX-C35).
+  const [editing, setEditing] = useState<string | null>(null);
   return (
     <fieldset className="items">
       <legend>Payment schedule <span className="quiet">· milestones as a share of the total; they must add up to 100%</span></legend>
       {list.map((m, i) => {
         // R3-05: a title the schema rejects (under 2 characters) is flagged on its own row, not only under the schedule.
-        const short = m.title.trim().length < 2, errId = `milestone-title-err-${m.id}`;
+        const short = m.title.trim().length < 2 && editing !== m.id, errId = `milestone-title-err-${m.id}`;
         return <Fragment key={m.id}>
         <div className="input-row milestone-row">
-          <input aria-label={`Milestone ${i + 1} title`} placeholder={i === 0 ? 'e.g. On signature' : 'e.g. On delivery'} maxLength={120} value={m.title} aria-invalid={short || undefined} aria-describedby={short ? errId : undefined} onChange={e => update(i, {title: e.target.value})} />
+          <input aria-label={`Milestone ${i + 1} title`} placeholder={i === 0 ? 'e.g. On signature' : 'e.g. On delivery'} maxLength={120} value={m.title} aria-invalid={short || undefined} aria-describedby={short ? errId : undefined} onFocus={() => setEditing(m.id)} onBlur={() => setEditing(null)} onChange={e => update(i, {title: e.target.value})} />
           <input aria-label={`Share for ${nameOf(i)} (%)`} type="number" min={0} max={100} step="0.01" inputMode="decimal" value={Number.isFinite(m.pct) ? m.pct : ''} onChange={e => update(i, {pct: num(e.target.value)})} />
           <input aria-label={`Due date for ${nameOf(i)}`} type="date" value={m.due} onChange={e => update(i, {due: e.target.value})} />
           <span className="fine">{balanced ? formatMoney(lines[i]?.amount ?? 0, scope.currency) : '—'}</span>
