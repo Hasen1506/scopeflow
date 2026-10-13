@@ -1,40 +1,39 @@
 'use client';
 import {linkDialogCopy,decidedStatus,reviewMailto} from '@/lib/review-link-copy';
-import Link from 'next/link';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {Copy,Download,FilePlus2,BellRing} from 'lucide-react';
 import {toast} from 'sonner';
-import {Scope,Version,Item,scopeSchema,sample,blank,money,itemLine,formatMoney,hasDepositScheduleConflict,DEPOSIT_SCHEDULE_CONFLICT} from '@/lib/scope';
+import {Scope,Version,Item,scopeSchema,sample,blank,itemLine,hasDepositScheduleConflict,DEPOSIT_SCHEDULE_CONFLICT} from '@/lib/scope';
 import {applyOwnerDefaults,draftDefaults,type OwnerDefaults} from '@/lib/profile';
 import {type LedgerView} from '../ledger-panel';
-import {stageOf,trackerSteps,nextStep,type StageId} from '@/lib/stage';
-import type {Insights} from '@/lib/insights';
+import {stageOf,trackerSteps,nextStep} from '@/lib/stage';
 import {api,post,type ApiError} from '../ui';
 import {rememberSession} from '@/lib/theme';
-import {fieldErrors,validationBanner,VALIDATION_BANNER,type FieldIssue,numberProblems,saveBlockReason,LEGACY_DRAFT_KEY,draftKey,clearDrafts,serializeDraft,restoreDraft,normalizeDraft,meaningfulDraft} from '@/lib/editor';
+import {fieldErrors,validationBanner,VALIDATION_BANNER,type FieldIssue,numberProblems,saveBlockReason,draftKey,serializeDraft,normalizeDraft,meaningfulDraft} from '@/lib/editor';
 import {templates as starterTemplates} from '@/lib/templates';
-import {currencyCodes} from '@/lib/currency';
 import {feeCheck} from '@/lib/money';
-import {daysAgo,newProjectZone} from '@/lib/time';
+import {newProjectZone} from '@/lib/time';
 import {type AiStatus} from '../scope-check';
 import {type ProjectSettings,type CosignView,type OtpChannel} from '../trust-settings';
 import {UnsavedCard} from './project-list';
 import {useConfirm} from '../a11y';
 import {SHORTCUTS_KEY,shortcutsEnabled,singleKeyShortcutAllowed} from '@/lib/a11y';
+import {EMAIL,type Overview,type Tpl,type CosignLink} from './types';
+import {registerStageTool} from './stage-tool';
+import {restoreOnLoad} from './draft-restore';
+import {homeCards,cardActionFor,amountLine,waiting,type Card} from './home-cards';
+import {nextActionsFor,toTop} from './next-actions';
+import {projectActions} from './project-actions';
+import {navGuard} from '@/lib/nav-guard';
+export {STALE_DAYS,EMAIL,moneyMap,type OvProject,type Overview,type Tpl,type CosignLink} from './types';
 
-/** A scope still unanswered after this many days gets a gentle "worth a nudge" on its card. */
-export const STALE_DAYS=5;
-export const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-export type OvProject={project_id:string;version:number;currency:string;quoted_fee:number;quoted_total:number;agreed_fee:number|null;agreed_total:number|null;pending_changes:number;pending_value:number;approved_changes:number;deposit_due:number|null;paid:number;balance:number|null;last_sent:string|null;reminders:number;viewed:{first:string;last:string;count:number}|null};
-export type Overview={projects:OvProject[];insights:Insights;online_deposits:boolean};
-export const moneyMap=(m:Record<string,number>)=>Object.entries(m).filter(([,v])=>v).map(([c,v])=>formatMoney(v,c)).join(' + ')||'—';
 
-export type Tpl={id:string;name:string;content:Scope;builtin:boolean};
 
 /** All workspace state and actions (moved verbatim from the Workspace component, L8). */
 export function useWorkspace(){
  const [query,setQuery]=useState(''),[statusFilter,setStatusFilter]=useState('all'),[linkAction,setLinkAction]=useState<'revoke'|'rotate'|null>(null),[shownLink,setShownLink]=useState<'revoke'|'rotate'>('rotate');
- const [draft,setDraft]=useState<Scope>(sample),[scopes,setScopes]=useState<Version[]>([]),[history,setHistory]=useState<Version[]>([]),[active,setActive]=useState<Version|null>(null),[signedIn,setSignedIn]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[tab,setTab]=useState<'home'|'project'>('project'),[link,setLink]=useState(''),[importOpen,setImportOpen]=useState(false),[importText,setImportText]=useState(''),[importError,setImportError]=useState(''),[isSample,setIsSample]=useState(true),[undo,setUndo]=useState<{draft:Scope;isSample:boolean}|null>(null),[supersede,setSupersede]=useState<{count:number}|null>(null);
+ const [draft,setDraft]=useState<Scope>(sample),[scopes,setScopes]=useState<Version[]>([]),[history,setHistory]=useState<Version[]>([]),[active,setActive]=useState<Version|null>(null),[signedIn,setSignedIn]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[tab,setTabState]=useState<'home'|'project'>('project'),[link,setLink]=useState(''),[importOpen,setImportOpen]=useState(false),[importText,setImportText]=useState(''),[importError,setImportError]=useState(''),[isSample,setIsSample]=useState(true),[undo,setUndo]=useState<{draft:Scope;isSample:boolean}|null>(null),[supersede,setSupersede]=useState<{count:number}|null>(null);
+ // The owner's navigations and edits: the first load lands on Projects only if the owner did neither meanwhile.
+ const nav=useRef(navGuard());const setTab=useCallback((t:'home'|'project')=>{nav.current.bump();setTabState(t);},[]);
  // Project metadata outside the signed content: client email for "Send for signature", archive state.
  const [emailTouched,setEmailTouched]=useState(false),[accountZone,setAccountZone]=useState<string|null>(null),[clientEmail,setClientEmail]=useState(''),[savedEmail,setSavedEmail]=useState(''),[archived,setArchived]=useState<string|null>(null),[mailOn,setMailOn]=useState(false),[sendFallback,setSendFallback]=useState<{to:string;review_url:string;mailto:string}|null>(null),[projectAction,setProjectAction]=useState<'archive'|'restore'|'delete'|null>(null),[shownAction,setShownAction]=useState<'archive'|'restore'|'delete'>('archive'),[deleteText,setDeleteText]=useState(''),[actionError,setActionError]=useState('');
  const [opening,setOpening]=useState(false),[reviseOpen,setReviseOpen]=useState(false),[ledgerView,setLedgerView]=useState<LedgerView|null>(null),[coSignal,setCoSignal]=useState(0),[ledgerReload,setLedgerReload]=useState(0),[insightsOpen,setInsightsOpen]=useState(false);
@@ -45,7 +44,6 @@ export function useWorkspace(){
  const ledgerKey=active?active.project_id+':'+active.version+':'+active.status:'';
  const [ledgerFor,setLedgerFor]=useState(ledgerKey);
  if(ledgerFor!==ledgerKey){setLedgerFor(ledgerKey);setLedgerView(null);setLedgerError('');}
- function toTop(id:string|null){const el=document.getElementById(id??'project-top');el?.scrollIntoView?.({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
  // PR D: templates library (built-in starters + your own) and AI drafting from a brief.
  const [library,setLibrary]=useState<Tpl[]>(starterTemplates.map(t=>({id:'builtin:'+t.id,name:t.name,content:t.content,builtin:true}))),[fromTemplate,setFromTemplate]=useState<Tpl|null>(null),[tplName,setTplName]=useState(''),[tplOpen,setTplOpen]=useState(false),[ai,setAi]=useState<AiStatus>({enabled:false,provider:null}),[trust,setTrust]=useState<ProjectSettings|null>(null),[cosigns,setCosigns]=useState<CosignView[]>([]),[cosignLinks,setCosignLinks]=useState<CosignLink[]>([]),[linkExpiresAt,setLinkExpiresAt]=useState<string|null>(null),[otpChannels,setOtpChannels]=useState<OtpChannel[]>([]),[aiQuality,setAiQuality]=useState<'fast'|'careful'>('fast'),[brief,setBrief]=useState('');
  // Owner wording pre-filled into new drafts (Data controls > Wording).
@@ -70,23 +68,14 @@ export function useWorkspace(){
   syncChain.current=syncChain.current.then(run);return syncChain.current;},[]);
  const [overview,setOverview]=useState<Overview|null>(null);
  const loadOverview=useCallback(async()=>{try{setOverview(await api('/api/overview'));}catch{/* cards fall back to the scope's own fee */}},[]);
- const refresh=useCallback(async function refresh(){setError('');setLoading(true);try{const me=await api('/api/me');const who:string|null=me.signedIn?String(me.account??''):null;
+ const refresh=useCallback(async function refresh(){const navAt=nav.current.mark();setError('');setLoading(true);try{const me=await api('/api/me');const who:string|null=me.signedIn?String(me.account??''):null;
   // Another account signed in (or out) since this page loaded: start over so nothing of the previous one stays on screen.
   if(accountRef.current!==undefined&&accountRef.current!==who){location.reload();return;}
-  if(accountRef.current===undefined){accountRef.current=who;let stored:Scope|null=null,from:'tab'|'account'|'browser'|null=null,anon:Scope|null=null,local:Scope|null=null;const now=Date.now();
-   const keep=(d:Scope|null)=>!!d&&meaningfulDraft(d,sample,blank);
-   try{localStorage.removeItem(LEGACY_DRAFT_KEY);anon=restoreDraft(sessionStorage.getItem(draftKey(null)),now,null);
-    // Signed in: nothing stays in the browser. A draft an earlier build kept here moves to the account.
-    if(who!==null){local=restoreDraft(localStorage.getItem(draftKey(who)),now,who);clearDrafts(localStorage);sessionStorage.removeItem(draftKey(null));}
-   }catch{/* storage unavailable */}
-   if(who===null){if(keep(anon)){stored=anon;from='tab';}}
-   else{let kept:Scope|null=null,known=false;try{const r=await api('/api/unsaved-draft');kept=r.draft?normalizeDraft(r.draft):null;known=true;}catch{/* draft service unavailable: autosave still writes, never deletes */}
-    if(known){synced.current=kept?JSON.stringify(kept):null;setKeptDraft(kept);}
-    // What was typed signed out in this tab comes first (Undo brings the account's draft back), then the account's draft.
-    if(keep(anon)){stored=anon;from='tab';if(keep(kept))setUndo({draft:kept!,isSample:false});}else if(keep(kept)){stored=kept;from='account';}else if(keep(local)){stored=local;from='browser';}}
-   if(stored){setDraft(stored);setIsSample(false);if(who===null){setTrying(true);setTab('project');}setNotice(from==='account'?'Restored the unsaved draft kept with your account.':from==='tab'?'Restored your unsaved draft from this tab.':'Restored your unsaved draft from this browser. It is now kept with your account.');}
+  if(accountRef.current===undefined){accountRef.current=who;const {stored,from,kept,known,undo:keptUndo}=await restoreOnLoad(who);
+   if(known){synced.current=kept?JSON.stringify(kept):null;setKeptDraft(kept);}if(keptUndo)setUndo({draft:keptUndo,isSample:false});
+   if(stored){setDraft(stored);setIsSample(false);if(who===null){setTrying(true);setTabState('project');}setNotice(from==='account'?'Restored the unsaved draft kept with your account.':from==='tab'?'Restored your unsaved draft from this tab.':'Restored your unsaved draft from this browser. It is now kept with your account.');}
    setAccount(who);}
-  setSignedIn(me.signedIn);rememberSession(!!me.signedIn);setMailOn(!!me.mail);setAccountZone(me.defaults?.timezone??null);if(me.ai)setAi(me.ai);setOtpChannels(me.otp_channels??(me.otp?['email']:[]));if(me.signedIn){const [d]=await Promise.all([api('/api/scopes'),loadOverview()]);setScopes(d.scopes);if(!landed.current){landed.current=true;if(!new URLSearchParams(location.search).get('project'))setTab('home');}try{const t=await api('/api/templates');setLibrary(t.templates);}catch{/* starters stay available */}try{const [st,pr]=await Promise.all([api('/api/settings'),api('/api/profile').catch(()=>null)]);setDefaults({exclusions:st.settings.default_exclusions??'',notes:st.settings.default_terms??'',...(pr?draftDefaults(pr.profile):{})});}catch{/* defaults stay empty */}}}catch(e){setError((e as Error).message);}finally{setLoading(false);}},[loadOverview]);
+  setSignedIn(me.signedIn);rememberSession(!!me.signedIn);setMailOn(!!me.mail);setAccountZone(me.defaults?.timezone??null);if(me.ai)setAi(me.ai);setOtpChannels(me.otp_channels??(me.otp?['email']:[]));if(me.signedIn){const [d]=await Promise.all([api('/api/scopes'),loadOverview()]);setScopes(d.scopes);if(!landed.current){landed.current=true;if(!new URLSearchParams(location.search).get('project')&&nav.current.unchanged(navAt))setTabState('home');}try{const t=await api('/api/templates');setLibrary(t.templates);}catch{/* starters stay available */}try{const [st,pr]=await Promise.all([api('/api/settings'),api('/api/profile').catch(()=>null)]);setDefaults({exclusions:st.settings.default_exclusions??'',notes:st.settings.default_terms??'',...(pr?draftDefaults(pr.profile):{})});}catch{/* defaults stay empty */}}}catch(e){setError((e as Error).message);}finally{setLoading(false);}},[loadOverview]);
  // Load the account, restore an unsaved draft kept in this browser (BUG-14) and open ?project= deep links.
  useEffect(()=>{let live=true;queueMicrotask(()=>{if(live)void refresh();});return()=>{live=false;};},[refresh]);
  // Coming back to this tab after signing in or out elsewhere: re-check who is signed in.
@@ -98,7 +87,7 @@ export function useWorkspace(){
  useEffect(()=>{const flush=()=>{const k=keepRef.current;if(k.active||!accountRef.current||switching.current||k.text===synced.current||(k.text===null&&synced.current===undefined))return syncChain.current;return syncDraft(k.content,k.text,true);};
   const onHide=()=>{void flush();};const onFlush=(e:Event)=>{(e as CustomEvent<Promise<unknown>[]>).detail?.push(flush());};
   window.addEventListener('pagehide',onHide);window.addEventListener('scopeflow:flush',onFlush);return()=>{window.removeEventListener('pagehide',onHide);window.removeEventListener('scopeflow:flush',onFlush);void flush();};},[syncDraft]);
- useEffect(()=>{const context=(document as Document&{modelContext?:{registerTool?:(tool:unknown,options:unknown)=>unknown}}).modelContext;if(!context?.registerTool)return;const lifecycle=new AbortController();Promise.resolve(context.registerTool({name:'stage_scope_draft',title:'Stage a scope for review',description:'Fill the visible scope editor. Does not save, share, approve, or send the scope.',inputSchema:{type:'object',properties:{title:{type:'string'},client:{type:'string'},deliverables:{type:'string',description:'Empty string when items is provided'},items:{type:'array',items:{type:'object',properties:{id:{type:'string'},title:{type:'string'},qty:{type:'integer'},unit:{type:'string'},price:{type:['number','null']},acceptance:{type:'string'}},required:['id','title'],additionalProperties:false}},client_inputs:{type:'array',items:{type:'object',properties:{id:{type:'string'},title:{type:'string'},due:{type:'string'}},required:['id','title'],additionalProperties:false}},exclusions:{type:'string'},fee:{type:'number'},currency:{type:'string',enum:currencyCodes},revisions:{type:'integer'},due:{type:'string'},notes:{type:'string'}},required:['title','client','deliverables','exclusions','fee','currency','revisions','due','notes'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input:unknown){const value=scopeSchema.parse(input);stash();setDraft(value);setActive(null);setHistory([]);setTab('project');setLink('');setIsSample(false);return {staged:true,saved:false,title:value.title};}},{signal:lifecycle.signal})).catch(()=>{});return()=>lifecycle.abort();},[]);
+ useEffect(()=>registerStageTool(value=>{stash();setDraft(value);setActive(null);setHistory([]);setTab('project');setLink('');setIsSample(false);}),[setTab]);
  // LT-05: while the open version waits on the client, re-read its status when the tab regains focus or
  // becomes visible, and every 15 s, so an approval made elsewhere shows without a reload.
  const awaitingId=active&&active.status==='pending'&&!active.revoked&&!archived?active.project_id+':'+active.version:null;
@@ -112,13 +101,13 @@ export function useWorkspace(){
  // LT-06: field-level validation messages; editing a field clears its message and the banner.
  const [fieldErrs,setFieldErrs]=useState<Record<string,string>>({});
  function clearFieldError(k:string){setFieldErrs(prev=>{if(!(k in prev))return prev;const n={...prev};delete n[k];return n;});setError(e=>e.startsWith(VALIDATION_BANNER)?'':e);}
- function field<K extends keyof Scope>(k:K,value:Scope[K]){setDraft(x=>({...x,[k]:value}));setIsSample(false);setNotice('');clearFieldError(k);}
+ function field<K extends keyof Scope>(k:K,value:Scope[K]){nav.current.bump();setDraft(x=>({...x,[k]:value}));setIsSample(false);setNotice('');clearFieldError(k);}
  // Keep a copy of the draft whenever something replaces it, so it can be undone (BUG-14).
  const draftRef=useRef<{draft:Scope;isSample:boolean;saved?:Scope}>({draft,isSample});useEffect(()=>{draftRef.current={draft,isSample,saved:active?.content};});
  // A saved project shown unchanged is not a draft: leaving it loses nothing, so no Undo notice.
  function stash(){const current=draftRef.current;if(current.saved&&JSON.stringify(current.saved)===JSON.stringify(current.draft))return;if(meaningfulDraft(current.draft,sample,blank))setUndo({draft:current.draft,isSample:current.isSample});}
  function undoReplace(){if(!undo)return;setDraft(undo.draft);setIsSample(undo.isSample);setActive(null);setHistory([]);setLink('');setUndo(null);setNotice('Previous draft restored.');}
- function setItems(items:Item[]){setDraft(x=>({...x,items,deliverables:items.map(itemLine).join('\n')}));setIsSample(false);setNotice('');clearFieldError('deliverables');}
+ function setItems(items:Item[]){nav.current.bump();setDraft(x=>({...x,items,deliverables:items.map(itemLine).join('\n')}));setIsSample(false);setNotice('');clearFieldError('deliverables');}
  const creationRequest=useRef<{fingerprint:string;key:string}|null>(null);
  const dirty=active?JSON.stringify(draft)!==JSON.stringify(active.content):!isSample&&JSON.stringify(draft)!==JSON.stringify(blank)&&JSON.stringify(draft)!==JSON.stringify({...blank,...defaults});
  useEffect(()=>{if(!dirty)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
@@ -150,20 +139,15 @@ export function useWorkspace(){
  async function copyReviewLink(){if(!active||active.revoked)return null;const url=location.origin+'/review/'+active.token;setLink(url);await copy(url,'Review link');return url;}
  async function importDraft(){let value:Scope;try{value=scopeSchema.parse(JSON.parse(importText));}catch{setImportError('Use the complete Scopeflow JSON format from the Muse & API page.');return;}if(!(await canReplace()))return;stash();creationRequest.current=null;setDraft(value);setActive(null);setHistory([]);setLink('');setIsSample(false);setImportOpen(false);setTab('project');setNotice('Draft imported. Check the details before saving.');}
  async function manageLink(){if(!active||!linkAction)return;setBusy(true);setError('');try{const result=await api(`/api/scopes/${active.project_id}/review-link`,post({version:active.version,action:linkAction}));const d=await api(`/api/scopes/${active.project_id}`);setActive(d.versions[0]);setHistory(d.versions);setScopes(s=>s.map(v=>v.project_id===active.project_id?d.versions[0]:v));setLink(result.review_path?location.origin+result.review_path:'');setNotice(linkDialogCopy(linkAction,decidedStatus(active.status)).done);setLinkAction(null);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- async function exportProject(){if(!active||busy)return;setBusy(true);setError('');try{const data=await api(`/api/scopes/${active.project_id}/export`);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='scopeflow-project-'+active.project_id+'.json';a.click();URL.revokeObjectURL(url);setNotice('Project exported with every version and ledger entry. Store this private file securely.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- async function saveEmail(){if(!active||busy)return;const email=clientEmail.trim().toLowerCase();if(email&&!EMAIL.test(email)){setError('Client email: enter a valid email address, or leave it empty.');return;}setBusy(true);setError('');try{const m=await api(`/api/scopes/${active.project_id}`,{...post({client_email:email}),method:'PATCH'});setSavedEmail(m.project.client_email);setClientEmail(m.project.client_email);setNotice(email?'Client email saved. It is private to you and not part of the signed scope.':'Client email removed.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- // Send for signature: emails the review link when a provider is configured, else offers copy link / mailto.
- async function sendForSignature(){if(!active||busy)return;const email=clientEmail.trim().toLowerCase();setError('');setNotice('');setSendFallback(null);if(!email){setError('Add the client’s email in the editor (Client email), then send.');return;}if(!EMAIL.test(email)){setError('Client email: enter a valid email address.');return;}setBusy(true);try{const r=await api(`/api/scopes/${active.project_id}/send`,post({version:active.version,email}));setSavedEmail(r.to);if(r.sent){setNotice(`Review link for version ${active.version} emailed to ${r.to}.`);void loadOverview();}else{setSendFallback({to:r.to,review_url:r.review_url,mailto:r.mailto});setNotice('Email delivery is not set up on this server. Copy the link or open it in your mail app below.');}}catch(e){const err=e as ApiError;if(err.data?.mailto)setSendFallback({to:String(err.data.to),review_url:String(err.data.review_url),mailto:String(err.data.mailto)});setError(err.message);}finally{setBusy(false);}}
- // Reminder for a scope still awaiting a decision: emailed when a provider is set up, else the owner's mail app opens with it filled in.
- async function remind(s:Version){if(busy)return;setBusy(true);setError('');try{const r=await api(`/api/scopes/${s.project_id}/send`,post({version:s.version,reminder:true}));if(r.sent){toast.success(`Reminder emailed to ${r.to}.`);void loadOverview();}else{location.href=r.mailto;toast.info('Your mail app opened with the reminder filled in. Email delivery is not set up on this server.');}}catch(e){const err=e as ApiError;if(err.code==='email_required'){toast.error('Add the client’s email to this project first.');if(active?.project_id!==s.project_id)void select(s);}else toast.error(err.message);}finally{setBusy(false);}}
+ // Project mail and metadata actions (export, client email, send for signature, reminders, time zone).
+ const {exportProject,saveEmail,sendForSignature,remind,saveTimeZone}=projectActions({active,busy,clientEmail,setBusy,setError,setNotice,setSavedEmail,setClientEmail,setSendFallback,setTimeZone,loadOverview,select});
  // Archive / restore / delete one project (owner-only, confirmed in a dialog).
  async function runProjectAction(){if(!active||!projectAction)return;const id=active.project_id;setBusy(true);setActionError('');try{if(projectAction==='delete'){await api(`/api/scopes/${id}`,{...post({confirmation:deleteText}),method:'DELETE'});setScopes(s=>s.filter(x=>x.project_id!==id));creationRequest.current=null;setActive(null);setHistory([]);setDraft(blank);setIsSample(false);setLink('');setClientEmail('');setSavedEmail('');setArchived(null);setSendFallback(null);setNotice('Project deleted.');}else{const r=await api(`/api/scopes/${id}`,{...post({archived:projectAction==='archive'}),method:'PATCH'});setArchived(r.project.archived);setScopes(s=>s.map(x=>x.project_id===id?{...x,archived:r.project.archived}:x));setNotice(projectAction==='archive'?'Project archived. Its signed record and review links are kept; restore it to keep working on it.':'Project restored.');}setProjectAction(null);setDeleteText('');}catch(e){setActionError((e as Error).message);}finally{setBusy(false);}}
- function optional<K extends 'tax_label'|'tax_pct'|'deposit_pct'|'payment_terms'|'milestones'|'fx'|'revision_bank'>(k:K,value:Scope[K]|undefined){setDraft(x=>{const next={...x};if(value===undefined||value==='')delete next[k];else next[k]=value as Scope[K];return next;});setIsSample(false);setNotice('');}
+ function optional<K extends 'tax_label'|'tax_pct'|'deposit_pct'|'payment_terms'|'milestones'|'fx'|'revision_bank'>(k:K,value:Scope[K]|undefined){nav.current.bump();setDraft(x=>{const next={...x};if(value===undefined||value==='')delete next[k];else next[k]=value as Scope[K];return next;});setIsSample(false);setNotice('');}
  // WS-09 part D: re-read the open project after a slot (ContactChange, CosignerEditor) changed it, without touching the draft.
  async function reloadProject(){if(!active)return;try{const d=await api(`/api/scopes/${active.project_id}`);setHistory(d.versions);setActive(d.versions[0]);setTrust(d.project??null);setSavedEmail(d.project?.client_email??'');setCosigns(d.cosigns??[]);setCosignLinks(d.cosign_links??[]);setLinkExpiresAt(d.project?.link_expires??null);}catch(e){setError((e as Error).message);}}
  // UX-C65: "Refresh decision" re-reads the open version only: no project re-open, no replace-draft prompt, no scroll.
  async function refreshDecision(){if(!active||busy)return;const id=active.project_id;setBusy(true);setError('');try{const d=await api(`/api/scopes/${id}`);const latest:Version=d.versions[0];setActive(latest);setHistory(d.versions);setCosigns(d.cosigns??[]);setCosignLinks(d.cosign_links??[]);setScopes(list=>list.map(x=>x.project_id===id?latest:x));void loadOverview();setNotice(latest.status==='pending'?'Checked just now: still waiting for the client.':`Checked just now: the client’s decision is in (${latest.status.replace('_',' ')}).`);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- async function saveTimeZone(tz:string){if(!active||busy)return;setBusy(true);setError('');try{const m=await api(`/api/scopes/${active.project_id}`,{...post({timezone:tz}),method:'PATCH'});setTimeZone(m.project.timezone);setNotice('Project time zone saved. Times are shown in it for you and your client.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  async function applyTemplate(id:string){const t=library.find(x=>x.id===id);if(!t||!(await newScope()))return;setDraft(t.builtin?applyOwnerDefaults({...t.content},defaults as OwnerDefaults):{...t.content});setFromTemplate(t);setNotice(t.builtin?`Starter template staged${Object.keys(defaults).some(k=>(defaults as Record<string,unknown>)[k])?' with your default terms':''}. Edit it freely; set the client, price, and exact quantities before saving.`:`Your template “${t.name}” is staged. Edit it, then save the scope or update the template.`);}
  // SF-18: "Use template" on the Templates section opens /?template=<id>; stage it once the library has loaded.
  const tplApplied=useRef(false);useEffect(()=>{if(tplApplied.current||loading)return;const id=new URLSearchParams(location.search).get('template');if(!id||!library.some(x=>x.id===id))return;tplApplied.current=true;queueMicrotask(()=>{void applyTemplate(id);window.history.replaceState(null,'',location.pathname);});});
@@ -213,41 +197,14 @@ export function useWorkspace(){
  const stage=stageOf(stageInput),steps=trackerSteps(stageInput),next=nextStep(stageInput);
  const receiptUrl=(v:Version)=>`/api/scopes/${v.project_id}/receipt?version=${v.version}&tz=${encodeURIComponent(timeZone??'UTC')}`;
  const calloutCopies=!!active&&!archived&&(next.kind==='send'||next.kind==='copy_link');
- const nextActions=!active?(!signedIn&&!loading?<Link className="primary" href="/auth/sign-in?return_to=%2F">Sign in</Link>:null)
-  :next.kind==='send'?<>{!archived&&(activeOv?.last_sent?<button className="primary" disabled={busy||activeOv.reminders>=3} onClick={()=>void remind(active)}><BellRing size={15}/>Send a reminder</button>:(mailOn?<button className="primary" disabled={busy} onClick={sendForSignature} title="Email the review link to the client">Send for signature</button>:<button className="primary" disabled={busy||!!active.revoked} onClick={()=>void copyLinkToSend()} aria-describedby="send-off-note"><Copy size={15}/>Copy link to send</button>))}{(mailOn||archived||activeOv?.last_sent)&&<button className="secondary" disabled={!!active.revoked} onClick={copyReviewLink}><Copy size={15}/>Copy review link</button>}{!mailOn&&!archived&&!activeOv?.last_sent&&<p id="send-off-note" className="fine">Email isn’t set up here yet, so Scopeflow can’t send it for you. This copies the review link to paste into your own email or chat.</p>}</>
-  :next.kind==='copy_link'?<button className="primary" disabled={!!active.revoked} onClick={copyReviewLink}><Copy size={15}/>Copy review link</button>
-  :next.kind==='revise'?<button className="primary" onClick={()=>{setReviseOpen(true);requestAnimationFrame(()=>toTop('step-scope'));}}>Revise scope</button>
-  :next.kind==='change_order'?<><a className="primary" href={receiptUrl(active)} download><Download size={15}/>Download receipt</a><button className="secondary" disabled={busy} onClick={()=>setCoSignal(n=>n+1)}><FilePlus2 size={15}/>Record change order</button></>
-  :next.kind==='restore'?<button className="primary" disabled={busy} onClick={()=>{setActionError('');setProjectAction('restore');}}>Restore project</button>
-  :<a className="secondary" href="#step-approval">Go to approval</a>;
+ const nextActions=nextActionsFor({active,signedIn,loading,next,archived,activeOv,busy,mailOn,remind,sendForSignature,copyLinkToSend,copyReviewLink,setReviseOpen,receiptUrl,setCoSignal,setActionError,setProjectAction});
  // ---- Projects home ---------------------------------------------------------------------------
- const PRIORITY:Record<StageId,number>={changes_requested:0,change_pending:1,awaiting:2,draft:3,approved:4,archived:5};
- const cards=scopes.map(s=>{const ov=ovById.get(s.project_id);const input={saved:true,status:s.status,revoked:s.revoked,archived:s.archived,pendingChanges:ov?.pending_changes??0,client:s.content.client};return {s,ov,stage:stageOf(input),steps:trackerSteps(input),next:nextStep(input)};});
- const filtered=cards.filter(c=>(statusFilter==='archived'?c.stage==='archived':c.stage!=='archived'&&(statusFilter==='all'||c.stage===statusFilter))&&[c.s.content.title,c.s.content.client].some(x=>x.toLowerCase().includes(query.toLowerCase()))).sort((x,y)=>PRIORITY[x.stage]-PRIORITY[y.stage]);
- const count=(st:StageId)=>cards.filter(c=>c.stage===st).length;
- const urgent=cards.filter(c=>c.stage!=='archived').sort((x,y)=>PRIORITY[x.stage]-PRIORITY[y.stage])[0];
+ const {cards,filtered,count,urgent,dueByCurrency,dueCount}=homeCards(scopes,ovById,overview,statusFilter,query);
  const unsaved=signedIn&&!active&&!isSample&&meaningfulDraft(draft,sample,blank);
  // The draft kept with the account stays one tap away while another project is open.
  const unsavedCard=unsaved?<UnsavedCard title={draft.title} sync={draftSync} onOpen={()=>setTab('project')}/>:signedIn&&active&&keptDraft?<UnsavedCard title={keptDraft.title} sync={null} onOpen={()=>{const kept=keptDraft;void newScope().then(ok=>{if(ok){setDraft(kept);setNotice('Your unsaved draft is open again.');}});}}/>:null;
  const ins=overview?.insights;
- // Money still owed on approved agreements (agreed total with tax, less every payment on the record), per currency.
- const owed=(overview?.projects??[]).filter(p=>(p.balance??0)>0&&cards.some(c=>c.s.project_id===p.project_id&&c.stage!=='archived'));
- const dueByCurrency=owed.reduce<Record<string,number>>((m,p)=>({...m,[p.currency]:Math.round(((m[p.currency]??0)+(p.balance??0))*100)/100}),{}),dueCount=owed.length;
- /** How long an awaiting scope has waited since it was saved or last emailed, and whether a reminder is due. */
- const waiting=(c:typeof cards[number])=>{const age=daysAgo(c.ov?.last_sent??c.s.created),reminders=c.ov?.reminders??0;return {age,reminders,due:c.stage==='awaiting'&&!c.s.revoked&&age.days>=STALE_DAYS&&reminders<3};};
- function cardAction(c:typeof cards[number]){
-  const k=c.next.kind;
-  if(k==='send'&&waiting(c).due)return <button className="secondary" disabled={busy} onClick={()=>void remind(c.s)}><BellRing size={15}/>Send a reminder</button>;
-  if((k==='send'||k==='copy_link')&&!c.s.revoked)return <button className="secondary" onClick={()=>void copy(location.origin+'/review/'+c.s.token,'Review link')}><Copy size={15}/>Copy review link</button>;
-  if(k==='revise')return <button className="secondary" disabled={busy} onClick={()=>void select(c.s,'revise')}>Revise scope</button>;
-  if(k==='change_order')return <button className="secondary" disabled={busy} onClick={()=>void select(c.s,'change_order')}><FilePlus2 size={15}/>Record change order</button>;
-  return <button className="secondary" disabled={busy} onClick={()=>void select(c.s)}>Open project</button>;
- }
- const amountLine=(c:typeof cards[number])=>{const o=c.ov,cur=c.s.content.currency;if(!o)return <span><b>Quoted</b> {money(c.s.content)}</span>;
-  if(o.agreed_fee===null)return <><span><b>Quoted</b> {formatMoney(o.quoted_fee,cur)}</span><span className="quiet">Not approved yet</span></>;
-  return <><span><b>Approved</b> {formatMoney(o.agreed_fee,cur)}{o.agreed_total!==null&&o.agreed_total!==o.agreed_fee&&<span className="quiet"> · {formatMoney(o.agreed_total,cur)} with tax</span>}</span>{o.pending_changes>0&&<span className="warn-ink"><b>{o.pending_changes} change order{o.pending_changes>1?'s':''} pending</b>{o.pending_value?` · ${o.pending_value>0?'+':''}${formatMoney(o.pending_value,cur)}`:''}</span>}{o.balance===0?<span className="ok-ink"><b>Paid in full</b> · {formatMoney(o.paid,cur)}</span>:o.paid>0?<span><b>Received</b> {formatMoney(o.paid,cur)} · <b>Due</b> {formatMoney(o.balance??0,cur)}</span>:o.deposit_due!==null?<span><b>Deposit due</b> {formatMoney(o.deposit_due,cur)}</span>:o.balance!==null&&<span><b>Due</b> {formatMoney(o.balance,cur)}</span>}</>;};
+ const cardAction=(c:Card)=>cardActionFor(c,{busy,remind,copy,select});
   return {accountZone,refreshDecision,emailTouched,setEmailTouched,confirmDialog,shortcutsOn,setShortcutsOn,fieldErrs,query,setQuery,statusFilter,setStatusFilter,linkAction,setLinkAction,shownLink,draft,setDraft,scopes,history,active,signedIn,busy,loading,error,notice,setNotice,tab,setTab,link,importOpen,setImportOpen,importText,setImportText,importError,setImportError,isSample,setIsSample,undo,setUndo,supersede,setSupersede,clientEmail,setClientEmail,savedEmail,archived,sendFallback,setSendFallback,projectAction,setProjectAction,shownAction,deleteText,setDeleteText,actionError,setActionError,opening,reviseOpen,setReviseOpen,ledgerView,ledgerError,onLedgerError,coSignal,ledgerReload,setLedgerReload,insightsOpen,setInsightsOpen,onLedgerView,library,fromTemplate,tplName,setTplName,tplOpen,setTplOpen,ai,trust,setTrust,cosigns,cosignLinks,reloadProject,linkExpiresAt,otpChannels,aiQuality,setAiQuality,brief,setBrief,timeZone,trying,setTrying,draftSync,overview,loadOverview,field,undoReplace,setItems,tryEditor,newScope,duplicateDraft,select,save,startFromAgreement,copy,copyReviewLink,importDraft,manageLink,exportProject,saveEmail,remind,runProjectAction,optional,saveTimeZone,applyTemplate,saveTemplate,deleteTemplate,draftWithAi,changed,problems,fees,blockReason,keysOpen,setKeysOpen,goHome,searchRef,hasMoneyTerms,moneySummary,preview,activeOv,pendingCos,stage,steps,next,receiptUrl,calloutCopies,nextActions,cards,filtered,count,urgent,unsavedCard,ins,dueByCurrency,dueCount,waiting,cardAction,amountLine};
 }
-/** One countersigner's own link (WS-02 `cosign_links`, browser sessions only). */
-export type CosignLink={cosigner_id:string;role:string;to:string|null;cosign_path:string};
 export type Ws=ReturnType<typeof useWorkspace>;
