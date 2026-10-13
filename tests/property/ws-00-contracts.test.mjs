@@ -134,7 +134,7 @@ test('notify.ts lists the events and refuses unknown ones without sending; mode.
 
 test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes) and WS-04's (payment routes); WS-03's fragment; WS-06's fragment
+  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes) and WS-04's (payment routes); WS-03's fragment; WS-06's fragment; WS-08's fragment
   for (const f of O.fragments) { assert.equal(typeof f.paths, 'object'); assert.equal(typeof f.schemas, 'object'); }
   const base = {'/b': 1, '/a': 2};
   // changed by WS-10: with filled fragments the base keys still come first, in their order.
@@ -154,8 +154,9 @@ test('slot placeholders: one file per slot, each names its owner and renders nul
   // changed by WS-04: pay-block and payment-settings are implemented (no longer null placeholders).
   // changed by WS-03: tds-field, msmed-terms implemented (no longer null placeholders).
   // changed by WS-06: whatsapp-share implemented (no longer null placeholders).
+  // changed by WS-08: timezone-select implemented (no longer null placeholders).
   // integration: union of the implemented slots from each merged workstream.
-  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker', 'pay-block', 'payment-settings', 'tds-field', 'msmed-terms', 'whatsapp-share']);
+  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker', 'pay-block', 'payment-settings', 'tds-field', 'msmed-terms', 'whatsapp-share', 'timezone-select']);
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);

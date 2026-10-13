@@ -249,9 +249,11 @@ test('retention SQL: legal hold is excluded everywhere; placeholders match the p
     assert.match(drafts, /p\.archived IS NOT NULL AND NOT p\.legal_hold/);
     assert.match(drafts, /status<>'pending'/);
   }
-  const steps = rsql.draftDeleteQueries('p1', 'o1');
-  for (const [sql, params] of steps) assert.equal(count(sql), params.length, sql);
-  assert.match(steps[4][0], /^DELETE FROM projects .*NOT legal_hold/);
+  // changed by WS-08 (WS-10 C7): draft deletion is one call to a SECURITY DEFINER function; its
+  // legal-hold and evidence re-checks live in migration 0022a (tests/property/ws-08-modes-billing).
+  const [del, delParams] = rsql.deleteDraftQuery('p1', 'o1');
+  assert.equal(count(del), delParams.length, del);
+  assert.match(del, /^SELECT scopeflow\.ws08_delete_draft\(\?, \?\)/);
 });
 
 test('stripe: form encoding, signature check, paid events and provider choice', () => {

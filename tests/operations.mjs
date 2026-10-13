@@ -60,7 +60,9 @@ eq((await call('/api/health')).data, {status: 'ok', signing: 'dedicated'});
   ok(hold.data.project.legal_hold_set, 'hold time recorded');
   eq((await call(P(plain.project_id), {method: 'PATCH', cookie, body: {retention_days: 30}})).data.project.retention_days, 30);
   // The account keeps network details (no account setting); the project settings decide.
-  await call('/api/scopes', {cookie}); // opportunistic retention on the project list
+  // changed by WS-08 (M26b): the project list never redacts; the daily retention job does.
+  const retentionJob = () => { const r = spawnSync(process.execPath, ['scripts/redact-expired.mjs'], {encoding: 'utf8', env: process.env}); assert.equal(r.status, 0, r.stderr); };
+  retentionJob();
   const ip = id => JSON.parse(rows(`SELECT decision_context FROM scopeflow.versions WHERE project_id=${q(id)}`)[0].decision_context).ip;
   eq(ip(plain.project_id), 'redacted');
   ok(ip(held.project_id) !== 'redacted', 'a project on legal hold is never redacted');
@@ -70,7 +72,7 @@ eq((await call('/api/health')).data, {status: 'ok', signing: 'dedicated'});
   // Lifting the hold clears the note and lets retention run.
   const lifted = await call(P(held.project_id), {method: 'PATCH', cookie, body: {legal_hold: false}});
   eq([lifted.data.project.legal_hold, lifted.data.project.legal_hold_reason, lifted.data.project.legal_hold_set], [false, '', null]);
-  await call('/api/scopes', {cookie});
+  retentionJob(); // changed by WS-08 (M26b): was the project list
   eq(ip(held.project_id), 'redacted');
 }
 

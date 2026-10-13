@@ -58,9 +58,10 @@ eq(created.data.scope.content.fx, terms.fx);
 // ---- GST profile and client billing details ----------------------------------------------------
 const profile = (await call('/api/profile', {cookie})).data.profile;
 eq([profile.gst_state, profile.sac_code, profile.lut_arn], ['', '', '']);
-eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z5', gst_state: '99'}})).status, 400);
-eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z5', sac_code: '99A'}})).status, 400);
-const saved = await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z5', invoice_prefix: 'NT-', gst_state: '33', sac_code: '998314', lut_arn: 'AD330925000123X'}});
+// changed by WS-08 (LT-17): GSTINs are checksum-validated; 33ABCDE1234F1Z5 fails its check character, 33ABCDE1234F1Z7 is valid.
+eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z7', gst_state: '99'}})).status, 400);
+eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z7', sac_code: '99A'}})).status, 400);
+const saved = await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z7', invoice_prefix: 'NT-', gst_state: '33', sac_code: '998314', lut_arn: 'AD330925000123X'}});
 eq(saved.status, 200); eq(saved.data.profile.sac_code, '998314');
 // An older client that sends the profile without the GST fields still saves (they default to empty).
 {
@@ -95,7 +96,7 @@ eq((await call(I, {method: 'POST', cookie, body: {milestone_id: 'm_sign'}})).dat
 {
   const pdf = await pdfText(`${I}/1`, cookie);
   // Bengaluru client of a Chennai seller: inter-state, so IGST.
-  for (const s of ['TAX INVOICE', 'GSTIN: 33ABCDE1234F1Z5', 'State: Tamil Nadu (33)', 'GSTIN: 29AAACN1234F1Z5', 'Place of supply: Karnataka (29)', 'Reverse charge: No', 'SAC 998314', 'Taxable value', 'Rs.80,000.00', 'IGST (18%)', 'Rs.14,400.00', 'Rs.94,400.00',
+  for (const s of ['TAX INVOICE', 'GSTIN: 33ABCDE1234F1Z7', 'State: Tamil Nadu (33)', 'GSTIN: 29AAACN1234F1Z5', 'Place of supply: Karnataka (29)', 'Reverse charge: No', 'SAC 998314', 'Taxable value', 'Rs.80,000.00', 'IGST (18%)', 'Rs.14,400.00', 'Rs.94,400.00',
     'Amount in words: Ninety-four thousand four hundred rupees only', 'On signature (40% milestone)', 'In USD at the agreed 0.012012', '$1,133.93', 'Authorised signatory', 'Net 30 from each invoice']) ok(pdf.includes(s), 'tax invoice states ' + s);
   ok(!pdf.includes('CGST'), 'inter-state invoice has no CGST');
 }

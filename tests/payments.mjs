@@ -126,9 +126,11 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
   eq(ledger.entries.at(-1).actor, 'system'); eq(ledger.chain.intact, true);
 }
-// Account deletion removes payment rows along with the projects.
+// changed by WS-08 (H10): account deletion keeps the payment rows of a project the client approved
+// and paid (tombstoned, read-only for the client) instead of deleting them.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
-eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n, 0);
+ok(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n > 0, 'payments of a kept project stay');
+eq(localSql(`SELECT (owner_deleted IS NOT NULL) AS closed FROM scopeflow.projects WHERE id='${project_id}'`)[0].results[0].closed, true);
 // The privacy notice names Razorpay as the deposit processor and no longer says payments are not collected.
 {
   const privacy = await (await fetch(base + '/privacy')).text();

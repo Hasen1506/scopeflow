@@ -22,8 +22,11 @@ test('settings: retention 1–3650 days or null, draft expiry 7–3650 days or n
   }
   assert.deepEqual(fromRow(null), defaultSettings);
   assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: '180'}), 180);
-  assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: 'forever'}), null);
-  assert.equal(defaultRetentionDays({}), null);
+  // changed by WS-08: M32 founder decision — the server default is 180 days; "keep" disables it.
+  // @covers M32
+  assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: 'forever'}), 180);
+  assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: 'keep'}), null);
+  assert.equal(defaultRetentionDays({}), 180);
 });
 
 test('owner wording replaces the default email; subject stays header-safe and HTML escaped', () => {
