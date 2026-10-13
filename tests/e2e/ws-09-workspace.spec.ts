@@ -43,14 +43,16 @@ test('ws-09: approval appears without reload; field errors; amounts are not coer
   await page.getByRole('button', {name: 'Save & create review link'}).click();
   const title = page.locator('label', {hasText: 'Project name'});
   await expect(title.getByRole('alert')).toHaveText('Use at least 3 characters');
-  await expect(page.locator('label', {hasText: /^Client/}).first().getByRole('alert')).toHaveText('Use at least 2 characters');
+  // The message sits inside the label, so locate the Client field by its label element, not its accessible name.
+  const clientLabel = page.locator('label').filter({hasText: /^Client(?! email| inputs)/}).first();
+  await expect(clientLabel.getByRole('alert')).toHaveText('Use at least 2 characters');
   await expect(page.getByRole('alert').filter({hasText: 'Add at least one deliverable'})).toBeVisible();
   await expect(page.getByRole('alert').filter({hasText: 'Check the highlighted fields: Project name, Client, Deliverables.'})).toBeVisible();
   await expect(page.getByText(/title: |client: |String must contain/)).toHaveCount(0);
-  await page.getByLabel('Project name').fill('Brand refresh');
+  await title.locator('input').fill('Brand refresh');
   await expect(title.getByRole('alert')).toHaveCount(0);
   await expect(page.getByText('Check the highlighted fields:')).toHaveCount(0);
-  await page.getByLabel('Client', {exact: true}).fill('Kaveri Foods');
+  await clientLabel.locator('input').fill('Kaveri Foods');
   await expect(page.getByText('Use at least 2 characters')).toHaveCount(0);
 
   // ---- LT-07: negative and huge prices are explained and kept as typed --------------------------------
