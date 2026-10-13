@@ -9,7 +9,7 @@ import {MODE_LABEL, featuresFor, type Feature, type Mode} from '@/lib/mode-core'
 export default function AllFeatures() {
   const [mode, setMode] = useState<Mode>('freelancer'), [features, setFeatures] = useState<Feature[]>(featuresFor('freelancer'));
   useEffect(() => { api('/api/workspace/mode').then(r => { setMode(r.mode); setFeatures(r.features); }, () => {/* signed out: the default order */}); }, []);
-  return <><Header/><main id="main" className="review-shell policy"><section className="editor">
+  return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
     <p className="eyebrow">ACCOUNT · ALL FEATURES</p><h1>Everything ScopeFlow <em>does.</em></h1>
     <NextStep title={`${MODE_LABEL[mode]} mode`} actions={<Link className="secondary" href="/account#h-mode">Change mode</Link>}>Your mode puts the features you use most first. Every feature is listed here in every mode.</NextStep>
     <ol className="bullets section-gap" aria-label="All features" data-mode={mode}>

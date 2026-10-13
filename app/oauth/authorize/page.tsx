@@ -4,6 +4,7 @@ import {Header} from '@/app/ui';
 import {getUser} from '@/lib/auth/server';
 import {validateAuthorize, redirectWith, clientIdentity, SCOPE_TEXT} from '@/lib/oauth';
 import styles from './consent.module.css';
+export const metadata = {title: 'Connect an app — Scopeflow'};
 
 export const dynamic = 'force-dynamic';
 const FIELDS = ['client_id', 'redirect_uri', 'state', 'scope', 'code_challenge', 'code_challenge_method', 'response_type', 'resource'] as const;
@@ -17,7 +18,7 @@ export default async function Authorize({searchParams}: {searchParams: Promise<R
   const checked = await validateAuthorize(request, query);
   if (!checked.ok && checked.redirect) redirect(redirectWith(request, checked.redirect_uri, {error: checked.error, error_description: checked.description, state: checked.state}));
   if (!checked.ok) {
-    return <><Header/><main id="main" className="review-shell"><section className="editor"><p className="eyebrow">CONNECT AN APP</p><h1>This connection request is not valid.</h1><p className="error" role="alert">{(checked as {message: string}).message}</p></section></main></>;
+    return <><Header/><main id="content" tabIndex={-1} className="review-shell"><section className="editor"><p className="eyebrow">CONNECT AN APP</p><h1>This connection request is not valid.</h1><p className="error" role="alert">{(checked as {message: string}).message}</p></section></main></>;
   }
   const user = await getUser();
   if (!user) {
@@ -29,7 +30,7 @@ export default async function Authorize({searchParams}: {searchParams: Promise<R
   // M22: the headline names the host the code is really sent to (the redirect URI), never the
   // self-chosen client name; a dynamically registered name is labelled unverified.
   const who = clientIdentity(params.client, params.redirect_uri);
-  return <><Header/><main id="main" className="review-shell"><section className="editor">
+  return <><Header/><main id="content" tabIndex={-1} className="review-shell"><section className="editor">
     <p className="eyebrow">CONNECT AN APP</p>
     <h1>Allow {destination} to use your Scopeflow account?</h1>
     <p className={styles.client} data-testid="consent-client">

@@ -54,7 +54,7 @@ export default function Account(){
  const set=<K extends keyof Settings>(k:K,v:Settings[K])=>setSettings(x=>x?{...x,[k]:v}:x);
  const retentionChoices=[30,90,180,365,730,1825,3650].filter(d=>d>=rules.retention_range[0]&&d<=rules.retention_range[1]);
  const auditHref=`/api/audit/export?format=${audit.format}${audit.from?`&from=${audit.from}`:''}${audit.to?`&to=${audit.to}`:''}`;
- return <><Header/><main id="main" className="review-shell policy"><section className="editor">
+ return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
   <p className="eyebrow">ACCOUNT · DATA CONTROLS</p><h1>Keep control of <em>your work.</em></h1>
   {signedOut?<NextStep title="Sign in to manage your data" actions={<Link className="primary" href="/auth/sign-in?return_to=%2Faccount">Sign in</Link>}>Retention, your email wording and deletion are per account.</NextStep>:<NextStep title={me&&!me.onboarded?'Finish setting up your workspace':'Set your details once'} actions={<>{me&&!me.onboarded&&<Link className="primary" href="/onboarding">Set up</Link>}<Link className="secondary" href="/">Back to projects</Link></>}>Your email wording, business details for invoices and the defaults below apply to every new scope.</NextStep>}
   {me&&<p className="fine" aria-label="Plan and mode"><Link className="help-link" href="/plans">Plan: <strong data-testid="plan-badge">{me.plan.name}</strong></Link> · Mode: <strong>{MODE_LABEL[mode]}</strong> · <Link className="help-link" href="/account/features">All features</Link></p>}

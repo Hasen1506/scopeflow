@@ -32,7 +32,7 @@ test('ws-03: cap, TDS, change-order tax and MSMED interest in the invoice panel'
   await page.goto('/auth/sign-up?return_to=%2F');
   await page.getByLabel('Your name').fill(owner.name);
   await page.getByLabel('Email').fill(owner.email);
-  await page.getByLabel('Password').fill(owner.password);
+  await page.getByLabel('Password', {exact: true}).fill(owner.password);
   await page.getByRole('button', {name: 'Create account'}).click();
   await expect(page.getByRole('button', {name: 'Sign out'})).toBeVisible();
   const rq = page.request;

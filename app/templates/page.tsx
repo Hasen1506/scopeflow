@@ -38,7 +38,7 @@ export default function Templates() {
     {t.rate_card?.length ? <p className="fine">Rate card: {t.rate_card.map(r => `${r.title} (per ${r.unit})`).join(', ')}</p> : null}
     <div className="actions">{templateLink(t)}</div>
   </li>;
-  return <><Header /><main id="main" className="shell">
+  return <><Header /><main id="content" tabIndex={-1} className="shell">
     <div className="page-heading"><div><p className="eyebrow">TEMPLATES</p><h1>Templates</h1></div></div>
     {error && <p className="error" role="alert">{error}</p>}
     <label className="section-gap">Search templates<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, tag or trade" /></label>

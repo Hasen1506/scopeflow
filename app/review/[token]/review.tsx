@@ -149,7 +149,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
 
   return <>
     <ClientHeader lang={lang} onLang={chooseLang} />
-    <main id="main" lang={lang} data-client-page="" className={'review-shell ' + styles.shell} aria-busy={!scope && !problem} style={brandInk.rule ? {['--brand-accent' as string]: brandInk.rule} : undefined}>
+    <main id="content" tabIndex={-1} lang={lang} data-client-page="" className={'review-shell ' + styles.shell} aria-busy={!scope && !problem} style={brandInk.rule ? {['--brand-accent' as string]: brandInk.rule} : undefined}>
       {/* eslint-disable-next-line @next/next/no-img-element -- the owner logo is small, fixed-height and content-addressed; next/image adds nothing */}
       {brand && (brand.logo_url || brand.name) && <div className={'client-brand no-print' + (brand.color ? ' has-accent' : '')}>{brand.logo_url ? <img src={brand.logo_url} alt={brand.name || 'Logo'} height={40} /> : <strong style={brandInk.text ? {color: brandInk.text} : undefined}>{brand.name}</strong>}{brand.logo_url && brand.name && <span className="quiet">{brand.name}</span>}</div>}
       {!scope && !problem && <div className="paper"><Skeleton lines={7} label={t('page.loading')} /></div>}

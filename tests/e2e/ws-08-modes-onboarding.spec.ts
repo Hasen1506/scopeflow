@@ -16,7 +16,7 @@ async function signUp(page: Page, user: ReturnType<typeof who>, returnTo: string
   await page.goto(returnTo === null ? '/auth/sign-up' : '/auth/sign-up?return_to=' + encodeURIComponent(returnTo));
   await page.getByLabel('Your name').fill(user.name);
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await page.getByLabel('Password', {exact: true}).fill(user.password);
   await page.getByRole('button', {name: 'Create account'}).click();
 }
 async function approve(request: APIRequestContext, baseURL: string, token: string) {
@@ -39,7 +39,7 @@ test('ws-08: an Indian user is onboarded to INR and UPI; labels pass axe; the ti
     return r.violations.map(v => v.id);
   });
   expect(violations).toEqual([]);
-  await expect(page.getByLabel('Password')).toHaveAttribute('aria-describedby', 'password-hint');
+  await expect(page.getByLabel('Password', {exact: true})).toHaveAttribute('aria-describedby', 'password-hint');
 
   // LT-04: a new account without a destination starts with onboarding; defaults come from en-IN.
   await signUp(page, who('india'), null);

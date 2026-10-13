@@ -51,7 +51,7 @@ export default function Onboarding() {
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const stepOk = step !== 3 || ((!gstin || !!g?.ok) && (!vpa || !!link));
-  return <><Header/><main id="main" className="review-shell policy"><section className="editor">
+  return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
     <p className="eyebrow">SET UP YOUR WORKSPACE · STEP {step} OF 3</p>
     <h1>{step === 1 ? <>How will you <em>use ScopeFlow?</em></> : step === 2 ? <>Where do you <em>work?</em></> : <>Your business <em>details.</em></>}</h1>
     {signedOut && <p className="muted-box" role="status">Sign in first: <Link className="help-link" href="/auth/sign-in?return_to=%2Fonboarding">Sign in</Link></p>}

@@ -13,7 +13,7 @@ export default function TestCheckout() {
     try { const sub = new URLSearchParams(location.search).get('subscription') ?? ''; await api('/api/billing/local/pay', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({subscription: sub})}); router.push('/plans?checkout=done'); router.refresh(); }
     catch (e) { setError((e as Error).message); setBusy(false); }
   }
-  return <><Header/><main id="main" className="review-shell policy"><section className="editor">
+  return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
     <p className="eyebrow">TEST CHECKOUT · NO MONEY MOVES</p><h1>Confirm your <em>test subscription.</em></h1>
     <p>This server has no billing provider configured, so this local stand-in for Razorpay completes the subscription without charging anyone.</p>
     {error && <p className="error" role="alert">{error}</p>}

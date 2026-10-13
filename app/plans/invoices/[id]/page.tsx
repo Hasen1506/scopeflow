@@ -9,7 +9,7 @@ export default function BillingInvoice() {
   const {id} = useParams<{id: string}>();
   const [inv, setInv] = useState<BillingInvoiceContent | null>(null), [error, setError] = useState('');
   useEffect(() => { api('/api/billing/invoices/' + id).then(r => setInv(r.invoice), e => setError(e.message)); }, [id]);
-  return <><Header/><main id="main" className="review-shell policy"><section className="editor">
+  return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
     {error && <p className="error" role="alert">{error}</p>}
     {inv && <article aria-label={inv.title}>
       <p className="eyebrow">{inv.title.toUpperCase()} · {inv.number}</p><h1>{inv.seller.name}</h1>

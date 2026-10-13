@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default function MsmeInterestPage() {
-  return <><Header/><main id="main" className="review-shell policy"><section className="editor">
+  return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
     <p className="eyebrow">FREE TOOL · MSMED ACT 2006, SECTIONS 15 AND 16</p>
     <h1>MSME delayed payment interest calculator</h1>
     <p>A buyer must pay a micro or small enterprise by the date agreed in writing, never more than 45 days after the day of acceptance (or deemed acceptance) of the goods or services; with no written agreement, within 15 days. After that, the buyer owes compound interest with monthly rests at three times the Bank Rate notified by the Reserve Bank of India, whatever the contract says (s.16). Medium enterprises are not covered.</p>
