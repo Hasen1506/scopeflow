@@ -113,6 +113,7 @@
   "invoices.overdue": "बकाया",
   "invoices.open": "खुला",
   "invoices.partOpen": "{amount} बाकी",
+  "invoices.netTds": "TDS के बाद देय शुद्ध राशि: {amount}",
   "invoices.pay": "{amount} भुगतान करें",
   "invoices.payFor": " इनवॉइस {number} के लिए",
   "invoices.pdf": "PDF",

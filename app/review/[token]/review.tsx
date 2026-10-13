@@ -20,6 +20,8 @@ import {LinkProblem, problemOf, type LinkProblemState} from './link-problem';
 import {SlotOr} from './slot';
 import styles from './client.module.css';
 
+/** WS-04 may attach TDS figures to an invoice; the net is shown when present. */
+type InvoiceShown = NonNullable<ClientLedger['invoices']>[number] & {tds?: {net_receivable?: number}};
 type Brand = {name: string; color: string | null; text_color: string | null; logo_url: string | null};
 type Deposit = {pct: number; amount: number; currency: string; paid: null | {amount: number; currency: string; payment_id: string | null; paid_at: string | null}; enabled: boolean; provider: string | null; reason: string | null};
 type Identity = {method: string; to: string | null; channel?: 'email' | 'sms' | 'whatsapp'};
@@ -182,7 +184,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
               </>}
           <p className="fine sr-only" id="deposit-help">{t('deposit.help')}</p><p className="fine" role="status" aria-live="polite">{depositNote || (returned ? t(returned === 'ok' ? 'deposit.returnOk' : 'deposit.returnCancel') : '')}</p></section>}
         {!!ledger?.invoices?.length && <section className="editor no-print" aria-labelledby="h-invoices" id="h-invoices"><h2>{t('invoices.title')}</h2>
-          <ul className="receipt-list payment-list">{ledger.invoices.map(i => <li key={i.seq}><span><strong>{i.number}</strong> · {formatMoney(i.amount, i.currency)} · {t('invoices.due', {date: formatDay(i.due)})} · <span className={i.overdue ? 'warn-text' : i.status === 'paid' ? 'ok-text' : ''}>{i.status === 'paid' ? t('invoices.paid') : i.overdue ? t('invoices.overdue') : i.status === 'part' ? t('invoices.partOpen', {amount: formatMoney(i.open, i.currency)}) : t('invoices.open')}</span></span>
+          <ul className="receipt-list payment-list">{ledger.invoices.map(i => <li key={i.seq}><span><strong>{i.number}</strong> · {formatMoney(i.amount, i.currency)} · {t('invoices.due', {date: formatDay(i.due)})} · <span className={i.overdue ? 'warn-text' : i.status === 'paid' ? 'ok-text' : ''}>{i.status === 'paid' ? t('invoices.paid') : i.overdue ? t('invoices.overdue') : i.status === 'part' ? t('invoices.partOpen', {amount: formatMoney(i.open, i.currency)}) : t('invoices.open')}</span>{(i as InvoiceShown).tds?.net_receivable !== undefined && <> · <span data-testid="invoice-net-tds">{t('invoices.netTds', {amount: formatMoney((i as InvoiceShown).tds?.net_receivable ?? 0, i.currency)})}</span></>}</span>
             <span className="pay-actions">{!ro.readonly && !payFilled && i.open > 0 && ledger.online_payments && <button className="secondary" disabled={payingInvoice !== null} aria-busy={payingInvoice === i.seq || undefined} onClick={() => void payInvoice(i.seq, i.number)}>{payingInvoice === i.seq ? t('deposit.opening') : t('invoices.pay', {amount: formatMoney(i.open, i.currency)})}<span className="sr-only">{t('invoices.payFor', {number: i.number})}</span></button>}<a className="help-link" href={`/api/review/${token}/invoices/${i.seq}`} download>{t('invoices.pdf')}<span className="sr-only">{t('invoices.pdfOf', {number: i.number})}</span></a></span></li>)}</ul>
           <p className="fine" role="status" aria-live="polite">{invoiceNote}</p><p className="fine">{t('invoices.note')}</p></section>}
         {/* WS-04 PayBlock: one mount; it lists every open target itself (deposit, invoices, balance) and preselects the most urgent. */}

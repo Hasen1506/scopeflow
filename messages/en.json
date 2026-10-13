@@ -113,6 +113,7 @@
   "invoices.overdue": "Overdue",
   "invoices.open": "Open",
   "invoices.partOpen": "{amount} open",
+  "invoices.netTds": "Net payable after TDS: {amount}",
   "invoices.pay": "Pay {amount}",
   "invoices.payFor": " for invoice {number}",
   "invoices.pdf": "PDF",

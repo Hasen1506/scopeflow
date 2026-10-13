@@ -12,13 +12,14 @@ import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 import CoCard from '@/app/components/slots/co-card';
 import RetainerCounter from '@/app/components/slots/retainer-counter';
-import PayBlock from '@/app/components/slots/pay-block';
 import {OtpGate} from './otp-gate';
 import {SlotOr} from './slot';
 import {agreementNow, coImpact, type AgreementNow, type CoImpact} from './money-view';
 import styles from './client.module.css';
 
-export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}; invoices?: InvoiceView[]; online_payments?: boolean};
+export type ClientLedger = {entries: LedgerEntry[]; agreement: Agreement; anchors: Record<number, string>; head: string; seal?: {state: SealState}; invoices?: InvoiceView[]; online_payments?: boolean; retainer?: unknown};
+/** WS-05 may attach a preformatted one-line summary to a change order; shown when present. */
+type CoShown = CoView & {display?: string};
 type Check = {state: 'checking'} | RecordCheck;
 
 /** Recomputes the record's fingerprints locally (lib/record-check.ts), so the client does not have to trust our server's word. */
@@ -67,7 +68,7 @@ function ImpactLines({impact, t}: {impact: CoImpact; t: Translate}) {
 }
 
 type Identity = {method: string; to: string | null; channel?: 'email' | 'sms' | 'whatsapp'} | null;
-export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged, identity = null, otpSession = '', onOtpVerified, t = tEn, lang = 'en', readonly = false}: {token: string; scope: Version; ledger: ClientLedger; timeZone?: string; onChanged: () => Promise<void>; identity?: Identity; otpSession?: string; onOtpVerified?: (session: string) => void; t?: Translate; lang?: Lang; readonly?: boolean}) {
+export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged, identity = null, otpSession = '', onOtpVerified, t = tEn, lang: _lang = 'en', readonly = false}: {token: string; scope: Version; ledger: ClientLedger; timeZone?: string; onChanged: () => Promise<void>; identity?: Identity; otpSession?: string; onOtpVerified?: (session: string) => void; t?: Translate; lang?: Lang; readonly?: boolean}) {
   const visible = ledger.entries.filter(e => e.baseline_version === scope.version);
   const a = computeAgreement(scope.content, scope.version, visible), cur = a.currency;
   const check = useVerification(scope, ledger, t);
@@ -94,13 +95,15 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
         {a.bank && <div><span>{t(a.bank.unit === 'hours' ? 'agreement.revHours' : 'agreement.revBudget')}</span><strong className={a.bank.over ? 'over' : ''}>{a.bank.unit === 'hours' ? t('agreement.hoursUsed', {used: a.bank.used, allowed: a.bank.allowed}) : t('agreement.budgetUsed', {used: formatMoney(a.bank.used, a.currency), allowed: formatMoney(a.bank.allowed, a.currency)})}</strong></div>}
         <div><span>{t('agreement.goodwill')}</span><strong>{formatMoney(a.goodwill_value, cur)}</strong></div>
       </div>
-      <SlotOr name="retainer-counter"><RetainerCounter token={token} scope={scope.content} entries={visible} readonly={readonly} lang={lang} /></SlotOr>
+      {ledger.retainer !== undefined && ledger.retainer !== null && <SlotOr name="retainer-counter"><RetainerCounter retainer={ledger.retainer} /></SlotOr>}
       {!readonly && pending.length > 0 && identity && onOtpVerified && <OtpGate token={token} to={identity.to} channel={identity.channel} session={otpSession} onVerified={onOtpVerified} purpose={t(pending.length > 1 ? 'co.otpMany' : 'co.otpOne')} />}
       {pending.map(co => {
         const impact = coImpact(scope.content, visible, co);
+        const fallback = <PendingChangeOrder token={token} co={co} agreement={a} impact={impact} verified={check.state === 'ok'} onChanged={onChanged} otpSession={identity ? otpSession : ''} needsOtp={!!identity} t={t} readonly={readonly} />;
+        if (readonly) return <div key={co.seq}>{fallback}</div>;
         return (
-          <SlotOr key={co.seq} name="co-card" fallback={<PendingChangeOrder token={token} co={co} agreement={a} impact={impact} verified={check.state === 'ok'} onChanged={onChanged} otpSession={identity ? otpSession : ''} needsOtp={!!identity} t={t} readonly={readonly} />}>
-            <CoCard token={token} co={co} agreement={a} impact={impact} currency={cur} readonly={readonly} verified={check.state === 'ok'} needsOtp={!!identity} otpSession={identity ? otpSession : ''} lang={lang} onChanged={onChanged} />
+          <SlotOr key={co.seq} name="co-card" fallback={fallback}>
+            <CoCard co={co} agreement={a} scope={scope.content} mode="client" token={token} otpSession={identity ? otpSession : ''} needsOtp={!!identity} verified={check.state === 'ok'} onDecided={() => void onChanged()} />
           </SlotOr>
         );
       })}
@@ -112,9 +115,8 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
             return (
               <li key={co.seq} className={styles.coItem} id={'co-' + co.seq} data-testid={'co-decided-' + co.seq}>
                 <SlotOr name="co-card" fallback={<DecidedChangeOrder co={co} impact={impact} t={t} />}>
-                  <CoCard token={token} co={co} agreement={a} impact={impact} currency={cur} readonly lang={lang} onChanged={onChanged} />
+                  <CoCard co={co} agreement={a} scope={scope.content} mode="client" token={token} otpSession={identity ? otpSession : ''} needsOtp={!!identity} verified={check.state === 'ok'} onDecided={() => void onChanged()} />
                 </SlotOr>
-                {co.status === 'approved' && !readonly && <SlotOr name="pay-block"><PayBlock token={token} purpose="change_order" co_seq={co.seq} amount_minor={impact.total} currency={cur} label={'CO-' + co.seq} readonly={readonly} lang={lang} onChanged={onChanged} /></SlotOr>}
               </li>
             );
           })}
@@ -145,7 +147,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
 function DecidedChangeOrder({co, impact, t}: {co: CoView; impact: CoImpact; t: Translate}) {
   return (
     <>
-      <span><strong>CO-{co.seq} · {co.title}</strong><br /><em>{co.settled_by ? t('co.decidedBy', {status: t('status.' + co.status), signer: co.settled_by}) : t('status.' + co.status)}</em></span>
+      <span><strong>CO-{co.seq} · {co.title}</strong><br /><em>{co.settled_by ? t('co.decidedBy', {status: t('status.' + co.status), signer: co.settled_by}) : t('status.' + co.status)}</em>{(co as CoShown).display && <><br /><span className="fine" data-testid="co-display">{(co as CoShown).display}</span></>}</span>
       <span className={co.status === 'approved' ? styles.chipOk : co.status === 'declined' ? styles.chipBad : ''}>{t('status.' + co.status)}{co.status === 'approved' && impact.total !== 0 ? ` · ${(impact.total < 0 ? '−' : '+') + fmt(Math.abs(impact.total), impact.currency)}` : ''}</span>
     </>
   );
@@ -176,6 +178,7 @@ function PendingChangeOrder({token, co, agreement, impact, verified, onChanged, 
     <div className="change-order" id={'co-' + co.seq}>
       <p className="eyebrow">{readonly ? t('co.eyebrowDecided', {seq: co.seq, status: t('status.pending')}) : t('co.eyebrow', {seq: co.seq})}</p>
       <h3>{co.title}</h3>
+      {(co as CoShown).display && <p className="fine" data-testid="co-display">{(co as CoShown).display}</p>}
       {co.request_quote && <blockquote>“{co.request_quote}”</blockquote>}
       {co.reason && <p className="quiet">{co.reason}</p>}
       <p className="section-gap"><strong>{coSummary(co, cur, agreement.items)}</strong></p>

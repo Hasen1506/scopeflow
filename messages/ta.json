@@ -113,6 +113,7 @@
   "invoices.overdue": "தாமதம்",
   "invoices.open": "நிலுவையில்",
   "invoices.partOpen": "{amount} நிலுவை",
+  "invoices.netTds": "TDS பிடித்தத்திற்குப் பின் செலுத்த வேண்டிய நிகரத் தொகை: {amount}",
   "invoices.pay": "{amount} செலுத்து",
   "invoices.payFor": " விலைப்பட்டியல் {number}-க்கு",
   "invoices.pdf": "PDF",
