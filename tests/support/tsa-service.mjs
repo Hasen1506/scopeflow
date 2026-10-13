@@ -2,7 +2,8 @@
 // POST a DER TimeStampReq to http://127.0.0.1:55434/ and get a TimeStampResp, signed by a throwaway
 // TSA certificate created with openssl (tests/support/tsa.mjs). Its certificate path is printed.
 // Also serves fixed reference exchange rates at GET /fx?base=USD&symbols=INR (a Frankfurter-shaped
-// stand-in for SCOPEFLOW_FX_URL), a Stripe double under /stripe (STRIPE_API_URL: Checkout sessions,
+// stand-in for SCOPEFLOW_FX_URL), the same rates Frankfurter-v2-shaped at GET /fbil?base=USD&quotes=INR
+// (SCOPEFLOW_FBIL_URL, the FBIL provider WS-01 adds), a Stripe double under /stripe (STRIPE_API_URL: Checkout sessions,
 // session lookups and refunds; POST /stripe/_pay/<session> marks one paid) and an embeddings double
 // at POST /embeddings (SCOPEFLOW_EMBEDDINGS_URL), so the suites never depend on public services.
 import {createServer} from 'node:http';
@@ -47,6 +48,16 @@ createServer((req, res) => {
     if (!perUsd[base] || !perUsd[to]) { res.writeHead(404, {'Content-Type': 'application/json'}); res.end('{"message":"not found"}'); return; }
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({amount: 1, base, date: '2026-10-01', rates: {[to]: Math.round(perUsd[to] / perUsd[base] * 1e6) / 1e6}}));
+    return;
+  }
+  // changed by WS-10: FBIL double for SCOPEFLOW_FBIL_URL (request from WS-01); v2 shape [{date, base, quote, rate}].
+  if (req.method === 'GET' && req.url.startsWith('/fbil')) {
+    const u = new URL(req.url, 'http://x'), base = u.searchParams.get('base'), quotes = (u.searchParams.get('quotes') || '').split(',').filter(Boolean);
+    const perUsd = {USD: 1, INR: 83.25, EUR: 0.92, GBP: 0.79};
+    const rows = perUsd[base] ? quotes.filter(q => perUsd[q] && q !== base).map(quote => ({date: '2026-10-01', base, quote, rate: Math.round(perUsd[quote] / perUsd[base] * 1e6) / 1e6})) : [];
+    if (!rows.length) { res.writeHead(404, {'Content-Type': 'application/json'}); res.end('{"message":"not found"}'); return; }
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify(rows));
     return;
   }
   if (req.url.startsWith('/stripe/') || req.url === '/embeddings') {

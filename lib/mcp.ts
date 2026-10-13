@@ -4,6 +4,7 @@ import {scopeSchema} from './scope';
 import {templates} from './templates';
 import {lintScope} from './lint';
 import {ledgerTools,ledgerValidators,runLedgerTool} from './mcp-ledger';
+import {moneyTools,moneyValidators,moneyWriteTools,runMoneyTool} from './mcp-money';
 import {GET as listScopes,POST as createScope} from '@/app/api/scopes/route';
 import {GET as getHistory,POST as reviseScope} from '@/app/api/scopes/[id]/route';
 import {asInternal,type Auth} from '@/lib/server';
@@ -26,17 +27,20 @@ export const mcpTools=[
  {name:'create_scope',title:'Save a reviewed scope',description:'Save the exact scope the user has reviewed and authorized. Returns a link to the project in the Scopeflow workspace, where the user copies the client review link themselves; agents never receive review links. Does not send messages or collect payment. Ask for missing details, then show the complete scope before saving. Use a unique request_id for each new scope and reuse it for retries.',inputSchema:{type:'object',properties:{content:scopeInput,request_id:{type:'string',pattern:'^[A-Za-z0-9_-]{8,120}$'},user_confirmed:{type:'boolean',const:true}},required:['content','request_id','user_confirmed'],additionalProperties:false},outputSchema,annotations:writes,securitySchemes:writeSchemes},
  {name:'revise_scope',title:'Save a reviewed revision',description:'Read the latest history first, show the exact changes, and get user authorization before saving a new version. Old links stop accepting decisions. Uses expected_version for conflict protection. If the latest version is an approved agreement with change orders or other ledger entries, start from get_agreement, show the user that the new version replaces that agreement, and send supersede_agreement: true only after they confirm. Does not change a client decision, send messages, or collect payment.',inputSchema:{type:'object',properties:{project_id:{type:'string',minLength:1,maxLength:100},expected_version:{type:'integer',minimum:1,maximum:100},content:scopeInput,supersede_agreement:{type:'boolean',description:'Required (true) when the approved agreement has ledger entries; the new version replaces it once approved.'},user_confirmed:{type:'boolean',const:true}},required:['project_id','expected_version','content','user_confirmed'],additionalProperties:false},outputSchema,annotations:writes,securitySchemes:writeSchemes},
  ...ledgerTools,
+ // SF-26: rate card, retainer usage, invoices and payments received (lib/mcp-money.ts).
+ ...moneyTools,
 ];
 const id=z.string().min(1).max(100);
-const validators={...ledgerValidators,list_scope_templates:z.object({}).strict(),lint_scope:z.object({content:scopeSchema}).strict(),list_scopes:z.object({}).strict(),get_scope_history:z.object({project_id:id}).strict(),create_scope:z.object({content:scopeSchema,request_id:z.string().regex(/^[A-Za-z0-9_-]{8,120}$/),user_confirmed:z.literal(true)}).strict(),revise_scope:z.object({project_id:id,expected_version:z.number().int().min(1).max(100),content:scopeSchema,supersede_agreement:z.boolean().optional(),user_confirmed:z.literal(true)}).strict()};
+const validators={...ledgerValidators,...moneyValidators,list_scope_templates:z.object({}).strict(),lint_scope:z.object({content:scopeSchema}).strict(),list_scopes:z.object({}).strict(),get_scope_history:z.object({project_id:id}).strict(),create_scope:z.object({content:scopeSchema,request_id:z.string().regex(/^[A-Za-z0-9_-]{8,120}$/),user_confirmed:z.literal(true)}).strict(),revise_scope:z.object({project_id:id,expected_version:z.number().int().min(1).max(100),content:scopeSchema,supersede_agreement:z.boolean().optional(),user_confirmed:z.literal(true)}).strict()};
 export const publicTools=new Set(['list_scope_templates','lint_scope']);
-export const writeTools=new Set(['create_scope','revise_scope','propose_change_order']);
+export const writeTools=new Set(['create_scope','revise_scope','propose_change_order',...moneyWriteTools]);
 export function toolExists(name:string){return Object.hasOwn(validators,name);}
 export function validateTool(name:string,args:unknown){return validators[name as keyof typeof validators]?.safeParse(args);}
 function withoutLink(v:Record<string,unknown>){const {token:_token,...safe}=v;return safe;}
 type ToolArgs={content?:unknown;request_id?:string;project_id?:string;expected_version?:number;supersede_agreement?:boolean;message?:string;quality?:'fast'|'careful';baseline_version?:number;change_order?:unknown};
 type ScopeReply={error?:string;code?:string;replayed?:boolean;scope:Record<string,unknown>&{project_id:string};scopes:Record<string,unknown>[];versions:Record<string,unknown>[]};
 export async function runTool(name:string,args:ToolArgs,request:Request,auth:Auth){
+ if(Object.hasOwn(moneyValidators,name))return runMoneyTool(name,args as Record<string,unknown>,request,auth);
  if(Object.hasOwn(ledgerValidators,name))return runLedgerTool(name,args as Parameters<typeof runLedgerTool>[1],request,auth);
  if(name==='lint_scope'){const result=lintScope(args.content as Parameters<typeof lintScope>[0]);return {content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result};}
  if(name==='list_scope_templates')return {content:[{type:'text',text:'Choose an outline, then fill in exact deliverables, client, fee, and terms.'}],structuredContent:{templates}};

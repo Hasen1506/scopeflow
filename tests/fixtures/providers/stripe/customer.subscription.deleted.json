@@ -1,0 +1,19 @@
+{
+  "id": "evt_1Q0TESTsubdeleted01",
+  "object": "event",
+  "created": 1766000000,
+  "livemode": false,
+  "type": "customer.subscription.deleted",
+  "data": {
+    "object": {
+      "id": "sub_1Q0TESTsubscription01",
+      "object": "subscription",
+      "customer": "cus_TESTcustomer01",
+      "status": "canceled",
+      "ended_at": 1766000000,
+      "metadata": {
+        "account": "TEST-owner"
+      }
+    }
+  }
+}

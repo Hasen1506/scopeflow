@@ -1,0 +1,27 @@
+{
+  "entity": "event",
+  "account_id": "acc_BFQ7uQEaa7j2z7",
+  "event": "subscription.halted",
+  "contains": [
+    "subscription"
+  ],
+  "payload": {
+    "subscription": {
+      "entity": {
+        "id": "sub_00000000000001",
+        "entity": "subscription",
+        "plan_id": "plan_00000000000001",
+        "status": "halted",
+        "current_start": 1765516200,
+        "current_end": 1768194600,
+        "auth_attempts": 4,
+        "paid_count": 2,
+        "remaining_count": 10,
+        "notes": {
+          "account": "TEST-owner"
+        }
+      }
+    }
+  },
+  "created_at": 1765900000
+}

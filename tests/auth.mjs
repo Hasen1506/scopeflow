@@ -25,9 +25,11 @@ const crossOrigin = await fetch(base + '/api/auth/sign-in/email', { method: 'POS
 check(crossOrigin.status, 403);
 const signout = await fetch(base + '/api/auth/sign-out', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: '{}' });
 check(signout.status, 200);
-// Replay both original signed cookies after logout: privileged routes verify
+// Replay both original signed cookies after logout: state-changing routes verify
 // the upstream session instead of accepting the still-valid cached user data.
-const replay = await fetch(base + '/api/scopes', { headers: { Cookie: cookie } });
+// changed by WS-10 (M27): reads may use Neon Auth's signed session cache for up to 60 s
+// (SESSION_CACHE_SECONDS), so the revocation check is a write; every write still asks Neon.
+const replay = await fetch(base + '/api/scopes', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: JSON.stringify({ title: 'TEST replay after sign-out' }) });
 check(replay.status, 401);
 const page = await fetch(base + '/auth/sign-in?return_to=https://untrusted.example');
 check(page.status, 200); assert.ok((await page.text()).includes('Welcome back')); passed++;

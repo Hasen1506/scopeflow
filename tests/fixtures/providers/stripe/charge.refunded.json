@@ -1,0 +1,32 @@
+{
+  "id": "evt_3Q0TESTrefund000001",
+  "object": "event",
+  "created": 1760332200,
+  "livemode": false,
+  "type": "charge.refunded",
+  "data": {
+    "object": {
+      "id": "ch_3Q0TESTcharge0000001",
+      "object": "charge",
+      "amount": 150000,
+      "amount_refunded": 50000,
+      "currency": "eur",
+      "payment_intent": "pi_3Q0TESTintent000000000001",
+      "refunded": false,
+      "status": "succeeded",
+      "refunds": {
+        "object": "list",
+        "data": [
+          {
+            "id": "re_3Q0TESTrefund000001",
+            "object": "refund",
+            "amount": 50000,
+            "currency": "eur",
+            "payment_intent": "pi_3Q0TESTintent000000000001",
+            "status": "succeeded"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -2,24 +2,54 @@ services:
   - type: web
     name: scopeflow
     runtime: node
-    plan: free
-    buildCommand: npm ci --include=dev --include=optional && npm run build
-    startCommand: npm run db:migrate && npm start
+    # H15: Starter (no spin-down; cron jobs need a paid workspace anyway). Cost: docs/DEPLOY.md.
+    plan: starter
+    # L10: dev dependencies exist only for the build; the build runs under a 460 MB heap cap so it
+    # fits a 512 MB instance, then the dev dependencies are pruned from the runtime image.
+    buildCommand: npm ci --include=dev --include=optional && npm run build:capped && npm prune --omit=dev
+    # H15/OP-02: migrations run once per deploy, before traffic moves, as the owner role
+    # (DATABASE_MIGRATION_URL); the web process never migrates and runs as the app role.
+    preDeployCommand: npm run db:migrate:deploy
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      # C7: runtime connection as a login role granted scopeflow_app (cannot alter tables or
+      # disable triggers). docs/ws-10.md shows how to create it.
       - key: DATABASE_URL
+        sync: false
+      # C7: the owner role, used only by preDeployCommand to run migrations.
+      - key: DATABASE_MIGRATION_URL
         sync: false
       - key: NEON_AUTH_BASE_URL
         sync: false
       - key: NEON_AUTH_COOKIE_SECRET
         generateValue: true
-      # Canonical public origin, exactly as browsers see it (no path). Used for
-      # workspace links and as the OAuth issuer. If unset, the app falls back to
-      # the proxy's X-Forwarded-Proto + Host of each request.
+      # H16/OP-01: canonical public origin, exactly as browsers see it (no path). Set it in the
+      # dashboard (https://scope-flow.tech); it is the OAuth issuer and MCP resource, and every
+      # other host (such as the onrender.com one) is redirected (308) or refused for APIs (421).
       - key: APP_URL
-        value: https://scopeflow-qnng.onrender.com
+        sync: false
+      # H3: client addresses come from Cloudflare's cf-connecting-ip when the peer Render saw is a
+      # Cloudflare edge, else from the right-most X-Forwarded-For hop (Render appends one).
+      - key: SCOPEFLOW_TRUSTED_PROXY
+        value: cloudflare
+      - key: SCOPEFLOW_TRUSTED_HOPS
+        value: "1"
+      # Operator token for /api/readiness, /api/analytics and the cron callbacks.
+      - key: SCOPEFLOW_ADMIN_TOKEN
+        generateValue: true
+      # 32-byte base64 key for secrets at rest (BYO payment keys): openssl rand -base64 32.
+      - key: SCOPEFLOW_ENCRYPTION_KEY
+        sync: false
+      # SF-14: server-side product analytics (no client PII); optional PostHog EU export.
+      - key: SCOPEFLOW_ANALYTICS
+        value: "on"
+      - key: POSTHOG_KEY
+        sync: false
+      - key: POSTHOG_HOST
+        value: https://eu.i.posthog.com
       # Ed25519 signing seed for decision receipts and ledger signatures. Generate
       # once and keep it stable (put old values in SCOPEFLOW_SIGNING_SECRET_PREVIOUS
       # when rotating).
@@ -92,47 +122,80 @@ services:
         sync: false
       - key: STRIPE_CURRENCIES
         sync: false
-      # Optional: Evidence: RFC 3161 timestamps and PAdES-signed PDFs (a document-signing certificate and key).
+      # C7: RFC 3161 timestamps for decision anchors and the daily ledger-head digest, on by default.
+      # Replace with a commercial TSA if you have one; PAdES-signed PDFs need a certificate and key.
       - key: SCOPEFLOW_TSA_URL
-        sync: false
+        value: https://freetsa.org/tsr
       - key: SCOPEFLOW_PDF_SIGN_CERT
         sync: false
       - key: SCOPEFLOW_PDF_SIGN_KEY
         sync: false
 
-  # Daily jobs (docs/DEPLOY.md):
-  #  1. client-data retention: replaces the IP address and browser user agent on client decisions
-  #     older than each owner's retention setting with "redacted" (signed fields are never touched);
-  #  2. automatic reminders for owners who turned them on, including payment reminders for overdue
-  #     invoices (needs the Resend variables; without them it sends nothing and says so);
-  #  3. payment reconciliation (Razorpay and Stripe): records captured payments whose webhook was
-  #     lost (calls the web service with SCOPEFLOW_CRON_SECRET);
-  #  4. the model-lifecycle check: warns when a configured AI model is gone or about to retire.
-  # Step 1 also deletes archived drafts for owners who turned on draft expiry (never projects on
-  # legal hold).
-  # All are idempotent. Render cron jobs are not on the free plan, so this needs the Starter plan;
-  # delete this block if you would rather run the scripts by hand.
+  # H15/M31/OP-03: four separate cron services instead of one all-or-nothing chain. Each runs
+  # `node scripts/cron.mjs <job...>`: every job in its own process, recorded in cron_runs and shown
+  # (last run, stale, failed) by /api/readiness. All jobs are idempotent. Cron jobs need a paid
+  # Render workspace (Starter); the cost is in docs/DEPLOY.md.
+  # 20:30 UTC = 02:00 IST: client-data retention and draft expiry (signed fields never change), then yesterday's signed ledger-head digest, then housekeeping.
   - type: cron
     name: scopeflow-retention
     runtime: node
     plan: starter
-    schedule: "30 20 * * *" # 20:30 UTC = 02:00 IST
+    schedule: "30 20 * * *"
     buildCommand: npm ci --omit=dev --ignore-scripts
-    startCommand: node scripts/redact-expired.mjs && node scripts/send-reminders.mjs && node scripts/reconcile-payments.mjs && node scripts/check-models.mjs
+    startCommand: node scripts/cron.mjs retention heads housekeeping
     envVars:
       - key: DATABASE_URL
         fromService:
           type: web
           name: scopeflow
           envVarKey: DATABASE_URL
-      # Optional server-wide default for owners who set no retention in Data controls.
-      - key: SCOPEFLOW_CONTEXT_RETENTION_DAYS
-        sync: false
       - key: APP_URL
         fromService:
           type: web
           name: scopeflow
           envVarKey: APP_URL
+      - key: SCOPEFLOW_CRON_SECRET
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_CRON_SECRET
+      - key: SCOPEFLOW_ADMIN_TOKEN
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_ADMIN_TOKEN
+      # Optional server-wide default for owners who set no retention in Data controls.
+      - key: SCOPEFLOW_CONTEXT_RETENTION_DAYS
+        sync: false
+  # 03:30 UTC = 09:00 IST: automatic reminders and overdue-invoice reminders (needs mail; without it the job sends nothing and says so).
+  - type: cron
+    name: scopeflow-reminders
+    runtime: node
+    plan: starter
+    schedule: "30 3 * * *"
+    buildCommand: npm ci --omit=dev --ignore-scripts
+    startCommand: node scripts/cron.mjs reminders
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: DATABASE_URL
+      - key: APP_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: APP_URL
+      - key: SCOPEFLOW_CRON_SECRET
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_CRON_SECRET
+      - key: SCOPEFLOW_ADMIN_TOKEN
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_ADMIN_TOKEN
       - key: RESEND_API_KEY
         fromService:
           type: web
@@ -148,11 +211,6 @@ services:
           type: web
           name: scopeflow
           envVarKey: SCOPEFLOW_MAIL_REPLY_TO
-      - key: SCOPEFLOW_CRON_SECRET
-        fromService:
-          type: web
-          name: scopeflow
-          envVarKey: SCOPEFLOW_CRON_SECRET
       - key: SCOPEFLOW_MAIL_PROVIDER
         fromService:
           type: web
@@ -178,6 +236,64 @@ services:
           type: web
           name: scopeflow
           envVarKey: SCOPEFLOW_SES_REGION
+  # Every 6 hours: payment reconciliation (records captured payments whose webhook was lost). Independent of mail.
+  - type: cron
+    name: scopeflow-reconcile
+    runtime: node
+    plan: starter
+    schedule: "0 */6 * * *"
+    buildCommand: npm ci --omit=dev --ignore-scripts
+    startCommand: node scripts/cron.mjs reconcile
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: DATABASE_URL
+      - key: APP_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: APP_URL
+      - key: SCOPEFLOW_CRON_SECRET
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_CRON_SECRET
+      - key: SCOPEFLOW_ADMIN_TOKEN
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_ADMIN_TOKEN
+  # 22:00 UTC: AI model lifecycle check, then the analytics export (PostHog only when POSTHOG_KEY is set).
+  - type: cron
+    name: scopeflow-check-models
+    runtime: node
+    plan: starter
+    schedule: "0 22 * * *"
+    buildCommand: npm ci --omit=dev --ignore-scripts
+    startCommand: node scripts/cron.mjs check-models analytics
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: DATABASE_URL
+      - key: APP_URL
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: APP_URL
+      - key: SCOPEFLOW_CRON_SECRET
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_CRON_SECRET
+      - key: SCOPEFLOW_ADMIN_TOKEN
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_ADMIN_TOKEN
       - key: OPENAI_API_KEY
         fromService:
           type: web
@@ -188,3 +304,18 @@ services:
           type: web
           name: scopeflow
           envVarKey: ANTHROPIC_API_KEY
+      - key: POSTHOG_KEY
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: POSTHOG_KEY
+      - key: POSTHOG_HOST
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: POSTHOG_HOST
+      - key: SCOPEFLOW_ANALYTICS
+        fromService:
+          type: web
+          name: scopeflow
+          envVarKey: SCOPEFLOW_ANALYTICS

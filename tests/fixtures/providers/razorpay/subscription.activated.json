@@ -1,0 +1,42 @@
+{
+  "entity": "event",
+  "account_id": "acc_BFQ7uQEaa7j2z7",
+  "event": "subscription.activated",
+  "contains": [
+    "subscription"
+  ],
+  "payload": {
+    "subscription": {
+      "entity": {
+        "id": "sub_00000000000001",
+        "entity": "subscription",
+        "plan_id": "plan_00000000000001",
+        "customer_id": "cust_00000000000001",
+        "status": "active",
+        "current_start": 1760245800,
+        "current_end": 1762924200,
+        "ended_at": null,
+        "quantity": 1,
+        "notes": {
+          "account": "TEST-owner"
+        },
+        "charge_at": 1762924200,
+        "start_at": 1760245800,
+        "end_at": 1791781800,
+        "auth_attempts": 0,
+        "total_count": 12,
+        "paid_count": 1,
+        "customer_notify": true,
+        "created_at": 1760245700,
+        "expire_by": null,
+        "short_url": null,
+        "has_scheduled_changes": false,
+        "change_scheduled_at": null,
+        "source": "api",
+        "offer_id": null,
+        "remaining_count": 11
+      }
+    }
+  },
+  "created_at": 1760245810
+}
