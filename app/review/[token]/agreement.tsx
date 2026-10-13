@@ -1,7 +1,7 @@
 'use client';
 import {useEffect, useState} from 'react';
 import {ShieldAlert, ShieldCheck} from 'lucide-react';
-import {coSummary, computeAgreement, describeEntry, paymentsOf, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
+import {coSha256, coSummary, computeAgreement, describeEntry, paymentsOf, type Agreement, type CoView, type LedgerEntry} from '@/lib/ledger';
 import {checkClientRecord, type RecordCheck, type SealState} from '@/lib/record-check';
 import {formatMoney, type Version} from '@/lib/scope';
 import {fromMinor} from '@/lib/minor';
@@ -10,7 +10,6 @@ import {formatInZone, formatDay} from '@/lib/time';
 import {tEn, type Lang, type Translate} from '@/lib/i18n';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
-import CoCard from '@/app/components/slots/co-card';
 import RetainerCounter from '@/app/components/slots/retainer-counter';
 import type {RetainerView} from '@/lib/retainer'; // integration: WS-05's real RetainerCounter props replace the placeholder's Record<string, unknown>
 import {OtpGate} from './otp-gate';
@@ -98,16 +97,11 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
       </div>
       {ledger.retainer !== undefined && ledger.retainer !== null && <SlotOr name="retainer-counter"><RetainerCounter retainer={ledger.retainer} /></SlotOr>}
       {!readonly && pending.length > 0 && identity && onOtpVerified && <OtpGate token={token} to={identity.to} channel={identity.channel} session={otpSession} onVerified={onOtpVerified} purpose={t(pending.length > 1 ? 'co.otpMany' : 'co.otpOne')} />}
-      {pending.map(co => {
-        const impact = coImpact(scope.content, visible, co);
-        const fallback = <PendingChangeOrder token={token} co={co} agreement={a} impact={impact} verified={check.state === 'ok'} onChanged={onChanged} otpSession={identity ? otpSession : ''} needsOtp={!!identity} t={t} readonly={readonly} />;
-        if (readonly) return <div key={co.seq}>{fallback}</div>;
-        return (
-          <SlotOr key={co.seq} name="co-card" fallback={fallback}>
-            <CoCard co={co} agreement={a} scope={scope.content} mode="client" token={token} otpSession={identity ? otpSession : ''} needsOtp={!!identity} verified={check.state === 'ok'} onDecided={() => void onChanged()} />
-          </SlotOr>
-        );
-      })}
+      {/* integration: WS-05 ships CoCard, but its English-only card lacks this page's translated copy, the
+          M7 impact lines (co-impact) and the #co-N.change-order anchors; mounted through SlotOr it also
+          replaced the fallback a tick after first paint, detaching the form under the reader. The client
+          page keeps its own translated card and sends WS-05's H17 proof (acknowledged + co_sha256). */}
+      {pending.map(co => <PendingChangeOrder key={co.seq} token={token} co={co} agreement={a} scope={scope.content} impact={coImpact(scope.content, visible, co)} verified={check.state === 'ok'} onChanged={onChanged} otpSession={identity ? otpSession : ''} needsOtp={!!identity} t={t} readonly={readonly} />)}
       {decided.length > 0 && <>
         <h3 className="section-gap">{t('co.history')}</h3>
         <ul className={styles.coList}>
@@ -115,9 +109,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
             const impact = coImpact(scope.content, visible, co);
             return (
               <li key={co.seq} className={styles.coItem} id={'co-' + co.seq} data-testid={'co-decided-' + co.seq}>
-                <SlotOr name="co-card" fallback={<DecidedChangeOrder co={co} impact={impact} t={t} />}>
-                  <CoCard co={co} agreement={a} scope={scope.content} mode="client" token={token} otpSession={identity ? otpSession : ''} needsOtp={!!identity} verified={check.state === 'ok'} onDecided={() => void onChanged()} />
-                </SlotOr>
+                <DecidedChangeOrder co={co} impact={impact} t={t} />{/* integration: see the pending cards above */}
               </li>
             );
           })}
@@ -154,7 +146,7 @@ function DecidedChangeOrder({co, impact, t}: {co: CoView; impact: CoImpact; t: T
   );
 }
 
-function PendingChangeOrder({token, co, agreement, impact, verified, onChanged, otpSession, needsOtp, t, readonly}: {token: string; co: CoView; agreement: Agreement; impact: CoImpact; verified: boolean; onChanged: () => Promise<void>; otpSession: string; needsOtp: boolean; t: Translate; readonly: boolean}) {
+function PendingChangeOrder({token, co, agreement, scope, impact, verified, onChanged, otpSession, needsOtp, t, readonly}: {token: string; co: CoView; agreement: Agreement; scope: Version['content']; impact: CoImpact; verified: boolean; onChanged: () => Promise<void>; otpSession: string; needsOtp: boolean; t: Translate; readonly: boolean}) {
   const [name, setName] = useState('');
   const [comment, setComment] = useState('');
   const [checked, setChecked] = useState(false);
@@ -169,7 +161,13 @@ function PendingChangeOrder({token, co, agreement, impact, verified, onChanged, 
     if (decision === 'declined' && !comment.trim()) return setError(t('co.errWhy'));
     if (needsOtp && !otpSession) return setError(t('co.errCode'));
     setBusy(true);
-    try { await api(`/api/review/${token}/change-order`, post({seq: co.seq, decision, signer: name, comment, ...(otpSession ? {otp_session: otpSession} : {})})); await onChanged(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    try {
+      // integration: WS-05 H17 proof. The reviewer's tick is the acknowledgement; the hash is of the
+      // change order exactly as this card shows it (lib/ledger.ts coCanonical). A decline without the
+      // tick goes in the pre-WS-05 shape, which the route still accepts (not under SCOPEFLOW_CO_PROOF=strict).
+      const proof = checked ? {acknowledged: true, co_sha256: await coSha256(co, scope)} : {};
+      await api(`/api/review/${token}/change-order`, post({seq: co.seq, decision, signer: name, comment, ...proof, ...(otpSession ? {otp_session: otpSession} : {})})); await onChanged();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const effect = t('co.ifApproved', {before: formatMoney(agreement.fee, cur), after: formatMoney(agreement.fee + co.fee_delta, cur)})
     + (co.revisions_delta ? t('co.rounds', {before: agreement.revisions_allowed, after: agreement.revisions_allowed + co.revisions_delta}) : '')

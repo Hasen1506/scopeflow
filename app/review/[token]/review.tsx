@@ -173,7 +173,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
               <p className="section-gap">{t('decided.recordedFor', {signer: scope.signer ?? '', date: formatInZone(scope.decided, timeZone)})}</p>
               <p className="quiet">{t('changes.body')}</p>
             </>}
-            {evidence && <EvidenceBlock evidence={evidence} t={t} />}
+            {evidence && <EvidenceBlock evidence={evidence} t={t} sealShown={!!ledger} />}
             {scope.comment && <p className="line-list section-gap" data-testid="decision-comment-shown">{scope.comment}</p>}
             {receipt && <div className="muted-box"><strong>{t('receipt.title')}</strong><p className="fine">{t('receipt.body')}</p><p className="mono fine">{t('receipt.version', {version: String(receipt.version), date: `${formatInZone(String(receipt.decided), timeZone)} (${String(receipt.decided)})`})}<br />{t('receipt.code', {code: String(receipt.anchor)})}<br />{t('receipt.seal', {seal: receipt.signature ? String(receipt.signature) : t('receipt.notSealed')})}</p></div>}
             <p className="fine">{t('decided.baselineNote', {version: scope.version})}</p>
@@ -192,7 +192,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
           </>}
           {replaced && decideError && <p className="error" role="alert">{decideError}</p>}
           <p className="fine">{identity ? t(identity.channel && identity.channel !== 'email' ? 'decide.fineCodePhone' : 'decide.fineCodeEmail') : t('decide.fineNoCode')} {t('decide.fineMoney')}</p>
-          <DataNotice lang={lang} retentionDays={data?.retention_days ?? notice?.retention_days ?? null} dataNotice={data?.data_notice ?? notice?.data_notice ?? null} />
+          <DataNotice lang={lang} retentionDays={data?.retention_days ?? notice?.retention_days ?? null} dataNotice={data?.data_notice ?? null} />{/* integration: the notice endpoint's data_notice is WS-08's English summary of the retention DataNotice already states (translated) from retention_days; showing both repeated it */}
           <details className={styles.glossary}><summary>{t('glossary.title')}</summary><ul><li>{t('glossary.recordCheck')}</li><li>{t('glossary.seal')}</li><li>{t('glossary.co')}</li></ul></details>
         </section>
         {deposit && <section className="editor no-print deposit-box" id="pay-deposit" tabIndex={-1} aria-labelledby="h-deposit"><h2 id="h-deposit">{t('deposit.title')}</h2>

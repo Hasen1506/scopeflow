@@ -155,7 +155,7 @@ test('LT-13: the client page shows no BETA badge and no jargon; copy snapshot', 
   // A missing snapshot is written locally (first run) but fails in CI, so CI can never pass without a committed golden.
   if (!existsSync(GOLDEN) && process.env.CI && process.env.UPDATE_GOLDEN !== '1') throw new Error(`missing ${GOLDEN.pathname}: run this test locally once (or with UPDATE_GOLDEN=1) and commit the file.`);
   if (process.env.UPDATE_GOLDEN === '1' || !existsSync(GOLDEN)) writeFileSync(GOLDEN, copy);
-  expect(copy, 'client copy changed; rerun with UPDATE_GOLDEN=1 only if intended').toBe(readFileSync(GOLDEN, 'utf8'));
+  expect(copy, `client copy changed; rerun with UPDATE_GOLDEN=1 only if intended GOLDEN_B64=${Buffer.from(copy).toString('base64')}`) /* integration: TEMP golden capture, removed once the golden is committed */.toBe(readFileSync(GOLDEN, 'utf8'));
   await context.close(); await owner.context.close();
 });
 
@@ -292,12 +292,20 @@ test('M32 notice: the client page says what it records and for how many days', a
   const owner = await ownerApi(browser, baseURL!);
   const v = await owner.make(scope());
   const {context, page} = await clientPage(browser);
+  // integration: with WS-08 merged the notice endpoint always serves a retention period, so the honest
+  // no-period line is checked with that endpoint unavailable, and the real WS-08 wiring right after.
+  await page.route('**/api/account/notice/' + v.token, route => route.fulfill({status: 404, json: {error: 'not found'}}));
   await page.goto('/review/' + v.token);
   const notice = page.getByTestId('data-notice');
   await expect(notice).toContainText('we record your name, the time, your IP address and your browser');
   await expect(notice).toContainText('kept while the creator keeps this project');
   await expect(notice.getByRole('link', {name: 'Privacy notice'})).toHaveAttribute('href', '/privacy#client-data');
-  // With WS-08's retention served by the API (retention_days), the notice names the days.
+  // With WS-08's retention served by the notice endpoint (retention_days), the notice names the days, once.
+  await page.unroute('**/api/account/notice/' + v.token);
+  await page.reload();
+  await expect(page.getByTestId('data-notice')).toContainText(/kept for \d+ days, then removed/);
+  await expect(page.getByTestId('data-notice-server')).toHaveCount(0);
+  // A retention period in the review payload itself wins.
   await page.route('**/api/review/' + v.token, async route => { const response = await route.fetch(); await route.fulfill({response, json: {...(await response.json()), retention_days: 180}}); });
   await page.reload();
   await expect(page.getByTestId('data-notice')).toContainText('kept for 180 days, then removed');

@@ -58,7 +58,7 @@ test('ws-05: CO-1 +₹7,500.50 approved on the client page; the receipt carries 
   await cpage.goto('/review/' + p.token);
   const pending = cpage.locator('.change-order');
   await expect(pending).toContainText('CO-1');
-  await expect(cpage.getByText('Verified in your browser')).toBeVisible();
+  await expect(cpage.getByText('Verified · sealed by Scopeflow')).toBeVisible(); // integration: WS-07 §6.1 chip wording (was "Verified in your browser")
   await pending.getByLabel('Your name').fill('TEST Client');
   await pending.getByRole('checkbox').check();
   const settle = cpage.waitForResponse(r => r.url().includes('/change-order') && r.request().method() === 'POST');

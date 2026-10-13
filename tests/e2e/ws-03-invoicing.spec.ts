@@ -38,7 +38,7 @@ test('ws-03: cap, TDS, change-order tax and MSMED interest in the invoice panel'
   const rq = page.request;
 
   const profile = (await api(rq, 'GET', '/api/profile')).profile;
-  await api(rq, 'PUT', '/api/profile', {...profile, business_name: 'TEST Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z5', gst_state: '33', sac_code: '998314'});
+  await api(rq, 'PUT', '/api/profile', {...profile, business_name: 'TEST Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z7', gst_state: '33', sac_code: '998314'}); // integration: WS-08/LT-17 checksum-validates GSTINs; …F1Z5 fails its check character, …F1Z7 is valid
   const title = `TEST WS-03 panel ${stamp}`;
   const created = await api(rq, 'POST', '/api/scopes', {title, client: 'Kaveri Foods', deliverables: 'Packaging design', exclusions: '', fee: 100000, currency: 'INR', revisions: 2, due: '', notes: '', tax_label: 'GST', tax_pct: 18});
   const {project_id, token} = created.scope;
