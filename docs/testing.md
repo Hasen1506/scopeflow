@@ -5,7 +5,7 @@ retried or quarantined: a flaky test is a bug, fixed at its root.
 
 | Command | What | Needs | Typical time |
 | --- | --- | --- | --- |
-| `npm run test:props` | Property-based (fast-check), golden records, differential vs pre-PR-3 | nothing (pure) | ~5 s |
+| `npm run test:props` | Property-based (fast-check), golden records, differential vs pre-PR-3 and vs the pre-rebuild build 5e59e44 | nothing (pure) | ~35 s |
 | `npm run test:live` | Live API properties, fuzzing, DB-trigger immutability, client-vs-server differential | server + auth fixture + `scopeflow_test` | ~20 s |
 | `npm run test:e2e` | Golden Playwright flow in Chromium | server + **fresh** auth fixture | ~30 s |
 | `npm run test:local` | The existing integration suites, then every `tests/ws-*.mjs` workstream suite | server + auth fixture | ~15 s |
@@ -112,6 +112,38 @@ input or the signing changed, and receipts already handed to clients would stop 
 | Agreement folding | Differs **only** for scopes without a delivery date that carry a timeline change or a late client input: the old code reported a shift (`days_shift`, `delays[].shifted`) although there is no date to move (SF-12). Fees are always identical |
 | Change-order validation | Identical, except main now rejects `days_delta` on undated scopes |
 | Receipts | Pre-PR-3 had no signatures: a database rewrite that recomputes every hash (e.g. a raised fee) passed its in-browser check. Main's signed record rejects it |
+
+**Main vs the pre-rebuild production build** (5e59e44, before WS-00..WS-10;
+`tests/differential/pre-rebuild.test.mjs`). The pure modules are frozen unedited in
+`tests/fixtures/pre-rebuild/` (`git show 5e59e44:<path>`; `config/currencies.ts` and `lib/*.ts`).
+Each function in both versions runs on the same seeded fast-check inputs (`DIFF_RUNS`, default
+1000; whole-ledger properties run a fifth of that). Where the rebuild changed behaviour on purpose,
+the test asserts the documented difference and nothing else:
+
+| Area | Result on random inputs |
+| --- | --- |
+| `scopeSchema` canonical form, `anchorHash`, `itemsOf`/`itemLine`/`money`/`label` | Identical. Only acceptance difference: M5 rejects money with more decimals than the currency's exponent (ws-01) |
+| `formatMoney` | Identical on amounts that fit the currency. Differs only where M4 says (ISO exponent instead of Intl's default digits: JPY, IDR, PKR…) or at exact half-unit ties (M3) |
+| `feeCheck` (legacy `price` items), `coverSchedule`, `invoiceStatuses`, `invoiceReminderDue` | Identical |
+| `inFx`/`fxLine` | Identical except exact half-cent ties (M3, now up) and zero-decimal targets (M4) |
+| `totals`/`schedule` | Covered by `ws-01-totals.test.mjs` (same 5e59e44 baseline); `statementModel` is identical wherever those agree |
+| `invoiceContent` | Identical without tax (plus the new WS-03 fields). With tax: taxable is exact half-up; old tax = new heads + explicit round-off (ws-01 M1/M2, ws-03) |
+| `placeOfSupply` | Identical code/basis except H13: a foreign currency no longer makes an export, and state 96 without forex confirmation is IGST (ws-01) |
+| GST helpers (`validGstin`, `gstinState`, `stateName`, `isGstLabel`, `rupeesInWords`) | Identical |
+| `gstSplit` (legacy) | Identical except odd-paise intra-state ties on large amounts, where the old float code rounded the half down (see finding below) |
+| Date helpers (`lib/time.ts`, `addDays`, `netDays`, `invoiceNumber`, `linkExpires`/`linkExpired`) | Identical |
+| Entry hashes, `verifyChain` (incl. tampered), `paymentsOf`, `refundableOf`, `describeEntry`, `coSummary`, `checkEntry` on old kinds | Identical |
+| `computeAgreement` | Identical plus the new derived `deliverables` (LT-14, ws-05) |
+| `semanticDiff`/`describeChange`, `cosignMessage`/`cosignStatus`/`cosignersSchema`, `verifyUrl`/`qrMatrix` | Identical |
+| Signatures | Records sealed by 5e59e44 (current or rotated dedicated key) verify `valid` on main. Cookie-key seals verify in production only when allow-listed or `SCOPEFLOW_ALLOW_COOKIE_SIGNING=1` (C6, ws-02) |
+| Review check | A record hashed and sealed by the old code passes main's server verification and `checkClientRecord`. Old and new agree on tampered copies |
+
+Not compared: `invoiceProblem` (C2 changed its signature, ws-03) and the PDF renderers (wording changed; goldens cover them).
+
+Finding: docs/ws-01.md and the `gstSplit` comment say the odd paisa goes to SGST. Neither build
+does that. Both give it to CGST, and the old float code sometimes gave it to SGST on large amounts
+(₹82,538,997.07). `gstSplit` amounts are no longer read (only `.kind` is), so nothing issued
+changes. The comment is what's wrong.
 
 **In-browser check vs server verification** (pure on random ledgers, and live against the real
 server after tampering rows with the triggers disabled): they agree on every case. Two
