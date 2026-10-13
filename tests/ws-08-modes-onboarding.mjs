@@ -249,9 +249,10 @@ const job = () => { const r = spawnSync(process.execPath, ['scripts/redact-expir
 // @covers SF-25
 {
   const cookie = await fresh('audit');
-  await call('/api/workspace/mode', {method: 'PUT', cookie, body: {mode: 'enterprise'}});
   const created = await call('/api/scopes', {method: 'POST', cookie, body: scope('Audit')});
   await approve(created.data.scope.token);
+  // Enterprise requires a code on decisions, so switch after the plain-ack approval.
+  await call('/api/workspace/mode', {method: 'PUT', cookie, body: {mode: 'enterprise'}});
   eq((await call(`/api/scopes/${created.data.scope.project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'goodwill', baseline_version: 1, payload: {title: 'TEST goodwill', value: 5}}})).status, 201);
   const r = await fetch(base + '/api/audit/export?format=jsonl', {headers: {Cookie: cookie}});
   eq([r.status, r.headers.get('content-type')], [200, 'application/x-ndjson; charset=utf-8']);
