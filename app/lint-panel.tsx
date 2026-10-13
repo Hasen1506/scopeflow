@@ -3,6 +3,8 @@ import {useMemo, useState} from 'react';
 import {AlertTriangle, Info, OctagonAlert, ShieldCheck} from 'lucide-react';
 import {applyRewrite, lintScope} from '@/lib/lint';
 import type {Scope} from '@/lib/scope';
+import {clarityVerdict} from '@/lib/a11y';
+import {SettledStatus} from './a11y';
 
 const icons = {error: OctagonAlert, warn: AlertTriangle, info: Info};
 
@@ -13,7 +15,10 @@ export function LintPanel({scope, onApply}: {scope: Scope; onApply?: (next: Scop
   const serious = result.issues.filter(i => i.severity !== 'info').length;
   const shown = open ? result.issues : result.issues.filter(i => i.severity !== 'info').slice(0, 4);
   return (
-    <section className={'lint grade-' + result.grade.replace(' ', '-')} aria-live="polite">
+    // UX-C42: no live region on the panel (it re-scores on every keystroke). Only a change of verdict is spoken,
+    // once it has held for a second, through a visually hidden status line.
+    <section className={'lint grade-' + result.grade.replace(' ', '-')} aria-label="Clarity check">
+      <SettledStatus message={clarityVerdict(result.grade)} />
       <div className="small-title">
         <strong><ShieldCheck size={16} /> Clarity {result.score}/100 · {result.grade}</strong>
         {result.issues.length > 0 && <button type="button" className="link-button" onClick={() => setOpen(x => !x)}>{open ? 'Show fewer' : `Show all ${result.issues.length}`}</button>}

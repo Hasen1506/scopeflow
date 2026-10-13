@@ -77,7 +77,7 @@ export function PaymentForm({projectId,baseline,currency,suggested,balance,onDon
   <div className="two-col"><label>Amount received ({currency})<input type="number" min={0.01} step="0.01" inputMode="decimal" required value={amount} onChange={e=>setAmount(e.target.value)}/>{value>balance&&balance>0&&<span className="warn-text" role="status">More than the {formatMoney(balance,currency)} still due.</span>}</label><label>Received on<input type="date" required max={today()} value={received} onChange={e=>setReceived(e.target.value)}/></label></div>
   <div className="two-col"><label>Method<select value={method} onChange={e=>setMethod(e.target.value as (typeof paymentMethods)[number])}>{paymentMethods.map(m=><option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}</select></label><label>Reference <span className="quiet">· optional</span><input maxLength={80} placeholder="e.g. UTR or cheque number" value={reference} onChange={e=>setReference(e.target.value)}/></label></div>
   <label>Note <span className="quiet">· optional</span><input maxLength={500} placeholder="e.g. Deposit, second instalment" value={note} onChange={e=>setNote(e.target.value)}/></label>
-  <p className="fine">Your client sees this on their record, and it cannot be edited or deleted later, so check the amount and date first.</p>
+  <p className="consequence">Your client sees this on their record, and it cannot be edited or deleted later, so check the amount and date first.</p>
   {error&&<p className="error" role="alert">{error}</p>}
   <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy?'Recording…':'Record payment'}</button><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancel</button></div>
  </form>;

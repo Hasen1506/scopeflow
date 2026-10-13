@@ -10,6 +10,7 @@ import {api, post, Skeleton} from './ui';
 import {changeOrderProblems, changeOrderNudges, nextForm, type LedgerForm} from '@/lib/ledger-form';
 import RateCardPicker from './components/slots/rate-card-picker';
 import {RetainerPanel} from './retainer-panel';
+import {focusFirstField, restoreFocus, useConfirm} from './a11y';
 
 export type LedgerView = {
   open: boolean; reason: string | null;
@@ -38,6 +39,11 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
   const dirty = useRef(false);
   const formArea = useRef<HTMLDivElement>(null);
   const handledSignal = useRef(0);
+  // UX-C46: the control that opened the current form gets focus back when the form closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const toolbar = useRef<HTMLDivElement>(null);
+  // UX-C41: discard and withdraw are confirmed in an in-app dialog, not window.confirm.
+  const [confirm, confirmDialog] = useConfirm();
   const setDirty = useCallback((value: boolean) => { dirty.current = value; }, []);
 
   const load = useCallback(async () => {
@@ -61,7 +67,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
   useEffect(() => {
     if (!openChangeOrder || handledSignal.current === openChangeOrder || !view?.baseline || !view.agreement || dirty.current) return;
     handledSignal.current = openChangeOrder;
-    queueMicrotask(() => { setCoSeed({}); setForm('change_order'); setError(''); setNotice(''); requestAnimationFrame(() => formArea.current?.scrollIntoView?.({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'})); });
+    queueMicrotask(() => { opener.current = document.activeElement as HTMLElement | null; setCoSeed({}); setForm('change_order'); setError(''); setNotice(''); requestAnimationFrame(() => formArea.current?.scrollIntoView?.({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'})); focusFirstField(formArea.current); });
   }, [openChangeOrder, view]);
 
   async function submit(kind: string, payload: unknown, requestId?: string) {
@@ -74,7 +80,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
       const result = await api(`/api/scopes/${projectId}/ledger`, post({kind, baseline_version: view.baseline.version, payload, request_id:pendingWrite.current.id}));
       pendingWrite.current=null;
       dirty.current = false;
-      setView(result); setForm(null);
+      setView(result); setForm(null); restoreFocus(opener.current, toolbar.current?.querySelector('button'));
       setNotice(kind === 'change_order' ? `CO-${result.seq} recorded${result.withdrawn ? `, replacing CO-${result.withdrawn} (withdrawn)` : ''}. The client can approve it on their review link.` : 'Recorded on the ledger.');
       return true;
     } catch (e) { setError((e as Error).message); return false; } finally { setBusy(false); }
@@ -96,14 +102,21 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
   const cur = a?.currency ?? 'USD';
   const items = base ? [...(a?.items ?? []), ...(a?.removed ?? [])] : [];
   // Toolbar buttons only open or switch forms; they never close one or discard typed input (see lib/ledger-form.ts).
-  const openForm = (f: Exclude<Form, null>, seed: CoPrefill = {}) => {
-    const next = nextForm(form, f, {dirty: dirty.current, reseed: Object.keys(seed).length > 0, confirmDiscard: () => window.confirm('Discard the form you started? Nothing from it has been recorded.')});
-    if (next.reset) { setCoSeed(seed); setForm(next.form); dirty.current = false; setError(''); setNotice(''); }
+  const discard = () => confirm({title: 'Discard the form you started?', body: 'Nothing from it has been recorded.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true});
+  const openForm = async (f: Exclude<Form, null>, seed: CoPrefill = {}) => {
+    const from = document.activeElement as HTMLElement | null;
+    const reseed = Object.keys(seed).length > 0;
+    // Ask first (asynchronously) only when the switch would throw typed input away; nextForm keeps the rule.
+    const ok = form && dirty.current && (form !== f || reseed) ? await discard() : true;
+    const next = nextForm(form, f, {dirty: dirty.current, reseed, confirmDiscard: () => ok});
+    if (next.reset) { opener.current = from; setCoSeed(seed); setForm(next.form); dirty.current = false; setError(''); setNotice(''); }
     requestAnimationFrame(() => formArea.current?.scrollIntoView?.({block: 'nearest', behavior: 'smooth'}));
+    if (next.form) focusFirstField(formArea.current);
   };
-  const closeForm = () => {
-    if (dirty.current && !window.confirm('Discard the form you started? Nothing from it has been recorded.')) return;
+  const closeForm = async () => {
+    if (dirty.current && !(await discard())) return;
     dirty.current = false; setForm(null); setError('');
+    restoreFocus(opener.current, toolbar.current?.querySelector('button'));
   };
   const toggle = (f: Exclude<Form, null>) => 'secondary' + (form === f ? ' selected' : '');
 
@@ -124,8 +137,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
           <div className="agreement-grid">
             <div><span>Current fee</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>was {formatMoney(a.fee_base, cur)}</em>}</div>
             <div><span>Delivery</span><strong>{formatDay(a.due) || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days{a.due_base ? ` from ${formatDay(a.due_base)}` : ''}</em>}</div>
-            <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} / {a.revisions_allowed}</strong><meter min={0} max={Math.max(1, a.revisions_allowed)} value={Math.min(a.revisions_used, Math.max(1, a.revisions_allowed))} /></div>
-            {a.bank && <div><span>Revision {a.bank.unit === 'hours' ? 'hours' : 'budget'}</span><strong className={a.bank.over ? 'over' : ''}>{a.bank.unit === 'hours' ? `${a.bank.used}h / ${a.bank.allowed}h` : `${formatMoney(a.bank.used, cur)} / ${formatMoney(a.bank.allowed, cur)}`}</strong><meter min={0} max={Math.max(1, a.bank.allowed)} value={Math.min(a.bank.used, Math.max(1, a.bank.allowed))} />{a.bank.over > 0 && <em>{a.bank.unit === 'hours' ? `${a.bank.over}h over` : `${formatMoney(a.bank.over, cur)} over`}{a.bank.overage_value > 0 ? ` · ${formatMoney(a.bank.overage_value, cur)} billable` : ''}</em>}</div>}
+            <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} / {a.revisions_allowed}</strong><meter aria-label="Revision rounds used" aria-valuetext={`${a.revisions_used} of ${a.revisions_allowed}`} min={0} max={Math.max(1, a.revisions_allowed)} className={a.rounds_over || a.revisions_used >= a.revisions_allowed ? 'over' : undefined} value={Math.min(a.revisions_used, Math.max(1, a.revisions_allowed))} /></div>
+            {a.bank && <div><span>Revision {a.bank.unit === 'hours' ? 'hours' : 'budget'}</span><strong className={a.bank.over ? 'over' : ''}>{a.bank.unit === 'hours' ? `${a.bank.used}h / ${a.bank.allowed}h` : `${formatMoney(a.bank.used, cur)} / ${formatMoney(a.bank.allowed, cur)}`}</strong><meter aria-label={`Revision ${a.bank.unit === 'hours' ? 'hours' : 'budget'} used`} aria-valuetext={a.bank.unit === 'hours' ? `${a.bank.used} of ${a.bank.allowed} hours` : `${formatMoney(a.bank.used, cur)} of ${formatMoney(a.bank.allowed, cur)}`} min={0} max={Math.max(1, a.bank.allowed)} className={a.bank.over || a.bank.left === 0 ? 'over' : undefined} value={Math.min(a.bank.used, Math.max(1, a.bank.allowed))} />{a.bank.over > 0 && <em>{a.bank.unit === 'hours' ? `${a.bank.over}h over` : `${formatMoney(a.bank.over, cur)} over`}{a.bank.overage_value > 0 ? ` · ${formatMoney(a.bank.overage_value, cur)} billable` : ''}</em>}</div>}
             <div><span>Goodwill absorbed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong>{a.goodwill_hours > 0 && <em>{a.goodwill_hours}h unbilled</em>}</div>
           </div>
           {a.bank && a.bank.left === 0 && (
@@ -143,7 +156,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
           {a.pending > 0 && <p className="fine">{a.pending} change order{a.pending > 1 ? 's' : ''} awaiting the client{reviewUrl ? ' on ' : '.'}{reviewUrl && <a className="help-link" href={reviewUrl} target="_blank" rel="noreferrer">their review link</a>}</p>}
           {base.engagement === 'retainer' && base.retainer && <RetainerPanel projectId={projectId} items={a.items} onChanged={load} />}
           <ScopeCheck projectId={projectId} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => { if (a.bank) { setRoundNote(note); openForm('revision_round'); } else void submit('revision_round', {feedback_date: today(), note}); }} />
-          <div className="actions section-gap">
+          <div className="actions section-gap" ref={toolbar}>
             <button type="button" className={toggle('change_order')} aria-pressed={form === 'change_order'} disabled={busy} onClick={() => openForm('change_order')}><FilePlus2 size={16} />Change order</button>
             <button type="button" className={toggle('revision_round')} aria-pressed={form === 'revision_round'} disabled={busy} onClick={() => openForm('revision_round')}><RotateCcw size={16} />Revision round</button>
             {!!base.client_inputs?.length && <button type="button" className={toggle('client_input')} aria-pressed={form === 'client_input'} disabled={busy} onClick={() => openForm('client_input')}><Inbox size={16} />Client input received</button>}
@@ -159,6 +172,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
       )}
       {error && !form && <p className="error" role="alert">{error}</p>}
       {notice && <p className="muted-box" role="status">{notice}</p>}
+      {view.entries.length === 0 && view.open && <p className="fine empty-ledger">Nothing recorded yet. Change orders, revision rounds, late client inputs and goodwill appear here as a signed timeline.</p>}
       {view.entries.length > 0 && (
         <ol className="timeline">
           {[...view.entries].reverse().map(e => {
@@ -174,15 +188,21 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
                 <span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : e.actor === 'system' ? 'Scopeflow (Razorpay)' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
                 {co?.status === 'proposed' && <span className="actions">
                   <button className="link-button" disabled={busy} onClick={() => openForm('change_order', {title: co.title, reason: co.reason, request_quote: co.request_quote, add_items: co.add_items, remove_item_ids: co.remove_item_ids, fee_delta: co.fee_delta, days_delta: co.days_delta, revisions_delta: co.revisions_delta, ...(co.bank_delta ? {bank_delta: co.bank_delta} : {}), revises: co.seq})}>Revise</button>
-                  <button className="link-button" disabled={withdrawing.includes(co.seq)} onClick={() => { if (window.confirm(`Withdraw CO-${co.seq}? The client will no longer be able to approve it.`)) void withdraw(co.seq); }}>Withdraw</button>
+                  <button className="link-button" disabled={withdrawing.includes(co.seq)} onClick={async () => { if (await confirm({title: `Withdraw CO-${co.seq}?`, body: co.title, consequence: 'The client will no longer be able to approve it. The withdrawal stays on the signed record.', confirmLabel: `Withdraw CO-${co.seq}`, cancelLabel: 'Keep it', danger: true})) void withdraw(co.seq); }}>Withdraw</button>
                 </span>}
               </li>
             );
           })}
         </ol>
       )}
+      {confirmDialog}
     </section>
   );
+}
+
+/** UX-C34: a change shown with its sign (+₹6,000, −3 days, no change). */
+function signed(n: number, fmt: (abs: number) => string) {
+  return n === 0 ? 'No change' : (n > 0 ? '+' : '−') + fmt(Math.abs(n));
 }
 
 function InlineError({error}: {error: string}) {
@@ -230,10 +250,11 @@ function ChangeOrderForm({seed, agreement, scope, projectId, busy, error, onInva
         </fieldset>
       )}
       <div className="three-col">
-        <label>Fee change ({cur})<input type="number" step="0.01" value={fee} onChange={e => setFee(e.target.value)} /></label>
-        <label>Schedule change (days)<input type="number" step="1" value={days} onChange={e => setDays(e.target.value)} /></label>
-        <label>Extra revision rounds<input type="number" step="1" value={rounds} onChange={e => setRounds(e.target.value)} /></label>
+        <label>Fee change ({cur})<input type="number" step="0.01" aria-describedby="co-minus-hint" value={fee} onChange={e => setFee(e.target.value)} /><span className="fine block">{signed(Number(fee) || 0, v => formatMoney(v, cur))}</span></label>
+        <label>Schedule change (days)<input type="number" step="1" aria-describedby="co-minus-hint" value={days} onChange={e => setDays(e.target.value)} /><span className="fine block">{signed(Math.round(Number(days) || 0), v => `${v} day${v === 1 ? '' : 's'}`)}</span></label>
+        <label>Revision rounds change<input type="number" step="1" aria-describedby="co-minus-hint" value={rounds} onChange={e => setRounds(e.target.value)} /><span className="fine block">{signed(Math.round(Number(rounds) || 0), v => `${v} round${v === 1 ? '' : 's'}`)}</span></label>
       </div>
+      <p id="co-minus-hint" className="fine pull-up">Use a minus for a reduction, e.g. −3 days or a lower fee.</p>
       {agreement.bank && <label>Revision {agreement.bank.unit === 'hours' ? 'hours added' : `budget added (${cur})`} <span className="quiet">· {agreement.bank.left} left now</span><input type="number" step={agreement.bank.unit === 'hours' ? '0.25' : '0.01'} value={bankDelta} onChange={e => setBankDelta(e.target.value)} /></label>}
       {itemTotal > 0 && Number(fee) !== itemTotal && <p className="fine">Added deliverables are priced at {formatMoney(itemTotal, cur)}. <button type="button" className="link-button" onClick={() => setFee(String(itemTotal))}>Use as fee change</button></p>}
       {nudges.map(n => <p key={n} className="muted-box warn-box" role="note">{n}</p>)}

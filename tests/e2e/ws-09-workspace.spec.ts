@@ -42,15 +42,19 @@ test('ws-09: approval appears without reload; field errors; amounts are not coer
   await page.getByLabel('Client', {exact: true}).fill('');
   await page.getByRole('button', {name: 'Save & create review link'}).click();
   const title = page.locator('label', {hasText: 'Project name'});
-  await expect(title.getByRole('alert')).toHaveText('Use at least 3 characters');
+  // UX-C36: field errors are plain text linked to their input (aria-describedby), not role=alert.
+  await expect(title.locator('.error-text')).toHaveText('Use at least 3 characters');
+  await expect(title.locator('input')).toHaveAttribute('aria-invalid', 'true');
+  await expect(title.locator('input')).toHaveAccessibleDescription('Use at least 3 characters');
   // The message sits inside the label, so locate the Client field by its label element, not its accessible name.
   const clientLabel = page.locator('label').filter({hasText: /^Client(?! email| inputs)/}).first();
-  await expect(clientLabel.getByRole('alert')).toHaveText('Use at least 2 characters');
-  await expect(page.getByRole('alert').filter({hasText: 'Add at least one deliverable'})).toBeVisible();
+  await expect(clientLabel.locator('.error-text')).toHaveText('Use at least 2 characters');
+  await expect(clientLabel.locator('input')).toHaveAccessibleDescription('Use at least 2 characters');
+  await expect(page.locator('.error-text').filter({hasText: 'Add at least one deliverable'})).toBeVisible();
   await expect(page.getByRole('alert').filter({hasText: 'Check the highlighted fields: Project name, Client, Deliverables.'})).toBeVisible();
   await expect(page.getByText(/title: |client: |String must contain/)).toHaveCount(0);
   await title.locator('input').fill('Brand refresh');
-  await expect(title.getByRole('alert')).toHaveCount(0);
+  await expect(title.locator('.error-text')).toHaveCount(0);
   await expect(page.getByText('Check the highlighted fields:')).toHaveCount(0);
   await clientLabel.locator('input').fill('Kaveri Foods');
   await expect(page.getByText('Use at least 2 characters')).toHaveCount(0);

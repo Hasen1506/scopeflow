@@ -399,6 +399,11 @@ label select{margin-top:7px}
 .agreement-grid strong.over{color:var(--bad)}
 .agreement-grid em{display:block;font-size:var(--fs-1);color:var(--ink-3);font-style:normal;font-family:var(--font-ui)}
 .agreement-grid meter{width:100%;height:6px;margin-top:6px;accent-color:var(--accent)}
+/* UX-C47: a used-up or overdrawn allowance reads as a warning, not as progress */
+.agreement-grid meter::-webkit-meter-optimum-value{background:var(--accent)}
+.agreement-grid meter.over::-webkit-meter-optimum-value{background:var(--bad)}
+.agreement-grid meter.over::-moz-meter-bar{background:var(--bad)}
+.agreement-grid meter.over{accent-color:var(--bad)}
 .agreement-view .agreement-grid strong{font-size:var(--fs-4)}
 .ledger-form{border:1px solid var(--rule-strong);border-radius:var(--r);padding:4px 16px 16px;margin:14px 0;background:var(--surface-2);animation:sf-fade-up var(--dur-3) var(--ease)}
 .change-order{border:1px solid var(--rule-strong);border-left:3px solid var(--accent);border-radius:var(--r);padding:18px;margin:18px 0;background:var(--surface-2)}
@@ -976,3 +981,8 @@ form[data-attempted] label:has(input:invalid)+.field-hint,form[data-attempted] .
 form[data-attempted] .password-field:has(input:invalid)+.field-hint{margin-top:6px}
 form[data-attempted] .password-field:has(input:invalid)~#password-hint{color:var(--bad)}
 main#content:focus{outline:none}
+/* UX-C12, C41: one line that says what cannot be undone (dialogs, irreversible warnings); not quiet fine print */
+.consequence{display:block;margin:var(--s2) 0;padding:6px 0 6px 12px;border-left:3px solid var(--warn);color:var(--ink);font-size:var(--fs-2);font-weight:var(--fw-2)}
+[data-slot=dialog-content] .consequence{margin:0}
+[data-slot=dialog-content] form{display:grid;gap:var(--s3)}
+

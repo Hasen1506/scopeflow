@@ -21,7 +21,7 @@ export function nextForm(current: LedgerForm, requested: Exclude<LedgerForm, nul
 
 const fieldNames: Record<string, string> = {
   title: 'Change order title', reason: 'Why this is a change', request_quote: 'Client’s request',
-  fee_delta: 'Fee change', days_delta: 'Schedule change', revisions_delta: 'Extra revision rounds',
+  fee_delta: 'Fee change', days_delta: 'Schedule change', revisions_delta: 'Revision rounds change',
   remove_item_ids: 'Removed deliverables', add_items: 'Added deliverables',
 };
 const itemFields: Record<string, string> = {title: 'title', qty: 'quantity', unit: 'unit', price: 'price', acceptance: '“Done when”', id: 'id'};

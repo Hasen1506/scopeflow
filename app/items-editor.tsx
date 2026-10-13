@@ -1,23 +1,31 @@
 'use client';
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
 import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
 import {amountProblem, parseQty, QTY_MAX} from '@/lib/editor';
+import {describedBy, errorId, moveFocusTarget} from '@/lib/a11y';
 
 const num = (value: string, fallback: number) => (value === '' || Number.isNaN(Number(value)) ? fallback : Number(value));
 
-export function ItemsEditor({items, currency, onChange}: {items: Item[]; currency: string; onChange: (items: Item[]) => void}) {
+export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[]; currency: string; onChange: (items: Item[]) => void; errorRef?: string}) {
   const update = (index: number, patch: Partial<Item>) => onChange(items.map((x, i) => (i === index ? {...x, ...patch} : x)));
+  const root = useRef<HTMLFieldSetElement>(null);
+  const [moved, setMoved] = useState('');
+  // UX-C44: after a move, focus stays on a move button of the moved row (the pressed one can become disabled at
+  // the top or bottom), and the new position is announced.
   const move = (index: number, by: number) => {
     const next = [...items];
-    const [moved] = next.splice(index, 1);
-    next.splice(index + by, 0, moved);
+    const [item] = next.splice(index, 1);
+    next.splice(index + by, 0, item);
     onChange(next);
+    const to = index + by, target = moveFocusTarget(to, next.length, by < 0 ? 'up' : 'down');
+    setMoved(`${item.title || 'Deliverable'} moved to position ${to + 1} of ${next.length}.`);
+    requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-move="${item.id}:${target}"]`)?.focus());
   };
   const priced = items.filter(i => i.price != null);
   const total = priced.reduce((sum, i) => sum + (i.price ?? 0), 0);
   return (
-    <fieldset className="items deliverables">
+    <fieldset ref={root} className="items deliverables" aria-describedby={errorRef}>
       <legend><span className="deliverables-title">Deliverables</span>{items.length > 0 && <span className="count-chip">{items.length} {items.length === 1 ? 'deliverable' : 'deliverables'}</span>}<span className="quiet deliverables-hint">Each one is tracked across versions and change orders.</span></legend>
       {items.length === 0 && <p className="fine">No deliverables yet. Add each thing you will hand over.</p>}
       {items.map((item, index) => (
@@ -26,21 +34,22 @@ export function ItemsEditor({items, currency, onChange}: {items: Item[]; currenc
             <span className="item-num" aria-hidden="true">{index + 1}</span>
             <input aria-label={`Deliverable ${index + 1}`} placeholder="e.g. Homepage design" maxLength={200} value={item.title} onChange={e => update(index, {title: e.target.value})} />
             <div className="item-tools">
-              <button type="button" className="icon" aria-label="Move up" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button>
-              <button type="button" className="icon" aria-label="Move down" disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} /></button>
+              <button type="button" className="icon" data-move={`${item.id}:up`} aria-label={`Move ${item.title || 'deliverable ' + (index + 1)} up`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button>
+              <button type="button" className="icon" data-move={`${item.id}:down`} aria-label={`Move ${item.title || 'deliverable ' + (index + 1)} down`} disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} /></button>
               <button type="button" className="icon" aria-label={`Remove ${item.title || 'deliverable'}`} onClick={() => onChange(items.filter((_, i) => i !== index))}><X size={15} /></button>
             </div>
           </div>
           <div className="item-meta">
             <label>Qty<QtyInput value={item.qty} onChange={qty => update(index, {qty})} /></label>
             <label>Unit<input maxLength={40} placeholder="pages, concepts…" value={item.unit} onChange={e => update(index, {unit: e.target.value})} /></label>
-            <label>Price ({currency})<input type="number" min={0} step="0.01" placeholder="optional" value={item.price ?? ''} aria-invalid={!!amountProblem(item.price, currency)} onChange={e => update(index, {price: e.target.value === '' ? null : num(e.target.value, 0)})} />{amountProblem(item.price, currency) && <span className="error-text" role="alert">{amountProblem(item.price, currency)}</span>}</label>
+            <label>Price ({currency})<input type="number" min={0} step="0.01" placeholder="optional" value={item.price ?? ''} aria-invalid={!!amountProblem(item.price, currency)} aria-describedby={describedBy(!!amountProblem(item.price, currency) && errorId('price-' + item.id))} onChange={e => update(index, {price: e.target.value === '' ? null : num(e.target.value, 0)})} />{amountProblem(item.price, currency) && <span id={errorId('price-' + item.id)} className="error-text">{amountProblem(item.price, currency)}</span>}</label>
           </div>
           <label className="item-accept">Done when<input maxLength={1000} placeholder="Acceptance criteria, e.g. approved in Figma, delivered as SVG" value={item.acceptance} onChange={e => update(index, {acceptance: e.target.value})} /></label>
         </div>
       ))}
       <div className="small-title">
         <button type="button" className="secondary" onClick={() => onChange([...items, {id: newId(), title: '', qty: 1, unit: '', price: null, acceptance: ''}])}><Plus size={16} />Add deliverable</button>
+        <span className="sr-only" role="status" aria-atomic="true">{moved}</span>
         {priced.length > 0 && <span className="fine">Itemised total: {formatMoney(total, currency)}{priced.length < items.length ? ` (${items.length - priced.length} unpriced)` : ''}</span>}
       </div>
     </fieldset>

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {FilePlus2} from 'lucide-react';
 import {toast} from 'sonner';
 import {api, post, Skeleton, type ApiError} from './ui';
@@ -9,6 +9,9 @@ import {formatDay} from '@/lib/time';
 import {gstinState, stateCodes, stateName} from '@/lib/gst';
 import TdsField, {type TdsValue} from './components/slots/tds-field';
 import MsmedTerms from './components/slots/msmed-terms';
+import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog';
+import {focusFirstField, restoreFocus} from './a11y';
+import {creditReasonProblem, CREDIT_REASON_MAX, describedBy} from '@/lib/a11y';
 
 type Status = 'paid' | 'paid_net_of_tds' | 'tds_credited' | 'part' | 'open' | 'cancelled';
 type InvoiceView = {seq: number; number: string; amount: number; currency: string; issued: string; due: string; description: string; tax_invoice: boolean; milestone: string | null; covered: number; open: number; status: Status; overdue: boolean; days_overdue: number; change_order: number | null; credited: number; cancelled_by: string[]; tds: {amount: number; net_receivable: number; label: string; rate_pct: number; credited: number} | null; open_with_tds: number; advance_adjusted: string[]};
@@ -65,22 +68,28 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
   function start() {
     const next = plan.find(m => openOf(m) > 0);
     setMilestone(next?.id ?? ''); setCo(''); setAmount(next ? String(Math.min(openOf(next), leftGross)) : ''); setIncludesTax(!!next);
-    setTds(data?.tds.terms ?? null); setDescription(''); setDueDays(String(data?.net_days ?? 15)); setError(''); setNeedsProfile(false); setRequestId(crypto.randomUUID()); setOpen(true);
+    setTds(data?.tds.terms ?? null); setDescription(''); setDueDays(String(data?.net_days ?? 15)); setError(''); setNeedsProfile(false); setRequestId(crypto.randomUUID()); opener.current = document.activeElement as HTMLElement | null; setOpen(true);
   }
   async function issue(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError(''); setNeedsProfile(false);
     try {
       const r = await api(`/api/scopes/${projectId}/invoices`, post({amount: r2(Number(amount)), includes_tax: includesTax, description, due_days: Number(dueDays) || 0, request_id: requestId, tds: tds && tds.rate_pct > 0 ? {section_2025: tds.section_2025, rate_pct: tds.rate_pct} : null, ...(milestone ? {milestone_id: milestone} : {}), ...(co ? {change_order_seq: Number(co)} : {})}));
-      toast.success(`Invoice ${r.invoice.number} issued.`); setOpen(false); await load();
+      toast.success(`Invoice ${r.invoice.number} issued.`); closeForm(); await load();
     } catch (err) { const x = err as ApiError; setNeedsProfile(x.code === 'profile_required'); setError(x.message); }
     finally { setBusy(false); }
   }
-  async function cancelInvoice(i: InvoiceView) {
-    const reason = window.prompt(`Reason for cancelling ${i.number} with a credit note (printed on it):`);
-    if (!reason) return;
-    try { const r = await api(`/api/scopes/${projectId}/credit-notes`, post({invoice_seq: i.seq, reason, request_id: crypto.randomUUID()})); toast.success(`Credit note ${r.credit_note.number} issued.`); await load(); }
-    catch (err) { toast.error((err as Error).message); }
+  // UX-C41: the credit-note reason is asked in an in-app dialog (required, 3–300 characters), not window.prompt,
+  // so an empty reason and a cancel are no longer the same thing and the reason can be checked before it is printed.
+  const [crediting, setCrediting] = useState<InvoiceView | null>(null);
+  async function cancelInvoice(i: InvoiceView, reason: string) {
+    setBusy(true);
+    try { const r = await api(`/api/scopes/${projectId}/credit-notes`, post({invoice_seq: i.seq, reason: reason.trim(), request_id: crypto.randomUUID()})); toast.success(`Credit note ${r.credit_note.number} issued.`); setCrediting(null); await load(); return null; }
+    catch (err) { return (err as Error).message; } finally { setBusy(false); }
   }
+  // UX-C46: the invoice form takes focus when it opens and gives it back to "Create invoice" when it closes.
+  const formRef = useRef<HTMLFormElement>(null), opener = useRef<HTMLElement | null>(null), headRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (open) focusFirstField(formRef.current); }, [open]);
+  function closeForm() { setOpen(false); restoreFocus(opener.current, headRef.current?.querySelector('button')); }
   async function saveBilling(e: React.FormEvent) {
     e.preventDefault(); if (!billing) return; setBusy(true); setBillingError('');
     try {
@@ -92,7 +101,7 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
   const interest = new Map((data?.msmed.invoices ?? []).map(x => [x.seq, x.text]));
   return (
     <div className="section-gap">
-      <div className="small-title"><h4 className="h-sub">Invoices</h4>{data && !open && !archived && leftGross > 0 && <button className="secondary" onClick={start}><FilePlus2 size={15} />Create invoice</button>}</div>
+      <div className="small-title" ref={headRef}><h4 className="h-sub">Invoices</h4>{data && !open && !archived && leftGross > 0 && <button className="secondary" onClick={start}><FilePlus2 size={15} />Create invoice</button>}</div>
       {loadError
         ? <p className="error" role="alert">Couldn’t load invoices ({loadError}). <button type="button" className="help-link" onClick={() => void load()}>Retry</button></p>
         : !data && <Skeleton lines={2} label="Loading invoices…" />}
@@ -100,20 +109,20 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
       {plan.length > 0 && <ul className="receipt-list payment-list" aria-label="Payment schedule">{plan.map(m => <li key={m.id}><span><strong>{m.title}</strong> · {m.pct}% · {formatMoney(m.amount, currency)}{m.due ? ` · due ${formatDay(m.due)}` : ''}</span><span className="fine">{m.invoiced >= m.amount - 0.005 ? 'Invoiced' : m.invoiced > 0 ? `${formatMoney(m.invoiced, currency)} invoiced` : 'Not invoiced'}</span></li>)}</ul>}
       {cos.length > 0 && <ul className="receipt-list payment-list" aria-label="Approved change orders">{cos.map(c => <li key={c.seq}><span><strong>CO {c.title}</strong> · <span data-testid="co-display">{c.display}</span></span><span className="fine">{c.invoiced >= c.total - 0.005 ? 'Invoiced' : c.invoiced > 0 ? `${formatMoney(c.invoiced, currency)} invoiced` : 'Not invoiced'}</span></li>)}</ul>}
       {open && (
-        <form className="ledger-form" aria-label="Create invoice" onSubmit={issue}>
+        <form ref={formRef} className="ledger-form" aria-label="Create invoice" onSubmit={issue}>
           {plan.length > 0 && <label>Milestone<select value={milestone} onChange={e => pick(e.target.value)}><option value="">No milestone (any amount)</option>{plan.map(m => <option key={m.id} value={m.id} disabled={openOf(m) <= 0}>{m.title} · {formatMoney(openOf(m), currency)} to invoice</option>)}</select></label>}
           {cos.length > 0 && <label>Change order<select value={co} onChange={e => pickCo(e.target.value)}><option value="">None</option>{cos.map(c => <option key={c.seq} value={c.seq} disabled={openOf(c) <= 0}>{c.title} · {formatMoney(openOf(c), currency)} to invoice</option>)}</select></label>}
           <div className="two-col"><label>{includesTax ? `Amount, including tax (${currency})` : `Amount before tax, the taxable value (${currency})`}<input type="number" min={0.01} step="0.01" inputMode="decimal" required value={amount} onChange={e => setAmount(e.target.value)} /><span className="fine block">Up to {formatMoney(left, currency)} with tax still to invoice.</span></label><label>Due in (days)<input type="number" min={0} max={120} step={1} required value={dueDays} onChange={e => setDueDays(e.target.value)} />{data?.net_days != null && <span className="fine block">Net {data.net_days} from the payment terms.</span>}</label></div>
           <label className="consent"><input type="checkbox" checked={includesTax} onChange={e => setIncludesTax(e.target.checked)} /> The amount includes GST</label>
           <label>Description <span className="quiet">· optional</span><input maxLength={200} placeholder={milestone ? 'Milestone payment for the approved scope' : 'Balance for the approved scope'} value={description} onChange={e => setDescription(e.target.value)} /></label>
           <TdsField value={tds} onChange={setTds} label="TDS on this invoice" />
-          <p className="fine">Invoices are numbered in order and cannot be edited or deleted once issued; cancel one with a credit note. Your business details from Data controls are printed as the seller{pos ? `; place of supply ${stateName(pos)}` : ''}.</p>
+          <p className="consequence">Invoices are numbered in order and cannot be edited or deleted once issued; cancel one with a credit note. Your business details from Data controls are printed as the seller{pos ? `; place of supply ${stateName(pos)}` : ''}.</p>
           {error && <p className="error" role="alert">{error}{needsProfile && <> <Link className="help-link" href="/account#h-business">Add business details</Link></>}</p>}
-          <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy ? 'Issuing…' : 'Issue invoice'}</button><button type="button" className="secondary" disabled={busy} onClick={() => setOpen(false)}>Cancel</button></div>
+          <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy ? 'Issuing…' : 'Issue invoice'}</button><button type="button" className="secondary" disabled={busy} onClick={closeForm}>Cancel</button></div>
         </form>
       )}
       {invoices && invoices.length > 0
-        ? <ul className="receipt-list payment-list">{invoices.map(i => <li key={i.seq}><span><strong>{i.number}</strong>{i.tax_invoice ? ' (tax invoice)' : ''} · {formatMoney(i.amount, i.currency)} · issued {formatDay(i.issued)}, due {formatDay(i.due)} · <span className={i.overdue ? 'warn-text' : i.status === 'paid' || i.status === 'tds_credited' ? 'ok-text' : ''}>{statusText(i)}</span>{i.tds && <span className="fine block" data-testid="tds-line">TDS expected {formatMoney(i.tds.amount, i.currency)} ({i.tds.label}); net receivable {formatMoney(i.tds.net_receivable, i.currency)}</span>}{i.advance_adjusted.length > 0 && <span className="fine block">Adjusts advance {i.advance_adjusted.join(', ')}</span>}{interest.get(i.seq) && <span className="fine block warn-text" data-testid="msmed-interest">{interest.get(i.seq)}</span>}</span><span className="pay-actions">{!archived && i.status !== 'cancelled' && <button className="help-link" onClick={() => void cancelInvoice(i)}>Credit note</button>}<a className="help-link" href={`/api/scopes/${projectId}/invoices/${i.seq}`} download>PDF</a></span></li>)}</ul>
+        ? <ul className="receipt-list payment-list">{invoices.map(i => <li key={i.seq}><span><strong>{i.number}</strong>{i.tax_invoice ? ' (tax invoice)' : ''} · {formatMoney(i.amount, i.currency)} · issued {formatDay(i.issued)}, due {formatDay(i.due)} · <span className={i.overdue ? 'warn-text' : i.status === 'paid' || i.status === 'tds_credited' ? 'ok-text' : ''}>{statusText(i)}</span>{i.tds && <span className="fine block" data-testid="tds-line">TDS expected {formatMoney(i.tds.amount, i.currency)} ({i.tds.label}); net receivable {formatMoney(i.tds.net_receivable, i.currency)}</span>}{i.advance_adjusted.length > 0 && <span className="fine block">Adjusts advance {i.advance_adjusted.join(', ')}</span>}{interest.get(i.seq) && <span className="fine block warn-text" data-testid="msmed-interest">{interest.get(i.seq)}</span>}</span><span className="pay-actions">{!archived && i.status !== 'cancelled' && <button className="help-link" onClick={() => setCrediting(i)}>Credit note</button>}<a className="help-link" href={`/api/scopes/${projectId}/invoices/${i.seq}`} download>PDF</a></span></li>)}</ul>
         : invoices && !open && <p className="fine">{leftGross > 0 ? 'Create a numbered invoice for what is left to invoice, or part of it. Record the payment above when the money arrives.' : 'Everything agreed has been invoiced.'}</p>}
       {data && data.receipt_vouchers.length > 0 && <ul className="receipt-list payment-list" aria-label="Receipt vouchers">{data.receipt_vouchers.map(v => <li key={v.seq}><span><strong>{v.number}</strong> · {v.kind === 'receipt_voucher' ? 'receipt voucher' : 'payment receipt'} for an advance of {formatMoney(v.amount, currency)} received {formatDay(v.received)}{v.adjusted ? ' · adjusted' : ''}</span><a className="help-link" href={`/api/scopes/${projectId}/invoices/receipt-vouchers/${v.seq}`} download>PDF</a></li>)}</ul>}
       {data && data.credit_notes.length > 0 && <ul className="receipt-list payment-list" aria-label="Credit notes">{data.credit_notes.map(c => <li key={c.seq}><span><strong>{c.number}</strong> · against {c.invoice_number} · {formatMoney(c.amount, currency)}{c.full ? ' (full)' : ''} · {c.reason}</span><a className="help-link" href={`/api/scopes/${projectId}/credit-notes/${c.seq}`} download>PDF</a></li>)}</ul>}
@@ -133,6 +142,49 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
           </form>
         </details>
       )}
+      <CreditNoteDialog invoice={crediting} busy={busy} onCancel={() => { if (!busy) setCrediting(null); }} onIssue={cancelInvoice} />
     </div>
+  );
+}
+
+/** UX-C41: why the invoice is being cancelled, printed on the credit note. Required, with the consequence spelled out. */
+function CreditNoteDialog({invoice, busy, onCancel, onIssue}: {invoice: InvoiceView | null; busy: boolean; onCancel: () => void; onIssue: (i: InvoiceView, reason: string) => Promise<string | null>}) {
+  const [shown, setShown] = useState<InvoiceView | null>(invoice);
+  const [reason, setReason] = useState('');
+  const [touched, setTouched] = useState(false);
+  const [error, setError] = useState('');
+  // A new invoice opens a fresh form; the last one stays rendered while the dialog animates closed.
+  if (invoice && invoice !== shown) { setShown(invoice); setReason(''); setTouched(false); setError(''); }
+  const i = invoice ?? shown;
+  const problem = creditReasonProblem(reason);
+  const showProblem = touched && problem;
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); setTouched(true);
+    if (!i || problem) return;
+    const failed = await onIssue(i, reason);
+    setError(failed ?? '');
+  }
+  return (
+    <Dialog open={!!invoice} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent>
+        {i && <form onSubmit={submit} noValidate>
+          <DialogTitle>Cancel {i.number} with a credit note?</DialogTitle>
+          <DialogDescription>A credit note for {formatMoney(Math.max(0, r2(i.amount - i.credited)), i.currency)} is issued against {i.number} and takes the next number in your credit-note series (CN-…). The amount can then be invoiced again.</DialogDescription>
+          <p className="consequence">Credit notes are permanent: once issued it cannot be edited or deleted.</p>
+          <label>Reason <span className="quiet">· printed on the credit note</span>
+            <textarea rows={3} required minLength={3} maxLength={CREDIT_REASON_MAX} value={reason} autoFocus
+              aria-invalid={!!showProblem} aria-describedby={describedBy(showProblem && 'credit-reason-err', error && 'credit-issue-err')}
+              onChange={e => { setReason(e.target.value); setError(''); }} onBlur={() => setTouched(true)}
+              placeholder="e.g. Invoice raised on the wrong milestone" />
+            {showProblem && <span id="credit-reason-err" className="error-text">{problem}</span>}
+          </label>
+          {error && <p id="credit-issue-err" className="error" role="alert">{error}</p>}
+          <div className="actions">
+            <button type="button" className="secondary" disabled={busy} onClick={onCancel}>Keep the invoice</button>
+            <button type="submit" className="primary danger" disabled={busy}>{busy ? 'Issuing…' : 'Issue credit note'}</button>
+          </div>
+        </form>}
+      </DialogContent>
+    </Dialog>
   );
 }
