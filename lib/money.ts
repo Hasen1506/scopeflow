@@ -51,6 +51,19 @@ export function lineTotal(i: Pick<Item, 'qty' | 'price' | 'unit_price'>, currenc
   return m == null ? null : fromMinor(m, currency);
 }
 
+/**
+ * Visual #9: how one item's price reads on the scope document. `line` is the line total (lineTotal). With a unit price
+ * and qty > 1 `each` is that unit price ("₹2,500 each" under "₹30,000"). A legacy `price` is already the line total, so
+ * with qty > 1 `forAll` is the quantity it covers ("for all 12"), and it is never shown as if it were a unit price.
+ */
+export function itemPriceView(i: Pick<Item, 'qty' | 'price' | 'unit_price'>, currency: string): {line: number; each: number | null; forAll: number | null} | null {
+  const line = lineTotal(i, currency);
+  if (line == null) return null;
+  const qty = i.qty ?? 1;
+  if (qty <= 1) return {line, each: null, forAll: null};
+  return i.unit_price != null ? {line, each: i.unit_price, forAll: null} : {line, each: null, forAll: qty};
+}
+
 export type FeeCheck = {status: 'none' | 'match' | 'partial' | 'under' | 'over'; item_total: number; priced: number; unpriced: number; difference: number; message: string | null};
 /**
  * Do the item line totals add up to the fee? `under` = items sum to less than the fee with every

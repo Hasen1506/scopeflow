@@ -153,8 +153,10 @@ function CreditNoteDialog({invoice, busy, onCancel, onIssue}: {invoice: InvoiceV
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState('');
-  // A new invoice opens a fresh form; the last one stays rendered while the dialog animates closed.
-  if (invoice && invoice !== shown) { setShown(invoice); setReason(''); setTouched(false); setError(''); }
+  const [wasOpen, setWasOpen] = useState(!!invoice);
+  // A new invoice, or reopening the same one (N7), opens a fresh form; the last one stays rendered while the dialog animates closed.
+  if (!!invoice !== wasOpen) setWasOpen(!!invoice);
+  if (invoice && (invoice !== shown || !wasOpen)) { setShown(invoice); setReason(''); setTouched(false); setError(''); }
   const i = invoice ?? shown;
   const problem = creditReasonProblem(reason);
   const showProblem = touched && problem;
@@ -165,8 +167,9 @@ function CreditNoteDialog({invoice, busy, onCancel, onIssue}: {invoice: InvoiceV
     setError(failed ?? '');
   }
   return (
-    <Dialog open={!!invoice} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent>
+    <Dialog open={!!invoice} onOpenChange={o => { if (!o && !busy) onCancel(); }}>
+      {/* N7: while the credit note is being issued, Esc and outside clicks do not close the dialog. */}
+      <DialogContent onEscapeKeyDown={e => { if (busy) e.preventDefault(); }} onInteractOutside={e => { if (busy) e.preventDefault(); }}>
         {i && <form onSubmit={submit} noValidate>
           <DialogTitle>Cancel {i.number} with a credit note?</DialogTitle>
           <DialogDescription>A credit note for {formatMoney(Math.max(0, r2(i.amount - i.credited)), i.currency)} is issued against {i.number} and takes the next number in your credit-note series (CN-…). The amount can then be invoiced again.</DialogDescription>

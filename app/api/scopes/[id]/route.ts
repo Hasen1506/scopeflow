@@ -3,7 +3,7 @@ import {limits} from '@/lib/plans';
 import { scopeSchema } from '@/lib/scope';
 import { clientEmailSchema } from '@/lib/mail';
 import { validTimeZone } from '@/lib/time';
-import { otpAvailable, type OtpChannel } from '@/lib/otp';
+import { otpAvailable, otpUnavailableMessage, type OtpChannel } from '@/lib/otp';
 import { cosignersSchema, parseCosigners } from '@/lib/cosign';
 import { gstinState, stateCodes } from '@/lib/gst';
 import { linkExpires } from '@/lib/link';
@@ -85,7 +85,7 @@ export async function PATCH(request:Request,ctx:Ctx){try{
  const requireOtp=d.require_otp??current.require_otp;
  if(requireOtp&&channel==='email'&&!email)return json({error:'Add the client’s email first: the one-time code is sent there.',code:'otp_needs_email'},400);
  if(requireOtp&&channel!=='email'&&!phone)return json({error:'Add the client’s phone number first: the one-time code is sent there.',code:'otp_needs_phone'},400);
- if((d.require_otp===true||(requireOtp&&d.otp_channel!==undefined))&&!otpAvailable(process.env,channel))return json({error:channel==='email'?'Email delivery is not configured on this server, so a one-time code cannot be sent. Set RESEND_API_KEY and SCOPEFLOW_MAIL_FROM first.':`${channel==='whatsapp'?'WhatsApp':'SMS'} delivery is not configured on this server. Set up MSG91 or Twilio first.`,code:'otp_unavailable'},409);
+ if((d.require_otp===true||(requireOtp&&d.otp_channel!==undefined))&&!otpAvailable(process.env,channel))return json({error:otpUnavailableMessage(channel),code:'otp_unavailable'},409);
  const now=new Date().toISOString();
  const sets:string[]=[],values:(string|number|boolean|null)[]=[];
  if(d.archived!==undefined){sets.push('archived=?');values.push(d.archived?now:null);}

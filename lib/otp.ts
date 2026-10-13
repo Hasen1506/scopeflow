@@ -31,6 +31,10 @@ export function otpAvailable(env: Env = process.env, channel: OtpChannel = 'emai
   if (otpDevMode(env)) return true;
   return channel === 'email' ? mailConfig(env) !== null : smsChannels(env).includes(channel);
 }
+/** N3: shown to the owner when codes can't go out on `channel`. Names no env var or vendor (B-4 policy); the operator sees which channels are off in /api/readiness. */
+export function otpUnavailableMessage(channel: OtpChannel) {
+  return channel === 'email' ? 'Codes can’t be sent by email on this server yet.' : `Codes can’t be sent by ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} on this server yet.`;
+}
 /** Every channel this server can deliver codes on. */
 export function otpChannels(env: Env = process.env): OtpChannel[] { return (['email', 'sms', 'whatsapp'] as const).filter(c => otpAvailable(env, c)); }
 /** The masked destination shown on the review page. */
