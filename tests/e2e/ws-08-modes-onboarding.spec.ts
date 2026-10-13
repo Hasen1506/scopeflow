@@ -94,7 +94,7 @@ test('ws-08: switching modes reorders but never hides; every feature stays in Al
   const all = await features(page);
   expect(all.length).toBeGreaterThan(30);
   await page.goto('/account');
-  await page.getByRole('radio', {name: /Enterprise/}).check();
+  await page.getByRole('radio', {name: /Enterprise/}).click();
   await expect(page.getByText('Enterprise mode is on. Every feature is still available under All features.')).toBeVisible();
   await expect(page.getByText('A retention policy is required (30 to 3650 days).')).toBeVisible();
   for (const mode of ['enterprise', 'consumer', 'agency', 'freelancer']) {
