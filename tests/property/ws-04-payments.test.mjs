@@ -208,7 +208,8 @@ test('sealed secrets: AES-GCM round trip; tampering and a wrong key fail; no key
   const sealed = R.sealSecret({key_secret: 'shh', webhook_secret: 'w'}, env);
   assert.doesNotMatch(sealed, /shh/);
   assert.deepEqual(R.openSecret(sealed, env), {key_secret: 'shh', webhook_secret: 'w'});
-  assert.throws(() => R.openSecret(sealed.slice(0, -2) + (sealed.endsWith('A') ? 'B' : 'A') + sealed.slice(-1), env));
+  // Flip the second-to-last character (it was compared against the last one, so 1 in 64 random IVs changed nothing).
+  assert.throws(() => R.openSecret(sealed.slice(0, -2) + (sealed.at(-2) === 'A' ? 'B' : 'A') + sealed.slice(-1), env));
   assert.throws(() => R.openSecret(sealed, {SCOPEFLOW_ENCRYPTION_KEY: Buffer.alloc(32, 8).toString('base64')}));
   assert.throws(() => R.sealSecret({key_secret: 'x'}, {APP_URL: 'https://scope-flow.tech'}), R.EncryptionUnavailable);
   assert.deepEqual(R.openSecret(R.sealSecret({a: 1}, {APP_URL: 'http://localhost:5173', SCOPEFLOW_SIGNING_SECRET: 's'}), {APP_URL: 'http://localhost:5173', SCOPEFLOW_SIGNING_SECRET: 's'}), {a: 1});
