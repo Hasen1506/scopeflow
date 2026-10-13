@@ -17,7 +17,8 @@ export function readonlyOf(data: unknown): ReadonlyInfo {
 
 export type ProblemKind = 'not_found' | 'expired' | 'unavailable';
 export type Sender = {name: string | null; email: string | null};
-export type LinkProblemState = {kind: ProblemKind; expired: string | null; sender: Sender | null};
+/** `expiredText`: the server's own expiry wording (WS-02 `expired_text`), preferred over formatting `expired`. */
+export type LinkProblemState = {kind: ProblemKind; expired: string | null; sender: Sender | null; expiredText?: string | null};
 
 /** How the review API's error maps to what the client sees. */
 export function problemOf(error: unknown): LinkProblemState {
@@ -25,7 +26,7 @@ export function problemOf(error: unknown): LinkProblemState {
   const data = e.data ?? {};
   const raw = (data.sender ?? data.creator ?? null) as Record<string, unknown> | null;
   const sender: Sender | null = raw && typeof raw === 'object' ? {name: typeof raw.name === 'string' && raw.name ? raw.name : null, email: typeof raw.email === 'string' && raw.email.includes('@') ? raw.email : null} : null;
-  if (e.status === 410 || e.code === 'link_expired') return {kind: 'expired', expired: typeof data.expired === 'string' ? data.expired : null, sender};
+  if (e.status === 410 || e.code === 'link_expired') return {kind: 'expired', expired: typeof data.expired === 'string' ? data.expired : null, sender, ...(typeof data.expired_text === 'string' && data.expired_text ? {expiredText: data.expired_text} : {})};
   if (e.status === 404 || e.status === 400) return {kind: 'not_found', expired: null, sender};
   return {kind: 'unavailable', expired: null, sender: null};
 }

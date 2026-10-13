@@ -18,6 +18,7 @@ import {ScopeDocument} from './scope-document';
 import {ClosedBanner, NewerBanner, readonlyOf, type ReadonlyInfo} from './closed';
 import {LinkProblem, problemOf, type LinkProblemState} from './link-problem';
 import {SlotOr} from './slot';
+import {EvidenceBlock, type RecordEvidence} from './evidence';
 import styles from './client.module.css';
 
 /** WS-04 may attach TDS figures to an invoice; the net is shown when present. */
@@ -32,7 +33,16 @@ type ReviewData = {
   retention_days?: number | null;
   /** L12 (WS-02): where the newer version can be opened, when the API shares it. */
   newer_url?: string | null;
+  /** L12 (WS-02): the newer version's number, when the GET shares it. */
+  newer_version?: number | null;
+  /** WS-02: server-written expiry wording; preferred over formatting `link_expires` here. */
+  link_expires_text?: string | null;
+  /** WS-02: how the decision was evidenced. */
+  evidence?: RecordEvidence | null;
+  /** WS-08: a server-written data notice line, when present. */
+  data_notice?: string | null;
 };
+type Notice = {retention_days?: number | null; data_notice?: string | null};
 /** Where the reviewer's unsent name and comment are kept on this device (L12): never the full link token. */
 const draftKey = (token: string) => 'scopeflow:review-draft:' + token.slice(0, 16);
 
@@ -46,6 +56,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   const [depositNote, setDepositNote] = useState(''), [paying, setPaying] = useState(false), [returned, setReturned] = useState<'ok' | 'cancel' | null>(null);
   const [invoiceNote, setInvoiceNote] = useState(''), [payingInvoice, setPayingInvoice] = useState<number | null>(null);
   const [decideError, setDecideError] = useState(''), [newer, setNewer] = useState<{version: number; url: string | null} | null>(null), [justApproved, setJustApproved] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null), noticeAsked = useRef(false);
   const outcome = useRef<HTMLHeadingElement>(null), focusOutcome = useRef(false);
 
   // SF-09: ?lang= > the reader's own choice on this device > the creator's scope language > Accept-Language > English.
@@ -63,6 +74,12 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   const apply = useCallback((d: ReviewData) => { setData(d); setProblem(null); }, []);
   const load = useCallback(async () => { apply(await api('/api/review/' + token)); }, [token, apply]);
   useEffect(() => { let live = true; api('/api/review/' + token).then(d => { if (live) apply(d); }, e => { if (live) setProblem(problemOf(e)); }); return () => { live = false; }; }, [token, apply]);
+  // M32: the review payload may lack retention; ask the account notice once, and ignore a 404 (or any failure).
+  useEffect(() => {
+    if (!data || noticeAsked.current || typeof data.retention_days === 'number') return;
+    noticeAsked.current = true;
+    api('/api/account/notice/' + token).then((n: Notice) => { if (n && typeof n === 'object') setNotice(n); }, () => { /* no notice: the honest default line */ });
+  }, [data, token]);
   useEffect(() => { if (focusOutcome.current && data && data.scope.status !== 'pending') { focusOutcome.current = false; outcome.current?.focus(); } }, [data]);
 
   // L12: the typed name and comment survive a reload, a 409 and a replaced version, on this device only.
@@ -80,7 +97,8 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   const identity = data?.identity_check ?? null, cosign = data?.cosign ?? null, linkExpires = data?.link_expires ?? null, brand = data?.brand ?? null;
   const ro: ReadonlyInfo = readonlyOf(data);
   const replaced = !!scope && scope.version < scope.latest;
-  const newerVersion = newer?.version ?? (replaced ? scope!.latest : null);
+  const servedNewer = Number(data?.newer_version), newerVersion = newer?.version ?? (Number.isInteger(servedNewer) && servedNewer > (scope?.version ?? 0) ? servedNewer : null) ?? (replaced ? scope!.latest : null);
+  const evidence = data?.evidence ?? null, linkExpiresText = data?.link_expires_text ?? null;
 
   async function decide(decision: string) {
     setDecideError('');
@@ -155,12 +173,13 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
               <p className="section-gap">{t('decided.recordedFor', {signer: scope.signer ?? '', date: formatInZone(scope.decided, timeZone)})}</p>
               <p className="quiet">{t('changes.body')}</p>
             </>}
+            {evidence && <EvidenceBlock evidence={evidence} t={t} />}
             {scope.comment && <p className="line-list section-gap" data-testid="decision-comment-shown">{scope.comment}</p>}
             {receipt && <div className="muted-box"><strong>{t('receipt.title')}</strong><p className="fine">{t('receipt.body')}</p><p className="mono fine">{t('receipt.version', {version: String(receipt.version), date: `${formatInZone(String(receipt.decided), timeZone)} (${String(receipt.decided)})`})}<br />{t('receipt.code', {code: String(receipt.anchor)})}<br />{t('receipt.seal', {seal: receipt.signature ? String(receipt.signature) : t('receipt.notSealed')})}</p></div>}
             <p className="fine">{t('decided.baselineNote', {version: scope.version})}</p>
           </> : ro.readonly ? <p className="fine" role="note">{t('closed.noActions')}</p> : <>
             <h2>{t('decide.heading')} <em>{t('decide.headingEm')}</em></h2>
-            {linkExpires && <p className="fine" role="note">{t('decide.linkOpenUntil', {date: formatInZone(linkExpires, timeZone)})}</p>}
+            {(linkExpiresText || linkExpires) && <p className="fine" role="note">{t('decide.linkOpenUntil', {date: linkExpiresText ?? formatInZone(linkExpires!, timeZone)})}</p>}
             <p className="quiet section-gap">{t('decide.intro')}</p>
             {identity && <OtpGate token={token} to={identity.to} channel={identity.channel} session={otpSession} onVerified={setOtpSession} />}
             <label>{t('decide.name')}<input id="signer-name" autoComplete="name" aria-required="true" maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
@@ -173,7 +192,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
           </>}
           {replaced && decideError && <p className="error" role="alert">{decideError}</p>}
           <p className="fine">{identity ? t(identity.channel && identity.channel !== 'email' ? 'decide.fineCodePhone' : 'decide.fineCodeEmail') : t('decide.fineNoCode')} {t('decide.fineMoney')}</p>
-          <DataNotice lang={lang} retentionDays={data?.retention_days ?? null} />
+          <DataNotice lang={lang} retentionDays={data?.retention_days ?? notice?.retention_days ?? null} dataNotice={data?.data_notice ?? notice?.data_notice ?? null} />
           <details className={styles.glossary}><summary>{t('glossary.title')}</summary><ul><li>{t('glossary.recordCheck')}</li><li>{t('glossary.seal')}</li><li>{t('glossary.co')}</li></ul></details>
         </section>
         {deposit && <section className="editor no-print deposit-box" id="pay-deposit" tabIndex={-1} aria-labelledby="h-deposit"><h2 id="h-deposit">{t('deposit.title')}</h2>

@@ -220,5 +220,12 @@
   "glossary.title": "Words on this page",
   "glossary.recordCheck": "Record check: a code worked out from the record. If anything in the record changed, the code would change too.",
   "glossary.seal": "Seal: Scopeflow’s electronic stamp on the record, which shows the record came from Scopeflow unchanged.",
-  "glossary.co": "Change order: a priced change to the agreed scope. It applies only after you approve it."
+  "glossary.co": "Change order: a priced change to the agreed scope. It applies only after you approve it.",
+  "evidence.title": "Record of this decision",
+  "evidence.honest": "Approved by whoever held this link, code-verified to a masked address.",
+  "evidence.ownerSession": "Decided while the creator was signed in on this browser.",
+  "evidence.codeTo": "Code sent to {to}",
+  "evidence.onFile": "On file since {since}",
+  "evidence.fingerprint": "Fingerprint",
+  "evidence.verify": "Verify this record"
 }

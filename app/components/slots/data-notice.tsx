@@ -12,15 +12,18 @@ export type DataNoticeProps = {
    * the review API as `retention_days`). Unknown or unset: the honest "kept while the project is" line.
    */
   retentionDays?: number | null;
+  /** WS-08: a server-written notice line (`data_notice`), shown under the standard text when present. */
+  dataNotice?: string | null;
 };
 
-export default function DataNotice({lang = 'en', retentionDays = null}: DataNoticeProps) {
+export default function DataNotice({lang = 'en', retentionDays = null, dataNotice = null}: DataNoticeProps) {
   const t = translator(lang);
   const days = typeof retentionDays === 'number' && Number.isInteger(retentionDays) && retentionDays > 0 ? retentionDays : null;
   return (
     <aside className={styles.notice} aria-labelledby="data-notice-title" data-testid="data-notice">
       <p><strong id="data-notice-title">{t('notice.title')}</strong></p>
       <p className="fine">{t('notice.body')} {days ? t('notice.days', {days}) : t('notice.noDays')} <Link className="help-link" href="/privacy#client-data">{t('notice.privacy')}</Link></p>
+      {typeof dataNotice === 'string' && dataNotice.trim() && <p className="fine" data-testid="data-notice-server">{dataNotice}</p>}
     </aside>
   );
 }

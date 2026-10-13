@@ -12,13 +12,13 @@ export {problemOf, askSenderHref, type LinkProblemState, type ProblemKind, type 
 // "Try again".
 
 export function LinkProblem({problem, t, timeZone = 'UTC', onRetry}: {problem: LinkProblemState; t: Translate; timeZone?: string; onRetry?: () => void}) {
-  const {kind, expired, sender} = problem;
+  const {kind, expired, sender, expiredText} = problem;
   const title = kind === 'expired' ? 'problem.expired.title' : kind === 'not_found' ? 'problem.notFound.title' : 'problem.unavailable.title';
   return (
     <section className={'editor ' + styles.problem} aria-labelledby="problem-title" data-testid="link-problem" data-kind={kind}>
       <h1 id="problem-title" tabIndex={-1}>{t(title)}</h1>
       {kind === 'not_found' && <p className="section-gap">{t('problem.notFound.body')}</p>}
-      {kind === 'expired' && <p className="section-gap">{expired ? t('problem.expired.body', {date: formatInZone(expired, timeZone)}) : t('problem.expired.bodyNoDate')}</p>}
+      {kind === 'expired' && <p className="section-gap">{expiredText || expired ? t('problem.expired.body', {date: expiredText ?? formatInZone(expired!, timeZone)}) : t('problem.expired.bodyNoDate')}</p>}
       {kind === 'unavailable' && <p className="section-gap">{t('problem.unavailable.body')}</p>}
       {kind !== 'unavailable' && <p className="section-gap"><strong>{t('problem.ask')}</strong></p>}
       <div className="actions section-gap">
