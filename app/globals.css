@@ -246,6 +246,7 @@ label select{margin-top:7px}
 .paper .quiet{font-style:italic;font-family:var(--font-display);font-size:var(--fs-3)}
 .deliverable{display:flex;gap:12px;margin:0;padding:var(--s3) 0;align-items:start;border-top:1px solid var(--paper-rule)}
 /* UX-C09: the work being agreed carries the weight on the document, not only the fee below it. */
+.deliverable>span:not(.item-price){min-width:0;overflow-wrap:anywhere}
 .deliverable>span>span:first-child{font-family:var(--font-display);font-size:var(--fs-4);line-height:var(--lh-4);font-weight:var(--fw-1);color:var(--paper-ink)}
 .paper .eyebrow.doc-making{color:var(--paper-ink);margin-bottom:var(--s2)}
 .deliverable svg{color:var(--paper-accent);flex-shrink:0;margin-top:4px}
