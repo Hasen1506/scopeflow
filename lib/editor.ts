@@ -122,6 +122,7 @@ export function maxAmountLabel(currency: string) {
 /** Inline problem for an item price or fee as typed: never coerced, just explained (LT-07). */
 export function amountProblem(value: number | null | undefined, currency: string, what = 'Price') {
   if (value == null || Number.isNaN(value)) return null;
+  if (value === Infinity) return `Max ${maxAmountLabel(currency)}`; // R5-04: "1e400" parses to Infinity
   if (!Number.isFinite(value)) return `${what} must be a number.`;
   if (value < 0) return `${what} can't be negative`;
   if (value > MAX_AMOUNT) return `Max ${maxAmountLabel(currency)}`;
@@ -158,7 +159,7 @@ export function humanIssue(issue: FieldIssue): string {
   else text = issue.message;
   if (issue.path[0] === 'items' && typeof issue.path[1] === 'number') {
     const sub = String(issue.path[2] ?? '');
-    const what = sub === 'title' ? 'name' : sub === 'qty' ? 'quantity' : sub;
+    const what = sub === 'title' ? 'name' : sub === 'qty' ? 'quantity' : sub === 'unit_price' ? 'price each' : sub; // R5: the field reads "Price each"
     return `Deliverable ${issue.path[1] + 1}${what ? ' ' + what : ''}: ${text.charAt(0).toLowerCase() + text.slice(1)}`;
   }
   return text;
@@ -243,4 +244,25 @@ export function templateKeep(s: {active: boolean; isSample: boolean; draft: Pick
   if (s.draft.client.trim()) keep.client = s.draft.client;
   if (s.clientEmail.trim()) keep.email = s.clientEmail;
   return keep;
+}
+
+/**
+ * R5-05: the client email of an unsaved draft lives outside the scope content, so it is kept beside the draft in this
+ * tab (sessionStorage) for the same account. Going to /templates and back with "Use template" (a page load) then keeps
+ * it, like the typed name and client. An empty email removes the entry; sign-out clears it with the drafts (same prefix).
+ */
+export const DRAFT_EMAIL_KEY = DRAFT_PREFIX + ':email';
+type KV = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+export function writeDraftEmail(store: () => KV, account: string | null, email: string, now = Date.now()) {
+  try {
+    if (!email.trim() || email.length > 320) store().removeItem(DRAFT_EMAIL_KEY);
+    else store().setItem(DRAFT_EMAIL_KEY, JSON.stringify({account, saved_at: now, email}));
+  } catch { /* storage unavailable: kept for this page only */ }
+}
+export function readDraftEmail(store: () => KV, account: string | null, now = Date.now()): string {
+  try {
+    const v = JSON.parse(store().getItem(DRAFT_EMAIL_KEY) ?? 'null');
+    if (!isRecord(v) || (v.account ?? null) !== account || typeof v.email !== 'string' || typeof v.saved_at !== 'number' || now - v.saved_at > MAX_AGE) return '';
+    return v.email.slice(0, 320);
+  } catch { return ''; }
 }

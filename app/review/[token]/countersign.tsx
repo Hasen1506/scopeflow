@@ -4,9 +4,12 @@ import {PenLine} from 'lucide-react';
 import type {Scope} from '@/lib/scope';
 import {contentFingerprint} from '@/lib/evidence';
 import {formatInZone} from '@/lib/time';
+import {afterConsent} from '@/lib/a11y';
 import {Checkbox} from '@/components/ui/checkbox';
 import {api, post} from '@/app/ui';
 import {OtpGate} from './otp-gate';
+
+const CONSENT_ERROR = 'Confirm that you reviewed this version before signing.';
 
 export type CosignRole = {id: string; role: string; cosign: null | {signer: string; signed: string; signature: string | null; verified_to?: string | null}};
 export type CosignState = {roles: CosignRole[]; waiting: number; complete: boolean};
@@ -43,7 +46,7 @@ export function CosignForm({token, content, version, role, timeZone, identity, o
   async function sign() {
     setError('');
     if (name.trim().length < 2) return setError('Enter your name to countersign.');
-    if (!checked) return setError('Confirm that you reviewed this version before signing.');
+    if (!checked) return setError(CONSENT_ERROR);
     if (identity && !session) return setError('Confirm the code first.');
     setBusy(true);
     try {
@@ -57,7 +60,7 @@ export function CosignForm({token, content, version, role, timeZone, identity, o
       <p className="quiet section-gap">You are asked to countersign version {version}, which the client approved. Times show in {timeZone}.</p>
       {identity && <OtpGate token={token} endpoint={`/api/cosign/${token}/otp`} to={identity.to} channel={identity.channel} session={session} onVerified={s => setSession(s)} purpose="your countersignature" />}
       <label>Your name<input maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
-      <label className="consent"><Checkbox checked={checked} onCheckedChange={v => setChecked(v === true)} />I have reviewed version {version} and countersign it as {role.role}.</label>
+      <label className="consent"><Checkbox checked={checked} onCheckedChange={v => { setChecked(v === true); setError(e => afterConsent(e, CONSENT_ERROR, v === true)); }} />I have reviewed version {version} and countersign it as {role.role}.</label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions"><button className="primary" disabled={busy || (!!identity && !session)} onClick={sign}>{busy ? 'Signing…' : 'Countersign'}</button></div>
     </section>

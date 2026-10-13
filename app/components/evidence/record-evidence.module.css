@@ -1,5 +1,6 @@
 /* WS-02: the evidence block of a decided record. Tokens only (app/globals.css belongs to WS-09). */
-.box { border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--paper); padding: 1rem; margin-top: 1rem; }
+/* R5-01: chips, flags and fingerprints use the app inks, so the box is an app --surface, not --paper. */
+.box { border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); padding: 1rem; margin-top: 1rem; }
 .chip { display: inline-block; font-family: var(--font-ui); font-size: var(--fs-1); letter-spacing: var(--label-track); border: 1px solid var(--rule); border-radius: var(--btn-radius); padding: 0.15rem 0.6rem; color: var(--ink); }
 .ok { border-color: var(--ok); color: var(--ok); }
 .flag { color: var(--accent); font-weight: var(--fw-3); margin: 0.5rem 0; }

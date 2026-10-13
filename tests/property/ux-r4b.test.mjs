@@ -135,7 +135,7 @@ test('R4-03: when every new item is priced, the line totals sum to fee_delta (an
 
 test('R4-03: /share and the price radar write unit_price, never a unit value into price', () => {
   const share = read('app/share/share-client.tsx'), radar = read('lib/radar-server.ts');
-  assert.match(share, /itemsTotal\(items, radar\.currency\)\.total/);
+  assert.match(share, /coFeeState\(fee, items, radar\.currency/); // R5-02: the fee follows the line totals via coFeeState
   assert.match(share, /withUnitPrice\(x, e\.target\.value === '' \? null : Number\(e\.target\.value\)\)/);
   assert.doesNotMatch(share, /setItem\(i, \{price:/);
   assert.match(share, /data-testid="co-unit-price"/);

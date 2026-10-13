@@ -2,7 +2,7 @@
 import {Fragment, useState} from 'react';
 import {Plus, X} from 'lucide-react';
 import {currencyList} from '@/lib/currency';
-import {schedule, totals} from '@/lib/money';
+import {computable, schedule, totals} from '@/lib/money';
 import {formatMoney, newId, type Fx, type Milestone, type RevisionBank, type Scope} from '@/lib/scope';
 import {rowName} from '@/lib/a11y';
 
@@ -15,7 +15,7 @@ const num = (v: string) => (v === '' || Number.isNaN(Number(v)) ? NaN : Number(v
 export function MilestonesEditor({scope, onChange}: {scope: Scope; onChange: (m: Milestone[] | undefined) => void}) {
   const list = scope.milestones ?? [];
   const sum = Math.round(list.reduce((a, m) => a + (Number.isFinite(m.pct) ? m.pct : 0), 0) * 100) / 100;
-  const total = totals({...scope, fee: Number.isFinite(scope.fee) ? scope.fee : 0}).total;
+  const total = totals(computable(scope)).total; // R5-04: a huge typed fee never throws here
   const lines = schedule({milestones: list.map(m => ({...m, pct: Number.isFinite(m.pct) ? m.pct : 0}))}, total);
   // Visual re-audit #5: amounts only mean something once the shares add up to 100%; until then show a dash, never $0.00.
   const balanced = Math.abs(sum - 100) <= 0.01, remaining = Math.max(0, Math.round((100 - sum) * 100) / 100);

@@ -76,3 +76,8 @@ export function moveFocusTarget(to: number, length: number, dir: 'up' | 'down'):
   if (dir === 'up') return to === 0 && length > 1 ? 'down' : 'up';
   return to === length - 1 && length > 1 ? 'up' : 'down';
 }
+
+/** R5 polish: the "confirm that you reviewed…" error goes away as soon as the box is ticked; any other error stays. */
+export function afterConsent(error: string, consentError: string, ticked: boolean): string {
+  return ticked && error === consentError ? '' : error;
+}

@@ -99,10 +99,14 @@ export type FeeCheck = {status: 'none' | 'match' | 'partial' | 'under' | 'over';
  * Line totals are qty × unit_price when a unit price is set (M6); compared exactly in minor units.
  */
 export function feeCheck(s: Pick<Scope, 'fee' | 'currency' | 'items' | 'deliverables'>): FeeCheck {
+  // R5-04: called in render on whatever is typed, so it never throws. A line or fee too large to compute exactly
+  // counts as unpriced / no check here; the field itself shows the problem and the schema rejects it on save.
   const items = itemsOf(s), ccy = s.currency;
-  const lines = items.map(i => lineTotalMinor(i, ccy));
+  const lines = items.map(i => tryMinor(() => lineTotalMinor(i, ccy)));
   const priced = lines.filter((l): l is Minor => l != null);
-  const itemM = sumMinor(priced), diffM = toMinor(s.fee, ccy) - itemM;
+  const itemM = tryMinor(() => sumMinor(priced)), feeM = Number.isFinite(s.fee) ? tryMinor(() => toMinor(s.fee, ccy)) : null;
+  if (itemM == null || feeM == null) return {status: 'none', item_total: 0, priced: 0, unpriced: items.length, difference: 0, message: null};
+  const diffM = feeM - itemM;
   const item_total = fromMinor(itemM, ccy), difference = fromMinor(diffM, ccy);
   const base = {item_total, priced: priced.length, unpriced: items.length - priced.length, difference};
   const m = (n: number) => formatMoney(n, ccy);
@@ -111,6 +115,27 @@ export function feeCheck(s: Pick<Scope, 'fee' | 'currency' | 'items' | 'delivera
   if (diffM < 0) return {...base, status: 'over', message: `Item prices add up to ${m(item_total)}, which is ${m(-difference)} more than the fee of ${m(s.fee)}.`};
   if (base.unpriced) return {...base, status: 'partial', message: `Priced items add up to ${m(item_total)}; ${m(difference)} of the ${m(s.fee)} fee is not assigned to an item (${base.unpriced} unpriced).`};
   return {...base, status: 'under', message: `Item prices add up to ${m(item_total)}, ${m(difference)} less than the fee of ${m(s.fee)}.`};
+}
+
+const tryMinor = (f: () => Minor | null): Minor | null => { try { return f(); } catch { return null; } };
+
+/**
+ * R5-04: a copy of a draft the live preview can always render. A typed fee or item price that is not a number, or
+ * too large to compute exactly in minor units, is left out (fee 0, item unpriced) instead of throwing in render;
+ * the editor field keeps the typed value and shows its inline error. Unchanged values pass through as they are.
+ */
+export function computable<T extends Terms & Pick<Scope, 'items'>>(s: T): T {
+  const ccy = ccyOf(s);
+  const items = s.items?.map(i => {
+    const ok = (i.unit_price == null || Number.isFinite(i.unit_price)) && (i.price == null || Number.isFinite(i.price)) && Number.isFinite(i.qty);
+    if (ok && tryMinor(() => lineTotalMinor(i, ccy) ?? 0) != null) return i;
+    const {unit_price: _drop, ...rest} = i; void _drop;
+    return {...rest, price: null};
+  });
+  const pct = (v: number | undefined) => (v == null || (Number.isFinite(v) && v >= 0 && v <= 100) ? v : 0);
+  const terms = {tax_pct: pct(s.tax_pct), deposit_pct: pct(s.deposit_pct)};
+  const fee = Number.isFinite(s.fee) && tryMinor(() => totalsMinor({...s, ...terms}).total) != null ? s.fee : 0;
+  return {...s, ...terms, fee, ...(items ? {items} : {})};
 }
 
 export type ScheduleLine = {id: string; title: string; pct: number; due: string; amount: number};
@@ -156,3 +181,35 @@ export function coDisplay(s: Terms & {currency: string}, fee_delta: number): {de
 
 /** Decimals allowed for amounts in `currency` (re-exported for the editor's number inputs). */
 export const decimalsFor = exponentOf;
+
+/** R5 polish: the `step` of an amount input in `currency`: "1" for yen, "0.01" for rupees, "0.001" for dinars. */
+export function amountStep(currency: string): string {
+  const e = exponentOf(currency);
+  return e ? (1 / 10 ** e).toFixed(e) : '1';
+}
+
+/** R5 polish: a line total ÷ qty as a price each, rounded to the currency's minor unit (not always 2 decimals). */
+export function unitFromLine(line: number, qty: number, currency: string): number | null {
+  const m = tryMinor(() => toMinor(line, currency));
+  return m == null ? null : fromMinor(Math.round(m / Math.max(1, qty)), currency);
+}
+
+export type CoFee = {fee: number; following: boolean; items_total: number; priced: number; mismatch: boolean; with_tax: number | null; message: string | null};
+/**
+ * R5-02: the fee of a change order drafted on /share. Until the owner types a fee it follows the items' line total
+ * (or the radar's suggestion while no item is priced); a typed fee is kept as typed. When the fee and the priced
+ * items' total differ (compared in minor units), `mismatch` is set and the message says both, so proposing needs an
+ * explicit confirmation. Never throws: an amount too large to compute is reported as a mismatch with no tax total.
+ */
+export function coFeeState(typed: string, items: Pick<Item, 'qty' | 'price' | 'unit_price'>[], currency: string, opts: {suggested?: number; tax_pct?: number; tax_label?: string} = {}): CoFee {
+  const t = itemsTotal(items, currency), following = typed.trim() === '';
+  const suggested = typeof opts.suggested === 'number' && Number.isFinite(opts.suggested) ? opts.suggested : 0;
+  const fee = following ? (t.priced ? t.total : suggested) : Number(typed);
+  const feeM = Number.isFinite(fee) ? tryMinor(() => toMinor(fee, currency)) : null, itemM = tryMinor(() => toMinor(t.total, currency));
+  const mismatch = t.priced > 0 && (feeM == null || feeM !== itemM);
+  const with_tax = feeM == null ? null : tryMinor(() => totalsMinor({fee, currency, tax_pct: opts.tax_pct ?? 0, tax_label: opts.tax_label ?? 'Tax', deposit_pct: 0}).total);
+  const m = (n: number) => formatMoney(n, currency);
+  const message = !mismatch ? null : feeM == null ? 'The fee change is not a valid amount.'
+    : `The fee change (${m(fee)}) is not the total of the items (${m(t.total)}${t.unpriced ? `; ${t.unpriced} unpriced` : ''}).`;
+  return {fee, following, items_total: t.total, priced: t.priced, mismatch, with_tax: with_tax == null ? null : fromMinor(with_tax, currency), message};
+}

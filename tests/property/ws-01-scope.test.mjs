@@ -25,7 +25,7 @@ test('M5 regression: fee 100.0049 INR → "Use at most 2 decimals"; JPY fee 10.5
   // Item prices, unit prices and a money revision bank follow the same rule, with field paths.
   const items = [{id: 'i1', title: 'Pages', qty: 2, unit: '', price: 10.555, acceptance: ''}, {id: 'i2', title: 'Posts', qty: 3, unit: '', price: null, acceptance: '', unit_price: 5.001}];
   const r2 = S.scopeSchema.safeParse({...base, deliverables: '', items, revision_bank: {unit: 'money', amount: 50.123}});
-  assert.deepEqual(issues(r2).map(i => [i.key, i.label]), [['items.0.price', 'Item 1 price'], ['items.1.unit_price', 'Item 2 unit price'], ['revision_bank.amount', 'Revision bank amount']]);
+  assert.deepEqual(issues(r2).map(i => [i.key, i.label]), [['items.0.price', 'Item 1 price'], ['items.1.unit_price', 'Item 2 price each'], ['revision_bank.amount', 'Revision bank amount']]);
 });
 
 // @covers M5

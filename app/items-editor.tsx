@@ -71,7 +71,12 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
  * line total divides exactly by the qty, so switching never changes what the client pays.
  */
 function PriceField({item, name, currency, perUnit, onLine, onUnit, onMode}: {item: Item; name: string; currency: string; perUnit: boolean; onLine: (price: number | null) => void; onUnit: (unit: number | null) => void; onMode: (perUnit: boolean) => void}) {
-  const value = perUnit ? item.unit_price : item.price, what = perUnit ? 'Unit price' : 'Price';
+  const value = perUnit ? item.unit_price : item.price, what = perUnit ? 'Price each' : 'Price';
+  // R5-04: the field keeps exactly what was typed ("1e400" stays "1e400" with its inline error); the item gets the
+  // parsed number, and nothing that renders it throws (computable / feeCheck / itemsTotal never throw).
+  const [raw, setRaw] = useState(value == null ? '' : String(value)), [seen, setSeen] = useState(value);
+  const parse = (r: string) => (r === '' ? null : num(r, 0));
+  if (!Object.is(value, seen)) { setSeen(value); if (!Object.is(parse(raw), value ?? null)) setRaw(value == null ? '' : String(value)); }
   const problem = amountProblem(value, currency, what), id = errorId((perUnit ? 'unit_price-' : 'price-') + item.id), hint = errorId('price-mode-' + item.id);
   let line: number | null = null;
   try { line = lineTotal(item, currency); } catch { /* shown as a field problem on save */ }
@@ -80,11 +85,11 @@ function PriceField({item, name, currency, perUnit, onLine, onUnit, onMode}: {it
   return (
     <div className="price-cell">
       <label>{perUnit ? `Price each (${currency})` : `Price (${currency})`}
-        <input type="number" min={0} step="0.01" placeholder="optional" value={value ?? ''} aria-invalid={!!problem} aria-describedby={describedBy(!!problem && id, !!note && hint)}
-          onChange={e => { const v = e.target.value === '' ? null : num(e.target.value, 0); if (perUnit) onUnit(v); else onLine(v); }} />
+        <input type="number" min={0} step="0.01" placeholder="optional" value={raw} aria-invalid={!!problem} aria-describedby={describedBy(!!problem && id, !!note && hint)}
+          onChange={e => { setRaw(e.target.value); const v = parse(e.target.value); setSeen(v); if (perUnit) onUnit(v); else onLine(v); }} />
       </label>
       {problem && <span id={id} className="error-text">{problem}</span>}
-      {(note || perUnit || canPerUnit) && <span className="fine block price-mode">
+      {(note || perUnit || canPerUnit) && <span className="fine price-mode">
         {note && <span id={hint}>{note}</span>}
         {perUnit ? <button type="button" className="link-button" aria-label={`Enter a line total for ${name}`} onClick={() => onMode(false)}>Enter a line total</button>
           : canPerUnit ? <button type="button" className="link-button" aria-label={`Price ${name} each`} onClick={() => onMode(true)}>Price each</button> : null}

@@ -95,7 +95,7 @@ export default function PaymentSettings({showInbox = true}: PaymentSettingsProps
       <form className={styles.row} onSubmit={e => { e.preventDefault(); void act(() => call('/api/payment-accounts', send('POST', {kind: 'stripe_keys', secret_key: st.secret_key, include_inr: st.include_inr, ...(st.webhook_secret ? {webhook_secret: st.webhook_secret} : {})})), 'Stripe connected. Add the webhook URL shown above in your Stripe dashboard.'); }}>
         <label>Secret or restricted key<input name="secret_key" type="password" value={st.secret_key} onChange={e => setSt({...st, secret_key: e.target.value})} placeholder="rk_live_…" autoComplete="off" required/></label>
         <label>Webhook signing secret<input name="stripe_webhook_secret" type="password" value={st.webhook_secret} onChange={e => setSt({...st, webhook_secret: e.target.value})} placeholder="whsec_…" autoComplete="off"/></label>
-        <label><span><input type="checkbox" checked={st.include_inr} onChange={e => setSt({...st, include_inr: e.target.checked})}/> Also take INR</span></label>
+        <label className="check-row">{/* R5: box beside its text */}<input type="checkbox" checked={st.include_inr} onChange={e => setSt({...st, include_inr: e.target.checked})}/><span>Also take INR</span></label>
         <button type="submit" className="secondary">Connect Stripe</button>
       </form>
       <p className={styles.fine}>For clients paying in other currencies. Stripe is invite-only for new Indian accounts.</p>

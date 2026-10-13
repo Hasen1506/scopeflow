@@ -21,7 +21,7 @@ export function WhatsAppSettings() {
       : step === 'idle'
         ? <form onSubmit={e => { e.preventDefault(); void run(async () => { await api('/api/whatsapp/link', post({phone: phone.trim(), consent: true})); setStep('code'); setMsg('We sent a 6-digit code to that number on WhatsApp.'); }); }}>
             <label>Your WhatsApp number<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+919876543210" inputMode="tel" required /></label>
-            <label className="fine"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} required /> {s.consent}</label>
+            <label className="check-row fine">{/* R5: box beside its text */}<input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} required /><span>{s.consent}</span></label>
             <button className="secondary" disabled={busy || !consent}>Send code</button>
           </form>
         : <form onSubmit={e => { e.preventDefault(); void run(async () => { await api('/api/whatsapp/link', post({phone: phone.trim(), code: code.trim()})); setStep('idle'); await load(); }); }}>
