@@ -54,9 +54,11 @@ test('ux-r3a: picking a template keeps the typed name and client; a kept draft d
 
   // The kept draft is still offered, and reopening it and leaving raises no leave-page warning.
   await page.getByRole('tab', {name: /Projects/}).click();
-  await page.locator('.unsaved-card').filter({hasText: 'Harbour rebrand'}).getByRole('button', {name: 'Continue draft'}).click();
+  const card = page.locator('.unsaved-card').filter({hasText: 'Harbour rebrand'});
+  await expect(card).toContainText('kept with your account');
+  await card.getByRole('button', {name: 'Continue draft'}).click();
   await expect(page.getByLabel('Project name')).toHaveValue('Harbour rebrand');
-  await expect(page.getByRole('status').filter({hasText: 'Draft kept with your account'})).toBeVisible();
+  await expect(page.getByLabel('Client', {exact: true})).toHaveValue('Harbour Dental');
   await page.close({runBeforeUnload: true});
   expect(dialogs.filter(d => d.startsWith('beforeunload'))).toEqual([]);
 });
