@@ -260,7 +260,8 @@ eq(co2.value.seq, 2);
   const raw = JSON.stringify({event: 'payment.captured', payload: {payment: {entity: {id: 'pay_' + randomUUID().slice(0, 10), order_id, amount: 3000000, currency: 'INR', status: 'captured'}}}});
   const hook = await fetch(base + '/api/payments/razorpay/webhook', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Razorpay-Signature': createHmac('sha256', SECRET).update(raw).digest('hex'), 'X-Razorpay-Event-Id': 'evt_' + randomUUID().slice(0, 8)}, body: raw});
   eq(hook.status, 200);
-  eq(await hook.json(), {recorded: true, ledger: true, seq: 201});
+  // integration: WS-04 adds outcome/excess_minor to the webhook reply; this test only checks the capture lands past the cap
+  const hj = await hook.json(); eq({recorded: hj.recorded, ledger: hj.ledger, seq: hj.seq}, {recorded: true, ledger: true, seq: 201});
   // Owner-recorded money is exempt from the cap too.
   status(await entry(owner, C.ledger, 'tds_credit', {amount_minor: 250000, currency: 'INR', credited: today, section: '194J(b)', certificate: '', note: ''}), 201, 'TDS credit at cap');
   const v = (await call(C.ledger, 'GET', undefined, {auth: owner})).value;

@@ -88,3 +88,4 @@ CI on 92f093b failed 13 e2e tests. Every one passed on its own WS branch, so eac
 - Round 7: live scenario 10 checks deposit_due after approval; overview has always reported it only for approved scopes.
 - Round 8: contact-change writes the old-address notice to the dev mail log in dev mode even when the WS-06 router reports delivery.
 - Round 9: tests/ws-03-invoicing.mjs uses the checksum-valid seller GSTIN 33ABCDE1234F1Z7.
+- Round 10: ws-05 ledger cap test compares only recorded/ledger/seq of the Razorpay webhook reply (WS-04 adds outcome and excess_minor).
