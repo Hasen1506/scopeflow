@@ -2,6 +2,7 @@
 import {useEffect, useState} from 'react';
 import {toast} from 'sonner';
 import {api} from './ui';
+import {hexColorProblem} from '@/lib/editor';
 import {contrastRatio, parseColor} from '@/lib/theme';
 
 // Client review pages follow the visitor's scheme: the light and dark page backgrounds from app/globals.css.
@@ -36,7 +37,9 @@ export function BrandSettings() {
     reader.readAsDataURL(file);
   }
   async function save(e: React.FormEvent) {
-    e.preventDefault(); if (!brand) return; setBusy(true); setError('');
+    e.preventDefault(); if (!brand) return;
+    const bad = hexColorProblem(brand.brand_color); if (bad) { setError('Accent colour: ' + bad); return; }
+    setBusy(true); setError('');
     try {
       const r = await api('/api/profile/brand', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({brand_color: brand.brand_color, reply_to: brand.reply_to, ...(logoChanged ? {logo: brand.logo} : {})})});
       setBrand(r.brand); setLogoChanged(false); toast.success('Branding saved. Your review pages, PDFs and emails use it from now on.');
@@ -49,7 +52,8 @@ export function BrandSettings() {
       <form className="ledger-form" aria-label="Branding" onSubmit={save}>
         <div className="two-col">
           <label>Accent colour
-            <span className="color-row"><input type="color" aria-label="Pick the accent colour" value={brand.brand_color || '#1f6feb'} onChange={e => setBrand({...brand, brand_color: e.target.value})} /><input maxLength={7} placeholder="#1f6feb" value={brand.brand_color} onChange={e => setBrand({...brand, brand_color: e.target.value.trim()})} /></span>{shadeNote(brand.brand_color) && <span className="fine block" role="status">{shadeNote(brand.brand_color)}</span>}
+            {/* UX-C40: no colour saved shows a neutral, "Not set" swatch, and the hex field is checked as typed. */}
+            <span className="color-row"><input type="color" aria-label="Pick the accent colour" className={brand.brand_color ? undefined : 'unset'} value={hexColorProblem(brand.brand_color) || !brand.brand_color ? '#888888' : brand.brand_color} onChange={e => setBrand({...brand, brand_color: e.target.value})} /><input maxLength={7} placeholder="Not set" aria-label="Accent colour (hex)" aria-invalid={!!hexColorProblem(brand.brand_color)} aria-describedby={hexColorProblem(brand.brand_color) ? 'brand-hex-err' : undefined} value={brand.brand_color} onChange={e => setBrand({...brand, brand_color: e.target.value.trim()})} />{!brand.brand_color && <span className="quiet">Not set</span>}</span>{hexColorProblem(brand.brand_color) ? <span id="brand-hex-err" className="error-text">{hexColorProblem(brand.brand_color)}</span> : shadeNote(brand.brand_color) && <span className="fine block" role="status">{shadeNote(brand.brand_color)}</span>}
           </label>
           <label>Reply-to address <span className="quiet">· optional</span><input type="email" autoComplete="email" maxLength={254} placeholder="you@yourstudio.com" value={brand.reply_to} onChange={e => setBrand({...brand, reply_to: e.target.value})} /><span className="fine block">Client replies to Scopeflow emails go here. Emails are sent as “Your business via Scopeflow”.</span></label>
         </div>

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {useCallback, useEffect, useState} from 'react';
 import {toast} from 'sonner';
 import {Copy, GitCompare, History, Link2, Tag} from 'lucide-react';
-import {Header, api, post} from '../ui';
+import {Header, Skeleton, api, post} from '../ui';
 import {formatMoney} from '@/lib/scope';
 import {filterTemplates, revisionDiff, type RevisionView, type TemplateView} from '@/lib/template-store';
 import {MODES, type Mode} from '@/lib/mode-core'; // integration: client page uses WS-08's pure module (lib/mode.ts reads the database)
@@ -42,6 +42,8 @@ export default function Templates() {
     <div className="page-heading"><div><p className="eyebrow">TEMPLATES</p><h1>Templates</h1></div></div>
     {error && <p className="error" role="alert">{error}</p>}
     <label className="section-gap">Search templates<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, tag or trade" /></label>
+    {/* UX-C23: while the library loads, show that it is loading instead of an empty Starters list */}
+    {list === null && !error && <Skeleton cards={3} lines={1} label="Loading templates…" />}
     {signedIn === false && <p className="muted-box">Sign in to keep your own templates. <Link className="help-link" href="/auth/sign-in?return_to=%2Ftemplates">Sign in</Link></p>}
     {signedIn && <section className="editor" aria-labelledby="your-templates">
       <h2 id="your-templates">Your templates</h2>
@@ -68,12 +70,12 @@ export default function Templates() {
       </li>)}</ul>
       <div className="section-gap"><h2>Add a shared template</h2><form className="tag-row" onSubmit={e => { e.preventDefault(); void importShared(); }}><label>Share link<input value={importLink} onChange={e => setImportLink(e.target.value)} placeholder="https://…/templates/shared/…" /></label><button className="primary" disabled={busy || !importLink.trim()}>Add to my templates</button></form></div>
     </section>}
-    <section className="editor section-gap" aria-labelledby="starter-templates">
+    {list !== null && <section className="editor section-gap" aria-labelledby="starter-templates">
       <h2 id="starter-templates">Starters and vertical packs</h2>
       <div className="actions" role="group" aria-label="Suggested for">{MODES.map(m => <button key={m} className={mode === m ? 'primary' : 'secondary'} aria-pressed={mode === m} onClick={() => setMode(m)}>{MODE_LABEL[m]}</button>)}</div>
       <p className="fine">Every starter works in every mode; the mode only puts its suggestions first.</p>
       {packs.length > 0 && <><h3 className="section-gap">Vertical packs</h3><ul className="receipt-list template-admin">{packs.map(starterCard)}</ul></>}
       {general.length > 0 && <><h3 className="section-gap">General starters</h3><ul className="receipt-list template-admin">{general.map(starterCard)}</ul></>}
-    </section>
+    </section>}
   </main></>;
 }

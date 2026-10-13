@@ -101,3 +101,33 @@ test('UX-C46: ledger and invoice forms take focus when they open and give it bac
   assert.ok(invoice.includes('restoreFocus(opener.current'));
   assert.match(a11y.FIRST_FIELD_SELECTOR, /input:not\(\[type=hidden\]\)/);
 });
+
+const {hexColorProblem} = await import('../../lib/editor.ts');
+const css = src('app/globals.css').replace(/\/\*[\s\S]*?\*\//g, '');
+
+test('UX-C40: the brand colour is checked as typed with the server rule (empty = not set)', () => {
+  assert.equal(hexColorProblem(''), null);
+  assert.equal(hexColorProblem('#1F6feb'), null);
+  for (const bad of ['blue', '#12', '1f6feb', '#1f6febb', '#ggg000']) assert.ok(hexColorProblem(bad), bad);
+  fc.assert(fc.property(fc.string({maxLength: 9}), v => assert.equal(hexColorProblem(v) === null, v.trim() === '' || /^#[0-9a-fA-F]{6}$/.test(v.trim()))));
+});
+
+test('small UX items: CSS guards (C12 consequence, C17 archived, C48 targets, C51 preview, C54 table, C58 overlay)', () => {
+  assert.match(css, /\.consequence\{[^}]*border-left:3px solid var\(--warn\)/);
+  assert.match(css, /\.stage-archived\{[^}]*dashed/);
+  assert.match(css, /@media \(max-width:760px\)\{\s*\.icon\{width:44px;height:44px\}/);
+  assert.match(css, /\.preview-col\{max-height:calc\(100vh - 40px\);overflow:auto/);
+  assert.match(css, /\.table-scroll\{overflow-x:auto/);
+  assert.match(css, /\[data-slot=dialog-overlay\][^{]*\{background:rgba\(0,0,0,\.7\)/);
+});
+
+test('small UX items: source guards (C25, C29, C32, C33, C47, C63, C65)', () => {
+  const ledger = src('app/ledger-panel.tsx'), shell = src('app/workspace/shell.tsx'), editor = src('app/workspace/editor.tsx');
+  assert.ok(ledger.includes('Nothing recorded yet.'), 'C25 empty ledger');
+  assert.ok(/<meter aria-label="Revision rounds used"/.test(ledger), 'C47 meter name');
+  assert.ok(src('app/scope-check.tsx').includes("setTimeout(() => setCopied('idle')"), 'C29 copy resets');
+  assert.ok(!editor.includes('Import Muse draft'), 'C32 no Muse jargon in the save bar');
+  assert.ok(shell.includes("Projects ({cards.filter(c=>c.stage!=='archived').length})"), 'C33 non-archived count');
+  assert.ok(/<button className="secondary" disabled=\{busy\} onClick=\{\(\)=>\{setProjectAction\(null\);setDeleteText\(''\);\}\}>Cancel<\/button><button className=\{shownAction==='delete'/.test(shell), 'C63 cancel first');
+  assert.ok(src('app/workspace/approval.tsx').includes('refreshDecision()'), 'C65 light refresh');
+});

@@ -174,3 +174,10 @@ export function validationBanner(fields: Record<string, string>) {
   const names = [...new Set(Object.keys(fields).map(f => FIELD_LABELS[f] ?? f))];
   return VALIDATION_BANNER + names.join(', ') + '.';
 }
+
+/** UX-C40: the brand colour field, checked as it is typed with the server's own rule (empty means "not set"). */
+export function hexColorProblem(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? null : 'Use a six-digit hex colour such as #1f6feb, or leave it empty.';
+}
