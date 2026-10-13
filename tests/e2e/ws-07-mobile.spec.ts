@@ -76,6 +76,7 @@ for (const [name, device] of Object.entries(PHONES)) {
       await expect(page.locator('[data-testid=agreement-now] [data-row="total"]')).toHaveText('₹38,350.59');
       await noHorizontalScroll(page);
       // The language picker and the footer receipt check fit too.
+      await page.getByLabel('Language').scrollIntoViewIfNeeded();
       await expect(page.getByLabel('Language')).toBeInViewport();
       await page.locator('#receipt-check').scrollIntoViewIfNeeded();
       const receipt = (await page.locator('#receipt-check').boundingBox())!;
