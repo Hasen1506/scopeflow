@@ -49,7 +49,7 @@ Your name is recorded as entered. This link does not check who you are. Approvin
 
 What this page records
 
-When you approve, request changes or decide a change order, we record your name, the time, your IP address and your browser to evidence the decision. Your IP address and browser details are kept while the creator keeps this project, unless they set a shorter period. Privacy notice
+When you approve, request changes or decide a change order, we record your name, the time, your IP address and your browser to evidence the decision. Your IP address and browser details are kept for 180 days, then removed; the decision itself stays on the record. Privacy notice
 
 Words on this page
 Print this page

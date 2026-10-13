@@ -155,7 +155,7 @@ test('LT-13: the client page shows no BETA badge and no jargon; copy snapshot', 
   // A missing snapshot is written locally (first run) but fails in CI, so CI can never pass without a committed golden.
   if (!existsSync(GOLDEN) && process.env.CI && process.env.UPDATE_GOLDEN !== '1') throw new Error(`missing ${GOLDEN.pathname}: run this test locally once (or with UPDATE_GOLDEN=1) and commit the file.`);
   if (process.env.UPDATE_GOLDEN === '1' || !existsSync(GOLDEN)) writeFileSync(GOLDEN, copy);
-  expect(copy, `client copy changed; rerun with UPDATE_GOLDEN=1 only if intended GOLDEN_B64=${Buffer.from(copy).toString('base64')}`) /* integration: TEMP golden capture, removed once the golden is committed */.toBe(readFileSync(GOLDEN, 'utf8'));
+  expect(copy, 'client copy changed; rerun with UPDATE_GOLDEN=1 only if intended').toBe(readFileSync(GOLDEN, 'utf8'));
   await context.close(); await owner.context.close();
 });
 

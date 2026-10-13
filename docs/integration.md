@@ -42,3 +42,38 @@ WS-01, WS-10 and WS-02 merged without conflicts.
 - `node --test tests/property tests/golden tests/differential`: 374 tests, all pass after the fix above.
 - eslint is clean on the changed files.
 - `next build`, e2e and server suites were not run locally. GitHub Actions CI on the draft PR verifies them.
+
+## Step 2: e2e fixes on the combined branch
+
+CI on 92f093b failed 13 e2e tests. Every one passed on its own WS branch, so each was caused by combining branches.
+
+- **Client page change-order cards (WS-05 × WS-07).** WS-05 shipped `CoCard`. On WS-07's client page it was mounted through
+  `SlotOr`, which renders the page's own card first and then swaps in CoCard after the first paint. That swap detached
+  the form under the test ("element was detached"). CoCard also has none of the page's contracts: no `#co-N.change-order`
+  anchors, no `co-impact` lines (M7), no translations, and lowercase status ("approved", where tests expect "Approved").
+  `agreement.tsx` now renders the page's translated pending and decided cards directly. The pending card sends WS-05's
+  H17 proof: `acknowledged: true` and `co_sha256 = coSha256(co, scope.content)`, the same hash CoCard sends and the
+  route checks (409 `co_changed`). It sends the proof when the reviewer ticked the review box. A decline without the tick
+  goes in the pre-WS-05 shape, which the route still accepts.
+  **Left over:** under `SCOPEFLOW_CO_PROOF=strict`, an un-ticked decline would get a 400. Before turning strict on, make the
+  tick required for declines too, or merge CoCard's client mode into the page card. CoCard stays in use for the owner
+  workspace (WS-09).
+- **One seal chip (WS-02 × WS-07).** WS-02's `EvidenceBlock` showed its server chip ("Verified · sealed by ScopeFlow").
+  The agreement view showed the chip it verifies in the browser ("Verified · sealed by Scopeflow"). That made two chips,
+  and the tests failed on a strict-mode error. The page keeps WS-02's `EvidenceBlock` as its one evidence block: seal line,
+  the honest C5 line ("Approved by whoever held this link, code-verified to a masked address"), code-to, fingerprint and
+  verify link. When the agreement view is on the page, `EvidenceBlock` leaves out its chip (`sealShown`).
+- **Data notice (WS-07 × WS-08).** WS-08's `/api/account/notice/<token>` always serves `retention_days`, plus `data_notice`,
+  an English summary of the same facts. DataNotice already states those facts, translated, from `retention_days`, so
+  the client page no longer shows the endpoint's `data_notice` line. A `data_notice` in the review payload itself is
+  still shown. M32 now checks the honest "kept while the creator keeps this project" line with the notice endpoint
+  returning 404. It then checks the real WS-08 wiring ("kept for N days, then removed", shown once).
+- **Tests.** `ws-03-invoicing` now uses the valid checksum GSTIN `33ABCDE1234F1Z7` (WS-08 LT-17). `…F1Z5` fails the check
+  character. `ws-05-ledger` now expects the WS-07 §6.1 chip wording "Verified · sealed by Scopeflow" (it was "Verified in your browser").
+- **LT-13 golden.** `tests/golden/ws-07-client-copy.golden.txt` was regenerated from CI output. The new copy is intended:
+  the WS-08 retention period now appears in the notice, and the repeated server line is gone.
+- **Golden export (golden-flow).** The client's settle entry now carries the H17 proof (`acknowledged`, `co_sha256` and
+  `total_incl_tax_minor`), so `tests/e2e/__golden__/export.json` was updated to match. The hash is deterministic because
+  the golden flow seeds its ids.
+- **ws-all-live-scenarios #2.** This test was written in WS-09 and first ran once every WS was merged. Its CO-2 decline
+  now fills in a reason, which both the WS-07 card and CoCard require.

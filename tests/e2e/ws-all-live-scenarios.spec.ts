@@ -131,6 +131,7 @@ test('2: CO-1 +₹7,500.50 approved, CO-2 +₹1,000 declined → ₹38,350.59; C
   await expect(page.getByTestId('co-decided-1')).toContainText('Approved');
   const co2 = page.locator('#co-2.change-order');
   await co2.getByLabel('Your name').fill('TEST Client');
+  await co2.getByLabel(/Comment/).fill('Not this month'); // integration: a decline needs a reason (WS-05 CoCard and WS-07 card alike); this suite first ran with all WSs merged
   await co2.getByRole('button', {name: 'Decline'}).click();
   await expect(page.getByTestId('co-decided-2')).toContainText('Declined');
   await expect(agreementNow(page, 'fee')).toHaveText('₹32,500.50');
