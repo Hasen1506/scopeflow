@@ -2,7 +2,9 @@ import {z} from 'zod';
 import {limits} from '@/lib/plans';
 import {json, ownerAuth, body, safeOrigin, allowWrite, failure} from '@/lib/server';
 import {llmConfig, llmStatus, LlmError} from '@/lib/llm';
-import {BRIEF_MAX, BRIEF_MIN, draftFromBrief} from '@/lib/draft';
+import {BRIEF_MAX, BRIEF_MIN, draftFromBrief, modeDefaultCurrency, resolveDraftCurrency} from '@/lib/draft';
+import {currentMode} from '@/lib/mode';
+import '@/lib/readiness-warnings';
 import {currencies} from '@/lib/scope';
 import {ownerDefaults} from '@/lib/owner-defaults';
 const input = z.object({brief: z.string().trim().min(BRIEF_MIN).max(BRIEF_MAX), currency: z.enum(currencies).optional(), quality: z.enum(['fast', 'careful']).default('fast')}).strict();
@@ -22,9 +24,11 @@ export async function POST(request: Request) {
     const careful = parsed.data.quality === 'careful';
     if (!await allowWrite((careful ? 'ai-careful:' : 'ai:') + auth.user, careful ? limits().ai_careful_per_minute : limits().ai_per_minute)) return json({error: 'AI drafting limit reached. Try again in a minute.'}, 429);
     try {
-      const defaults = await ownerDefaults(auth.user);
-      const result = await draftFromBrief(parsed.data.brief, defaults.currency ?? parsed.data.currency ?? 'USD', {config: llmConfig(process.env, parsed.data.quality), defaults});
-      return json({draft: result.draft, lint: result.lint, provider: status.provider, model: careful ? status.careful_model : status.model, quality: parsed.data.quality, saved: false, owner_defaults: result.applied});
+      const [defaults, mode] = await Promise.all([ownerDefaults(auth.user), currentMode(auth.user)]);
+      // M11: request > owner default > mode default.
+      const currency = resolveDraftCurrency({request: parsed.data.currency, owner: defaults.currency, mode: modeDefaultCurrency(mode)});
+      const result = await draftFromBrief(parsed.data.brief, currency.currency, {config: llmConfig(process.env, parsed.data.quality), defaults, forceCurrency: currency.forced});
+      return json({draft: result.draft, lint: result.lint, provider: status.provider, model: careful ? status.careful_model : status.model, quality: parsed.data.quality, saved: false, owner_defaults: result.applied, currency_source: currency.source});
     } catch (e) {
       if (e instanceof LlmError) return json({error: e.message + ' Try again, or start from a template.', code: 'ai_failed'}, 502);
       if (e instanceof Error && e.message.startsWith('The draft did not match')) return json({error: 'The AI draft was not usable. Try a more specific brief.', code: 'ai_invalid'}, 502);

@@ -6,6 +6,9 @@ import {randomBytes, timingSafeEqual} from 'node:crypto';
 // SCOPEFLOW_INBOUND_SECRET as a bearer token or the basic-auth password. A forwarded client email
 // is matched to its project by the address, run through the radar and kept for the owner. Nothing
 // is sent to anyone and nothing is recorded on the ledger. Pure apart from the token generator.
+// WS-06 (L7): only the envelope recipient selects the project (never To/Cc), only senders on the
+// project's allow-list (client, cosigners, owner, released senders) reach the radar inbox, and mail
+// the provider marks as failing SPF/DKIM/DMARC is quarantined for the owner to release or dismiss.
 
 type Env = Record<string, string | undefined>;
 export function inboundConfig(env: Env = process.env) {
@@ -30,7 +33,8 @@ export function inboundAuthorized(header: string | null, secret: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export type InboundMail = {recipients: string[]; from: string; subject: string; text: string; messageId: string | null};
+export type AuthVerdicts = {spf: string | null; dkim: string | null; dmarc: string | null};
+export type InboundMail = {recipients: string[]; /** Envelope recipients only (RCPT TO), L7. */ envelope: string[]; from: string; subject: string; text: string; messageId: string | null; auth: AuthVerdicts};
 const str = (v: unknown) => typeof v === 'string' ? v : '';
 const addresses = (v: unknown): string[] => (Array.isArray(v) ? v : [v]).flatMap(x => typeof x === 'string' ? x.split(',') : x && typeof x === 'object' ? [str((x as {Email?: unknown; email?: unknown; address?: unknown}).Email ?? (x as {email?: unknown}).email ?? (x as {address?: unknown}).address)] : []).map(a => (a.match(/<([^<>]+)>/)?.[1] ?? a).trim().toLowerCase()).filter(a => a.includes('@'));
 
@@ -44,15 +48,56 @@ export function htmlText(html: string) {
 export function parseInbound(raw: unknown): InboundMail | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  const recipients = [...new Set([...addresses(r.ToFull ?? r.To ?? r.to), ...addresses(r.CcFull ?? r.Cc ?? r.cc), ...addresses(r.OriginalRecipient ?? r.envelope_to)])];
+  const envelopeRaw = r.OriginalRecipient ?? r.envelope_to ?? (r.envelope as {to?: unknown} | undefined)?.to ?? (r.receipt as {recipients?: unknown} | undefined)?.recipients ?? r.recipient;
+  const envelope = [...new Set(addresses(envelopeRaw))];
+  const recipients = [...new Set([...addresses(r.ToFull ?? r.To ?? r.to), ...addresses(r.CcFull ?? r.Cc ?? r.cc), ...envelope])];
   const text = str(r.TextBody ?? r.text).trim() || htmlText(str(r.HtmlBody ?? r.html));
   if (!recipients.length || !text) return null;
   const from = addresses(r.FromFull ?? r.From ?? r.from)[0] ?? '';
   const id = str(r.MessageID ?? r.message_id ?? r.messageId).trim();
-  return {recipients, from, subject: str(r.Subject ?? r.subject).replace(/[\r\n]+/g, ' ').trim().slice(0, 300), text, messageId: id ? id.slice(0, 200) : null};
+  return {recipients, envelope, from, subject: str(r.Subject ?? r.subject).replace(/[\r\n]+/g, ' ').trim().slice(0, 300), text, messageId: id ? id.slice(0, 200) : null, auth: authVerdicts(r)};
 }
 
-/** The project token from the first recipient at the inbound domain. */
+// ---- WS-06: L7 hardening ------------------------------------------------------------------------
+const verdict = (v: unknown) => { const m = /\b(pass|fail|softfail|neutral|none|temperror|permerror|policy)\b/i.exec(String(v ?? '')); return m ? m[1].toLowerCase() : null; };
+/**
+ * SPF/DKIM/DMARC verdicts from the inbound provider: Postmark's Headers (Received-SPF,
+ * Authentication-Results), SES receiving (receipt.spfVerdict/dkimVerdict/dmarcVerdict.status) or
+ * generic {spf, dkim, dmarc} fields. Null where the provider gave none.
+ */
+export function authVerdicts(r: Record<string, unknown>): AuthVerdicts {
+  const out: AuthVerdicts = {spf: verdict(r.spf), dkim: verdict(r.dkim), dmarc: verdict(r.dmarc)};
+  const receipt = r.receipt as Record<string, {status?: unknown}> | undefined;
+  if (receipt) { out.spf ??= verdict(receipt.spfVerdict?.status); out.dkim ??= verdict(receipt.dkimVerdict?.status); out.dmarc ??= verdict(receipt.dmarcVerdict?.status); }
+  const headers = Array.isArray(r.Headers) ? r.Headers as {Name?: unknown; Value?: unknown}[] : [];
+  for (const h of headers) {
+    const name = String(h?.Name ?? '').toLowerCase(), value = String(h?.Value ?? '');
+    if (name === 'received-spf') out.spf ??= verdict(value);
+    if (name === 'authentication-results' || name === 'arc-authentication-results') {
+      out.spf ??= verdict(/\bspf=(\w+)/i.exec(value)?.[1]);
+      out.dkim ??= verdict(/\bdkim=(\w+)/i.exec(value)?.[1]);
+      out.dmarc ??= verdict(/\bdmarc=(\w+)/i.exec(value)?.[1]);
+    }
+  }
+  return out;
+}
+/** "fail" when the provider says the sender is forged (SPF or DMARC fail without a DKIM pass, or a DKIM fail without an SPF pass). */
+export function authOutcome(a: AuthVerdicts): 'pass' | 'fail' | 'unknown' {
+  if (a.dmarc === 'fail' && a.dkim !== 'pass') return 'fail';
+  if ((a.spf === 'fail' || a.spf === 'softfail') && a.dkim !== 'pass') return 'fail';
+  if (a.dkim === 'fail' && a.spf !== 'pass') return 'fail';
+  return a.spf === 'pass' || a.dkim === 'pass' ? 'pass' : 'unknown';
+}
+/** Lower-cased addresses that may feed the radar inbox for a project. */
+export function allowList(...lists: (string | null | undefined | (string | null | undefined)[])[]) {
+  return [...new Set(lists.flat().map(a => (a ?? '').trim().toLowerCase()).filter(a => /^[^\s@]+@[^\s@]+$/.test(a)))];
+}
+/** Emails named in a cosigner list (WS-02 adds addresses to roles; older lists have none). */
+export function cosignerEmails(raw: string | null | undefined): string[] {
+  try { const list = JSON.parse(raw ?? '[]'); return Array.isArray(list) ? list.map(c => typeof c?.email === 'string' ? c.email : '').filter(Boolean) : []; } catch { return []; }
+}
+
+/** The project token from the first recipient at the inbound domain (pass the envelope recipients, L7). */
 export function tokenFrom(recipients: string[], domain: string) {
   for (const a of recipients) {
     const m = a.match(/^scope-([a-f0-9]{24})(?:\+[^@]*)?@(.+)$/);

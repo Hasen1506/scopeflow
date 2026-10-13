@@ -95,8 +95,9 @@ eq(sent.value.sent, false); eq(sent.value.configured, false); eq(sent.value.to, 
 assert.ok(sent.value.review_url.endsWith('/review/' + fresh.value.scope.token)); passed++;
 assert.ok(decodeURIComponent(sent.value.mailto).includes('/review/' + fresh.value.scope.token)); passed++;
 assert.ok(sent.value.mailto.startsWith('mailto:client%40example.test?')); passed++;
-const override = await call(S + '/send', 'POST', {version: 1, email: 'other.client@example.test'}); status(override, 200); eq(override.value.to, 'other.client@example.test');
-eq((await call(S)).value.project.client_email, 'other.client@example.test');
+// changed by WS-06 (M18): Send never rewrites the address on file; a different one is refused.
+const override = await call(S + '/send', 'POST', {version: 1, email: 'other.client@example.test'}); status(override, 409); eq(override.value.code, 'contact_mismatch');
+eq((await call(S)).value.project.client_email, 'client@example.test');
 status(await call(S + '/send', 'POST', {version: 1, email: 'nope'}), 400);
 status(await call(S + '/send', 'POST', {version: 1}, {headers: {Origin: 'https://untrusted.example'}}), 403);
 status(await call(P + '/send', 'POST', {version: 1}), 409); // already decided

@@ -152,7 +152,8 @@ test('logos: a branded invoice PDF embeds the logo (with its transparency) and d
 
 test('inbound: Postmark and generic payloads parse; the project token comes from the address', () => {
   const pm = inbound.parseInbound({FromFull: {Email: 'Owner@Studio.in'}, ToFull: [{Email: 'scope-0123456789abcdef01234567@in.example.com', Name: ''}], Subject: 'Fwd: one more thing\r\nBcc: x', TextBody: 'please also add a banner', MessageID: 'abc-1'});
-  assert.deepEqual(pm, {recipients: ['scope-0123456789abcdef01234567@in.example.com'], from: 'owner@studio.in', subject: 'Fwd: one more thing Bcc: x', text: 'please also add a banner', messageId: 'abc-1'});
+  // changed by WS-06 (L7): the parse also returns the envelope recipients and the SPF/DKIM/DMARC verdicts.
+  assert.deepEqual(pm, {recipients: ['scope-0123456789abcdef01234567@in.example.com'], envelope: [], from: 'owner@studio.in', subject: 'Fwd: one more thing Bcc: x', text: 'please also add a banner', messageId: 'abc-1', auth: {spf: null, dkim: null, dmarc: null}});
   const generic = inbound.parseInbound({from: 'A <a@b.co>', to: 'X <scope-0123456789abcdef01234567+fwd@in.example.com>, other@b.co', subject: 's', html: '<p>Hello<br>there &amp; you</p>'});
   assert.equal(generic.text, 'Hello\nthere & you');
   assert.equal(inbound.tokenFrom(generic.recipients, 'in.example.com'), '0123456789abcdef01234567');

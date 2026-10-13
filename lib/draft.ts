@@ -50,14 +50,31 @@ export function normalizeDraft(raw: unknown, currency: string): Scope {
   return parsed.data;
 }
 
-export async function draftFromBrief(brief: string, currency: string, options: {config?: LlmConfig | null; fetchImpl?: typeof fetch; today?: string; defaults?: OwnerDefaults} = {}) {
+/** The default currency a workspace mode implies (plan §7): consumer and India-based accounts use INR, others USD. */
+export function modeDefaultCurrency(mode: string | null | undefined, country?: string | null): string {
+  return mode === 'consumer' || country === 'IN' ? 'INR' : 'USD';
+}
+/**
+ * M11 (WS-06): the draft currency. An explicit request wins, then the owner's default, then the
+ * mode's default. `forced` says the draft must use it even if the brief names another currency.
+ */
+export function resolveDraftCurrency({request, owner, mode}: {request?: string | null; owner?: string | null; mode?: string | null}): {currency: string; forced: boolean; source: 'request' | 'owner_default' | 'mode_default'} {
+  const ok = (c: string | null | undefined): c is string => !!c && (currencies as readonly string[]).includes(c);
+  if (ok(request)) return {currency: request, forced: true, source: 'request'};
+  if (ok(owner)) return {currency: owner, forced: false, source: 'owner_default'};
+  return {currency: ok(mode) ? mode : 'USD', forced: false, source: 'mode_default'};
+}
+
+export async function draftFromBrief(brief: string, currency: string, options: {config?: LlmConfig | null; fetchImpl?: typeof fetch; today?: string; defaults?: OwnerDefaults; forceCurrency?: boolean} = {}) {
   const defaults = options.defaults ?? {};
   const prompt = draftPrompt(brief, currency, defaults);
   const raw = await completeJson(prompt, {config: options.config, fetchImpl: options.fetchImpl});
   // The owner's standard clauses and commercial defaults always apply, whatever the model returned;
-  // a currency stated in the brief wins over the default currency.
+  // a currency stated in the brief wins over the default currency (not over an explicit request).
   const {currency: _default, ...rest} = defaults;
-  const draft = scopeSchema.parse(applyOwnerDefaults(normalizeDraft(raw, currency), rest));
+  const normalized = normalizeDraft(raw, currency);
+  // An explicitly requested currency is final (M11); otherwise a currency stated in the brief wins.
+  const draft = scopeSchema.parse(applyOwnerDefaults(options.forceCurrency ? {...normalized, currency: currency as Scope['currency']} : normalized, rest));
   const applied = Object.entries(defaults).filter(([, v]) => v !== undefined && v !== '').map(([k]) => k);
   return {draft, applied, lint: lintScope(draft, options.today ?? new Date().toISOString().slice(0, 10))};
 }

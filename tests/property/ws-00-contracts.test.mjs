@@ -117,15 +117,15 @@ test('errors.ts: typed errors map to their status codes; anything else is left t
   assert.equal(E.toResponse('boom'), null);
 });
 
-test('notify.ts logs the event only and sends nothing; mode.ts is always freelancer', async () => {
-  const info = mock.method(console, 'info', () => {});
-  const fetchSpy = mock.method(globalThis, 'fetch', async () => { throw new Error('no network in Phase 0'); });
+// changed by WS-06: notify() now delivers (lib/notify-delivery.ts, loaded on first use; covered by
+// tests/ws-06-messaging.mjs against a database). Pure here: the event list, and an unknown event is
+// refused before anything is loaded, read or sent.
+test('notify.ts lists the events and refuses unknown ones without sending; mode.ts is always freelancer', async () => {
+  const fetchSpy = mock.method(globalThis, 'fetch', async () => { throw new Error('no network'); });
   try {
-    for (const event of NOTIFY_EVENTS) assert.deepEqual(await notify(event, {project_id: 'p1', to: 'client@example.test', data: {secret: 'x'}}), {event, delivered: false, channel: 'log'});
+    assert.deepEqual(await notify('not_an_event', {project_id: 'p1', to: 'client@example.test'}), {event: 'not_an_event', delivered: false, channel: 'log', status: 'skipped', reason: 'unknown_event'});
     assert.equal(fetchSpy.mock.callCount(), 0);
-    assert.equal(info.mock.callCount(), NOTIFY_EVENTS.length);
-    for (const call of info.mock.calls) assert.doesNotMatch(String(call.arguments[0]), /client@example|secret/);
-  } finally { info.mock.restore(); fetchSpy.mock.restore(); }
+  } finally { fetchSpy.mock.restore(); }
   assert.equal(NOTIFY_EVENTS.length, 8);
   assert.equal(await currentMode('any-owner'), 'freelancer');
   assert.deepEqual([...MODES], ['freelancer', 'agency', 'consumer', 'enterprise']);
@@ -134,7 +134,7 @@ test('notify.ts logs the event only and sends nothing; mode.ts is always freelan
 
 test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes) and WS-04's (payment routes); WS-03's fragment
+  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes) and WS-04's (payment routes); WS-03's fragment; WS-06's fragment
   for (const f of O.fragments) { assert.equal(typeof f.paths, 'object'); assert.equal(typeof f.schemas, 'object'); }
   const base = {'/b': 1, '/a': 2};
   // changed by WS-10: with filled fragments the base keys still come first, in their order.
@@ -153,8 +153,9 @@ test('slot placeholders: one file per slot, each names its owner and renders nul
   // changed by WS-05: co-card, retainer-counter and rate-card-picker are implemented (no longer null placeholders).
   // changed by WS-04: pay-block and payment-settings are implemented (no longer null placeholders).
   // changed by WS-03: tds-field, msmed-terms implemented (no longer null placeholders).
+  // changed by WS-06: whatsapp-share implemented (no longer null placeholders).
   // integration: union of the implemented slots from each merged workstream.
-  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker', 'pay-block', 'payment-settings', 'tds-field', 'msmed-terms']);
+  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker', 'pay-block', 'payment-settings', 'tds-field', 'msmed-terms', 'whatsapp-share']);
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);

@@ -148,7 +148,10 @@ const cookie = await fresh('brand');
 
 // ---- Email forwarding into the radar -------------------------------------------------------------
 {
-  const cookie = await fresh('inbound');
+  // changed by WS-06 (L7): forwards come from the owner's own sign-in address (on the project's
+  // allow-list) and name the project in the envelope recipient (OriginalRecipient), not To/Cc.
+  const ownerEmail = `ops-inbound-${randomUUID()}@example.test`;
+  const cookie = await signIn(base, ownerEmail);
   const s = await newScope(cookie);
   const P = `/api/scopes/${s.project_id}`;
   const empty = await call(P + '/inbound', {cookie});
@@ -158,17 +161,17 @@ const cookie = await fresh('brand');
   ok(/^scope-[0-9a-f]{24}@in\.scopeflow\.test$/.test(address), address);
   eq((await call(P, {method: 'PATCH', cookie, body: {inbound: 'on'}})).data.project.inbound_address, address, '"on" keeps an existing address');
   const post = (body, auth = 'Bearer ' + process.env.SCOPEFLOW_INBOUND_SECRET) => call('/api/inbound/email', {method: 'POST', body, headers: auth ? {Authorization: auth} : {}});
-  const mail = {FromFull: {Email: 'me@studio.in'}, ToFull: [{Email: address}], Subject: 'Fwd: hosting', TextBody: 'See below\n\n---------- Forwarded message ---------\nFrom: Ada <ada@acme.co>\nSubject: hosting\n\nCould you also set up website hosting on your server for us?', MessageID: 'msg-' + randomUUID()};
+  const mail = {FromFull: {Email: ownerEmail}, ToFull: [{Email: address}], OriginalRecipient: address, Subject: 'Fwd: hosting', TextBody: 'See below\n\n---------- Forwarded message ---------\nFrom: Ada <ada@acme.co>\nSubject: hosting\n\nCould you also set up website hosting on your server for us?', MessageID: 'msg-' + randomUUID()};
   eq((await post(mail, null)).status, 401);
   eq((await post(mail, 'Bearer wrong')).status, 401);
   eq((await post(mail, 'Basic ' + Buffer.from('postmark:' + process.env.SCOPEFLOW_INBOUND_SECRET).toString('base64'))).status, 201);
   eq((await post(mail)).data.duplicate, true, 'the same MessageID is stored once');
-  eq((await post({...mail, ToFull: [{Email: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test'}], MessageID: 'x-' + randomUUID()})).data, {accepted: false, reason: 'unknown_address'});
+  eq((await post({...mail, ToFull: [{Email: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test'}], OriginalRecipient: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test', MessageID: 'x-' + randomUUID()})).data, {accepted: false, reason: 'unknown_address'});
   eq((await post({to: address})).status, 400);
   const list = await call(P + '/inbound', {cookie});
   eq(list.data.messages.length, 1);
   const m = list.data.messages[0];
-  eq([m.sender, m.subject, m.body], ['me@studio.in', 'Fwd: hosting', 'Could you also set up website hosting on your server for us?']);
+  eq([m.sender, m.subject, m.body], [ownerEmail, 'Fwd: hosting', 'Could you also set up website hosting on your server for us?']);
   eq(m.radar.verdict, 'out_of_scope');
   eq(m.radar.citations[0].kind, 'exclusion');
   eq((await call(P + '/inbound', {method: 'PATCH', cookie, body: {message_id: m.id, status: 'dismissed'}})).status, 200);
