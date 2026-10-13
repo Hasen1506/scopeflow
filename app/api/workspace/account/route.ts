@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {db, json, ownerAuth, body, safeOrigin, allowWrite, failure} from '@/lib/server';
-import {validTimeZone} from '@/lib/time';
+import {canonicalZone, validTimeZone} from '@/lib/time';
 import {COUNTRIES} from '@/lib/profile';
 import {auditEvent} from '@/lib/billing';
 // LT-16/LT-04: the account's own time zone (new projects start in it) and country.
@@ -17,7 +17,7 @@ export async function PUT(request: Request) {
     const p = input.safeParse(raw);
     if (!p.success) return json({error: p.error.issues.map(i => i.message).join('; ')}, 400);
     const row = await db().prepare('INSERT INTO account_settings (owner,timezone,country,updated) VALUES (?,?,?,?) ON CONFLICT (owner) DO UPDATE SET timezone=coalesce(excluded.timezone,account_settings.timezone),country=coalesce(excluded.country,account_settings.country),updated=excluded.updated RETURNING timezone,country')
-      .bind(auth.user, p.data.timezone ?? null, p.data.country ?? null, new Date().toISOString()).first<{timezone: string | null; country: string | null}>();
+      .bind(auth.user, canonicalZone(p.data.timezone ?? null), p.data.country ?? null, new Date().toISOString()).first<{timezone: string | null; country: string | null}>();
     await auditEvent(auth.user, 'account.changed', p.data, auth.via);
     return json({timezone: row?.timezone ?? null, country: row?.country ?? null});
   } catch (e) { return failure(e); }

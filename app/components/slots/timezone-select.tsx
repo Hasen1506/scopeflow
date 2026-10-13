@@ -4,7 +4,7 @@
 // the account's zone (or the browser's) is the default, common zones come first, and typing
 // filters by any part of the name ("Kolk" → Asia/Kolkata, "india" → Asia/Kolkata).
 import {useId, useMemo, useRef, useState, type KeyboardEvent} from 'react';
-import {timeZones} from '@/lib/time';
+import {canonicalZone, timeZones} from '@/lib/time';
 import styles from '../timezone-select.module.css';
 
 export const COMMON_ZONES = ['Asia/Kolkata', 'UTC', 'Asia/Dubai', 'Asia/Singapore', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Australia/Sydney', 'Asia/Colombo', 'Asia/Dhaka', 'Asia/Kathmandu'] as const;
@@ -14,11 +14,13 @@ export function filterZones(all: readonly string[], query: string, limit = 60) {
   const q = query.trim().toLowerCase().replace(/\s+/g, '_');
   // Common zones are always offered, even when the runtime lists only a legacy alias (ICU may
   // list Asia/Calcutta instead of Asia/Kolkata); both names are valid IANA zones.
-  const ordered = [...COMMON_ZONES, ...all.filter(z => !(COMMON_ZONES as readonly string[]).includes(z))];
+  // #34: a legacy alias of a common zone (Asia/Calcutta) is not listed twice.
+  const ordered = [...COMMON_ZONES, ...all.filter(z => !(COMMON_ZONES as readonly string[]).includes(canonicalZone(z)))];
   const hit = (z: string) => !q || z.toLowerCase().includes(q) || (ALIASES[z] ?? '').toLowerCase().includes(q.replace(/_/g, ' '));
   return ordered.filter(hit).slice(0, limit);
 }
-const label = (z: string) => z.replace(/_/g, ' ');
+/** #34: shown under its canonical name (a stored "Asia/Calcutta" reads as Asia/Kolkata). */
+const label = (z: string) => canonicalZone(z).replace(/_/g, ' ');
 
 export type TimezoneSelectProps = {
   value: string; onChange: (zone: string) => void;
@@ -47,7 +49,7 @@ export default function TimezoneSelect({value, onChange, label: text = 'Time zon
       value={query ?? label(value)} placeholder="Search, e.g. Kolkata"
       onFocus={() => { setOpen(true); setActive(0); }} onChange={e => { setQuery(e.target.value); setOpen(true); setActive(0); }} onKeyDown={key}
       onBlur={() => { blurTimer.current = setTimeout(() => { setOpen(false); setQuery(null); }, 120); }}/>
-    <span id={hintId} className={styles.hint}>{accountZone && accountZone !== value ? `Your account’s zone is ${label(accountZone)}.` : 'Type to search; common zones are listed first.'}</span>
+    <span id={hintId} className={styles.hint}>{accountZone && canonicalZone(accountZone) !== canonicalZone(value) ? `Your account’s zone is ${label(accountZone)}.` : 'Type to search; common zones are listed first.'}</span>
     {open && <ul id={listId} role="listbox" aria-label={text} className={styles.list}>
       {options.length ? options.map((z, i) => <li key={z} id={`${listId}-${i}`} role="option" aria-selected={i === active} className={styles.option}
         onMouseDown={e => { e.preventDefault(); if (blurTimer.current) clearTimeout(blurTimer.current); choose(z); }}>{label(z)}</li>) : <li className={styles.group} role="option" aria-selected={false} aria-disabled="true">No matching time zone</li>}

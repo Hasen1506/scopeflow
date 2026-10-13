@@ -66,7 +66,16 @@ const job = () => { const r = spawnSync(process.execPath, ['scripts/redact-expir
   eq((await call('/api/profile', {method: 'PUT', cookie, body: profile})).status, 200);
   // LT-16: the account zone can be changed; an unknown zone is refused.
   eq((await call('/api/workspace/account', {method: 'PUT', cookie, body: {timezone: 'Mars/Base'}})).status, 400);
-  eq((await call('/api/workspace/account', {method: 'PUT', cookie, body: {timezone: 'Asia/Calcutta'}})).data.timezone, 'Asia/Calcutta');
+  // #34: legacy aliases are saved under their canonical name.
+  eq((await call('/api/workspace/account', {method: 'PUT', cookie, body: {timezone: 'Asia/Calcutta'}})).data.timezone, 'Asia/Kolkata');
+  // #17: an API-created project takes a zone named in the request, else the account's; a bad zone is refused.
+  const named = await call('/api/scopes', {method: 'POST', cookie, body: {...scope('Named zone'), timezone: 'Europe/London'}});
+  eq(named.status, 201, JSON.stringify(named.data));
+  eq((await one('SELECT timezone FROM scopeflow.projects WHERE id=$1', [named.data.scope.project_id])).timezone, 'Europe/London');
+  eq('timezone' in named.data.scope.content, false);
+  eq((await call('/api/scopes', {method: 'POST', cookie, body: {...scope('Bad zone'), timezone: 'Mars/Base'}})).status, 400);
+  const plain = await call('/api/scopes', {method: 'POST', cookie, body: scope('Account zone')});
+  eq((await one('SELECT timezone FROM scopeflow.projects WHERE id=$1', [plain.data.scope.project_id])).timezone, 'Asia/Kolkata');
 }
 
 // ---- SF-17: modes change defaults and ordering, never reachability ---------------------------------

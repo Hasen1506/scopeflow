@@ -116,7 +116,8 @@ export function chooseRoute(accounts: Pick<PaymentAccount, 'id' | 'kind' | 'stat
     : (operatorStripe(env) && (!operatorStripeCurrencies(env).length || operatorStripeCurrencies(env).includes(currency)) ? 'stripe' : operatorRazorpay(env) ? 'razorpay' : null);
   if (opProvider) {
     if (!operatorCollectionAllowed(env)) {
-      warnings.push('The operator’s own payment keys are refused for client payments in production (set up the freelancer’s own account).');
+      // #10: owner-facing words; the operator detail stays in the status code.
+      warnings.push('Client payments go to your own payment account. Connect one to take online payments.');
       return {upi, online: null, status: upi ? 'upi_only' : ownProblem ? 'misconfigured' : 'operator_refused', warnings};
     }
     const hook = opProvider === 'razorpay' ? env.RAZORPAY_WEBHOOK_SECRET?.trim() : env.STRIPE_WEBHOOK_SECRET?.trim();

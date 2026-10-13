@@ -101,3 +101,28 @@ test('accounts: drafts stay with the account that typed them, across sign-out an
   await expect.poll(() => page.evaluate(() => Object.keys(sessionStorage).filter(k => k.startsWith('scopeflow:draft')).length)).toBe(1);
   expect(await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('scopeflow:draft')))).toEqual([]);
 });
+
+// reaudit-visual #3 and #17: a wrong password shows the app's own words and clears the field, whether the
+// auth SDK returns or throws the 401; a new account takes the browser's time zone, so a project created
+// through the API starts there instead of UTC.
+test('accounts: wrong password is explained and cleared; the account keeps the browser zone for API projects', async ({browser, baseURL}) => {
+  const context = await browser.newContext({baseURL, timezoneId: 'Asia/Kolkata'});
+  const page = await context.newPage();
+  const C = {name: 'Account Gamma', email: `gamma-${stamp}@example.test`, password: 'Fictional-password-123'};
+  await signUp(page, C);
+  const me = await (await page.request.get('/api/me')).json();
+  expect(me.defaults.timezone).toBe('Asia/Kolkata');
+  const created = await page.request.post('/api/scopes', {headers: {Origin: baseURL!}, data: {title: 'TEST API zone ' + stamp, client: 'Kaveri Foods', deliverables: 'Packaging design', exclusions: '', fee: 1000, currency: 'INR', revisions: 1, due: '', notes: ''}});
+  expect(created.status()).toBe(201);
+  const {scope} = await created.json();
+  expect((await (await page.request.get('/api/scopes/' + scope.project_id)).json()).project.timezone).toBe('Asia/Kolkata');
+
+  await signOut(page);
+  await page.getByLabel('Email').fill(C.email);
+  await page.getByLabel('Password', {exact: true}).fill('Not-the-password-999');
+  await page.getByRole('button', {name: 'Sign in'}).click();
+  await expect(page.locator('.error[role=alert]')).toHaveText('That email and password don’t match. Check them and try again.');
+  await expect(page.getByLabel('Password', {exact: true})).toHaveValue('');
+  await expect(page.getByLabel('Email')).toHaveValue(C.email);
+  await context.close();
+});
