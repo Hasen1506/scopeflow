@@ -32,12 +32,12 @@
   --font-ui:var(--font-instrument),Arial,sans-serif;
   --fw-ui:var(--fw-3);
   --label-track:.16em;
-  --bg:#F4EEE1;--surface:#FBF8F1;--surface-2:#EFE7D6;--surface-3:#E7DDC8;
+  --bg:#F4EEE1;--surface:#FFFDF8;--surface-2:#EFE7D6;--surface-3:#E7DDC8;
   --ink:#1A2452;--ink-2:#46507A;--ink-3:#55607F;
   --accent:#1F3FA8;--accent-hover:#18338A;--on-accent:#FBF7EE;--accent-soft:#E2E6F4;
-  --rule:#DCD1BB;--rule-strong:#8C93AE;--rule-accent:#1F3FA8;
+  --rule:#D6CAB1;--rule-strong:#767E9C;--rule-accent:#1F3FA8;
   --paper:#FFFDF8;--paper-ink:#1A2452;--paper-ink-2:#4A5578;--paper-rule:#E1D8C5;--paper-accent:#1F3FA8;
-  --ok:#1E6A43;--ok-bg:#E1EFE4;--warn:#7A5410;--warn-bg:#F6E9C8;--bad:#A3201C;--bad-bg:#F8E1DC;--info-bg:#E4E7F3;
+  --ok:#1E6A43;--ok-bg:#DDEBE0;--warn:#7A5410;--warn-bg:#F3E6C5;--bad:#A3201C;--bad-bg:#F8E1DC;--info-bg:#E4E7F3;
   --band:#1F3FA8;--on-band:#F3EBD9;--on-band-2:#DCD3BE;--band-rule:rgba(243,235,217,.38);
   --focus:#1F3FA8;--focus-halo:rgba(31,63,168,.22);
   --shadow-1:0 1px 0 rgba(26,36,82,.04),0 1px 2px rgba(26,36,82,.06);
@@ -87,7 +87,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-3);opacity:1}
 input:hover:not(:disabled),textarea:hover:not(:disabled),select:hover:not(:disabled){border-color:var(--accent)}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 input:disabled,textarea:disabled,select:disabled{opacity:.6;cursor:not-allowed}
-input[readonly]{background:var(--surface-2)}
+input[readonly]{background:var(--surface-2);color:var(--ink)}
 textarea{resize:vertical;line-height:var(--lh-2)}
 input[type=checkbox],input[type=radio]{width:auto;accent-color:var(--accent)}
 label{display:block;font-family:var(--font-ui);font-size:var(--fs-2);font-weight:var(--fw-ui);margin:18px 0;color:var(--ink)}
@@ -246,7 +246,11 @@ label select{margin-top:7px}
 .paper-head .eyebrow{margin:0}
 .paper h2{font-family:var(--font-display);font-size:var(--fs-5);margin:26px 0 10px;line-height:var(--lh-5);overflow-wrap:anywhere}
 .paper .quiet{font-style:italic;font-family:var(--font-display);font-size:var(--fs-3)}
-.deliverable{display:flex;gap:12px;margin:14px 0;align-items:start}
+.deliverable{display:flex;gap:12px;margin:0;padding:var(--s3) 0;align-items:start;border-top:1px solid var(--paper-rule)}
+/* UX-C09: the work being agreed carries the weight on the document, not only the fee below it. */
+.deliverable>span:not(.item-price){min-width:0;overflow-wrap:anywhere}
+.deliverable>span>span:first-child{font-family:var(--font-display);font-size:var(--fs-4);line-height:var(--lh-4);font-weight:var(--fw-1);color:var(--paper-ink)}
+.paper .eyebrow.doc-making{color:var(--paper-ink);margin-bottom:var(--s2)}
 .deliverable svg{color:var(--paper-accent);flex-shrink:0;margin-top:4px}
 .item-qty{font-size:var(--fs-2);margin-left:6px}
 .item-accept-line{display:block;font-size:var(--fs-2)}
@@ -283,6 +287,18 @@ label select{margin-top:7px}
 .items legend{font-family:var(--font-ui);font-size:var(--fs-2);font-weight:var(--fw-ui);margin-bottom:8px;padding:0}
 .item-row{border:1px solid var(--rule);border-radius:var(--r);padding:12px;margin:10px 0;background:var(--surface-2);transition:border-color var(--dur-1) var(--ease),box-shadow var(--dur-2) var(--ease);animation:sf-fade-up var(--dur-3) var(--ease)}
 .item-row:focus-within{border-color:var(--rule-strong);box-shadow:var(--shadow-1)}
+/* Deliverables (UX-C07): the core of a scope, so it is the one highlighted block in the editor: an accent rule on the
+   left, a light accent tint, a display-type heading with a count, and rows on the card colour with a strong edge
+   and a visible number so each one reads as a separate thing. */
+.items.deliverables{border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface));border-radius:0 var(--r) var(--r) 0;padding:var(--s4) var(--s4) var(--s4) var(--s5);margin:var(--s5) 0}
+.items.deliverables>legend{float:left;width:100%;display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s1) var(--s3);margin:0 0 var(--s1);padding:0}
+.items.deliverables>legend+*{clear:both}
+.deliverables-title{font-family:var(--font-display);font-size:var(--fs-4);line-height:var(--lh-4);font-weight:var(--fw-1);color:var(--ink)}
+.deliverables-hint{flex-basis:100%;font-size:var(--fs-2);font-weight:var(--fw-1)}
+.count-chip{display:inline-flex;align-items:center;font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-ui);letter-spacing:.04em;color:var(--accent);background:var(--accent-soft);border-radius:var(--r-pill);padding:2px 9px}
+.deliverables .item-row{background:var(--surface);border-color:var(--rule-strong);margin:var(--s3) 0}
+.deliverables .item-row:focus-within{border-color:var(--accent)}
+.item-num{flex:0 0 auto;display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-ui);font-variant-numeric:tabular-nums}
 .item-main{display:flex;gap:8px;align-items:center}
 .item-tools{display:flex;gap:4px}
 .item-meta{display:grid;grid-template-columns:80px 1fr 1fr;gap:8px}
@@ -849,7 +865,7 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 :root[data-theme="a"]{
   color-scheme:dark;
   --label-track:.2em;
-  --bg:#1F3FA8;--surface:#1C3A9C;--surface-2:#1A3591;--surface-3:#24459F;
+  --bg:#1F3FA8;--surface:#1A3793;--surface-2:#152B77;--surface-3:#24459F;
   --ink:#F3EBD9;--ink-2:#E4DCC8;--ink-3:#DCD3BE;
   --accent:#F3EBD9;--accent-hover:#FFFFFF;--on-accent:#1A3591;--accent-soft:#2A4AAE;
   --rule:rgba(243,235,217,.32);--rule-strong:rgba(243,235,217,.72);--rule-accent:#F3EBD9;
@@ -861,18 +877,18 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
   --r-sm:2px;--r:2px;--r-lg:3px;--r-pill:2px;--btn-radius:2px;
   --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .02 0 0 0 0 .05 0 0 0 0 .2 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.3'/%3E%3C/svg%3E");
   --ticks:linear-gradient(var(--rule),var(--rule));
-  --card:#1C3A9C;--popover:#1A3591;--secondary:#1C3A9C;--muted:#1C3A9C;--accent-foreground:var(--ink);--radius:2px;
+  --card:#1A3793;--popover:#1A3591;--secondary:#1A3793;--muted:#1A3793;--accent-foreground:var(--ink);--radius:2px;
 }
 
 /* ---- Theme B dark: cream ink on night cobalt ------------------------------------------------ */
 :root[data-scheme="dark"]{
   color-scheme:dark;
-  --bg:#11152A;--surface:#181D36;--surface-2:#1F2542;--surface-3:#272E50;
+  --bg:#11152A;--surface:#1E233B;--surface-2:#2B314C;--surface-3:#363D5C;
   --ink:#EEE8DA;--ink-2:#C9CBDB;--ink-3:#B3B8CE;
   --accent:#9FB3F5;--accent-hover:#BCCBFA;--on-accent:#11152A;--accent-soft:#252F5C;
-  --rule:#2E3558;--rule-strong:#6B7398;--rule-accent:#9FB3F5;
+  --rule:#3A4266;--rule-strong:#7D86AB;--rule-accent:#9FB3F5;
   --paper:#1A1F38;--paper-ink:#EEE8DA;--paper-ink-2:#C9CBDB;--paper-rule:#30375A;--paper-accent:#9FB3F5;
-  --ok:#8FD6A8;--ok-bg:#16301F;--warn:#EBC77A;--warn-bg:#33290F;--bad:#FF9E94;--bad-bg:#3A1715;--info-bg:#1E2547;
+  --ok:#8FD6A8;--ok-bg:#1F3828;--warn:#EBC77A;--warn-bg:#3B3219;--bad:#FF9E94;--bad-bg:#4A2A28;--info-bg:#2A3151;
   --band:#18338A;--on-band:#F3EBD9;--on-band-2:#DCD3BE;--band-rule:rgba(243,235,217,.32);
   --focus:#9FB3F5;--focus-halo:rgba(159,179,245,.3);
   --shadow-1:0 1px 0 rgba(0,0,0,.2),0 1px 2px rgba(0,0,0,.3);
@@ -882,15 +898,15 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 
 /* ---- Theme A dark: Etched at night (deep cobalt, same cream rules) --------------------------- */
 :root[data-theme="a"][data-scheme="dark"]{
-  --bg:#0F1D55;--surface:#142466;--surface-2:#0B1747;--surface-3:#1B2C72;
+  --bg:#0F1D55;--surface:#192869;--surface-2:#0B1747;--surface-3:#22337A;
   --ink:#F3EBD9;--ink-2:#DDD4BF;--ink-3:#CFC6B0;
   --accent:#F3EBD9;--accent-hover:#FFFFFF;--on-accent:#0F1D55;--accent-soft:#1E3080;
   --rule:rgba(243,235,217,.28);--rule-strong:rgba(243,235,217,.66);--rule-accent:#F3EBD9;
   --paper:#1A2A6E;--paper-ink:#F3EBD9;--paper-ink-2:#DDD4BF;--paper-rule:rgba(243,235,217,.24);--paper-accent:#F3EBD9;
-  --ok:#BDEBCB;--ok-bg:#162A5E;--warn:#F6D58E;--warn-bg:#1D2A5E;--bad:#FFC2B8;--bad-bg:#24275C;--info-bg:#18286A;
+  --ok:#BDEBCB;--ok-bg:#273A6A;--warn:#F6D58E;--warn-bg:#2D3969;--bad:#FFC2B8;--bad-bg:#343768;--info-bg:#283774;
   --band:#0B1747;--on-band:#F3EBD9;--on-band-2:#DDD4BF;
   --focus:#F3EBD9;--focus-halo:rgba(243,235,217,.28);
-  --card:#142466;--popover:#0B1747;--secondary:#142466;--muted:#142466;--accent-foreground:var(--ink);
+  --card:#192869;--popover:#0B1747;--secondary:#192869;--muted:#192869;--accent-foreground:var(--ink);
 }
 
 /* Literal colours elsewhere in this sheet that assume the cream paper: re-pointed to tokens off theme B light. */
@@ -900,6 +916,18 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 :root[data-theme="a"] .tag,:root[data-theme="a"] .diff-badge,:root[data-theme="a"] .chain{border-color:currentColor;background:transparent}
 :root[data-theme="a"] .paper{box-shadow:0 30px 60px -30px rgba(4,12,48,.75);outline:1px solid var(--rule);outline-offset:6px}
 :root[data-theme="a"] .site-footer{background:var(--band);background-image:var(--grain);border-top:1px solid var(--rule)}
+
+/* Paper scope (UX-C01..C03, C55): the scope document and the landing vignette are paper, so any ink, accent or
+   status token used inside them takes its paper twin. In theme A light the paper is cream while the app inks are
+   cream too, so that one combination also re-points surfaces and status colours to cobalt-on-cream values.
+   Checked by tests/property/ws-09-theme.test.mjs (cross-family and usage tests). */
+.paper,.vc-doc,.vc-slip{--ink:var(--paper-ink);--ink-2:var(--paper-ink-2);--ink-3:var(--paper-ink-2);--accent:var(--paper-accent)}
+:root[data-theme="a"]:not([data-scheme="dark"]) .paper,:root[data-theme="a"]:not([data-scheme="dark"]) .vc-doc,:root[data-theme="a"]:not([data-scheme="dark"]) .vc-slip{
+  --on-accent:#F3EBD9;--accent-hover:#18338A;--accent-soft:#DDE1F0;
+  --surface:#F3EBD9;--surface-2:#E8DDC4;--surface-3:#E0D4B9;
+  --ok:#1E6A43;--ok-bg:#DCE8D6;--warn:#6E4B0C;--warn-bg:#F7ECCF;--bad:#A3201C;--bad-bg:#F5DBD3;--info-bg:#E1E3EE;
+  --rule:rgba(31,63,168,.28);--rule-strong:#6F7796;--focus:#1F3FA8;--focus-halo:rgba(31,63,168,.22);
+}
 
 /* ---- Theme switch (header) ----------------------------------------------------------------- */
 .theme-switch{display:inline-flex;align-items:center;border:1px solid var(--rule-strong);border-radius:var(--r-pill);padding:2px;gap:2px;font-family:var(--font-ui)}

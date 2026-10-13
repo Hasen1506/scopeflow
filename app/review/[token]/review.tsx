@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {readableOn, serverThemeSnapshot, subscribeTheme, themeSnapshot} from '@/lib/theme';
 import {sha256, paymentsOf, computeAgreement} from '@/lib/ledger';
 import {Scope, Version, formatMoney} from '@/lib/scope';
 import {api, post, Skeleton, type ApiError} from '@/app/ui';
@@ -96,6 +97,15 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   const scope = data?.scope ?? null, ledger = data?.ledger ?? null, deposit = data?.deposit ?? null, timeZone = data?.time_zone ?? 'UTC';
   const identity = data?.identity_check ?? null, cosign = data?.cosign ?? null, linkExpires = data?.link_expires ?? null, brand = data?.brand ?? null;
   const ro: ReadonlyInfo = readonlyOf(data);
+  // UX-C05: the owner's colour is drawn on this page's own background, which follows the visitor's light or dark
+  // scheme. Text gets a shade that reaches 4.5:1 there and the accent rule one that reaches 3:1 (same hue).
+  const themeKey = useSyncExternalStore(subscribeTheme, themeSnapshot, serverThemeSnapshot);
+  const brandInk = useMemo(() => {
+    const color = brand?.color ?? null;
+    if (!color || typeof document === 'undefined') return {text: brand?.text_color ?? null, rule: color};
+    const bg = themeKey && getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    return {text: readableOn(color, bg, 4.5) ?? brand?.text_color ?? null, rule: readableOn(color, bg, 3) ?? color};
+  }, [brand?.color, brand?.text_color, themeKey]);
   const replaced = !!scope && scope.version < scope.latest;
   const servedNewer = Number(data?.newer_version), newerVersion = newer?.version ?? (Number.isInteger(servedNewer) && servedNewer > (scope?.version ?? 0) ? servedNewer : null) ?? (replaced ? scope!.latest : null);
   const evidence = data?.evidence ?? null, linkExpiresText = data?.link_expires_text ?? null;
@@ -139,9 +149,9 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
 
   return <>
     <ClientHeader lang={lang} onLang={chooseLang} />
-    <main id="main" lang={lang} data-client-page="" className={'review-shell ' + styles.shell} aria-busy={!scope && !problem} style={brand?.color ? {['--brand-accent' as string]: brand.color} : undefined}>
+    <main id="main" lang={lang} data-client-page="" className={'review-shell ' + styles.shell} aria-busy={!scope && !problem} style={brandInk.rule ? {['--brand-accent' as string]: brandInk.rule} : undefined}>
       {/* eslint-disable-next-line @next/next/no-img-element -- the owner logo is small, fixed-height and content-addressed; next/image adds nothing */}
-      {brand && (brand.logo_url || brand.name) && <div className={'client-brand no-print' + (brand.color ? ' has-accent' : '')}>{brand.logo_url ? <img src={brand.logo_url} alt={brand.name || 'Logo'} height={40} /> : <strong style={brand.text_color ? {color: brand.text_color} : undefined}>{brand.name}</strong>}{brand.logo_url && brand.name && <span className="quiet">{brand.name}</span>}</div>}
+      {brand && (brand.logo_url || brand.name) && <div className={'client-brand no-print' + (brand.color ? ' has-accent' : '')}>{brand.logo_url ? <img src={brand.logo_url} alt={brand.name || 'Logo'} height={40} /> : <strong style={brandInk.text ? {color: brandInk.text} : undefined}>{brand.name}</strong>}{brand.logo_url && brand.name && <span className="quiet">{brand.name}</span>}</div>}
       {!scope && !problem && <div className="paper"><Skeleton lines={7} label={t('page.loading')} /></div>}
       {problem && <LinkProblem problem={problem} t={t} timeZone={timeZone} onRetry={() => { setProblem(null); load().catch(e => setProblem(problemOf(e))); }} />}
       {scope && !problem && <>

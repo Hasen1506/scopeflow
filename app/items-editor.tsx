@@ -17,12 +17,13 @@ export function ItemsEditor({items, currency, onChange}: {items: Item[]; currenc
   const priced = items.filter(i => i.price != null);
   const total = priced.reduce((sum, i) => sum + (i.price ?? 0), 0);
   return (
-    <fieldset className="items">
-      <legend>Deliverables <span className="quiet">· each one is tracked across versions and change orders</span></legend>
+    <fieldset className="items deliverables">
+      <legend><span className="deliverables-title">Deliverables</span>{items.length > 0 && <span className="count-chip">{items.length} {items.length === 1 ? 'deliverable' : 'deliverables'}</span>}<span className="quiet deliverables-hint">Each one is tracked across versions and change orders.</span></legend>
       {items.length === 0 && <p className="fine">No deliverables yet. Add each thing you will hand over.</p>}
       {items.map((item, index) => (
         <div className="item-row" key={item.id}>
           <div className="item-main">
+            <span className="item-num" aria-hidden="true">{index + 1}</span>
             <input aria-label={`Deliverable ${index + 1}`} placeholder="e.g. Homepage design" maxLength={200} value={item.title} onChange={e => update(index, {title: e.target.value})} />
             <div className="item-tools">
               <button type="button" className="icon" aria-label="Move up" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button>
