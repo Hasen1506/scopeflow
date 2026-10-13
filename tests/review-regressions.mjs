@@ -25,7 +25,7 @@ try{
 // Exercise the production append SQL against SQLite, with the server DB boundary replaced.
 function prepare(sql){let values=[];return {bind(...args){values=args;return this;},async first(){return db.prepare(sql).get(...values)??null;},async run(){const r=db.prepare(sql).run(...values);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...values)};}};}
 globalThis.scopeflowTestDB={prepare,async batch(statements){db.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.all());db.exec('COMMIT');return results;}catch(e){db.exec('ROLLBACK');throw e;}}};
-const hooks=registerHooks({resolve(specifier,context,next){if(specifier==='./server'&&context.parentURL?.endsWith('/lib/ledger-server.ts'))return {url:'data:text/javascript,export function db(){return globalThis.scopeflowTestDB}',shortCircuit:true};return next(specifier,context);}});
+const hooks=registerHooks({resolve(specifier,context,next){if(specifier==='./server'&&context.parentURL?.endsWith('/lib/ledger-server.ts'))return {url:'data:text/javascript,export function db(){return globalThis.scopeflowTestDB}',shortCircuit:true};if(specifier==='./billing'&&context.parentURL?.endsWith('/lib/ledger-server.ts'))return {url:'data:text/javascript,'+encodeURIComponent(`export async function limitsFor(){return (await import(${JSON.stringify(new URL('../lib/plans.ts',import.meta.url).href)})).limits();}`),shortCircuit:true};return next(specifier,context);}});
 try{
  const {appendEntry,loadLedger,LedgerConflict}=await import('../lib/ledger-server.ts');
  const stale=await loadLedger('project');

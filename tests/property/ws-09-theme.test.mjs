@@ -117,6 +117,24 @@ for (const name of Object.keys(COMBOS)) {
   });
 }
 
+// R4-08: native checkboxes and radios (globals.css) draw an unticked --rule-strong edge with no fill and a ticked
+// --accent fill with an --on-accent tick. The box must stand off every surface it sits on: the page, cards, nested
+// panels, callouts, dialogs (WCAG 1.4.11 >= 3:1), and the tick must stand off the fill.
+const BOX_SURROUNDS = ['--bg', '--surface', '--surface-2', '--info-bg', '--warn-bg', '--popover', '--accent-soft'];
+for (const name of Object.keys(COMBOS)) {
+  test(`${name}: unticked and ticked checkboxes stand off every surface they sit on (>= 3:1)`, () => {
+    const t = tokensFor(name), bad = [];
+    for (const around of BOX_SURROUNDS) {
+      const edge = ratio(t, '--rule-strong', around), fill = ratio(t, '--accent', around);
+      if (edge < 3) bad.push(`unticked edge on ${around}: ${edge.toFixed(2)}`);
+      if (fill < 3) bad.push(`ticked fill on ${around}: ${fill.toFixed(2)}`);
+    }
+    const tick = ratio(t, '--on-accent', '--accent');
+    if (tick < 3) bad.push(`tick on fill: ${tick.toFixed(2)}`);
+    assert.deepEqual(bad, []);
+  });
+}
+
 // Real usage: every rule in globals.css that sets both a text colour and a background from tokens, resolved per
 // theme (inside the paper scope when the selector is part of the paper or the vignette).
 const USAGE = blocks.flatMap(({sel, body}) => {

@@ -3,7 +3,8 @@ import type {Scope} from './scope';
 import {anchorHash, computeAgreement, countsTowardCap, entryHash, sha256, GENESIS, type Actor, type EntryKind, type LedgerEntry} from './ledger';
 import {anchorMessage, entryMessage, signRecord, verifyRecord, publicSigningKey, type SignatureState} from './signing';
 
-import {limits} from './plans';
+import {ledgerCapError, limits} from './plans';
+import {limitsFor} from './billing';
 type VersionRow = {id: string; project_id: string; version: number; token: string; revoked: number; content: string; status: string; signer: string | null; decided: string | null; signature?: string | null};
 type EntryRow = {seq: number; kind: EntryKind; baseline_version: number; actor: Actor; payload: string; prev_hash: string; hash: string; created: string; signature?: string | null};
 export type SignedEntry = LedgerEntry & {signature: string | null};
@@ -84,8 +85,10 @@ function insertStatement(baseline: VersionRow, e: NewEntry & {seq: number; creat
 async function capCheck(projectId: string, kinds: {kind: EntryKind; actor: Actor}[], count: number) {
   // H6: the plan cap limits what the owner authors; money and client/system entries are never refused by it.
   if (!kinds.some(k => countsTowardCap(k.kind, k.actor))) return;
-  const cap = limits().ledger_entries;
-  if (count >= cap) throw new LedgerConflict(`Your plan supports ${cap} ledger entries per project.`);
+  // R4-01: the cap is the project owner's own plan (limitsFor), not the server default.
+  const owner = await db().prepare('SELECT owner FROM projects WHERE id=?').bind(projectId).first<{owner: string}>();
+  const capped = ledgerCapError(count, owner ? await limitsFor(owner.owner) : limits());
+  if (capped) throw new LedgerConflict(capped);
 }
 
 /**

@@ -1,5 +1,7 @@
 /* WS-02 slots: ContactChange and CosignerEditor. Tokens only. */
 .panel { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 1rem; background: var(--paper); }
+/* Visual #11: stacked identity panels (Change client contact, Countersigners) no longer touch. */
+.panel + .panel { margin-top: var(--s4, 1rem); }
 .locked { color: var(--ink); font-size: var(--fs-2); }
 .roles { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.75rem; }
 .role { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 0.75rem; display: grid; gap: 0.4rem; }

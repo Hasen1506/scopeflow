@@ -111,6 +111,17 @@ export function projectCapMessage(l: Pick<Limits, 'projects'>) {
     ? 'Your plan includes 1 active project (archived ones don’t count). Archive or delete a project, or upgrade on the Plans page, to start another.'
     : `Your plan includes ${l.projects} active projects (archived ones don’t count). Archive or delete one, or upgrade on the Plans page, to start another.`;
 }
+/**
+ * R4-01: the per-project version cap, checked against the OWNER's limits (limitsFor(owner)), like the
+ * project cap. `latest` is the newest version number. Returns the refusal message, or null. Pure.
+ */
+export function versionCapError(latest: number, l: Pick<Limits, 'versions'>): string | null {
+  return latest >= l.versions ? `Your plan supports up to ${l.versions} versions per project.` : null;
+}
+/** R4-01: the per-project record-entry cap for owner-authored entries, from the owner's limits. Pure. */
+export function ledgerCapError(count: number, l: Pick<Limits, 'ledger_entries'>): string | null {
+  return count >= l.ledger_entries ? `Your plan supports ${l.ledger_entries} ledger entries per project.` : null;
+}
 /** "1 active project (archived ones don't count)" — the Plans page line for a cap (L13). */
 export function projectCapLine(l: Pick<Limits, 'projects'>) {
   return l.projects === 1 ? '1 active project (archived ones don’t count)' : `${l.projects.toLocaleString('en-IN')} active projects (archived ones don’t count)`;
