@@ -2,6 +2,21 @@
 import {useEffect, useState} from 'react';
 import {toast} from 'sonner';
 import {api} from './ui';
+import {contrastRatio, parseColor} from '@/lib/theme';
+
+// Client review pages follow the visitor's scheme: the light and dark page backgrounds from app/globals.css.
+const CLIENT_BACKGROUNDS = {light: '#F4EEE1', dark: '#11152A'} as const;
+/** UX-C05/C40: which client-page schemes need a darker (light page) or lighter (dark page) shade for text. */
+function shadeNote(color: string): string {
+  const c = /^#[0-9a-f]{6}$/i.test(color) ? parseColor(color) : null;
+  if (!c) return '';
+  const fails = (bg: string) => contrastRatio(c, parseColor(bg)!) < 4.5;
+  const light = fails(CLIENT_BACKGROUNDS.light), dark = fails(CLIENT_BACKGROUNDS.dark);
+  if (light && dark) return 'This colour is hard to read as text, so client pages show your business name in a darker shade on light pages and a lighter shade on dark pages.';
+  if (light) return 'This colour is light for text, so on light client pages your business name uses a darker shade of it.';
+  if (dark) return 'On dark client pages (visitors who use dark mode) your business name uses a lighter shade of this colour.';
+  return '';
+}
 
 type Brand = {brand_color: string; reply_to: string; logo: string; logo_url: string | null};
 const MAX_LOGO = 150 * 1024;
@@ -34,7 +49,7 @@ export function BrandSettings() {
       <form className="ledger-form" aria-label="Branding" onSubmit={save}>
         <div className="two-col">
           <label>Accent colour
-            <span className="color-row"><input type="color" aria-label="Pick the accent colour" value={brand.brand_color || '#1f6feb'} onChange={e => setBrand({...brand, brand_color: e.target.value})} /><input maxLength={7} placeholder="#1f6feb" value={brand.brand_color} onChange={e => setBrand({...brand, brand_color: e.target.value.trim()})} /></span>
+            <span className="color-row"><input type="color" aria-label="Pick the accent colour" value={brand.brand_color || '#1f6feb'} onChange={e => setBrand({...brand, brand_color: e.target.value})} /><input maxLength={7} placeholder="#1f6feb" value={brand.brand_color} onChange={e => setBrand({...brand, brand_color: e.target.value.trim()})} /></span>{shadeNote(brand.brand_color) && <span className="fine block" role="status">{shadeNote(brand.brand_color)}</span>}
           </label>
           <label>Reply-to address <span className="quiet">· optional</span><input type="email" autoComplete="email" maxLength={254} placeholder="you@yourstudio.com" value={brand.reply_to} onChange={e => setBrand({...brand, reply_to: e.target.value})} /><span className="fine block">Client replies to Scopeflow emails go here. Emails are sent as “Your business via Scopeflow”.</span></label>
         </div>

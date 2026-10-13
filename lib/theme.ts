@@ -95,6 +95,26 @@ export function contrastRatio(fg: RGBA, bg: RGBA): number {
   return (a + 0.05) / (b + 0.05);
 }
 
+const hex = (c: RGBA) => '#' + c.slice(0, 3).map(v => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('');
+/**
+ * A version of `color` that reads on `background` at `min`:1 (4.5 for text, 3 for a rule), keeping its hue: the
+ * colour itself when it already passes, otherwise mixed toward black on a light background or toward white on a
+ * dark one, in small steps until it passes (UX-C05: owner brand colours on the client page, which follows the
+ * visitor's light or dark scheme). Null when either value is not a colour.
+ */
+export function readableOn(color: string | null | undefined, background: string | null | undefined, min = 4.5): string | null {
+  const fg = color ? parseColor(color) : null, bg = background ? parseColor(background) : null;
+  if (!fg || !bg) return null;
+  const solid = over(fg, bg), back = over(bg, [255, 255, 255, 1]);
+  if (contrastRatio(parseColor(hex(solid))!, back) >= min) return hex(solid);
+  const toward: RGBA = luminance(back) > 0.18 ? [0, 0, 0, 1] : [255, 255, 255, 1];
+  for (let t = 0.05; t <= 1.0001; t += 0.05) {
+    const c = hex([0, 1, 2].map(i => solid[i] * (1 - t) + toward[i] * t).concat(1) as RGBA);
+    if (contrastRatio(parseColor(c)!, back) >= min) return c;
+  }
+  return hex(toward);
+}
+
 // Set when /api/me reports a signed-in session, so returning owners get the compact workspace
 // heading before first paint instead of the signed-out hero (avoids a layout shift).
 export const SESSION_HINT_KEY = 'scopeflow:signed-in';
