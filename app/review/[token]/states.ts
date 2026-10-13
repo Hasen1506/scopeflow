@@ -37,3 +37,24 @@ export function askSenderHref(t: Translate, sender: Sender | null) {
   return `mailto:${sender?.email ? encodeURIComponent(sender.email).replace('%40', '@') : ''}?${query}`;
 }
 
+
+/** #59/B-1: how long Approve / Request changes stay disabled after a server-side failure to record. */
+export const DECISION_COOLDOWN_S = 30;
+/**
+ * A decision that failed because the server could not record it right now (signing unavailable,
+ * a 5xx, or no response at all) gets a cooldown and a "let the sender know" path instead of an
+ * invitation to retry at once. A 4xx about the decision itself (stale version, bad input) does not. Pure.
+ */
+export function decisionUnavailable(error: unknown): boolean {
+  const e = (error ?? {}) as {status?: number; code?: string};
+  if (e.code === 'signing_unavailable') return true;
+  if (typeof e.status !== 'number') return true;
+  return e.status >= 500;
+}
+
+/** mailto: telling the sender the decision could not be recorded (no recipient: the page does not know their address). */
+export function tellSenderHref(t: Translate, version: number, link: string, comment = '') {
+  const body = t('decide.tellBody', {version, link}) + (comment.trim() ? '\n\n' + comment.trim().slice(0, 1500) : '');
+  const query = new URLSearchParams({subject: t('decide.tellSubject', {version}), body}).toString().replace(/\+/g, '%20');
+  return `mailto:?${query}`;
+}

@@ -1,6 +1,6 @@
 'use client';
 import {Download} from 'lucide-react';
-import {timeZones} from '@/lib/time';
+import TimezoneSelect from '../components/slots/timezone-select';
 import {RetentionSettings} from '../retention-settings';
 import {InboundPanel} from '../inbound-panel';
 import ContactChange from '../components/slots/contact-change';
@@ -8,10 +8,10 @@ import CosignerEditor from '../components/slots/cosigner-editor';
 import {NotifyToggle} from './client-notices';
 import type {Ws} from './state';
 
-export function settingsStep(w:Ws){const {cosignLinks,reloadProject,savedEmail,active,archived,busy,duplicateDraft,exportProject,history,saveTimeZone,setActionError,setDeleteText,setProjectAction,setTrust,timeZone,trust}=w;
+export function settingsStep(w:Ws){const {accountZone,cosignLinks,reloadProject,savedEmail,active,archived,busy,duplicateDraft,exportProject,history,saveTimeZone,setActionError,setDeleteText,setProjectAction,setTrust,timeZone,trust}=w;
   return (active&&<section id="project-settings" className="editor flow-step" aria-labelledby="h-settings">
       <div className="step-head"><h3 id="h-settings">Project settings</h3></div>
-     {<label>Project time zone <span className="quiet">· every time is shown in it, for you and your client</span><select value={timeZone??'UTC'} disabled={busy} onChange={e=>saveTimeZone(e.target.value)}>{timeZones().map(z=><option key={z} value={z}>{z}</option>)}</select></label>}
+     <div className="section-gap"><TimezoneSelect id="project-tz" label="Project time zone" value={timeZone??'UTC'} accountZone={accountZone} disabled={busy} onChange={z=>{if(z!==timeZone)void saveTimeZone(z);}}/><p className="fine">Every time is shown in this zone, for you and your client.</p></div>
      {/* WS-09 mounts (WS-02 / WS-06 slots): locked contact change with notice, countersigner roles, client notifications. They render nothing until those workstreams land. */}
      {trust&&<ContactChange projectId={active.project_id} clientEmail={trust.client_email||savedEmail} clientPhone={trust.client_phone??''} locked={!!(trust as {contact_locked?:boolean}).contact_locked} onChanged={reloadProject}/>}
      {trust&&<CosignerEditor projectId={active.project_id} cosigners={trust.cosigners??[]} frozen={!!(trust as {roles_frozen?:boolean}).roles_frozen} links={cosignLinks} onChanged={reloadProject}/>}

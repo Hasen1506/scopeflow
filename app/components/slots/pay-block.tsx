@@ -8,6 +8,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import QRCode from 'qrcode';
 import {formatMoney} from '@/lib/currency';
+import {copyText} from '@/lib/clipboard';
 import {fromMinor} from '@/lib/minor';
 import styles from './pay-block.module.css';
 
@@ -118,7 +119,7 @@ export default function PayBlock({token, purpose, seq, onPaid}: PayBlockProps) {
           <p className={styles.fine}>Scan with any UPI app, or open one from this phone. The amount and note are filled in, and the money goes straight to {payee}’s bank account.</p>
           <div className={styles.apps}>
             <a className="secondary" href={uri} data-testid="upi-intent">Open UPI app</a>
-            <button type="button" className="secondary" onClick={() => { void navigator.clipboard?.writeText(options.upi!.vpa); setNote('UPI ID copied.'); }}>Copy UPI ID</button>
+            <button type="button" className="secondary" onClick={() => { void copyText(options.upi!.vpa).then(ok => setNote(ok ? 'UPI ID copied.' : 'Copy failed. Select the UPI ID and copy it.')); }}>Copy UPI ID</button>
           </div>
         </div>
       </div> : null}

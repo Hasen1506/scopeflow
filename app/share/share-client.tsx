@@ -7,6 +7,7 @@ import {toast} from 'sonner';
 import {api, post, type ApiError} from '../ui';
 import WhatsAppShare, {ClientNotice} from '../components/slots/whatsapp-share';
 import {formatMoney} from '@/lib/currency';
+import {COPY_FAILED, copyText} from '@/lib/clipboard';
 import styles from './share.module.css';
 
 type Citation = {id: string; kind: string; text: string};
@@ -75,7 +76,7 @@ function Verdict({capture, review, project}: {capture: Capture; review: Review; 
       {radar.reasons.map(r => <p className={styles.fine} key={r}>{r}</p>)}
       {radar.citations.length > 0 && <ul className={styles.list}>{radar.citations.map(c => <li key={c.id}><strong>{c.id}</strong> {c.text}</li>)}</ul>}
       {radar.note && <p className={styles.fine}>{radar.note}</p>}</div>
-    {radar.reply && <p className={styles.actions}><span className={styles.fine}>Suggested reply: “{radar.reply}”</span><button className="help-link" onClick={() => { void navigator.clipboard.writeText(radar.reply); toast.success('Suggested reply copied.'); }}><Copy size={13} aria-hidden="true" />Copy</button></p>}
+    {radar.reply && <p className={styles.actions}><span className={styles.fine}>Suggested reply: “{radar.reply}”</span><button className="help-link" onClick={() => { void copyText(radar.reply).then(ok => ok ? toast.success('Suggested reply copied.') : toast.error(COPY_FAILED)); }}><Copy size={13} aria-hidden="true" />Copy</button></p>}
     {radar.change_order && (radar.basis === 'agreement' && radar.baseline_version
       ? <ChangeOrderDraft capture={capture} radar={radar} review={review} project={project} />
       : <p className={styles.fine}>This project’s scope is not approved yet, so extra work goes into a revised version of the scope rather than a change order. <Link href={'/?project=' + encodeURIComponent(capture.project_id!)}>Open the project</Link></p>)}
@@ -135,7 +136,7 @@ function ProjectShare({projectId}: {projectId: string}) {
   return <section className={styles.panel} aria-labelledby="ps-h">
     <h1 id="ps-h">Tell your client{s ? `: ${s.title}` : ''}</h1>
     {s && <div className={styles.actions} role="group" aria-label="Review link">
-      <button className="secondary" onClick={() => { void navigator.clipboard.writeText(s.link); void fetch(`/api/scopes/${encodeURIComponent(projectId)}/notifications`, post({shared: 'link'})); toast.success('Review link copied.'); }}><Copy size={14} aria-hidden="true" />Copy link</button>
+      <button className="secondary" onClick={() => { void copyText(s.link).then(ok => { if (!ok) { toast.error(COPY_FAILED); return; } void fetch(`/api/scopes/${encodeURIComponent(projectId)}/notifications`, post({shared: 'link'})); toast.success('Review link copied.'); }); }}><Copy size={14} aria-hidden="true" />Copy link</button>
       <WhatsAppShare kind="scope" phone={s.phone} lang={s.lang} values={{client: s.client, title: s.title, link: s.link}} projectId={projectId} />
     </div>}
     <label className={styles.actions}><input type="checkbox" checked={data.notify_client} onChange={e => void toggle(e.target.checked)} /> Email the client when I propose a change order or issue an invoice{!data.client_email ? ' (add the client’s email on the project first)' : ''}</label>

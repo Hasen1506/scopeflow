@@ -84,6 +84,11 @@ export const msmedSchema = z.object({
 }).strict();
 export type Msmed = z.infer<typeof msmedSchema>;
 
+/** B-2: a deposit and a payment schedule both ask for money on signature, so a scope uses one or the other. */
+export const DEPOSIT_SCHEDULE_CONFLICT = 'A deposit and a payment schedule both ask for money on signature. Clear the deposit to use the milestones (make the first milestone the deposit), or remove the milestones.';
+export function hasDepositScheduleConflict(s: {deposit_pct?: number | null; milestones?: readonly unknown[] | null}) {
+  return !!s.deposit_pct && Number.isFinite(s.deposit_pct) && !!s.milestones?.length;
+}
 export const scopeSchema = z.object({
   title: z.string().trim().min(3).max(160),
   client: z.string().trim().min(2).max(120),
@@ -125,9 +130,10 @@ export const scopeSchema = z.object({
   unique(s.client_inputs, 'client_inputs');
   unique(s.milestones, 'milestones');
   if (s.milestones?.length) {
+    // B-2: the overlap is reported first, so the editor's banner and inline message name it.
+    if (hasDepositScheduleConflict(s)) ctx.addIssue({code: 'custom', path: ['milestones'], message: DEPOSIT_SCHEDULE_CONFLICT});
     const sum = s.milestones.reduce((a, m) => a + m.pct, 0);
     if (Math.abs(sum - 100) > 0.01) ctx.addIssue({code: 'custom', path: ['milestones'], message: `Payment milestones must add up to 100% (they add up to ${roundMajor(sum, 'USD')}%)`});
-    if (s.deposit_pct) ctx.addIssue({code: 'custom', path: ['milestones'], message: 'Use either a deposit or a payment schedule: make the deposit the first milestone'});
   }
   if (s.fx && s.fx.currency === s.currency) ctx.addIssue({code: 'custom', path: ['fx', 'currency'], message: 'Pick a currency other than the scope currency'});
   // M5: money fields carry at most the scope currency's decimals (2 for INR/USD, 0 for JPY).

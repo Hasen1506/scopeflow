@@ -51,3 +51,9 @@ export function stamp(iso: string | null, tz: string) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'shortOffset'}).formatToParts(d).map(p => [p.type, p.value]));
   return `${utc} (${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${parts.timeZoneName}, ${tz})`;
 }
+/** B-5/#51: the zone a new project starts in: the account's zone, else the browser's, else none (UTC). Pure. */
+export function newProjectZone(accountZone: string | null | undefined, browserZone: string | null | undefined): string | null {
+  if (validTimeZone(accountZone)) return accountZone;
+  if (validTimeZone(browserZone)) return browserZone;
+  return null;
+}

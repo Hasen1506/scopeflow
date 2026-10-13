@@ -1012,3 +1012,11 @@ main#content:focus{outline:none}
 .table-scroll{overflow-x:auto;max-width:100%}
 .insights-hero strong{overflow-wrap:anywhere}
 .insights-hero.multi strong{font-size:var(--fs-5)}
+/* B-4/#22: AI drafting shown as off up front (not an accordion that only explains itself once opened). */
+.ai-draft.ai-off{cursor:default}
+.ai-draft.ai-off:hover{border-color:var(--rule)}
+.ai-off-title{font-family:var(--font-ui);font-weight:var(--fw-ui);font-size:var(--fs-2);margin:0;padding:12px 0 0}
+.ai-draft.ai-off>.fine{margin-top:4px}
+/* B-3/#30: the fee's status sits beside the field, not inside its label. */
+.field-stack>.warn-text,.field-stack>.error-text{margin-top:-6px}
+.error>p+p{margin-top:6px}

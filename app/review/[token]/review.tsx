@@ -19,6 +19,7 @@ import {ScopeDocument} from './scope-document';
 import {ClosedBanner, NewerBanner, readonlyOf, type ReadonlyInfo} from './closed';
 import {LinkProblem, problemOf, type LinkProblemState} from './link-problem';
 import {SlotOr} from './slot';
+import {DECISION_COOLDOWN_S, decisionUnavailable, tellSenderHref} from './states';
 import {EvidenceBlock, type RecordEvidence} from './evidence';
 import styles from './client.module.css';
 
@@ -62,6 +63,11 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
 
   // SF-09: ?lang= > the reader's own choice on this device > the creator's scope language > Accept-Language > English.
   const [payFilled, setPayFilled] = useState(false);
+  // #59/B-1: after the server could not record a decision, both buttons rest for a short cooldown and the
+  // reader gets a clear message plus a way to tell the sender. Server behaviour is unchanged.
+  const [unavailable, setUnavailable] = useState(false), [cooldown, setCooldown] = useState(0);
+  useEffect(() => { if (cooldown <= 0) return; const id = setTimeout(() => setCooldown(c => c - 1), 1000); return () => clearTimeout(id); }, [cooldown]);
+  const resting = cooldown > 0;
   const [chosen, setChosen] = useState<Lang | null>(queryLang);
   useEffect(() => { if (queryLang) return; try { const s = localStorage.getItem(LANG_STORAGE_KEY); if (isLang(s)) queueMicrotask(() => setChosen(s)); } catch { /* storage blocked */ } }, [queryLang]);
   const lang = pickLang({query: chosen, scope: data?.scope.content.language, accept: acceptLang ?? undefined});
@@ -111,10 +117,11 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   const evidence = data?.evidence ?? null, linkExpiresText = data?.link_expires_text ?? null;
 
   async function decide(decision: string) {
-    setDecideError('');
+    if (cooldown > 0) return;
+    setDecideError(''); setUnavailable(false);
     if (ro.readonly) { setDecideError(t('closed.noActions')); return; }
     if (name.trim().length < 2) { setDecideError(t('decide.errName')); document.getElementById('signer-name')?.focus(); return; }
-    if (!checked) { setDecideError(t('decide.errConsent')); return; }
+    if (!checked) { setDecideError(t('decide.errConsent')); document.getElementById('decide-consent')?.focus(); return; }
     if (decision === 'changes_requested' && !comment.trim()) { setDecideError(t('decide.errComment')); document.getElementById('decision-comment')?.focus(); return; }
     if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; }
     setBusy(true);
@@ -130,7 +137,8 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
       // L12: a newer version replaced this one while the reader was deciding; keep what they typed.
       const v = Number(err.data?.newer_version);
       if (err.status === 409 && Number.isInteger(v) && v > 0) setNewer({version: v, url: typeof err.data?.newer_url === 'string' ? err.data.newer_url : null});
-      setDecideError(err.message);
+      if (decisionUnavailable(err) && !(err.status === 409)) { setUnavailable(true); setCooldown(DECISION_COOLDOWN_S); setDecideError(t('decide.unavailable')); }
+      else setDecideError(err.message);
       if (err.status === 409) load().catch(() => { /* the banner and the kept comment are enough */ });
     } finally { setBusy(false); }
   }
@@ -195,9 +203,9 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
             <label>{t('decide.name')}<input id="signer-name" autoComplete="name" aria-required="true" maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
             <label>{t('decide.comment')} <span className="quiet">{t('decide.commentHint')}</span><textarea id="decision-comment" rows={3} maxLength={3000} value={comment} onChange={e => setComment(e.target.value)} aria-describedby="comment-kept" /></label>
             <p className="fine" id="comment-kept">{t('decide.commentKept')}</p>
-            <label className="consent"><Checkbox checked={checked} onCheckedChange={v => setChecked(v === true)} />{t('decide.consent', {version: scope.version})}</label>
-            {decideError && <p className="error" role="alert" id="decide-error">{decideError}</p>}
-            <div className="actions"><button className="primary" aria-disabled={busy || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={busy || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={busy} aria-describedby={decideError ? 'decide-error' : undefined} onClick={() => decide('changes_requested')}>{t('decide.requestChanges')}</button></div>
+            <label className="consent"><Checkbox id="decide-consent" aria-required="true" aria-invalid={(!!decideError && !checked) || undefined} checked={checked} onCheckedChange={v => setChecked(v === true)} />{t('decide.consent', {version: scope.version})}</label>
+            {decideError && <div className="error" role="alert" id="decide-error"><p className="flush">{decideError}</p>{unavailable && <p className="flush">{resting && <span data-testid="decide-cooldown">{t('decide.retryIn', {seconds: cooldown})} </span>}<a className="help-link" href={tellSenderHref(t, scope.version, typeof location === 'undefined' ? '' : location.href, comment)} data-testid="tell-sender">{t('decide.tellSender')}</a></p>}</div>}
+            <div className="actions"><button className="primary" disabled={resting} aria-disabled={busy || resting || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={busy || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={busy || resting} aria-describedby={decideError ? 'decide-error' : undefined} onClick={() => decide('changes_requested')}>{t('decide.requestChanges')}</button></div>
             {identity && !otpSession && <p className="fine" id="decide-needs-code">{t('decide.needsCode')}</p>}
           </>}
           {replaced && decideError && <p className="error" role="alert">{decideError}</p>}

@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const auth = await ownerAuth(request);
     if (!auth) return json({error: 'Sign in to draft with AI.'}, 401);
     const status = llmStatus();
-    if (!status.enabled) return json({error: 'AI drafting is turned off on this server: ' + status.reason + ' Start from a template instead.', code: 'ai_disabled'}, 503);
+    if (!status.enabled) return json({error: 'AI drafting is turned off on this server. ' + status.reason + ' Start from a template instead.', code: 'ai_disabled'}, 503);
     let raw;
     try { raw = await body(request); } catch { return json({error: 'Provide valid JSON under 24 KB.'}, 400); }
     const parsed = input.safeParse(raw);

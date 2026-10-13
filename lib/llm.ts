@@ -131,10 +131,10 @@ export function llmConfig(env: Env = process.env, tier: LlmTier = 'fast'): LlmCo
   const [primary, ...fallbacks] = modelChain(env, tier);
   return primary ? {...primary, ...(fallbacks.length ? {fallbacks} : {})} : null;
 }
-/** Public status for the UI: never includes the key. Lists both tiers' models and any retirement warning. */
+/** Public status for the UI: never includes the key, and its reason never names an env var (B-4). Lists both tiers' models and any retirement warning. */
 export function llmStatus(env: Env = process.env, today?: string) {
   const c = llmConfig(env), careful = llmConfig(env, 'careful');
-  if (!c || !careful) return {enabled: false as const, provider: null, model: null, careful_model: null, warning: null, reason: 'No OPENAI_API_KEY or ANTHROPIC_API_KEY is set on this server.'};
+  if (!c || !careful) return {enabled: false as const, provider: null, model: null, careful_model: null, warning: null, reason: 'No AI provider is connected on this server.'};
   const warning = retirementWarning(c.model, today) ?? retirementWarning(careful.model, today);
   return {enabled: true as const, provider: c.provider, model: c.model, careful_model: careful.model, warning};
 }

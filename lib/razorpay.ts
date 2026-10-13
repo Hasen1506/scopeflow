@@ -38,7 +38,7 @@ export function providerFor(currency: string | undefined, env: Env = process.env
   return chooseRoute([], currency ?? '', env).online?.provider ?? null;
 }
 const REASON = 'Online payment is not available for this scope.';
-const SETUP = 'Connect the freelancer’s own UPI ID, Razorpay or Stripe account (Payments settings). Operator keys (RAZORPAY_KEY_ID/STRIPE_SECRET_KEY) are not used for client payments in production.';
+const SETUP = 'Connect the freelancer’s own UPI ID, Razorpay or Stripe account (Payments settings). This server’s own payment keys are not used for client payments.';
 /** What a payment route means for the client page. */
 export function routeStatus(route: PaymentRoute) {
   const webhook = !!route.online;

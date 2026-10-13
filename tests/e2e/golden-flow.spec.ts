@@ -7,7 +7,7 @@ import {anchorHash, verifyChain, type LedgerEntry} from '../../lib/ledger';
 // the production build. Deterministic: the browser clock is frozen, crypto.randomUUID and
 // Math.random are seeded (so deliverable ids, and therefore the signed content hash, are
 // identical on every run), every non-localhost request is blocked, and mail is not
-// configured, so "Send for signature" exercises the copy-link / mailto fallback.
+// configured, so "Copy link to send" (the primary when email is off) exercises the copy-link / mailto fallback.
 
 const FROZEN = new Date('2026-10-07T09:00:00.000Z');
 const OWNER = {name: 'Golden Owner', email: 'golden-owner@example.test', password: 'Fictional-password-123'};
@@ -127,7 +127,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   const cpage = client.page;
   expect((await (await cpage.request.get('/api/me')).json()).signedIn).toBe(false);
   await cpage.goto(reviewPath);
-  await expect(cpage.getByRole('heading', {name: 'Everything look right?'})).toBeVisible();
+  await expect(cpage.getByRole('heading', {name: 'Does everything look right?'})).toBeVisible();
   await expect(cpage.locator('.paper .deliverable')).toHaveText([/Logo suite/, /Social launch templates/, /Brand guidelines/]);
   await cpage.getByLabel('Your name').fill('Ada Client');
   await cpage.getByRole('checkbox').check();
@@ -225,7 +225,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await page.getByLabel('Project fee').fill('1200');
   await page.getByRole('button', {name: 'Save & create review link'}).click();
   await expect(page.getByRole('status').filter({hasText: 'Version 1 saved'})).toBeVisible();
-  await page.getByRole('button', {name: 'Send for signature'}).click();
+  await page.getByRole('button', {name: 'Copy link to send'}).click();
   const fallback = page.locator('.send-box');
   await expect(fallback).toContainText('Send this review link to client@example.test');
   expect(await fallback.getByLabel('Review link').inputValue()).toMatch(/\/review\/[0-9a-f]{64}$/);

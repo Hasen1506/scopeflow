@@ -142,7 +142,7 @@ test('LT-13: the client page shows no BETA badge and no jargon; copy snapshot', 
   const v = await owner.make(scope());
   const {context, page} = await clientPage(browser);
   await page.goto('/review/' + v.token);
-  await expect(page.getByRole('heading', {name: 'Everything look right?'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Does everything look right?'})).toBeVisible();
   await expect(page.getByTestId('data-notice')).toBeVisible();
   const text = await page.evaluate(() => document.body.innerText);
   expect(text).not.toMatch(/beta/i);
@@ -228,7 +228,7 @@ test('SF-09: Accept-Language picks Hindi for a hi-IN browser; English stays the 
   await hi.context.close();
   const en = await clientPage(browser);
   await en.page.goto('/review/' + v.token);
-  await expect(en.page.getByRole('heading', {name: 'Everything look right?'})).toBeVisible();
+  await expect(en.page.getByRole('heading', {name: 'Does everything look right?'})).toBeVisible();
   await en.context.close(); await owner.context.close();
 });
 
@@ -311,5 +311,28 @@ test('M32 notice: the client page says what it records and for how many days', a
   await expect(page.getByTestId('data-notice')).toContainText('kept for 180 days, then removed');
   await page.goto('/privacy#client-data');
   await expect(page.locator('#client-data')).toBeVisible();
+  await context.close(); await owner.context.close();
+});
+
+// @covers SF-23
+test('#59: when the server cannot record a decision, both buttons rest and the reader can tell the sender', async ({browser, baseURL}) => {
+  const owner = await ownerApi(browser, baseURL!);
+  const v = await owner.make(scope());
+  const {context, page} = await clientPage(browser);
+  // The server's own answer when signing is unavailable; the page must not invite instant retries.
+  await page.route('**/api/review/' + v.token, route => route.request().method() === 'POST'
+    ? route.fulfill({status: 503, json: {error: 'This record can’t be signed right now; nothing was saved. Try again later.', code: 'signing_unavailable'}})
+    : route.continue());
+  await page.goto('/review/' + v.token);
+  await expect(page.getByRole('checkbox')).toBeVisible();
+  await page.getByLabel('Your name').fill('TEST Client');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', {name: 'Approve this scope'}).click();
+  const alert = page.locator('#decide-error');
+  await expect(alert).toContainText('We couldn’t record your decision just now');
+  await expect(page.getByTestId('decide-cooldown')).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Approve this scope'})).toBeDisabled();
+  await expect(page.getByRole('button', {name: 'Request changes'})).toBeDisabled();
+  expect(await page.getByTestId('tell-sender').getAttribute('href')).toMatch(/^mailto:\?subject=/);
   await context.close(); await owner.context.close();
 });

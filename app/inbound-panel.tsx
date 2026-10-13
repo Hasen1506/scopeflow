@@ -3,6 +3,7 @@ import {useCallback, useEffect, useState} from 'react';
 import {Copy, Inbox} from 'lucide-react';
 import {toast} from 'sonner';
 import {formatInZone} from '@/lib/time';
+import {COPY_FAILED, copyText} from '@/lib/clipboard';
 import {api, post} from './ui';
 
 type Citation = {id: string; kind: string; text: string};
@@ -33,10 +34,10 @@ export function InboundPanel({projectId, timeZone}: {projectId: string; timeZone
     <div className="section-gap" role="group" aria-labelledby="h-inbound">
       <h4 className="h-sub" id="h-inbound"><Inbox size={15} aria-hidden="true" /> Forwarded client emails</h4>
       {!data.configured
-        ? <p className="fine">Email forwarding is not set up on this server (SCOPEFLOW_INBOUND_DOMAIN and SCOPEFLOW_INBOUND_SECRET). Paste client requests into the scope-creep radar instead.</p>
+        ? <p className="fine">Email forwarding is not set up on this server yet. Paste client requests into the scope-creep radar instead.</p>
         : data.address
           ? <><p className="fine">Forward a client’s email to this private address and the radar checks it against the agreement. Mail from you, your client and the countersigners goes straight in; mail from anyone else, or mail that fails the sender checks, waits below for you to release it.</p>
-              <p className="mono fine"><span>{data.address}</span> <button className="help-link" onClick={() => { void navigator.clipboard.writeText(data.address!); toast.success('Address copied.'); }}><Copy size={13} aria-hidden="true" />Copy<span className="sr-only"> the forwarding address</span></button></p>
+              <p className="mono fine"><span>{data.address}</span> <button className="help-link" onClick={() => { void copyText(data.address!).then(ok => ok ? toast.success('Address copied.') : toast.error(COPY_FAILED)); }}><Copy size={13} aria-hidden="true" />Copy<span className="sr-only"> the forwarding address</span></button></p>
               <div className="actions"><button className="secondary" disabled={busy} onClick={() => void address('rotate')}>New address</button><button className="secondary" disabled={busy} onClick={() => void address('off')}>Turn off</button></div></>
           : <><p className="fine">Get a private address for this project. Forward client emails to it and each one is checked by the radar and listed here.</p><button className="secondary" disabled={busy} onClick={() => void address('on')}>Create forwarding address</button></>}
       {data.messages.length > 0 && <ul className="receipt-list inbound-list">{data.messages.map(m => (
@@ -44,7 +45,7 @@ export function InboundPanel({projectId, timeZone}: {projectId: string; timeZone
           <div><strong>{m.subject || '(no subject)'}</strong> <span className="quiet">· {m.sender ?? 'unknown sender'} · {formatInZone(m.received, timeZone ?? 'UTC')}</span></div>
           <p className="line-list">{m.body.slice(0, 600)}{m.body.length > 600 ? '…' : ''}</p>
           {m.radar && <p className="fine"><strong>{VERDICT[m.radar.verdict] ?? m.radar.verdict}</strong>{m.radar.citations.length ? ` · ${m.radar.citations.map(c => `${c.id}: ${c.text}`).join('; ')}` : ''}{m.radar.engine === 'embedding' ? ' · matched by meaning' : ''}</p>}
-          <div className="actions">{m.radar?.reply && <button className="secondary" onClick={() => { void navigator.clipboard.writeText(m.radar!.reply); toast.success('Suggested reply copied.'); }}><Copy size={14} aria-hidden="true" />Copy suggested reply</button>}<button className="secondary" onClick={() => { void navigator.clipboard.writeText(m.body); toast.success('Request copied: paste it into the radar for the AI check.'); }}>Copy request</button>{m.status !== 'done' && <button className="secondary" onClick={() => void mark(m.id, 'done')}>Mark handled</button>}<button className="help-link" onClick={() => void mark(m.id, 'dismissed')}>Dismiss</button></div>
+          <div className="actions">{m.radar?.reply && <button className="secondary" onClick={() => { void copyText(m.radar!.reply).then(ok => ok ? toast.success('Suggested reply copied.') : toast.error(COPY_FAILED)); }}><Copy size={14} aria-hidden="true" />Copy suggested reply</button>}<button className="secondary" onClick={() => { void copyText(m.body).then(ok => ok ? toast.success('Request copied: paste it into the radar for the AI check.') : toast.error(COPY_FAILED)); }}>Copy request</button>{m.status !== 'done' && <button className="secondary" onClick={() => void mark(m.id, 'done')}>Mark handled</button>}<button className="help-link" onClick={() => void mark(m.id, 'dismissed')}>Dismiss</button></div>
         </li>))}</ul>}
       {!!data.quarantine?.length && <div className="section-gap" role="group" aria-labelledby="h-quarantine">
         <h4 className="h-sub" id="h-quarantine">Held for review</h4>

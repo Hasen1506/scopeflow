@@ -115,7 +115,7 @@ test('payment schedule: milestones add up to the total; scope rules', () => {
   const s = {title: 'Schedule check', client: 'Acme', deliverables: 'Some work', exclusions: '', fee: 1000, currency: 'INR', revisions: 1, due: '', notes: ''};
   assert.equal(scopeSchema.safeParse({...s, milestones: [{id: 'a', title: 'Half', pct: 50, due: ''}, {id: 'b', title: 'Half', pct: 50, due: ''}]}).success, true);
   assert.match(scopeSchema.safeParse({...s, milestones: [{id: 'a', title: 'Half', pct: 50, due: ''}]}).error.issues[0].message, /add up to 100%/);
-  assert.match(scopeSchema.safeParse({...s, deposit_pct: 30, milestones: [{id: 'a', title: 'All', pct: 100, due: ''}]}).error.issues[0].message, /deposit or a payment schedule/);
+  assert.match(scopeSchema.safeParse({...s, deposit_pct: 30, milestones: [{id: 'a', title: 'All', pct: 100, due: ''}]}).error.issues[0].message, /A deposit and a payment schedule both ask for money on signature/);
   assert.equal(scopeSchema.safeParse({...s, milestones: [{id: 'a', title: 'All', pct: 100, due: ''}, {id: 'a', title: 'Dup', pct: 0.5, due: ''}]}).success, false);
   assert.equal(scopeSchema.safeParse({...s, milestones: []}).success, false);
   assert.equal(scopeSchema.safeParse({...s, fx: {currency: 'INR', rate: 1, as_of: '2026-10-01', source: 'x'}}).success, false);
