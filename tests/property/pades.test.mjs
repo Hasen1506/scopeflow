@@ -20,12 +20,25 @@ const tsa = makeTsa();
 
 const pdf = () => { const d = new PdfDocument({info: {Title: 'Signed test'}}); d.text(48, 780, 'Scopeflow signed PDF', {size: 14}); d.addPage(); d.text(48, 780, 'Page two'); return d.toBytes(); };
 function byteRange(bytes) { return /\/ByteRange \[(\d+) (\d+) (\d+) (\d+)\]/.exec(Buffer.from(bytes).toString('latin1')).slice(1).map(Number); }
+// The CMS inside /Contents <...>, cut to its DER length. /Contents is zero-padded to the reserved
+// size, and the CMS itself can legitimately end in 0x00 bytes (its last element is a signature value
+// or a TSA token, i.e. random bytes), so the padding must not be stripped by trimming trailing zeros:
+// that truncated the signature about once in 256 runs per signature and made this test flaky.
+function contentsCms(bytes) {
+  const [, b, c] = byteRange(bytes);
+  const all = Buffer.from(Buffer.from(bytes).subarray(b + 1, c - 1).toString('latin1'), 'hex');
+  assert.equal(all[0], 0x30, 'CMS ContentInfo is a SEQUENCE');
+  let len = all[1], head = 2;
+  if (len & 0x80) { const n = len & 0x7f; len = 0; for (let i = 0; i < n; i++) len = len * 256 + all[2 + i]; head = 2 + n; }
+  assert.ok(head + len <= all.length, 'CMS fits in /Contents');
+  assert.ok(all.subarray(head + len).every(x => x === 0), 'only zero padding follows the CMS');
+  return all.subarray(0, head + len);
+}
 function opensslVerify(bytes, cert) {
   const [a, b, c, d] = byteRange(bytes);
   const buf = Buffer.from(bytes);
   writeFileSync(f('signed-content.bin'), Buffer.concat([buf.subarray(a, a + b), buf.subarray(c, c + d)]));
-  const hexSig = buf.subarray(b + 1, c - 1).toString('latin1').replace(/(00)+$/, '');
-  writeFileSync(f('sig.der'), Buffer.from(hexSig.length % 2 ? hexSig + '0' : hexSig, 'hex'));
+  writeFileSync(f('sig.der'), contentsCms(bytes));
   try { execFileSync('openssl', ['cms', '-verify', '-binary', '-inform', 'DER', '-in', f('sig.der'), '-content', f('signed-content.bin'), '-CAfile', cert, '-purpose', 'any', '-out', '/dev/null'], {stdio: 'pipe'}); return true; } catch { return false; }
 }
 const pdfsig = bytes => { writeFileSync(f('s.pdf'), bytes); try { return execFileSync('pdfsig', [f('s.pdf')], {stdio: 'pipe'}).toString(); } catch (e) { return String(e.stdout); } };
@@ -66,8 +79,7 @@ test('EC keys sign too; with a timestamp authority the signature carries an RFC 
     const signed = await pades.signPdf(pdf(), config, {timestamp: {url: 'https://tsa.test/', auth: null}});
     assert.match(pdfsig(signed), /Signature is Valid/);
     assert.ok(opensslVerify(signed, f('ec.pem')));
-    const [, b, c] = byteRange(signed);
-    const cms = Buffer.from(Buffer.from(signed).subarray(b + 1, c - 1).toString('latin1').replace(/(00)+$/, ''), 'hex');
+    const cms = contentsCms(signed);
     const der = await import('../../lib/der.ts');
     assert.ok(der.find(der.parse(cms), n => n.tag === 6 && der.oidString(n) === '1.2.840.113549.1.9.16.2.14'), 'signature timestamp attribute');
   } finally { globalThis.fetch = realFetch; }
