@@ -273,9 +273,10 @@ test('10: JPY deposit: ¥1,000 @ 33.333% → deposit ¥333; paying ¥333 covers 
   needs('WS-01', 'WS-04');
   const o = await owner(browser, baseURL!, 's10');
   const v = await o.make(scope({fee: 1000, currency: 'JPY', deposit_pct: 33.333}));
+  // integration: /api/overview reports deposit_due only once the scope is approved (unchanged WS-01 behaviour)
+  await approve(o.request, baseURL!, v);
   const ov0 = (await (await o.request.get('/api/overview')).json()).projects.find((p: {project_id: string}) => p.project_id === v.project_id);
   expect(ov0.deposit_due).toBe(333);
-  await approve(o.request, baseURL!, v);
   await o.pay(v.project_id, 333);
   const ov = (await (await o.request.get('/api/overview')).json()).projects.find((p: {project_id: string}) => p.project_id === v.project_id);
   expect(ov.balance).toBe(667);

@@ -85,3 +85,4 @@ CI on 92f093b failed 13 e2e tests. Every one passed on its own WS branch, so eac
 
 - Round 5: change-order POST on a revoked/closed link returns 403 link_readonly (resolveReviewToken first), matching the review and OTP routes.
 - Round 6: client invoice and statement GETs no longer filter revoked=0, so a revoked/closed link still serves the record (scenario 7).
+- Round 7: live scenario 10 checks deposit_due after approval; overview has always reported it only for approved scopes.
