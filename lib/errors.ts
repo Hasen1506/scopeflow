@@ -41,6 +41,8 @@ export function toResponse(e: unknown): Response | null {
   if (e instanceof Forbidden) return json({error: e.message, code: e.code}, 403);
   if (e instanceof Conflict) return json({error: e.message, code: e.code}, 409);
   if (e instanceof RateLimited) return json({error: e.message, code: 'rate_limited'}, 429, {'Retry-After': String(Math.max(1, Math.ceil(e.retryAfter)))});
+  // H1: lib/body-limit.ts BodyTooLarge (matched by name so this file stays import-free).
+  if (e instanceof Error && e.name === 'BodyTooLarge') return json({error: 'The request body is too large.', code: 'too_large'}, 413);
   if (e instanceof Unavailable) return json({error: e.message, code: 'unavailable', dependency: e.dep}, 503);
   return null;
 }

@@ -45,23 +45,28 @@ test('the patterns catch the old wording', () => {
     assert.deepEqual(offending(fine), [], fine);
 });
 
-test('terms: Scopeflow is free; client payments go through Razorpay or Stripe to the operator-configured account', () => {
+// changed by the gap-audit fixes (H6): the terms follow the code. Paid plans exist (lib/plans.ts PURCHASABLE,
+// lib/billing.ts) and client money goes to the creator's own account (C3, lib/payment-accounts.ts).
+test('terms: paid plans exist; client payments go to an account the creator owns', () => {
   const terms = read('app/terms/page.tsx');
-  assert.match(terms, /Scopeflow itself is free during this beta/);
+  assert.doesNotMatch(terms, /does not charge you, sell subscriptions, or renew anything/);
+  assert.doesNotMatch(terms, /merchant account the server operator configured/);
+  assert.match(terms, /paid subscription plans \(Pro and Agency/);
+  assert.match(terms, /renews automatically each period until it is cancelled/);
+  assert.match(terms, /href="\/refund"/);
   assert.match(terms, /<h2>Client payments<\/h2>/);
-  assert.match(terms, /through Razorpay Checkout or Stripe Checkout/);
-  assert.match(terms, /Razorpay or Stripe merchant account the server operator configured, not to an account of the creator/);
-  assert.match(terms, /does not connect creators’ own payment accounts or pay money out to creators/);
+  assert.match(terms, /the creator’s own Razorpay account/);
+  assert.match(terms, /the creator’s own Stripe account/);
+  assert.match(terms, /The money settles to the creator, never to Scopeflow/);
   assert.match(terms, /refund an online payment, in full or in part, through the same provider/);
-  assert.match(terms, /only after Razorpay or Stripe confirms it/);
+  assert.match(terms, /only after the provider confirms it/);
   // Prices are not repeated in the terms (they had drifted from the Plans page: $9/$19 vs $4).
-  const plans = read('app/plans/page.tsx');
-  for (const price of terms.match(/\$\d+/g) ?? []) assert.ok(plans.includes(price), `terms price ${price} is not on the Plans page`);
+  assert.doesNotMatch(terms, /[$₹]\s?\d/);
 });
 
 test('reviewer guide and review page describe the deposit accurately', () => {
   const guide = read('app/reviewer-guide/page.tsx');
-  assert.match(guide, /pay it on the review link after approving, through Razorpay Checkout or Stripe Checkout, into the operator’s merchant account/);
+  assert.match(guide, /pay it on the review link after approving, through Razorpay Checkout or Stripe Checkout, into the creator’s own account/);
   assert.match(guide, /Saving or approving a scope never charges anyone by itself/);
   // changed by WS-07: the client page's copy moved into the message catalog (SF-09); review.tsx renders it.
   const review = read('app/review/[token]/review.tsx') + read('messages/en.json');

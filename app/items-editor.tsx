@@ -6,6 +6,9 @@ import {amountProblem, parseQty, QTY_MAX, toLineTotal, toPerUnit, withLinePrice,
 import {itemsTotal, lineTotal} from '@/lib/money';
 import {describedBy, errorId, moveFocusTarget, rowName} from '@/lib/a11y';
 
+/** R6: the browser reports an overflowing number ("1e400") as bad input with an empty value; treat it as
+ *  Infinity so amountProblem shows "Max …" instead of nothing. */
+export const badNumber = (el: HTMLInputElement) => el.validity?.badInput === true;
 const num = (value: string, fallback: number) => (value === '' || Number.isNaN(Number(value)) ? fallback : Number(value));
 
 export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[]; currency: string; onChange: (items: Item[]) => void; errorRef?: string}) {
@@ -86,7 +89,7 @@ function PriceField({item, name, currency, perUnit, onLine, onUnit, onMode}: {it
     <div className="price-cell">
       <label>{perUnit ? `Price each (${currency})` : `Price (${currency})`}
         <input type="number" min={0} step="0.01" placeholder="optional" value={raw} aria-invalid={!!problem} aria-describedby={describedBy(!!problem && id, !!note && hint)}
-          onChange={e => { setRaw(e.target.value); const v = parse(e.target.value); setSeen(v); if (perUnit) onUnit(v); else onLine(v); }} />
+          onChange={e => { setRaw(e.target.value); const v = badNumber(e.target) ? Infinity : parse(e.target.value); setSeen(v); if (perUnit) onUnit(v); else onLine(v); }} />
       </label>
       {problem && <span id={id} className="error-text">{problem}</span>}
       {(note || perUnit || canPerUnit) && <span className="fine price-mode">

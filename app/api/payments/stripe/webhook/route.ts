@@ -1,4 +1,4 @@
-import {json, failure} from '@/lib/server';
+import {json, failure, readText} from '@/lib/server';
 import {stripePaidEvent, stripeWebhookSecret, verifyStripeSignature} from '@/lib/stripe';
 import {eventIdOf, handleVerifiedEvent} from '@/lib/payment-record';
 
@@ -11,8 +11,7 @@ export async function POST(request: Request) {
   try {
     const secret = stripeWebhookSecret();
     if (!secret) return json({error: 'Stripe webhook is not configured (STRIPE_WEBHOOK_SECRET).', code: 'payments_disabled'}, 503);
-    const raw = await request.text();
-    if (raw.length > 200_000) return json({error: 'Payload too large.'}, 413);
+    const raw = await readText(request, 200_000); // H1: bounded read; over the limit → 413
     if (!verifyStripeSignature(raw, request.headers.get('stripe-signature'), secret)) return json({error: 'Invalid signature.'}, 400);
     let payload: unknown;
     try { payload = JSON.parse(raw); } catch { return json({error: 'Invalid JSON.'}, 400); }

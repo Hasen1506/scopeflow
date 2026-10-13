@@ -1,4 +1,4 @@
-import {db, json, allowWrite, failure} from '@/lib/server';
+import {db, json, allowWrite, failure, readText} from '@/lib/server';
 import {authOutcome, clientMessage, inboundAuthorized, inboundConfig, parseInbound, tokenFrom} from '@/lib/inbound';
 import {projectAllowList, storeInboundMessage} from '@/lib/inbound-server';
 export const runtime = 'nodejs';
@@ -17,8 +17,8 @@ export async function POST(request: Request) {
     if (!config) return json({error: 'Email forwarding is not configured on this server.', code: 'inbound_disabled'}, 503);
     if (!inboundAuthorized(request.headers.get('authorization'), config.secret)) return json({error: 'Unauthorized.'}, 401, {'WWW-Authenticate': 'Basic realm="scopeflow-inbound"'});
     if (Number(request.headers.get('content-length') || 0) > MAX) return json({error: 'Message too large.'}, 413);
-    const text = await request.text();
-    if (text.length > MAX) return json({error: 'Message too large.'}, 413);
+    let text: string;
+    try { text = await readText(request, MAX); } catch { return json({error: 'Message too large.'}, 413); }
     let raw: unknown;
     try { raw = JSON.parse(text); } catch { return json({error: 'Provide the inbound email as JSON.'}, 400); }
     const mail = parseInbound(raw);

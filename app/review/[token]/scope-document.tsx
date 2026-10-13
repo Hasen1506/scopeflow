@@ -15,7 +15,8 @@ export function ScopeDocument({scope, version = 1, status = 'pending', t, firstA
   return (
     <section className="paper">
       <div className="paper-head"><span className="eyebrow">{t('doc.scopeOfWork')}</span><span>V.{String(version).padStart(2, '0')}</span></div>
-      <h2>{scope.title || t('doc.untitled')}</h2>
+      {/* L17: the scope title is the review page's one level-one heading (styled like Paper's h2). */}
+      <h1 className="paper-title">{scope.title || t('doc.untitled')}</h1>
       <p className="quiet">{t('doc.preparedFor', {client: scope.client || t('doc.yourClient')})}</p>
       <div className="rule" />
       <p className="eyebrow doc-making">{t('doc.making')}</p>

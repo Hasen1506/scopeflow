@@ -46,7 +46,13 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["harfbuzzjs"],
   // L10: no hard-coded build parallelism. NEXT_BUILD_CPUS caps the static-generation workers on a
   // small build machine; unset, Next picks its default.
-  ...(buildCpus() ? { experimental: { cpus: buildCpus() } } : {}),
+  experimental: {
+    ...(buildCpus() ? { cpus: buildCpus() } : {}),
+    // H1 (gap audit): proxy.ts runs on every route, and Next buffers each request body for it up to
+    // this size (default 10 MB). No route needs more than 1 MB except the eSign callback (a signed
+    // PDF), which proxy.ts's matcher skips and which reads its own body within BODY_LIMITS.esign.
+    proxyClientMaxBodySize: "1mb",
+  },
   // L10: Next's in-build type check alone needs more than the 460 MB heap of a 512 MB instance.
   // `npm run build:capped` skips it; `npm run typecheck` (tsc) gates CI before every build, and
   // main is only built after CI passed.
@@ -56,6 +62,9 @@ const nextConfig: NextConfig = {
       { source: "/:path*", headers: securityHeaders },
       // Review links are bearer secrets: never leak them via Referer.
       { source: "/review/:token*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
+      // L15 (gap audit): API responses (token PDFs, JSON) and bearer-token pages are never indexed.
+      { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      { source: "/review/:token*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
 };

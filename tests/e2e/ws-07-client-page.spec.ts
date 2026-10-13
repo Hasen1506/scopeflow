@@ -189,7 +189,7 @@ test('SF-09: ?lang=ta shows Tamil chrome, the approve flow works, and the scope 
   await expect(page.getByRole('heading', {name: 'எல்லாம் சரியாக உள்ளதா?'})).toBeVisible();
   await expect(page.locator('.paper')).toContainText('நாங்கள் உருவாக்குவது');
   // Content exactly as written: title, client, deliverables, acceptance, exclusions, notes, amounts.
-  await expect(page.locator('.paper h2')).toHaveText('TEST Brand refresh');
+  await expect(page.locator('.paper h1')).toHaveText('TEST Brand refresh');
   await expect(page.locator('.paper')).toContainText('TEST Kaveri Foods');
   await expect(page.locator('.paper .deliverable')).toHaveText([/Logo suite.*Three concepts/, /Brand guidelines/]);
   await expect(page.locator('.paper')).toContainText('Printing');

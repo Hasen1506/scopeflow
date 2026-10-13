@@ -55,7 +55,7 @@ export function SiteFooter() {
         </div>
         <div className="footer-legal">
           <span>Scopeflow · Early beta</span>
-          <nav aria-label="Legal"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav>
+          <nav aria-label="Legal"><Link href="/about">About</Link><Link href="/contact">Contact</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/refund">Refunds</Link></nav>
         </div>
       </div>
       <img className="footer-art" src="/art/survey-valley-1600.webp" srcSet="/art/survey-valley-800.webp 800w, /art/survey-valley-1600.webp 1600w" sizes="100vw" alt="" width={1600} height={522} loading="lazy" decoding="async" />

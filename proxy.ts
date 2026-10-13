@@ -29,5 +29,8 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Every route except Next's own static assets (the canonical-host check applies to pages too).
-export const config = {matcher: ['/((?!_next/static|_next/image|favicon\\.svg|art/).*)']};
+// Every route except Next's own static assets (the canonical-host check applies to pages too) and
+// the eSign provider callback: its signed PDF can exceed next.config.ts proxyClientMaxBodySize
+// (1 MB), and a body cut off there would fail the provider's MAC (H1). The route reads its own body
+// within BODY_LIMITS.esign.
+export const config = {matcher: ['/((?!_next/static|_next/image|favicon\\.svg|art/|api/esign/).*)']};

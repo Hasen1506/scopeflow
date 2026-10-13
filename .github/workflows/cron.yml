@@ -1,0 +1,71 @@
+# H3 (gap audit): scheduled jobs without Render cron services.
+#
+# Render's free plan has no cron jobs, so GitHub Actions calls the app's existing job endpoints on
+# https://scope-flow.tech once a day (and on demand from the Actions tab):
+#   POST /api/notify/drain                 queued client notices + outbox retries   SCOPEFLOW_CRON_SECRET
+#   POST /api/payments/razorpay/reconcile  payments whose webhook was lost          SCOPEFLOW_CRON_SECRET
+#   POST /api/heads/<yesterday UTC>        signed ledger-head digest                operator token (*)
+#   POST /api/analytics/export             PostHog export (when set) + 400-day purge operator token (*)
+#   POST /api/readiness/housekeeping       expired idempotency keys / OAuth codes   operator token (*)
+# (*) lib/readiness.ts adminAuthorized(): SCOPEFLOW_ADMIN_TOKEN when the web service sets it, else
+#     SCOPEFLOW_CRON_SECRET. Add a SCOPEFLOW_ADMIN_TOKEN repository secret only if the service has one.
+#
+# Setup (repository Settings → Secrets and variables → Actions): add SCOPEFLOW_CRON_SECRET with the
+# same value as the Render web service's SCOPEFLOW_CRON_SECRET (at least 16 characters). Without it
+# this workflow does nothing and passes, with a notice.
+#
+# Not covered here (they run against the database, not over HTTP): client-data retention
+# (scripts/redact-expired.mjs) and automatic reminders (scripts/send-reminders.mjs). They still need a
+# Render cron service (render.yaml) or another runner with DATABASE_URL.
+name: Scheduled jobs
+
+on:
+  schedule:
+    - cron: "30 20 * * *" # 20:30 UTC = 02:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-jobs
+  cancel-in-progress: false
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_URL: https://scope-flow.tech
+      CRON_SECRET: ${{ secrets.SCOPEFLOW_CRON_SECRET }}
+      ADMIN_TOKEN: ${{ secrets.SCOPEFLOW_ADMIN_TOKEN }}
+    steps:
+      - name: Call job endpoints
+        shell: bash
+        run: |
+          set -u
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::notice title=Scheduled jobs skipped::Set the SCOPEFLOW_CRON_SECRET repository secret (same value as on Render) to run the scheduled jobs."
+            exit 0
+          fi
+          operator="${ADMIN_TOKEN:-$CRON_SECRET}"
+          yesterday="$(date -u -d 'yesterday' +%F)"
+          failed=0
+          call() { # name, path, token
+            local code
+            code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' -X POST --max-time 180 \
+              -H "Authorization: Bearer $3" "$APP_URL$2" || echo 000)
+            echo "$1 → HTTP $code"
+            head -c 2000 /tmp/out.txt; echo
+            case "$code" in
+              2??) ;;
+              409) echo "::notice::$1 answered 409 (already done or not due)";;
+              *) echo "::error title=$1 failed::HTTP $code from $2"; failed=1;;
+            esac
+          }
+          call notify       /api/notify/drain                "$CRON_SECRET"
+          call reconcile    /api/payments/razorpay/reconcile "$CRON_SECRET"
+          call heads        "/api/heads/$yesterday"          "$operator"
+          call analytics    /api/analytics/export            "$operator"
+          call housekeeping /api/readiness/housekeeping      "$operator"
+          exit $failed

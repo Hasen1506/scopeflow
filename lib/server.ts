@@ -5,6 +5,8 @@ import { getUser } from '@/lib/auth/server';
 import { limits } from '@/lib/plans';
 import { errorResponse } from '@/lib/errors';
 import { memoryLimiter } from '@/lib/rate-memory';
+import { BODY_LIMITS, readText } from '@/lib/body-limit';
+export { BODY_LIMITS, BodyTooLarge, readText, readFormData } from '@/lib/body-limit';
 export function db(){return getDatabase();}
 export function json(data:unknown,status=200,headers:Record<string,string>={}){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...headers}});}
 export async function hash(value:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(x=>x.toString(16).padStart(2,'0')).join('');}
@@ -49,7 +51,8 @@ export async function ownerAuth(request:Request,{oauth=false}:{oauth?:boolean}={
 }
 export async function owner(request:Request){return (await ownerAuth(request))?.user??null;}
 
-export async function body(request:Request){if(Number(request.headers.get('content-length')||0)>24000)throw new Error('Input too large');const reader=request.body?.getReader();if(!reader)throw new Error('Missing body');const chunks:Uint8Array[]=[];let total=0;while(true){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>24000){await reader.cancel();throw new Error('Input too large');}chunks.push(value);}const bytes=new Uint8Array(total);let i=0;for(const chunk of chunks){bytes.set(chunk,i);i+=chunk.length;}return JSON.parse(new TextDecoder().decode(bytes));}
+/** JSON body, at most 24 KB, read through the bounded reader (H1). */
+export async function body(request:Request){if(!request.body)throw new Error('Missing body');return JSON.parse(await readText(request,BODY_LIMITS.json));}
 
 // SF-05/SF-13: the rate limiter is a single atomic upsert with no lock, and stale
 // windows are purged opportunistically so the table no longer grows forever.

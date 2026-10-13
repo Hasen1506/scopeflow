@@ -12,11 +12,11 @@ import {MSMED_DISCLAIMER} from './msmed';
 
 // WS-03: helpers shared by the invoicing routes (route files may only export handlers).
 
-/** The signed-in owner's project, or an error response. */
+/** The signed-in owner's project, or an error response. M4: a closed account's (tombstoned) project is read-only, so never found here. */
 export async function projectFor(request: Request, id: string) {
   const auth = await ownerAuth(request);
   if (!auth) return {error: json({error: 'Sign in or provide a valid API token.'}, 401)} as const;
-  const row = await db().prepare('SELECT id,owner,archived,client_email,timezone,client_gstin,client_state,client_address FROM projects WHERE id=? AND owner=?').bind(id, auth.user).first<ProjectRow>();
+  const row = await db().prepare('SELECT id,owner,archived,client_email,timezone,client_gstin,client_state,client_address FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL').bind(id, auth.user).first<ProjectRow>();
   if (!row) return {error: json({error: 'Project not found.'}, 404)} as const;
   return {auth, row, error: null} as const;
 }

@@ -1,4 +1,4 @@
-import {db, json, ownerAuth, safeOrigin, allowWrite, failure} from '@/lib/server';
+import {db, json, ownerAuth, safeOrigin, allowWrite, failure, readText} from '@/lib/server';
 import {brandSchema} from '@/lib/brand';
 import {ImageError, parseLogo} from '@/lib/image';
 // Branding (lib/brand.ts): accent colour, logo and reply-to address. Separate from the profile PUT
@@ -12,8 +12,8 @@ export async function PUT(request: Request) {
     if (!auth.scopes.includes('scopes:write')) return json({error: 'This credential cannot change settings.'}, 403);
     if (!await allowWrite('owner:' + auth.user)) return json({error: 'Write limit reached. Try again in a minute.'}, 429);
     if (Number(request.headers.get('content-length') || 0) > MAX) return json({error: 'Use a logo under 150 KB.'}, 413);
-    const text = await request.text();
-    if (text.length > MAX) return json({error: 'Use a logo under 150 KB.'}, 413);
+    let text: string;
+    try { text = await readText(request, MAX); } catch { return json({error: 'Use a logo under 150 KB.'}, 413); }
     let raw;
     try { raw = JSON.parse(text); } catch { return json({error: 'Provide valid JSON.'}, 400); }
     const input = brandSchema.safeParse(raw);

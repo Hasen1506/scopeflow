@@ -1,4 +1,4 @@
-import {db, json, allowWrite, failure} from '@/lib/server';
+import {db, json, allowWrite, failure, readText} from '@/lib/server';
 import {parseWebhook, validSignature, type InboundWa} from '@/lib/whatsapp';
 import {appSecret, sendWa} from '@/lib/wa-outbox';
 import {captureUrl, createCapture, ownerProjects, pickProject, type CaptureView} from '@/lib/capture';
@@ -92,8 +92,8 @@ export async function POST(request: Request) {
     const secret = appSecret();
     if (!secret) return json({error: 'The WhatsApp bot is not configured on this server.', code: 'whatsapp_disabled'}, 503);
     if (Number(request.headers.get('content-length') || 0) > MAX) return json({error: 'Payload too large.'}, 413);
-    const raw = await request.text();
-    if (raw.length > MAX) return json({error: 'Payload too large.'}, 413);
+    let raw: string;
+    try { raw = await readText(request, MAX); } catch { return json({error: 'Payload too large.'}, 413); }
     if (!validSignature(raw, request.headers.get('x-hub-signature-256'), secret)) return json({error: 'Invalid signature.'}, 401);
     let payload: unknown;
     try { payload = JSON.parse(raw); } catch { return json({error: 'Provide the webhook payload as JSON.'}, 400); }
