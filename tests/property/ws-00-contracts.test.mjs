@@ -131,9 +131,10 @@ test('notify.ts logs the event only and sends nothing; mode.ts is always freelan
   for (const m of MODES) assert.equal(modeDefaults(m).mode, m);
 });
 
-test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refuses redefinitions', () => {
+test('OpenAPI fragments: ten, each a {paths, schemas} pair of objects; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  for (const f of O.fragments) { assert.deepEqual(f.paths, {}); assert.deepEqual(f.schemas, {}); }
+  // changed by WS-07: owners fill their fragments, so a fragment only needs to be objects (it was "all empty").
+  for (const f of O.fragments) for (const part of [f.paths, f.schemas]) assert.ok(part && typeof part === 'object' && !Array.isArray(part));
   const base = {'/b': 1, '/a': 2};
   assert.equal(JSON.stringify(O.mergeFragments(base, f => f.paths)), JSON.stringify(base));
   assert.deepEqual(O.mergeFragments(base, f => f.paths, [{paths: {'/c': 3}, schemas: {}}]), {'/b': 1, '/a': 2, '/c': 3});
