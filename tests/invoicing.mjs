@@ -135,9 +135,10 @@ eq((await call(`${P}/ledger`, {method: 'POST', cookie, body: {kind: 'payment_rec
 
 // ---- Revision bank ------------------------------------------------------------------------------
 const L = `${P}/ledger`;
-eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-02', note: 'Hero copy'}}})).status, 400); // hours required
-eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-02', note: 'Hero copy', used: 6.5}}})).status, 201);
-eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-05', note: 'Footer', used: 5}}})).status, 201);
+const today = new Date().toISOString().slice(0, 10); // changed by WS-05: M8 bounds feedback dates by today and the approval date
+eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: today, note: 'Hero copy'}}})).status, 400); // hours required
+eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: today, note: 'Hero copy', used: 6.5}}})).status, 201);
+eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: today, note: 'Footer', used: 5}}})).status, 201);
 {
   const a = (await call(L, {cookie})).data.agreement;
   eq(a.bank, {unit: 'hours', allowed: 10, used: 11.5, left: 0, over: 1.5, overage_rate: 2500, overage_value: 3750});

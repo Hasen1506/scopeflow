@@ -1,0 +1,342 @@
+{
+  "anchor": "7d2a394361e4b8a3912f40f4ecdd301c9fc4d29b388794e5e7ba095aa31e0729",
+  "head": "52cce353917ce949b5288a8d486a1699730c277a49021a8eab93a301b539af88",
+  "entries": [
+    {
+      "seq": 1,
+      "kind": "period_open",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:01:00.000Z",
+      "payload_hash": "5757cfcf2535e5c16e08fdd9fde9dea8c6162a5690ec53b0724b3de53399ceba",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "payload": {
+        "period": "2026-10",
+        "starts": "2026-10-01",
+        "ends": "2026-10-31",
+        "quotas": [
+          {
+            "item_id": "posts",
+            "qty": 12,
+            "carried": 0
+          },
+          {
+            "item_id": "reels",
+            "qty": 2,
+            "carried": 0
+          }
+        ]
+      },
+      "hash": "baac3cb16f50472319aa59c4d11a6c778f2161b72aaaad310fc700e77d9e0804",
+      "signature": "d229274fdc7f9fe5.bzHhBV04pvcDqv-ltw_gVbmdYrt1eQrdVBw8Bx5AgJjEZpFhH0BZXac2UZDFN9eP_RpgaQI9mQqDk9VXbISZCw"
+    },
+    {
+      "seq": 2,
+      "kind": "usage",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:02:00.000Z",
+      "payload_hash": "6b20b7b9523874c0dd1042a5fa460e76b4b1894d00b031cc50b2809a746fc409",
+      "prev_hash": "baac3cb16f50472319aa59c4d11a6c778f2161b72aaaad310fc700e77d9e0804",
+      "payload": {
+        "period": "2026-10",
+        "item_id": "posts",
+        "qty": 6,
+        "date": "2026-10-03",
+        "note": "Week 1"
+      },
+      "hash": "43da96fa169857d672bc0e92e4fb3d2d0d9b43f6cac2ee1743dddb469484782f",
+      "signature": "d229274fdc7f9fe5.yvOns86MZUAdJHVbjW9YTmXRTg-h2HSkTFvmjPEgvT4alLBPEBnxweDtfe9NrXPDKwqfy2ajD0BXWyhD7gNLBA"
+    },
+    {
+      "seq": 3,
+      "kind": "usage",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:03:00.000Z",
+      "payload_hash": "c831a080067257454717f2974be6cc6b4d9b3e1d787cb75005752dae6ec23261",
+      "prev_hash": "43da96fa169857d672bc0e92e4fb3d2d0d9b43f6cac2ee1743dddb469484782f",
+      "payload": {
+        "period": "2026-10",
+        "item_id": "posts",
+        "qty": 6,
+        "date": "2026-10-10",
+        "note": "Week 2"
+      },
+      "hash": "ec7e7313253a884dd3fbeb17fc92da75a4fb54786aea59f27c2871408125a558",
+      "signature": "d229274fdc7f9fe5.qLPtBjDEQYL2fOYfLApeslS3in2WOUJRxKIRGXFyK2AGWy8GBh6pwqC1hxgbR9IrtM13n_kMohFXpMjeqZS9CA"
+    },
+    {
+      "seq": 4,
+      "kind": "usage",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:04:00.000Z",
+      "payload_hash": "c9808483c49642e9eafef1d4bff94704520a4e4d338a7fe2016b722332ab3681",
+      "prev_hash": "ec7e7313253a884dd3fbeb17fc92da75a4fb54786aea59f27c2871408125a558",
+      "payload": {
+        "period": "2026-10",
+        "item_id": "reels",
+        "qty": 1,
+        "date": "2026-10-14",
+        "note": "Reel"
+      },
+      "hash": "e3716f78ec692e1f525f9b2e55e4be0702039ba33e0031ac5b2990c64a11c5e7",
+      "signature": "d229274fdc7f9fe5.RgrmNjIUJWfmjrHyZS4POjsWQijf-h4ldsqkvTNY5qSsa8Dv1asFq6IrNQhipMQOPY6LsU44LHm4RaTHJYH_Dg"
+    },
+    {
+      "seq": 5,
+      "kind": "usage",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:05:00.000Z",
+      "payload_hash": "0bd4e690e04751ea51f5e9e70d79e45cfe590062722553559f1171cced3db500",
+      "prev_hash": "e3716f78ec692e1f525f9b2e55e4be0702039ba33e0031ac5b2990c64a11c5e7",
+      "payload": {
+        "period": "2026-10",
+        "item_id": "posts",
+        "qty": 1,
+        "date": "2026-10-17",
+        "note": "Festival post"
+      },
+      "hash": "ed099e0a12d47b59ae0458514065082a63b3f4d7fae2c72ed528a690f6b6cf91",
+      "signature": "d229274fdc7f9fe5.0h5eKEP8_CR_zehf4xP3DOtdyBK9Tzh98p2ya54_62U-g3fHZZ88COBzqpc3IfmLzqRYT64NQTxw-8N0uBI-Cg"
+    },
+    {
+      "seq": 6,
+      "kind": "change_order",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:06:00.000Z",
+      "payload_hash": "b889e8c7907e7623dd299a731bdcd61025a443c6a4f4d86cb9893da0156190be",
+      "prev_hash": "ed099e0a12d47b59ae0458514065082a63b3f4d7fae2c72ed528a690f6b6cf91",
+      "payload": {
+        "title": "Overage: 1 × Instagram posts (2026-10)",
+        "reason": "Usage beyond the 2026-10 quota (12 included).",
+        "request_quote": "",
+        "add_items": [
+          {
+            "id": "ov_5_posts",
+            "title": "Instagram posts",
+            "qty": 1,
+            "unit": "posts",
+            "price": 600,
+            "acceptance": ""
+          }
+        ],
+        "remove_item_ids": [],
+        "fee_delta": 600,
+        "days_delta": 0,
+        "revisions_delta": 0,
+        "overage": {
+          "period": "2026-10",
+          "item_id": "posts",
+          "qty": 1,
+          "usage_seq": 5
+        },
+        "rate_card": {
+          "item_id": "post",
+          "qty": 1,
+          "unit_price_minor": 60000,
+          "multipliers": []
+        }
+      },
+      "hash": "bb44ec28c2e3ccb1d3c945ef7658b0354db78b990263097dcbe26f743334f85b",
+      "signature": "d229274fdc7f9fe5.HB0hybGM_tM1MHJayGZ0Sl8KUmS7jTyC6sxVQPCPPxdl3tr78eEUlRlKbFWrrDFdsEnlDUvpi7m_nCo8mMk_BA"
+    },
+    {
+      "seq": 7,
+      "kind": "settle",
+      "baseline_version": 1,
+      "actor": "client",
+      "created": "2026-10-07T09:07:00.000Z",
+      "payload_hash": "685573ef0cad9c9f95ce6508086afbd7f48689e8b1a89db8cb492967914bf997",
+      "prev_hash": "bb44ec28c2e3ccb1d3c945ef7658b0354db78b990263097dcbe26f743334f85b",
+      "payload": {
+        "ref_seq": 6,
+        "outcome": "approved",
+        "signer": "Ada Client",
+        "comment": "",
+        "acknowledged": true,
+        "co_sha256": "6c70ba79c193332b3fa49dd338799c5c791d4b0c056a1905295d4664d7dec3eb",
+        "total_incl_tax_minor": 70800
+      },
+      "hash": "19bfc96df10d8ed4d2cc3b8a7d24c10b642b0b0369c7226120932f932bd6373d",
+      "signature": "d229274fdc7f9fe5.CHss8eO7IVwR5v3p0HhrkgvUVucTKfmN4p0lGTjavio_jFaLNTycwdkbQ4VDsifyQi5QERy1xry7M-mcAj4-DQ"
+    },
+    {
+      "seq": 8,
+      "kind": "period_close",
+      "baseline_version": 1,
+      "actor": "owner",
+      "created": "2026-10-07T09:08:00.000Z",
+      "payload_hash": "8003fc2817573755e4d76bc951adcbe8d6035c17cf0990d0719b4ebc4e5b9d30",
+      "prev_hash": "19bfc96df10d8ed4d2cc3b8a7d24c10b642b0b0369c7226120932f932bd6373d",
+      "payload": {
+        "period": "2026-10",
+        "lines": [
+          {
+            "item_id": "posts",
+            "quota": 12,
+            "carried": 0,
+            "used": 13,
+            "over": 1,
+            "carry_out": 0
+          },
+          {
+            "item_id": "reels",
+            "quota": 2,
+            "carried": 0,
+            "used": 1,
+            "over": 0,
+            "carry_out": 1
+          }
+        ],
+        "overage_cos": [
+          6
+        ]
+      },
+      "hash": "52cce353917ce949b5288a8d486a1699730c277a49021a8eab93a301b539af88",
+      "signature": "d229274fdc7f9fe5.kbglbufxVNOUrglljBq8JS9QmxM_Yjcp4rATUsWiORM8VyxhDTQze8DX-Cnce6AbbxGpwSt_IRpHlWVoqMhCAQ"
+    }
+  ],
+  "retainer": {
+    "period": "monthly",
+    "carry_over": "cap",
+    "current": "2026-10",
+    "periods": [
+      {
+        "period": "2026-10",
+        "starts": "2026-10-01",
+        "ends": "2026-10-31",
+        "open_seq": 1,
+        "closed_seq": 8,
+        "overage_cos": [
+          {
+            "seq": 6,
+            "status": "approved",
+            "item_id": "posts",
+            "qty": 1,
+            "fee_delta": 600,
+            "usage_seq": 5
+          }
+        ],
+        "lines": [
+          {
+            "item_id": "posts",
+            "title": "Instagram posts",
+            "unit": "posts",
+            "quota": 12,
+            "carried": 0,
+            "allowance": 12,
+            "used": 13,
+            "over": 1,
+            "left": 0
+          },
+          {
+            "item_id": "reels",
+            "title": "Reels",
+            "unit": "reels",
+            "quota": 2,
+            "carried": 0,
+            "allowance": 2,
+            "used": 1,
+            "over": 0,
+            "left": 1
+          }
+        ]
+      }
+    ]
+  },
+  "statement": {
+    "period": "2026-10",
+    "starts": "2026-10-01",
+    "ends": "2026-10-31",
+    "closed": true,
+    "currency": "INR",
+    "retainer_fee_minor": 3000000,
+    "lines": [
+      {
+        "item_id": "posts",
+        "title": "Instagram posts",
+        "unit": "posts",
+        "quota": 12,
+        "carried": 0,
+        "allowance": 12,
+        "used": 13,
+        "over": 1,
+        "left": 0,
+        "usage": [
+          {
+            "seq": 2,
+            "date": "2026-10-03",
+            "qty": 6,
+            "note": "Week 1"
+          },
+          {
+            "seq": 3,
+            "date": "2026-10-10",
+            "qty": 6,
+            "note": "Week 2"
+          },
+          {
+            "seq": 5,
+            "date": "2026-10-17",
+            "qty": 1,
+            "note": "Festival post"
+          }
+        ]
+      },
+      {
+        "item_id": "reels",
+        "title": "Reels",
+        "unit": "reels",
+        "quota": 2,
+        "carried": 0,
+        "allowance": 2,
+        "used": 1,
+        "over": 0,
+        "left": 1,
+        "usage": [
+          {
+            "seq": 4,
+            "date": "2026-10-14",
+            "qty": 1,
+            "note": "Reel"
+          }
+        ]
+      }
+    ],
+    "overage": [
+      {
+        "seq": 6,
+        "title": "Overage: 1 × Instagram posts (2026-10)",
+        "status": "approved",
+        "item_id": "posts",
+        "qty": 1,
+        "fee_delta_minor": 60000
+      }
+    ],
+    "overage_approved_minor": 60000,
+    "overage_pending_minor": 0,
+    "subtotal_minor": 3060000,
+    "tax": {
+      "label": "GST",
+      "pct": 18,
+      "amount_minor": 550800
+    },
+    "total_incl_tax_minor": 3610800
+  },
+  "next_period_quotas": [
+    {
+      "item_id": "posts",
+      "qty": 12,
+      "carried": 0
+    },
+    {
+      "item_id": "reels",
+      "qty": 2,
+      "carried": 1
+    }
+  ]
+}

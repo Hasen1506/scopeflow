@@ -65,7 +65,8 @@ test('A3: agreement folding differs only for undated scopes with a timeline shif
       }
     }
     const a = now.computeAgreement(base, 1, entries), p = old.computeAgreement(base, 1, entries);
-    const keys = Object.keys(a).filter(k => JSON.stringify(a[k]) !== JSON.stringify(p[k]));
+    // changed by WS-05: agreement.deliverables (LT-14) is a new derived view the old code never had.
+    const keys = Object.keys(a).filter(k => k !== 'deliverables' && JSON.stringify(a[k]) !== JSON.stringify(p[k]));
     if (!keys.length) { seen.same++; return; }
     seen.differs++;
     // Documented class: no baseline due date, yet the old code reported a shift / moved date.

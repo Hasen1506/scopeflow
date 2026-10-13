@@ -37,3 +37,13 @@ export function changeOrderProblems(payload: ChangeOrder): string[] {
     return `${fieldNames[String(field)] ?? String(field)}: ${issue.message}`;
   });
 }
+
+/**
+ * LT-14: warnings (never blocks) shown under the change-order form. A fee with nothing added means
+ * the approved agreement's "Deliverables now" will not list the work the client is paying for.
+ */
+export function changeOrderNudges(payload: Pick<ChangeOrder, 'fee_delta' | 'add_items'>): string[] {
+  const out: string[] = [];
+  if (payload.fee_delta > 0 && payload.add_items.length === 0) out.push('Add the deliverable this pays for, so the agreement lists the work the client is paying for.');
+  return out;
+}

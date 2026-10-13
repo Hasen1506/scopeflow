@@ -17,7 +17,7 @@ before(async () => {
   const seq = await changeOrder(A, P.project_id, 400);
   assert.equal((await call(`/api/review/${P.token}/change-order`, {method: 'POST', body: {seq, decision: 'approved', signer: 'Fictional Client', comment: ''}})).status, 200);
   await changeOrder(A, P.project_id, 250, 'Pending extra');
-  for (const body of [{kind: 'goodwill', baseline_version: 1, payload: {title: 'Hidden favour', value: 80, visible: false}}, {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-08', note: 'Colour'}}]) {
+  for (const body of [{kind: 'goodwill', baseline_version: 1, payload: {title: 'Hidden favour', value: 80, visible: false}}, {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: new Date().toISOString().slice(0, 10), note: 'Colour'}}]) { // changed by WS-05: M8 date bounds
     assert.equal((await call(`/api/scopes/${P.project_id}/ledger`, {method: 'POST', cookie: A.cookie, body})).status, 201);
   }
   original = {
