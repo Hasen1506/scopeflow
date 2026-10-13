@@ -1,0 +1,22 @@
+import {toast} from 'sonner';
+import type {Dispatch,SetStateAction} from 'react';
+import type {Version} from '@/lib/scope';
+import {api,post,type ApiError} from '../ui';
+import {EMAIL} from './types';
+
+type Fallback={to:string;review_url:string;mailto:string}|null;
+type Ctx={active:Version|null;busy:boolean;clientEmail:string;setBusy:(b:boolean)=>void;setError:Dispatch<SetStateAction<string>>;setNotice:Dispatch<SetStateAction<string>>;
+ setSavedEmail:(e:string)=>void;setClientEmail:(e:string)=>void;setSendFallback:(f:Fallback)=>void;setTimeZone:(tz:string|null)=>void;loadOverview:()=>Promise<void>;
+ select:(s:Version,then?:'revise'|'change_order')=>Promise<void>};
+
+/** The open project's private metadata and mail actions, for the current render (moved verbatim from useWorkspace, L8). */
+export function projectActions({active,busy,clientEmail,setBusy,setError,setNotice,setSavedEmail,setClientEmail,setSendFallback,setTimeZone,loadOverview,select}:Ctx){
+ async function exportProject(){if(!active||busy)return;setBusy(true);setError('');try{const data=await api(`/api/scopes/${active.project_id}/export`);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='scopeflow-project-'+active.project_id+'.json';a.click();URL.revokeObjectURL(url);setNotice('Project exported with every version and ledger entry. Store this private file securely.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+ async function saveEmail(){if(!active||busy)return;const email=clientEmail.trim().toLowerCase();if(email&&!EMAIL.test(email)){setError('Client email: enter a valid email address, or leave it empty.');return;}setBusy(true);setError('');try{const m=await api(`/api/scopes/${active.project_id}`,{...post({client_email:email}),method:'PATCH'});setSavedEmail(m.project.client_email);setClientEmail(m.project.client_email);setNotice(email?'Client email saved. It is private to you and not part of the signed scope.':'Client email removed.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+ // Send for signature: emails the review link when a provider is configured, else offers copy link / mailto.
+ async function sendForSignature(){if(!active||busy)return;const email=clientEmail.trim().toLowerCase();setError('');setNotice('');setSendFallback(null);if(!email){setError('Add the client’s email in the editor (Client email), then send.');return;}if(!EMAIL.test(email)){setError('Client email: enter a valid email address.');return;}setBusy(true);try{const r=await api(`/api/scopes/${active.project_id}/send`,post({version:active.version,email}));setSavedEmail(r.to);if(r.sent){setNotice(`Review link for version ${active.version} emailed to ${r.to}.`);void loadOverview();}else{setSendFallback({to:r.to,review_url:r.review_url,mailto:r.mailto});setNotice('Email delivery is not set up on this server. Copy the link or open it in your mail app below.');}}catch(e){const err=e as ApiError;if(err.data?.mailto)setSendFallback({to:String(err.data.to),review_url:String(err.data.review_url),mailto:String(err.data.mailto)});setError(err.message);}finally{setBusy(false);}}
+ // Reminder for a scope still awaiting a decision: emailed when a provider is set up, else the owner's mail app opens with it filled in.
+ async function remind(s:Version){if(busy)return;setBusy(true);setError('');try{const r=await api(`/api/scopes/${s.project_id}/send`,post({version:s.version,reminder:true}));if(r.sent){toast.success(`Reminder emailed to ${r.to}.`);void loadOverview();}else{location.href=r.mailto;toast.info('Your mail app opened with the reminder filled in. Email delivery is not set up on this server.');}}catch(e){const err=e as ApiError;if(err.code==='email_required'){toast.error('Add the client’s email to this project first.');if(active?.project_id!==s.project_id)void select(s);}else toast.error(err.message);}finally{setBusy(false);}}
+ async function saveTimeZone(tz:string){if(!active||busy)return;setBusy(true);setError('');try{const m=await api(`/api/scopes/${active.project_id}`,{...post({timezone:tz}),method:'PATCH'});setTimeZone(m.project.timezone);setNotice('Project time zone saved. Times are shown in it for you and your client.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+ return {exportProject,saveEmail,sendForSignature,remind,saveTimeZone};
+}
