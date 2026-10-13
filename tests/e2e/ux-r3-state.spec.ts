@@ -32,7 +32,7 @@ test('ux-r3: New scope during the first load is not bounced to the project list'
   await signUp(page);
   const made = await page.request.post('/api/scopes', {headers: {Origin: baseURL!}, data: scope});
   expect(made.ok()).toBe(true);
-  const projects = page.getByRole('tab', {name: /^Projects \(1\b/});
+  const projects = page.getByRole('tab', {name: /Projects \(1\)/});
 
   // Control: left alone, the first load lands on Projects.
   let release = await holdScopes(page);
