@@ -261,7 +261,7 @@ label select{margin-top:7px}
 .scope-stats span{display:block;font-family:var(--font-ui);font-size:var(--fs-1);letter-spacing:.08em;text-transform:uppercase}
 .scope-stats strong{display:block;font-family:var(--font-display);font-size:var(--fs-5);font-weight:var(--fw-1);font-variant-numeric:tabular-nums;line-height:var(--lh-5);margin-top:4px}
 /* Visual #2: a money figure never breaks mid-number ("₹1,00,000.0" / "0"), whatever overflow-wrap the page sets. */
-.scope-stats strong,.summary-strip strong,.pay-grid dd,.terms-line strong,.item-price{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+.scope-stats strong,.summary-strip strong,.pay-fig,.terms-line strong,.item-price{white-space:nowrap;overflow-wrap:normal;word-break:normal}
 @media (max-width:420px){.scope-stats{grid-template-columns:1fr;gap:12px}.summary-strip strong{font-size:var(--fs-4);line-height:var(--lh-4)}}
 /* Visual #9: a unit price is labelled "each" (or a legacy line price "for all N") under the line total. */
 .item-price{display:flex;flex-direction:column;align-items:flex-end;text-align:right}
@@ -541,7 +541,7 @@ input:user-invalid~#password-hint{color:var(--bad)}
   .hero{gap:20px;margin-bottom:28px}
   .save-bar{position:static;background:transparent}
   .editor.editing .notice-dock{bottom:12px}
-  .template-list{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:6px;margin-right:-20px}
+  .template-list{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:6px;margin-right:-20px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent);padding-right:32px}
   .template-chip{flex:0 0 auto}
   .action-label{width:100%}
   .preview-bar .secondary{min-height:36px;padding:6px 12px}
@@ -1044,7 +1044,7 @@ main#content:focus{outline:none}
 .flow-step[data-state=attention] .step-num{border-color:var(--warn);background:var(--warn);color:var(--bg)}
 /* UX-C27: brief "Saved" next to controls that save as soon as they change. */
 .saved-note{display:inline-flex;align-items:center;gap:4px;min-height:1lh;margin:var(--s1) 0 0;font-family:var(--font-ui);font-size:var(--fs-2);color:var(--ok)}
-.saved-note:empty{visibility:hidden}
+.saved-note:empty{visibility:hidden;min-height:0;margin:0}
 /* UX-C24: the account page keeps its height while sign-in and settings load. */
 .account-loading{min-height:60vh}
 /* UX-C39: why Save business details is unavailable, next to the button. */
@@ -1060,3 +1060,5 @@ main#content:focus{outline:none}
 /* Visual re-audit #12: a disclosure title with a "· hint" reads as one wrapping line, not two columns. */
 .ai-draft>summary:has(>.quiet),.disclosure>summary:has(>.quiet),.scope-check>summary:has(>.quiet){display:block;position:relative;padding-right:40px}
 .ai-draft>summary:has(>.quiet)::after,.disclosure>summary:has(>.quiet)::after,.scope-check>summary:has(>.quiet)::after{position:absolute;right:16px;top:50%;margin:-6px 0 0}
+/* visual #29: no keyboard-shortcut hint on touch-first devices. */
+@media (pointer:coarse){.kbd-hint{display:none}}

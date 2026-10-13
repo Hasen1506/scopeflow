@@ -26,8 +26,9 @@ test('N1: no native confirm or prompt is left in any page or component; replacin
   const offenders = walk('app', /\.tsx$/).filter(f => /window\.(confirm|prompt)\(/.test(code(f)));
   assert.deepEqual(offenders, []);
   const state = src('app/workspace/state.tsx');
-  assert.match(state, /async function canReplace\(\)\{return !dirty\|\|await confirm\(\{title:'Replace this unsaved draft\?'/);
-  for (const caller of ['async function newScope(){if(!(await canReplace()))', "async function select(s:Version,then?:'revise'|'change_order'){if(!(await canReplace()))", 'if(!(await canReplace()))return;stash();creationRequest.current=null;setDraft(value)']) assert.ok(state.includes(caller), caller);
+  // R3-01/R3-12: only a name-and-client-only draft (template keeps both) or a draft kept with the account (opening a project) skips it.
+  assert.match(state, /async function canReplace\(o:\{nameOk\?:boolean;keptOk\?:boolean\}=\{\}\)\{return !dirty\|\|\(o\.nameOk&&nameOnly\(\)\)\|\|\(o\.keptOk&&draftKept\(\)\)\|\|await confirm\(\{title:'Replace this unsaved draft\?'/);
+  for (const caller of ['async function newScope(o:{nameOk?:boolean}={}){if(!(await canReplace(o)))', "async function select(s:Version,then?:'revise'|'change_order'){if(!(await canReplace({keptOk:true})))", 'if(!(await canReplace()))return;stash();creationRequest.current=null;setDraft(value)']) assert.ok(state.includes(caller), caller);
   assert.ok(!/[^.]\bnewScope\(\)\)/.test(state.replace(/await newScope\(\)\)/g, '')), 'every newScope() result is awaited');
 });
 
@@ -131,7 +132,13 @@ test('N9: the operator billing note is keyed on admin emails or an explicit opt-
 
 test('visual #2: money figures never break mid-number on the review page or the workspace', () => {
   const css = code('app/globals.css');
-  assert.match(css, /\.scope-stats strong,\.summary-strip strong,\.pay-grid dd,\.terms-line strong,\.item-price\{white-space:nowrap;overflow-wrap:normal;word-break:normal\}/);
+  assert.match(css, /\.scope-stats strong,\.summary-strip strong,\.pay-fig,\.terms-line strong,\.item-price\{white-space:nowrap;overflow-wrap:normal;word-break:normal\}/);
+  // R3-02: in the payment tiles only the figure is kept on one line; the explanatory notes wrap.
+  assert.doesNotMatch(css, /\.pay-grid dd[^{]*\{[^}]*nowrap/);
+  const moneyTsx = code('app/workspace/money.tsx');
+  const dds = [...moneyTsx.matchAll(/<dd>(.*?)<\/dd>/g)].map(m => m[1]);
+  assert.ok(dds.length >= 7);
+  for (const dd of dds) assert.match(dd, /^<span className="pay-fig">\{formatMoney\([^}]*\)\}<\/span>/, dd);
 });
 
 test('visual #9: a price shows the line total; a unit price says "each"; a legacy line price says "for all N"', () => {
