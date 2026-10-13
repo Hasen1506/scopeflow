@@ -90,3 +90,4 @@ CI on 92f093b failed 13 e2e tests. Every one passed on its own WS branch, so eac
 - Round 9: tests/ws-03-invoicing.mjs uses the checksum-valid seller GSTIN 33ABCDE1234F1Z7.
 - Round 10: ws-05 ledger cap test compares only recorded/ledger/seq of the Razorpay webhook reply (WS-04 adds outcome and excess_minor).
 - Round 11: ws-05 cap test expects payment, excess_payment (WS-04), tds_credit as the last three entries.
+- Round 12: ws-05 H6 hook test: in the merged tree approving v2 fires onBaselineApproved via the review route, so baseline_superseded precedes the late payment and carries the money on record at approval (₹10,000).

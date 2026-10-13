@@ -295,9 +295,12 @@ eq(co2.value.seq, 2);
   await hooks.onBaselineApproved(M.project_id, 1, 2);
   await hooks.onBaselineApproved(M.project_id, 1, 2); // idempotent
   const rows = localSql(`SELECT kind,baseline_version,actor,payload FROM ledger_entries WHERE project_id=${q(M.project_id)} ORDER BY seq`)[0].results;
-  eq(rows.map(r => [r.kind, r.baseline_version, r.actor]), [['payment', 1, 'system'], ['payment', 2, 'system'], ['baseline_superseded', 2, 'system']]);
-  const superseded = JSON.parse(rows[2].payload);
-  eq([superseded.from, superseded.to, superseded.currency, superseded.received_minor, superseded.paid_minor], [1, 2, 'INR', 1500000, 1500000]);
+  // integration: once merged, approving v2 through the review route already fires onBaselineApproved, so the
+  // superseded entry lands before the late payment; the explicit calls above stay idempotent no-ops.
+  eq(rows.map(r => [r.kind, r.baseline_version, r.actor]), [['payment', 1, 'system'], ['baseline_superseded', 2, 'system'], ['payment', 2, 'system']]);
+  // integration: it carries the money on record at approval time (the ₹10,000 on v1; the late ₹5,000 came after)
+  const superseded = JSON.parse(rows[1].payload);
+  eq([superseded.from, superseded.to, superseded.currency, superseded.received_minor, superseded.paid_minor], [1, 2, 'INR', 1000000, 1000000]);
   // Failures are thrown, never swallowed (WS-04 turns them into a 500 + payment alert).
   const fails = async (opts, code) => { await assert.rejects(hooks.appendMoneyEntry(opts), e => e instanceof hooks.MoneyEntryError && e.code === code); passed++; };
   await fails({baseline: {project_id: M.project_id, version: 2}, kind: 'goodwill', actor: 'owner', payload: {title: 'TEST', value: 1}}, 'not_money_kind');
