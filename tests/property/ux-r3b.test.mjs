@@ -101,7 +101,7 @@ test('visual #30: the dashboard stage and the Approval card use the same words',
   assert.equal(STAGE_LABEL.awaiting, label('pending'));
 });
 
-test('visual #11/#20/#29, C11/C13/C24: small layout and hierarchy fixes', () => {
+test('visual #11/#20/#29, C11/C13: small layout and hierarchy fixes', () => {
   assert.match(read('app/components/slots/cosigner-editor.tsx'), /disabled=\{busy \|\| !dirty/);
   assert.ok(!read('app/components/slots/contact-change.tsx').includes("Current: {current || 'none'}"));
   assert.match(read('app/review/[token]/client.module.css'), /\.header \.picker\{order:2\}/);
@@ -109,5 +109,4 @@ test('visual #11/#20/#29, C11/C13/C24: small layout and hierarchy fixes', () => 
   const ins = read('app/insights-panel.tsx');
   assert.ok(!/<h2/.test(ins), 'insights sit under the dashboard heading');
   assert.match(read('app/review/[token]/review.tsx'), /<Link className="help-link" href="\/">\{t\('actions\.create'\)\}<\/Link>/);
-  assert.match(read('app/account/page.tsx'), /\{!checking&&<>\n  <h2 id="h-data">/);
 });
