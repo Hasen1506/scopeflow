@@ -1,21 +1,23 @@
-import {db, json, ownerAuth, allowRead, failure} from '@/lib/server';
-import {pdfResponse} from '@/lib/receipt-server';
-import {ensurePdfFonts} from '@/lib/pdf-fonts';
+import {json, allowRead, failure} from '@/lib/server';
 import {loadBrand} from '@/lib/brand-server';
 import {pdfBrand} from '@/lib/brand';
-import {renderInvoicePdf, type InvoiceContent} from '@/lib/invoice';
+import {renderInvoicePdf} from '@/lib/invoice';
+import {cachedPdf, loadDocs, readSql, recordKey, streamPdf} from '@/lib/invoice-server';
+import {projectFor} from '@/lib/invoice-api';
 type Ctx = {params: Promise<{id: string; seq: string}>};
-// One issued invoice as a PDF, rendered from its frozen snapshot.
+// One issued invoice as a PDF, rendered from its frozen snapshot ("Cancelled by CN-…" once fully credited).
 export async function GET(request: Request, ctx: Ctx) {
   try {
-    const auth = await ownerAuth(request);
-    if (!auth) return json({error: 'Sign in or provide a valid API token.'}, 401);
-    if (!await allowRead('owner:' + auth.user, 60)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     const {id, seq} = await ctx.params;
+    const p = await projectFor(request, id);
+    if (p.error) return p.error;
+    if (!await allowRead('owner:' + p.auth.user, 60)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     if (!/^\d{1,9}$/.test(seq)) return json({error: 'Invoice not found.'}, 404);
-    const row = await db().prepare('SELECT number,content FROM invoices WHERE project_id=? AND owner=? AND seq=?').bind(id, auth.user, Number(seq)).first<{number: string; content: string}>();
-    if (!row) return json({error: 'Invoice not found.'}, 404);
-    await ensurePdfFonts();
-    return pdfResponse(renderInvoicePdf(JSON.parse(row.content) as InvoiceContent, pdfBrand(await loadBrand(auth.user))), `invoice-${row.number}.pdf`);
+    const docs = await loadDocs(readSql(), id);
+    const inv = docs.invoices.find(i => i.row.seq === Number(seq));
+    if (!inv) return json({error: 'Invoice not found.'}, 404);
+    const brand = pdfBrand(await loadBrand(p.auth.user));
+    const bytes = await cachedPdf(recordKey('invoice', inv.row.id, inv.cancelled_by, brand), () => renderInvoicePdf(inv.content, brand, {cancelled_by: inv.cancelled_by}));
+    return streamPdf(bytes, `invoice-${inv.row.number}.pdf`);
   } catch (e) { return failure(e); }
 }

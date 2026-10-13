@@ -1,0 +1,176 @@
+{
+  "inputs": {
+    "principal": 10000000,
+    "interest_from": "2026-08-02",
+    "paid_on": "2026-12-01",
+    "bank_rate_table": [
+      {
+        "from": "2025-06-06",
+        "rate": 5.75,
+        "source": "https://www.rbi.org.in/scripts/BS_PressReleaseDisplay.aspx?prid=60604",
+        "verified": false
+      },
+      {
+        "from": "2025-12-05",
+        "rate": 5.5,
+        "source": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=61750",
+        "verified": true
+      },
+      {
+        "from": "2026-10-07",
+        "rate": 5.75,
+        "source": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63742",
+        "verified": true
+      }
+    ]
+  },
+  "per_period": {
+    "principal": 10000000,
+    "interest_from": "2026-08-02",
+    "paid_on": "2026-12-01",
+    "rate_basis": "per_period",
+    "note": "Estimate based on the rules as we understand them; confirm with your CA.",
+    "periods": [
+      {
+        "from": "2026-08-02",
+        "to": "2026-09-02",
+        "days": 31,
+        "opening": 10000000,
+        "rates": [
+          {
+            "from": "2026-08-02",
+            "rate_pa": 16.5,
+            "days": 31
+          }
+        ],
+        "interest": 140137,
+        "closing": 10140137
+      },
+      {
+        "from": "2026-09-02",
+        "to": "2026-10-02",
+        "days": 30,
+        "opening": 10140137,
+        "rates": [
+          {
+            "from": "2026-09-02",
+            "rate_pa": 16.5,
+            "days": 30
+          }
+        ],
+        "interest": 137517,
+        "closing": 10277654
+      },
+      {
+        "from": "2026-10-02",
+        "to": "2026-11-02",
+        "days": 31,
+        "opening": 10277654,
+        "rates": [
+          {
+            "from": "2026-10-02",
+            "rate_pa": 16.5,
+            "days": 5
+          },
+          {
+            "from": "2026-10-07",
+            "rate_pa": 17.25,
+            "days": 26
+          }
+        ],
+        "interest": 149519,
+        "closing": 10427173
+      },
+      {
+        "from": "2026-11-02",
+        "to": "2026-12-01",
+        "days": 29,
+        "opening": 10427173,
+        "rates": [
+          {
+            "from": "2026-11-02",
+            "rate_pa": 17.25,
+            "days": 29
+          }
+        ],
+        "interest": 142909,
+        "closing": 10570082
+      }
+    ],
+    "interest": 570082,
+    "total": 10570082,
+    "covered": true
+  },
+  "on_due_date": {
+    "principal": 10000000,
+    "interest_from": "2026-08-02",
+    "paid_on": "2026-12-01",
+    "rate_basis": "on_due_date",
+    "note": "Estimate based on the rules as we understand them; confirm with your CA.",
+    "periods": [
+      {
+        "from": "2026-08-02",
+        "to": "2026-09-02",
+        "days": 31,
+        "opening": 10000000,
+        "rates": [
+          {
+            "from": "2026-08-02",
+            "rate_pa": 16.5,
+            "days": 31
+          }
+        ],
+        "interest": 140137,
+        "closing": 10140137
+      },
+      {
+        "from": "2026-09-02",
+        "to": "2026-10-02",
+        "days": 30,
+        "opening": 10140137,
+        "rates": [
+          {
+            "from": "2026-09-02",
+            "rate_pa": 16.5,
+            "days": 30
+          }
+        ],
+        "interest": 137517,
+        "closing": 10277654
+      },
+      {
+        "from": "2026-10-02",
+        "to": "2026-11-02",
+        "days": 31,
+        "opening": 10277654,
+        "rates": [
+          {
+            "from": "2026-10-02",
+            "rate_pa": 16.5,
+            "days": 31
+          }
+        ],
+        "interest": 144028,
+        "closing": 10421682
+      },
+      {
+        "from": "2026-11-02",
+        "to": "2026-12-01",
+        "days": 29,
+        "opening": 10421682,
+        "rates": [
+          {
+            "from": "2026-11-02",
+            "rate_pa": 16.5,
+            "days": 29
+          }
+        ],
+        "interest": 136624,
+        "closing": 10558306
+      }
+    ],
+    "interest": 558306,
+    "total": 10558306,
+    "covered": true
+  }
+}

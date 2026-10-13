@@ -101,7 +101,8 @@ eq((await call(I, {method: 'POST', cookie, body: {milestone_id: 'm_sign'}})).dat
 }
 // Same state: CGST + SGST. A partial milestone invoice leaves the rest open for the next one.
 eq((await call(P, {method: 'PATCH', cookie, body: {client_gstin: '', client_state: '33'}})).status, 200);
-const second = await call(I, {method: 'POST', cookie, body: {milestone_id: 'm_beta', amount: 50000, due_days: 0}});
+// changed by WS-03: a partial milestone amount entered tax-inclusive says so (the default is now the taxable value).
+const second = await call(I, {method: 'POST', cookie, body: {milestone_id: 'm_beta', amount: 50000, includes_tax: true, due_days: 0}});
 eq(second.status, 201); eq(second.data.invoice.due, second.data.invoice.issued);
 {
   const pdf = await pdfText(`${I}/2`, cookie);
@@ -115,7 +116,7 @@ eq(second.status, 201); eq(second.data.invoice.due, second.data.invoice.issued);
 // Export: a client outside India under the seller's LUT.
 eq((await call(P, {method: 'PATCH', cookie, body: {client_state: '96'}})).status, 200);
 {
-  const r = await call(I, {method: 'POST', cookie, body: {amount: 1000, description: 'Export check'}});
+  const r = await call(I, {method: 'POST', cookie, body: {amount: 1000, includes_tax: true, description: 'Export check'}}); // changed by WS-03: includes_tax keeps the old ₹1,000 total
   const pdf = await pdfText(`${I}/${r.data.invoice.seq}`, cookie);
   for (const s of ['Place of supply: Outside India (export)', 'Supply meant for export on payment of IGST.']) ok(pdf.includes(s), 'export invoice states ' + s);
 }

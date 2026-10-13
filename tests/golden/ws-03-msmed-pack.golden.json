@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "name": "msme-samadhaan-field-sheet.txt",
+      "description": "MSME Samadhaan application fields, filled from the record"
+    },
+    {
+      "name": "msmed-interest.csv",
+      "description": "Interest computation under MSMED s.16 (monthly rests, 3 × Bank Rate), CA worksheet"
+    },
+    {
+      "name": "msmed-interest.json",
+      "description": "The same computation as JSON, with the Bank Rate table and sources"
+    },
+    {
+      "name": "acceptance.json",
+      "description": "Delivery and acceptance evidence (s.2(b)): delivery, acceptance or objection dates"
+    }
+  ],
+  "field_sheet": "MSME SAMADHAAN: DELAYED PAYMENT APPLICATION, FIELD SHEET\nPre-filled by Scopeflow on 2026-10-07 from the records of project golden-project-0001. Estimate — confirm with your CA.\nPortal: https://samadhaan.msme.gov.in (file under MSMED Act 2006, s.18). Check every field against the live form.\n\nA. SUPPLIER (MSE UNIT)\nUdyam registration number                    UDYAM-TN-02-0012345\nEnterprise category                          micro\nDate of Udyam registration                   2026-06-01\nName of the unit                             Ada Studio\nAddress                                      12 MG Road, Chennai\nGSTIN                                        33ABCDE1234F1Z5\nEmail                                        ada@example.test\n\nB. BUYER\nName of the buyer                            Kaveri Foods\nBuyer email                                  ops@kaveri.test\nBuyer GSTIN                                  33AAACK1234F1Z5\nBuyer address                                4 Anna Salai, Chennai\nBuyer state                                  Tamil Nadu\nBuyer type (Central/State/PSU/Private)       (not on the record: fill in)\n\nC. SUPPLY AND ACCEPTANCE\nWork / agreement                             Packaging redesign\nDate of agreement (scope approved)           2026-07-01\nDate of delivery                             2026-07-15\nDate of acceptance                           2026-07-17\nBasis of acceptance                          accepted\nAgreed payment period (days, written)        15\nPayment due by (s.15)                        2026-08-01\n\nD. INVOICES\n  AS-0001          issued 2026-07-15  amount ₹1,00,000.00  received ₹0.00  outstanding ₹1,00,000.00  interest ₹5,580.33\n\nE. AMOUNTS CLAIMED\nPrincipal outstanding                        ₹1,00,000.00\nInterest under s.16 (to date)                ₹5,580.33\nTotal claimed                                ₹1,05,580.33\nInterest rate basis                          each period's Bank Rate × 3\n\nF. DOCUMENTS ENCLOSED IN THIS PACK\n  scope and approval receipts, invoices, acceptance evidence (acceptance.json), ledger proof (chain-proof.json,\n  records.json), interest computation (msmed-interest.csv, msmed-interest.json), BSA 2023 s.63 certificate template.\n"
+}
