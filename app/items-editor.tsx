@@ -34,8 +34,8 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
             <span className="item-num" aria-hidden="true">{index + 1}</span>
             <input aria-label={`Deliverable ${index + 1}`} placeholder="e.g. Homepage design" maxLength={200} value={item.title} onChange={e => update(index, {title: e.target.value})} />
             <div className="item-tools">
-              <button type="button" className="icon" data-move={`${item.id}:up`} aria-label={`Move ${item.title || 'deliverable ' + (index + 1)} up`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button>
-              <button type="button" className="icon" data-move={`${item.id}:down`} aria-label={`Move ${item.title || 'deliverable ' + (index + 1)} down`} disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} /></button>
+              <button type="button" className="icon" data-move={`${item.id}:up`} aria-label={`Move ${item.title || 'untitled item ' + (index + 1)} up`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button>
+              <button type="button" className="icon" data-move={`${item.id}:down`} aria-label={`Move ${item.title || 'untitled item ' + (index + 1)} down`} disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} /></button>
               <button type="button" className="icon" aria-label={`Remove ${item.title || 'deliverable'}`} onClick={() => onChange(items.filter((_, i) => i !== index))}><X size={15} /></button>
             </div>
           </div>
