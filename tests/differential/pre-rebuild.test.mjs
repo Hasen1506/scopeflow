@@ -1,3 +1,4 @@
+import '../support/fc-setup.mjs';
 // Old-vs-new differential against the pre-rebuild production build (5e59e44).
 //
 // tests/fixtures/pre-rebuild/ holds the pure modules exactly as they were at 5e59e44
