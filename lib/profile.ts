@@ -115,9 +115,11 @@ export const COUNTRIES: readonly CountryDefaults[] = [
 export const countryDefaults = (code: string) => COUNTRIES.find(c => c.code === code) ?? COUNTRIES.at(-1)!;
 /** The country a browser locale ("en-IN", "hi-IN") or time zone points to; OTHER when unknown. */
 export function countryFromLocale(locale: string | undefined, timeZone?: string) {
+  // Visual #15: India's zone wins over the locale region, since many Indian browsers report en-US; an
+  // en-US browser on Asia/Kolkata otherwise defaulted to USD. Every default stays editable.
+  if (timeZone === 'Asia/Kolkata' || timeZone === 'Asia/Calcutta') return 'IN';
   const region = locale?.split(/[-_]/)[1]?.toUpperCase();
   if (region && COUNTRIES.some(c => c.code === region)) return region;
-  if (timeZone === 'Asia/Kolkata' || timeZone === 'Asia/Calcutta') return 'IN';
   return COUNTRIES.find(c => c.timezone === timeZone)?.code ?? 'OTHER';
 }
 /** MSMED Act s.15: a buyer pays a micro/small supplier within the agreed period, at most 45 days from acceptance. */

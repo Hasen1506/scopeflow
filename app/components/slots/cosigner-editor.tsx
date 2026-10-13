@@ -23,6 +23,8 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(
 export default function CosignerEditor({projectId, cosigners, frozen, links = [], onChanged}: CosignerEditorProps) {
   const [roles, setRoles] = useState<CosignerRole[]>(cosigners);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false);
+  const norm = (rs: CosignerRole[]) => JSON.stringify(rs.map(r => [r.role.trim(), r.name?.trim() ?? '', r.email?.trim() ?? '', r.phone?.trim() ?? '']));
+  const dirty = norm(roles) !== norm(cosigners);
   const update = (i: number, patch: Partial<CosignerRole>) => setRoles(rs => rs.map((r, j) => j === i ? {...r, ...patch} : r));
   async function save() {
     setError(''); setSaved(false); setBusy(true);
@@ -47,7 +49,8 @@ export default function CosignerEditor({projectId, cosigners, frozen, links = []
       </ul>
       {!frozen && <div className="actions">
         {roles.length < 3 && <button className="secondary" onClick={() => setRoles(rs => [...rs, {id: '', role: ''}])}>Add a role</button>}
-        <button className="primary" disabled={busy || roles.some(r => r.role.trim().length < 2)} onClick={save}>{busy ? 'Saving…' : 'Save countersigners'}</button>
+        {/* Visual #11: nothing to save (no roles, or no edits) is not a primary action. */}
+        <button className={dirty && roles.length ? 'primary' : 'secondary'} disabled={busy || !dirty || roles.some(r => r.role.trim().length < 2)} onClick={save}>{busy ? 'Saving…' : 'Save countersigners'}</button>
       </div>}
       {saved && <p className="chain ok" role="status">Saved.</p>}
       {error && <p className="error" role="alert">{error}</p>}

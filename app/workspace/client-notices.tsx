@@ -42,7 +42,8 @@ export function ClientNotices({projectId, list, reload = 0}: {projectId: string;
     : data.invoices.map(i => ({key: 'inv-' + i.seq, name: i.number, kind: 'invoice' as const, email: i.email, values: {...base, number: i.number, amount: i.amount, due: i.due ?? undefined}}));
   if (!rows.length) return null;
   return <ul className="receipt-list" aria-label={list === 'change_orders' ? 'Client notices for change orders' : 'Client notices for invoices'}>
-    {rows.map(r => <li key={r.key}><span>{r.name}</span><ClientNotice kind={r.kind} values={r.values} phone={s.phone} lang={s.lang} email={r.email} projectId={projectId} /></li>)}
+    {/* R3-15: on a phone the notice wraps under the name instead of squeezing into a narrow second column. */}
+    {rows.map(r => <li key={r.key} style={{flexWrap: 'wrap', rowGap: 'var(--s1)'}}><span style={{flex: '1 1 8rem'}}>{r.name}</span><ClientNotice kind={r.kind} values={r.values} phone={s.phone} lang={s.lang} email={r.email} projectId={projectId} /></li>)}
   </ul>;
 }
 
@@ -57,5 +58,7 @@ export function NotifyToggle({projectId, disabled}: {projectId: string; disabled
     try { await api(`/api/scopes/${encodeURIComponent(projectId)}/notifications`, {...post({notify_client: on}), method: 'PATCH'}); setData(d => d && {...d, notify_client: on}); flash(); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  return <><label className="check-row"><input type="checkbox" checked={data.notify_client} disabled={disabled || busy} onChange={e => void set(e.target.checked)} />Email my client about change orders, invoices and reminders{error && <span className="error-text" role="alert">{error}</span>}</label><SavedNote saved={saved} /></>;
+  // R3-06: the same rule as /share: without a client email the switch is off, disabled, and says why.
+  const canEmail = data.client_email, why = canEmail ? '' : 'Add the client’s email on the project first.', whyId = `notify-why-${projectId}`;
+  return <><label className="check-row"><input type="checkbox" checked={canEmail ? data.notify_client : false} disabled={disabled || busy || !canEmail} aria-describedby={why ? whyId : undefined} onChange={e => void set(e.target.checked)} />Email my client about change orders, invoices and reminders{error && <span className="error-text" role="alert">{error}</span>}</label>{why && <p className="fine" id={whyId}>{why}</p>}<SavedNote saved={saved} /></>;
 }

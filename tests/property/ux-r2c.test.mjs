@@ -87,12 +87,12 @@ test('#7: /plans tells one story about the free beta, in visitor words', () => {
   assert.doesNotMatch(page, /this server has no billing provider/);
 });
 
-test('#8/#26: plans heading keeps its space on phones; Agency lists seats once', () => {
+test('#8/#26 + R3-03: plans heading keeps its space on phones; seats are only ever "coming soon"', () => {
   assert.match(read('app/plans/page.tsx'), /Start small\.\{' '\}<br\/>/);
-  const agency = P.planCards('INR', n => '₹' + n).find(c => c.id === 'agency');
-  assert.equal(agency.lines.filter(l => /\bseats?\b/i.test(l)).length, 1);
-  const pro = P.planCards('INR', n => '₹' + n).find(c => c.id === 'pro');
-  assert.ok(pro.lines.includes('1 seat'));
+  const cards = P.planCards('INR', n => '₹' + n), agency = cards.find(c => c.id === 'agency');
+  // Seats are not built: no card counts them as included, and Agency names them once, as coming soon.
+  for (const c of cards) assert.equal(c.lines.filter(l => /\bseats?\b/i.test(l)).length, 0, c.id);
+  assert.equal(agency.soon.filter(l => /\bseats?\b/i.test(l)).length, 1);
 });
 
 test('#17: API-created projects take the requested zone, else the account zone, else none', () => {

@@ -2,7 +2,7 @@ import type {Metadata} from 'next';
 import Link from 'next/link';
 import {Header} from '../ui';
 import {NextStep} from '../workflow';
-import {activePlan, defaultPlanNote, planCards} from '@/lib/plans';
+import {ALL_PLANS_INCLUDE, activePlan, defaultPlanNote, planCards} from '@/lib/plans';
 import {billingStatus} from '@/lib/billing';
 import {formatMoney} from '@/lib/currency';
 import {getUser} from '@/lib/auth/server';
@@ -48,6 +48,8 @@ export default async function Plans({searchParams}: Props){
   </nav>
   {beta && <section className="muted-box section-gap" aria-labelledby="h-beta" data-testid="beta-note"><h2 id="h-beta" className="h-sub">{beta.title}</h2><p>{beta.body}</p></section>}
   <Upgrade currency={currency} enabled={billing.enabled} localDouble={billing.local_double} cards={cards} chosen={chosen} betaName={beta ? activePlan().name : undefined}/>
+  {/* R3-03: no feature is gated by plan, so the shared features are said once; the cards list only the limits that differ. */}
+  <section className="section-gap" aria-labelledby="h-all-plans" data-testid="all-plans-include"><h2 id="h-all-plans" className="h-sub">All plans include</h2><ul className="bullets">{ALL_PLANS_INCLUDE.map(f => <li key={f}>{f}</li>)}</ul><p className="fine">Plans differ only in the limits on each card.</p></section>
   <p className="fine section-gap">Deposits you ask a client for are separate from your plan: they go straight to your own payment account. See the <Link className="help-link" href="/terms">terms</Link>.</p>
   <p className="fine section-gap"><Link className="help-link" href="/">Back to projects</Link></p>
  </main></>;

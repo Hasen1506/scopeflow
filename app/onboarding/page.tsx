@@ -55,8 +55,8 @@ export default function Onboarding() {
     <p className="eyebrow">SET UP YOUR WORKSPACE · STEP {step} OF 3</p>
     <h1>{step === 1 ? <>How will you <em>use ScopeFlow?</em></> : step === 2 ? <>Where do you <em>work?</em></> : <>Your business <em>details.</em></>}</h1>
     {signedOut && <p className="muted-box" role="status">Sign in first: <Link className="help-link" href="/auth/sign-in?return_to=%2Fonboarding">Sign in</Link></p>}
-    {step === 1 && <fieldset><legend>Workspace mode</legend><p className="fine">You can change it any time in Account. Every feature stays available in every mode.</p>
-      {MODES.map(m => <label key={m} className="radio-row"><input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)}/> <strong>{MODE_LABEL[m]}</strong> <span className="quiet">· {MODE_BLURB[m]}</span></label>)}</fieldset>}
+    {step === 1 && <fieldset className="section-gap"><legend>Workspace mode</legend><p className="fine">You can change it any time in Account. Every feature stays available in every mode.</p>
+      {MODES.map(m => <label key={m} className="radio-row"><input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)}/> <span><strong>{MODE_LABEL[m]}</strong><span className="quiet block">{MODE_BLURB[m]}</span></span></label>)}</fieldset>}
     {step === 2 && <div>
       <label>Country<select value={country} onChange={e => pickCountry(e.target.value)}>{COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></label>
       <label>Currency for new scopes<select value={currency} onChange={e => setCurrency(e.target.value)}>{currencyList.map(c => <option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></label>

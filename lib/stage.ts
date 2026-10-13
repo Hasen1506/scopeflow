@@ -2,7 +2,7 @@
 // and the ledger's pending change orders). Pure: shared by the Projects home, the project view and the tests.
 //
 // Scopeflow does not track whether a review link was actually delivered to the client, so a saved, pending
-// version with a working link is "Awaiting approval", never "Sent". A pending version whose link is revoked is
+// version with a working link is "Awaiting review", never "Sent". A pending version whose link is revoked is
 // back to "Draft": nobody can approve it until a new link is made.
 
 export type StageId = 'draft' | 'awaiting' | 'changes_requested' | 'approved' | 'change_pending' | 'archived';
@@ -20,7 +20,7 @@ export type StageInput = {
 
 export const STAGE_LABEL: Record<StageId, string> = {
   draft: 'Draft',
-  awaiting: 'Awaiting approval',
+  awaiting: 'Awaiting review', // visual #30: the same words as the Approval card (lib/scope.ts label)
   changes_requested: 'Changes requested',
   approved: 'Approved',
   change_pending: 'Change pending',

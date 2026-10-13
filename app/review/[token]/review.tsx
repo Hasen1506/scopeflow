@@ -26,7 +26,7 @@ import styles from './client.module.css';
 /** WS-04 may attach TDS figures to an invoice; the net is shown when present. */
 type InvoiceShown = NonNullable<ClientLedger['invoices']>[number] & {tds?: {net_receivable?: number}};
 type Brand = {name: string; color: string | null; text_color: string | null; logo_url: string | null};
-type Deposit = {pct: number; amount: number; currency: string; paid: null | {amount: number; currency: string; payment_id: string | null; paid_at: string | null}; enabled: boolean; provider: string | null; reason: string | null};
+type Deposit = {pct: number; amount: number; currency: string; paid: null | {amount: number; currency: string; payment_id: string | null; paid_at: string | null; paid_on?: string | null}; enabled: boolean; provider: string | null; reason: string | null};
 type Identity = {method: string; to: string | null; channel?: 'email' | 'sms' | 'whatsapp'};
 type ReviewData = {
   scope: Version & {latest: number}; previous: Scope | null; ledger?: ClientLedger | null; deposit?: Deposit | null; time_zone?: string;
@@ -215,7 +215,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
           <details className={styles.glossary}><summary>{t('glossary.title')}</summary><ul><li>{t('glossary.recordCheck')}</li><li>{t('glossary.seal')}</li><li>{t('glossary.co')}</li></ul></details>
         </section>
         {deposit && <section className="editor no-print deposit-box" id="pay-deposit" tabIndex={-1} aria-labelledby="h-deposit"><h2 id="h-deposit">{t('deposit.title')}</h2>
-          {deposit.paid ? <p className="chain ok" role="status">{t('deposit.received', {amount: formatMoney(deposit.paid.amount, deposit.paid.currency)})}{deposit.paid.paid_at ? t('deposit.receivedOn', {date: formatInZone(deposit.paid.paid_at, timeZone)}) : ''}</p>
+          {deposit.paid ? <p className="chain ok" role="status">{t('deposit.received', {amount: formatMoney(deposit.paid.amount, deposit.paid.currency)})}{deposit.paid.paid_on ? t('deposit.receivedOn', {date: formatDay(deposit.paid.paid_on)}) : deposit.paid.paid_at ? t('deposit.receivedOn', {date: formatInZone(deposit.paid.paid_at, timeZone)}) : ''}</p>
             : recordedPaid >= deposit.amount ? <p className="chain ok" role="status">{t('deposit.covered', {amount: formatMoney(recordedPaid, deposit.currency)})}</p>
               : <><p className="quiet section-gap">{t('deposit.asks', {pct: deposit.pct})} <strong>{formatMoney(deposit.amount, deposit.currency)}</strong></p>
                 {!ro.readonly && !payFilled && (deposit.enabled ? <button className="primary" disabled={paying} aria-busy={paying || undefined} aria-describedby="deposit-help" onClick={payDeposit}>{paying ? t('deposit.opening') : t('deposit.pay', {amount: formatMoney(deposit.amount, deposit.currency)})}</button> : <p className="fine" role="note">{t('deposit.offline')}</p>)}
@@ -233,7 +233,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
           {scope.status !== 'pending' && scope.decided && <a className="primary" href={`/api/review/${token}/receipt?tz=${encodeURIComponent(timeZone)}`} download>{t('actions.receipt')}</a>}
           {ledger && scope.status === 'approved' && scope.version === scope.latest && <a className="secondary" href={`/api/review/${token}/statement?tz=${encodeURIComponent(timeZone)}`} download>{t('actions.statement')}</a>}
           <button className="secondary" onClick={() => window.print()}>{t('actions.print')}</button>
-          <Link className="secondary" href="/">{t('actions.create')}</Link>
+          <Link className="help-link" href="/">{t('actions.create')}</Link>
         </div>
       </>}
     </main>

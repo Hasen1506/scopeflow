@@ -40,12 +40,12 @@ export default function ContactChange({projectId, clientEmail, clientPhone, lock
       {done && <p className="chain ok" role="status">{done}</p>}
       {step === 'edit' ? <>
         <label>Change<select value={field} onChange={e => setField(e.target.value as 'email' | 'phone')}><option value="email">Email</option><option value="phone">Phone</option></select></label>
-        <p className="fine">Current: {current || 'none'}</p>
+        <p className="fine">{current ? <>Current: {current}</> : `No client ${field} on file yet.`}</p>
         <label>New {field}<input value={value} onChange={e => setValue(e.target.value)} inputMode={field === 'phone' ? 'tel' : 'email'} placeholder={field === 'phone' ? '+919876543210' : 'client@example.com'} /></label>
         <label>Reason (the old address sees it)<input value={reason} maxLength={300} onChange={e => setReason(e.target.value)} /></label>
         <div className="actions"><button className="secondary" disabled={!value.trim() || reason.trim().length < 3} onClick={() => { setError(''); setStep('confirm'); }}>Review change</button></div>
       </> : <>
-        <p>Change the client {field} from <strong>{current || 'none'}</strong> to <strong>{value.trim()}</strong>? {current ? 'A notice goes to the old address now.' : ''} Later receipts show the new address as “on file since” today.</p>
+        <p>{current ? <>Change the client {field} from <strong>{current}</strong> to <strong>{value.trim()}</strong>?</> : <>Set the client {field} to <strong>{value.trim()}</strong>?</>} {current ? 'A notice goes to the old address now.' : ''} Later receipts show the new address as “on file since” today.</p>
         <div className="actions"><button className="primary" disabled={busy} onClick={confirm}>{busy ? 'Changing…' : 'Confirm change'}</button><button className="secondary" disabled={busy} onClick={() => setStep('edit')}>Back</button></div>
       </>}
       {error && <p className="error" role="alert">{error}</p>}
