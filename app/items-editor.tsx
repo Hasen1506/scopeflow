@@ -1,7 +1,8 @@
 'use client';
+import {useState} from 'react';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
 import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
-import {amountProblem} from '@/lib/editor';
+import {amountProblem, parseQty, QTY_MAX} from '@/lib/editor';
 
 const num = (value: string, fallback: number) => (value === '' || Number.isNaN(Number(value)) ? fallback : Number(value));
 
@@ -30,7 +31,7 @@ export function ItemsEditor({items, currency, onChange}: {items: Item[]; currenc
             </div>
           </div>
           <div className="item-meta">
-            <label>Qty<input type="number" min={1} max={10000} value={item.qty} onChange={e => update(index, {qty: Math.max(1, Math.round(num(e.target.value, 1)))})} /></label>
+            <label>Qty<QtyInput value={item.qty} onChange={qty => update(index, {qty})} /></label>
             <label>Unit<input maxLength={40} placeholder="pages, concepts…" value={item.unit} onChange={e => update(index, {unit: e.target.value})} /></label>
             <label>Price ({currency})<input type="number" min={0} step="0.01" placeholder="optional" value={item.price ?? ''} aria-invalid={!!amountProblem(item.price, currency)} onChange={e => update(index, {price: e.target.value === '' ? null : num(e.target.value, 0)})} />{amountProblem(item.price, currency) && <span className="error-text" role="alert">{amountProblem(item.price, currency)}</span>}</label>
           </div>
@@ -43,6 +44,18 @@ export function ItemsEditor({items, currency, onChange}: {items: Item[]; currenc
       </div>
     </fieldset>
   );
+}
+
+/** UX-C37: the field keeps what is typed, so clearing it to type a new number does not snap back to 1. The item
+ *  keeps its last valid quantity while the field is empty; on blur an empty or invalid field shows that value again. */
+function QtyInput({value, onChange}: {value: number; onChange: (qty: number) => void}) {
+  const [raw, setRaw] = useState(String(value));
+  const [seen, setSeen] = useState(value);
+  // The item changed from outside (undo, template, AI draft): show the new quantity.
+  if (value !== seen) { setSeen(value); if (parseQty(raw) !== value) setRaw(String(value)); }
+  return <input type="number" min={1} max={QTY_MAX} step={1} inputMode="numeric" value={raw}
+    onChange={e => { setRaw(e.target.value); const q = parseQty(e.target.value); if (q != null && q !== value) { setSeen(q); onChange(q); } }}
+    onBlur={() => setRaw(String(parseQty(raw) ?? value))} />;
 }
 
 export function ClientInputsEditor({inputs, onChange}: {inputs: ClientInput[]; onChange: (inputs: ClientInput[]) => void}) {
