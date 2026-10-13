@@ -8,6 +8,7 @@ import {routeForOwner} from './payment-accounts-server';
 import {maskRef, upiNote, upiRef, upiUri} from './upi';
 import {fromMinor, toMinor} from './minor';
 import type {Payment} from './ledger';
+import {depositPaidWhen} from './deposit-paid';
 import type {Scope} from './scope';
 
 export type DepositRow = {id: string; order_id: string; amount_minor: number | string; currency: string; status: string; payment_id: string | null; paid_at: string | null};
@@ -35,7 +36,10 @@ export async function depositView(projectId: string, version: number, content: S
   if (state.deposit.covered) {
     const money = ledger.entries.filter(e => e.payload && ['payment', 'payment_received'].includes(e.kind));
     const online = [...money].reverse().find(e => e.kind === 'payment') as {payload: Payment; created: string} | undefined;
-    paid = {amount: fromMinor(state.deposit.paid, content.currency), currency: content.currency, payment_id: online?.payload.payment_id ?? null, paid_at: (online ?? money.at(-1))?.created ?? null};
+    // R3-04: a payment the creator recorded carries the day it arrived (payload.received); show that day, not
+    // when the entry was written. Online payments keep their confirmation time.
+    const src = (online ?? money.at(-1)) as {kind: string; payload: unknown; created: string} | undefined;
+    paid = {amount: fromMinor(state.deposit.paid, content.currency), currency: content.currency, payment_id: online?.payload.payment_id ?? null, ...depositPaidWhen(src)};
   }
   return {
     pct: content.deposit_pct ?? 0, amount: fromMinor(totals.deposit, content.currency), currency: content.currency, amount_minor: totals.deposit,

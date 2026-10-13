@@ -12,11 +12,9 @@
    "lines": [
     "1 active project (archived ones don’t count)",
     "25 versions per project",
-    "1 seat",
-    "Free client reviewing",
-    "Clear scope, revisions and decision history",
-    "Print or export your project"
-   ]
+    "100 record entries per project"
+   ],
+   "soon": []
   },
   {
    "id": "pro",
@@ -30,26 +28,26 @@
    "lines": [
     "1,000 active projects (archived ones don’t count)",
     "200 versions per project",
-    "1 seat",
-    "Invoices, GST tax invoices, statements and reminders",
-    "Change orders, rate card and retainers",
-    "API and ChatGPT connector access"
-   ]
+    "1,000 record entries per project"
+   ],
+   "soon": []
   },
   {
    "id": "agency",
    "name": "Agency",
-   "blurb": "For a team of three with roles.",
+   "blurb": "The highest limits, for a busy studio.",
    "purchasable": true,
-   "seats": 3,
+   "seats": 1,
    "price": "₹1,499",
    "per": "month",
    "yearly": "or ₹13,499 a year",
    "lines": [
     "5,000 active projects (archived ones don’t count)",
     "200 versions per project",
-    "Everything in Pro",
-    "3 seats with roles (owner, manager, member, finance)",
+    "2,000 record entries per project"
+   ],
+   "soon": [
+    "Team seats with roles (owner, manager, member, finance)",
     "Shared rate card and team activity"
    ]
   }
@@ -67,11 +65,9 @@
    "lines": [
     "1 active project (archived ones don’t count)",
     "25 versions per project",
-    "1 seat",
-    "Free client reviewing",
-    "Clear scope, revisions and decision history",
-    "Print or export your project"
-   ]
+    "100 record entries per project"
+   ],
+   "soon": []
   },
   {
    "id": "pro",
@@ -85,26 +81,26 @@
    "lines": [
     "1,000 active projects (archived ones don’t count)",
     "200 versions per project",
-    "1 seat",
-    "Invoices, GST tax invoices, statements and reminders",
-    "Change orders, rate card and retainers",
-    "API and ChatGPT connector access"
-   ]
+    "1,000 record entries per project"
+   ],
+   "soon": []
   },
   {
    "id": "agency",
    "name": "Agency",
-   "blurb": "For a team of three with roles.",
+   "blurb": "The highest limits, for a busy studio.",
    "purchasable": true,
-   "seats": 3,
+   "seats": 1,
    "price": "$18",
    "per": "month",
    "yearly": "or $162 a year",
    "lines": [
     "5,000 active projects (archived ones don’t count)",
     "200 versions per project",
-    "Everything in Pro",
-    "3 seats with roles (owner, manager, member, finance)",
+    "2,000 record entries per project"
+   ],
+   "soon": [
+    "Team seats with roles (owner, manager, member, finance)",
     "Shared rate card and team activity"
    ]
   }

@@ -18,5 +18,6 @@ export function useSavedFlash(ms = 2000) {
 
 /** The live region stays mounted (empty when idle) so screen readers announce "Saved" politely when it appears. */
 export function SavedNote({saved, label = 'Saved'}: {saved: boolean; label?: string}) {
-  return <p className="saved-note" role="status" aria-live="polite">{saved ? <><Check size={14} aria-hidden="true" />{label}</> : null}</p>;
+  // R3-08: while empty it takes no space (globals.css reserves a line for .saved-note), so idle notes leave no gaps.
+  return <p className="saved-note" role="status" aria-live="polite" style={saved ? undefined : {minHeight: 0, margin: 0}}>{saved ? <><Check size={14} aria-hidden="true" />{label}</> : null}</p>;
 }

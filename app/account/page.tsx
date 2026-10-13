@@ -105,6 +105,8 @@ export default function Account(){
    <div className="three-col"><label>From<input type="date" value={audit.from} onChange={e=>setAudit(a=>({...a,from:e.target.value}))}/></label><label>To<input type="date" value={audit.to} onChange={e=>setAudit(a=>({...a,to:e.target.value}))}/></label><label>Format<select value={audit.format} onChange={e=>setAudit(a=>({...a,format:e.target.value}))}><option value="jsonl">Signed JSONL</option><option value="csv">CSV</option></select></label></div>
    <div className="actions"><a className="secondary" href={auditHref} download>Download audit export</a></div></section>}
   </>}
+  {/* UX-C24: records, API and deletion wait for the same load as the sections above (no jump under the skeleton). */}
+  {!checking&&<>
   <h2 id="h-data">Your records</h2>
   <p>Export any project with every version and ledger entry from its page (<strong>Project settings → Export project JSON</strong>). The export includes private scope content and review links; store it securely.</p>
   <p>Review links are revoked or replaced from the project’s <strong>Approval</strong> step. Revoking blocks access and new decisions; earlier decisions stay in your private history.</p>
@@ -118,6 +120,7 @@ export default function Account(){
   <button className="secondary danger section-gap" disabled={busy||!summary} aria-describedby={gate?'gate-delete':undefined} onClick={()=>{setConfirmation('');setError('');setConfirmOpen(true);}}>Delete all Scopeflow data</button>{gate&&<p id="gate-delete" className="fine">{gate} {signedOut&&<Link className="help-link" href="/auth/sign-in?return_to=%2Faccount">Sign in</Link>}</p>}
   {message&&<p role="status">{message}</p>}{error&&!confirmOpen&&<p className="error" role="alert">{error}</p>}
   </div>
+  </>}
   <h2>Corrections and help</h2><p>For a correction to a recorded reviewer name or help with access, contact Scopeflow support through <ContactLink/>.</p>
  </section></main>
  <Dialog open={confirmOpen} onOpenChange={open=>{if(!busy){setConfirmOpen(open);setConfirmation('');}}}>

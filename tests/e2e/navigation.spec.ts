@@ -57,7 +57,7 @@ test('navigation: Projects home, one-tap next steps, the project page and the Ac
   await expect(page.getByRole('tab', {name: /Projects \(3\)/})).toHaveAttribute('aria-selected', 'true');
   const cards = page.getByRole('list', {name: 'Projects'}).getByRole('listitem').filter({has: page.locator('.pc-title')});
   await expect(cards).toHaveCount(3);
-  await expect(cards.locator('.stage-chip')).toHaveText(['Change pending', 'Awaiting approval', 'Approved']);
+  await expect(cards.locator('.stage-chip')).toHaveText(['Change pending', 'Awaiting review', 'Approved']);
   await expect(page.locator('.summary-strip > div').filter({hasText: 'Change orders pending'}).locator('strong')).toHaveText('1');
   await expect(cards.nth(0)).toContainText('1 change order pending · +$500.00');
   await expect(page.getByRole('complementary', {name: 'Next step'})).toContainText('Change order awaiting Northwind Labs');

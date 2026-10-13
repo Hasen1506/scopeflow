@@ -68,7 +68,7 @@ export default function Templates() {
           {!history.revisions.length && <p className="fine">No earlier revisions yet. Each time you update the template from a draft, the previous version is kept here (up to 20).</p>}
           <button className="help-link" onClick={() => setHistory(null)}>Close</button></div>}
       </li>)}</ul>
-      <div className="section-gap"><h2>Add a shared template</h2><form className="tag-row" onSubmit={e => { e.preventDefault(); void importShared(); }}><label>Share link<input value={importLink} onChange={e => setImportLink(e.target.value)} placeholder="https://…/templates/shared/…" /></label><button className="primary" disabled={busy || !importLink.trim()}>Add to my templates</button></form></div>
+      <div className="section-gap"><h2>Add a shared template</h2><form className="tag-row" onSubmit={e => { e.preventDefault(); void importShared(); }}><label>Share link<input value={importLink} onChange={e => setImportLink(e.target.value)} placeholder="https://…/templates/shared/…" /></label><button className="primary" style={{marginBottom: 'var(--s4)'}} disabled={busy || !importLink.trim()}>Add to my templates</button></form></div>
     </section>}
     {list !== null && <section className="editor section-gap" aria-labelledby="starter-templates">
       <h2 id="starter-templates">Starters and vertical packs</h2>

@@ -59,7 +59,7 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
         <p className="fine">Approved change-order value the client has actually paid: payments go to the agreed fee first, then to change orders in the order they were approved.</p>
         {Object.keys(rec.last_12).some(c => c !== 'INR') && <p className="fine"><button className="help-link" aria-pressed={inr} onClick={() => setInr(v => !v)}>{inr ? 'Show by currency' : 'Show INR equivalent'}</button>{inr && <> · {Object.keys(rec.inr.locked).length ? `${Object.keys(rec.inr.locked).join(', ')} at the rate locked in the scope` : ''}{fx.map(x => 'rate' in x ? ` ${x.currency} at ${x.rate} (${x.source}, ${x.as_of})` : ` ${x.currency} not converted: ${x.error}`).join(' ·')}</>}</p>}
       </section>}
-      <h2>Across {data.projects} approved agreement{data.projects === 1 ? '' : 's'}</h2>
+      <h3>Across {data.projects} approved agreement{data.projects === 1 ? '' : 's'}</h3>
       <div className="agreement-grid">
         <div><span>Fees at approval</span><strong>{money(data.fee_at_approval)}</strong><em>now {money(data.fee_now)}</em></div>
         <div><span>Captured by change orders</span><strong>{money(data.change_order_value)}</strong><em>{co.approved} approved{co.approval_rate !== null ? ` · ${Math.round(co.approval_rate * 100)}% approval` : ''}</em></div>
@@ -68,7 +68,7 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
         <div><span>Revision rounds</span><strong>{r.average_used ?? 0} used / {r.average_included ?? 0} sold</strong><em>per project · {r.projects_over} over</em></div>
       </div>
       {m && f && <>
-        <h3 className="section-gap">Money</h3>
+        <h4 className="section-gap">Money</h4>
         <div className="agreement-grid">
           <div><span>Received</span><strong>{money(m.received)}</strong><em>net of refunds</em></div>
           <div><span>Outstanding</span><strong>{money(m.outstanding)}</strong><em>agreed total not yet received</em></div>
@@ -76,7 +76,7 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
           <div><span>MSMED interest accrued</span><strong>{money(m.msmed_interest)}</strong><em>estimate · 3× RBI bank rate, monthly rests</em></div>
           <div><span>TDS certificates pending</span><strong>{m.tds_pending}</strong><em>projects with TDS and money received</em></div>
         </div>
-        <h3 className="section-gap">Flow</h3>
+        <h4 className="section-gap">Flow</h4>
         <div className="agreement-grid">
           <div><span>Change-order approval time</span><strong>{f.co_latency_days === null ? '—' : `${f.co_latency_days} day${f.co_latency_days === 1 ? '' : 's'}`}</strong><em>median, proposal to decision</em></div>
           <div><span>Radar catches → change orders</span><strong>{f.radar.catches} → {f.radar.change_orders} → {f.radar.approved}</strong><em>out-of-scope emails · proposed · approved</em></div>
@@ -85,12 +85,12 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
         </div>
       </>}
       {data.series?.some(x => x.change_orders || Object.keys(x.recovered).length || Object.keys(x.goodwill).length) && <>
-        <h3 className="section-gap">By month</h3>
+        <h4 className="section-gap">By month</h4>
         <div className="table-scroll"><table className="insights-series"><caption className="sr-only">Change orders, money recovered and goodwill by month</caption><thead><tr><th scope="col">Month</th><th scope="col">Change orders</th><th scope="col">Recovered</th><th scope="col">Goodwill</th></tr></thead>
           <tbody>{data.series.filter(x => x.change_orders || Object.keys(x.recovered).length || Object.keys(x.goodwill).length).map(x => <tr key={x.month}><th scope="row">{x.month}</th><td>{x.change_orders}</td><td>{money(x.recovered)}</td><td>{money(x.goodwill)}</td></tr>)}</tbody></table></div>
       </>}
       {data.observations.length > 0 && <ul className="observations">{data.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>}
-      <h3 className="section-gap">By client</h3>
+      <h4 className="section-gap">By client</h4>
       {data.clients.map(c => (
         <div className="history" key={c.client}>
           <strong>{c.client}</strong> <span>{c.projects} project{c.projects === 1 ? '' : 's'} · {c.change_orders} change order{c.change_orders === 1 ? '' : 's'} ({c.approved_change_orders} approved, {money(c.added_value)}) · goodwill {money(c.goodwill)} · {c.rounds_over} round{c.rounds_over === 1 ? '' : 's'} over · {c.days_late} days late inputs</span>

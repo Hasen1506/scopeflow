@@ -21,7 +21,8 @@ export default function Upgrade({currency, enabled, localDouble, cards, chosen, 
   function action(c: PlanCard) {
     const primary = c.id === RECOMMENDED ? 'primary' : 'secondary';
     if (signedIn === null || (signedIn && !b)) return <span className="plan-action-placeholder" aria-hidden="true"/>;
-    if (!signedIn) return <Link className={primary} href={signUpHref(c.id)}>{c.purchasable ? `Choose ${c.name}` : 'Start free'}</Link>;
+    // R3-16: during the beta a new account starts on the beta allowance, not on Free, so the button says so.
+    if (!signedIn) return <Link className={primary} href={signUpHref(c.id)}>{c.purchasable ? `Choose ${c.name}` : betaName ? 'Start free (beta)' : 'Start free'}</Link>;
     if (b!.plan.id === c.id) return <button type="button" className="secondary" disabled>Current plan</button>;
     if (!c.purchasable) return <Link className="secondary" href="/">Open projects</Link>;
     if (!enabled) return <><button type="button" className={primary} disabled aria-describedby={'soon-' + c.id}>Upgrade to {c.name}</button><span id={'soon-' + c.id} className="fine block">Coming soon</span></>;
@@ -44,6 +45,7 @@ export default function Upgrade({currency, enabled, localDouble, cards, chosen, 
         <p className="price">{c.price}{c.per && <small> / {c.per}</small>}</p>{c.yearly && <p className="quiet">{c.yearly}</p>}
         <p className="quiet section-gap">{c.blurb}</p>
         <ul className="bullets">{c.lines.map(l => <li key={l}>{l}</li>)}</ul>
+        {c.soon.length > 0 && <div className="plan-soon" data-testid={'plan-soon-' + c.id}><p className="eyebrow section-gap" id={'soon-list-' + c.id}>Coming soon · not included yet</p><ul className="bullets quiet" style={{flex: 'none', marginTop: 0}} aria-labelledby={'soon-list-' + c.id}>{c.soon.map(l => <li key={l}>{l}</li>)}</ul></div>}
         <div className="plan-action">{action(c)}</div>
       </section>)}
     </div>

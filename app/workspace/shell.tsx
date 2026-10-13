@@ -1,4 +1,5 @@
 'use client';
+import {useSyncExternalStore} from 'react';
 import {linkDialogCopy,decidedStatus} from '@/lib/review-link-copy';
 import Link from 'next/link';
 import {ArrowUpRight,Plus,Printer,Keyboard,X} from 'lucide-react';
@@ -18,8 +19,14 @@ import {changesStep} from './changes';
 import {paymentStep} from './money';
 import {settingsStep} from './settings';
 
+/** Visual #29: true on touch-first devices (no keyboard to press Ctrl S on). Server and first paint: false. */
+const COARSE='(pointer: coarse)';
+const subscribeCoarse=(cb:()=>void)=>{const m=window.matchMedia?.(COARSE);m?.addEventListener('change',cb);return()=>m?.removeEventListener('change',cb);};
+function useCoarsePointer(){return useSyncExternalStore(subscribeCoarse,()=>!!window.matchMedia?.(COARSE).matches,()=>false);}
+
 /** The signed-in workspace and the try-without-account editor (split from app/workspace.tsx, L8: no behaviour change). */
 export default function Workspace(){
+  const coarse=useCoarsePointer();
   const w=useWorkspace();const {confirmDialog,shortcutsOn,setShortcutsOn,cards,actionError,active,activeOv,busy,changed,deleteText,draft,error,goHome,importDraft,importError,importOpen,importText,isSample,keysOpen,linkAction,loading,manageLink,newScope,next,nextActions,notice,opening,preview,projectAction,runProjectAction,setDeleteText,setImportOpen,setImportText,setKeysOpen,setLinkAction,setNotice,setProjectAction,setTab,setTrying,setUndo,shownAction,shownLink,signedIn,stage,steps,tab,tryEditor,trying,undo,undoReplace}=w;
   // Visual re-audit #6: once the deposit/schedule conflict is fixed (Clear deposit), the banner stops naming it.
   const shownError=bannerAfterFix(error,DEPOSIT_SCHEDULE_CONFLICT,hasDepositScheduleConflict(draft));
@@ -40,7 +47,7 @@ export default function Workspace(){
     <div id="project-top" className="project-head">
      <div className="ph-title"><div><p className="eyebrow flush">{active?`${draft.client||active.content.client} · version ${active.version}`:isSample?'Example project':'New scope'}</p><h2>{(active?active.content.title:draft.title.trim())||'Untitled scope'}</h2></div><StageChip stage={stage}/></div>
      {opening?<Skeleton lines={2} label="Opening project…"/>:<StageTracker steps={steps}/>}
-     <NextStep tone={stage==='changes_requested'||stage==='change_pending'||stage==='archived'?'attention':stage==='approved'?'ok':'info'} title={next.title} actions={nextActions}>{next.kind==='send'&&activeOv?.last_sent?`Emailed ${daysAgo(activeOv.last_sent).text}${activeOv.reminders?` (${activeOv.reminders} reminder${activeOv.reminders>1?'s':''} so far)`:''}. ${activeOv.reminders>=3?'That is the most reminders Scopeflow sends for one version, so contact your client directly.':'A reminder resends the same link with a short note, at most once a day.'} The decision appears here as soon as it is made.`:next.detail}{stage==='approved'&&activeOv&&(activeOv.balance??0)>0&&<> <strong>{formatMoney(activeOv.balance??0,activeOv.currency)} is still to collect</strong>: record payments in step 4 as they arrive.</>}{!active&&<> Press <span className="kbd">Ctrl</span> <span className="kbd">S</span> to save.</>}</NextStep>
+     <NextStep tone={stage==='changes_requested'||stage==='change_pending'||stage==='archived'?'attention':stage==='approved'?'ok':'info'} title={next.title} actions={nextActions}>{next.kind==='send'&&activeOv?.last_sent?`Emailed ${daysAgo(activeOv.last_sent).text}${activeOv.reminders?` (${activeOv.reminders} reminder${activeOv.reminders>1?'s':''} so far)`:''}. ${activeOv.reminders>=3?'That is the most reminders Scopeflow sends for one version, so contact your client directly.':'A reminder resends the same link with a short note, at most once a day.'} The decision appears here as soon as it is made.`:next.detail}{stage==='approved'&&activeOv&&(activeOv.balance??0)>0&&<> <strong>{formatMoney(activeOv.balance??0,activeOv.currency)} is still to collect</strong>: record payments in step 4 as they arrive.</>}{!active&&!coarse&&<> Press <span className="kbd">Ctrl</span> <span className="kbd">S</span> to save.</>}</NextStep>
     </div>
     <div className="work-grid"><div className={'flow-col'+(!active?' editing':'')}>
      {scopeStep(w)}

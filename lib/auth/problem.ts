@@ -46,5 +46,6 @@ export function authProblem(error: AuthErrorLike | unknown, mode: string): AuthP
     if (status === 401 || status === 403 || CREDENTIAL_CODES.test(code) || /invalid (email|password|credentials)/i.test(message)) return new AuthProblem(AUTH_COPY.wrongDetails, true);
   }
   if (mode === 'sign-up' && EXISTS_CODES.test(code)) return new AuthProblem(AUTH_COPY.exists, false);
-  return new AuthProblem(message || (mode === 'sign-up' ? 'We couldn’t create the account. Check your details and try again.' : 'Unable to sign in.'), true);
+  // R3-11: an unmapped error keeps what the person typed; only mapped credential errors clear the password.
+  return new AuthProblem(message || (mode === 'sign-up' ? 'We couldn’t create the account. Check your details and try again.' : 'Unable to sign in.'), false);
 }

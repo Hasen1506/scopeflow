@@ -9,6 +9,8 @@
 
 /* Client header: brand + language picker, no account navigation, no beta badge (LT-13). */
 .header{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);flex-wrap:wrap}
+/* Visual #20: on phones globals.css gives .topbar .brand order:1; keep the picker after the logo (logo left, picker right). */
+.header .picker{order:2}
 .picker{display:flex;align-items:center;gap:var(--s2);font-family:var(--font-ui);font-size:var(--fs-2);color:var(--ink-2)}
 .picker select{min-height:36px;margin-top:0;padding:0 26px 0 var(--s3);border:1px solid var(--rule-strong);border-radius:var(--r-sm);background-color:var(--surface);background-position:calc(100% - 12px) 52%,calc(100% - 7px) 52%;color:var(--ink);font:inherit;max-width:100%}
 

@@ -13,7 +13,7 @@ import {asInternal, type Auth} from '@/lib/server';
 // MCP tools for the post-approval ledger. The user's own agent does the judging;
 // Scopeflow supplies structured, citable facts and records only what the user confirms.
 
-const itemInput = {type: 'object', properties: {id: {type: 'string', pattern: '^[A-Za-z0-9_-]{1,40}$', description: 'New id, not used before in this project'}, title: {type: 'string', minLength: 2, maxLength: 200}, qty: {type: 'integer', minimum: 1, maximum: 10000}, unit: {type: 'string', maxLength: 40}, price: {type: ['number', 'null'], minimum: 0}, acceptance: {type: 'string', maxLength: 1000}}, required: ['id', 'title'], additionalProperties: false};
+const itemInput = {type: 'object', properties: {id: {type: 'string', pattern: '^[A-Za-z0-9_-]{1,40}$', description: 'New id, not used before in this project'}, title: {type: 'string', minLength: 2, maxLength: 200}, qty: {type: 'integer', minimum: 1, maximum: 10000}, unit: {type: 'string', maxLength: 40}, price: {type: ['number', 'null'], minimum: 0, description: 'Line total for all qty (not a unit price). Leave null when unit_price is set.'}, unit_price: {type: 'number', minimum: 0, description: 'Optional price per unit. When set, the line total is qty × unit_price (exact in minor units of the scope currency) and price is not used for the total.'}, acceptance: {type: 'string', maxLength: 1000}}, required: ['id', 'title'], additionalProperties: false};
 const projectId = {type: 'string', minLength: 1, maxLength: 100};
 const outputSchema = {type: 'object', additionalProperties: true};
 const readSchemes = [{type: 'oauth2', scopes: ['scopes:read']}];
