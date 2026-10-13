@@ -64,6 +64,18 @@ test('PDF carries the signed scope, fingerprints, signature, signer and zoned ti
   assert.ok(/\/Subject \(anchor [0-9a-f]{64}\)/.test(text));
 });
 
+// @covers C1
+test('C1: the receipt says "Signed (Ed25519)" with the key id, and the seal line names the key (§6.1)', () => {
+  const t = drawnText(text).replace(/\n/g, ' ');
+  assert.ok(t.includes('Signed (Ed25519)'), 'Signed (Ed25519)');
+  assert.ok(t.includes(`kid ${key.kid}`), 'key id');
+  assert.ok(t.includes(`Sealed by ScopeFlow (Ed25519, key ${key.kid})`), 'seal line');
+  assert.ok(t.includes('Approved by whoever held this link. The name was typed by the person approving.'), 'what it proves');
+  assert.ok(t.includes('Electronic acceptance (typed name + click), recorded and sealed by ScopeFlow'), 'L2 acceptance wording');
+  const unsigned = drawnText(Buffer.from(renderReceiptPdf({...model, signature: null, seal: 'unsigned'})).toString('latin1')).replace(/\n/g, ' ');
+  assert.ok(unsigned.includes('Recorded by ScopeFlow; not sealed (sealing was not configured when this was saved).'), 'legacy unsigned wording');
+});
+
 test('QR code drawn in the PDF decodes to the public /verify URL for this record', () => {
   const block = /% qr-begin (\d+) ([\d.]+) ([\d.]+) ([\d.]+)\n([\s\S]*?)% qr-end/.exec(text);
   assert.ok(block, 'QR block');
@@ -100,7 +112,9 @@ test('long scopes flow onto further pages without losing text', () => {
 test('an email-code identity check, when present, is printed with its signature', () => {
   const withId = {...model, context: {...model.context, identity: {method: 'email_otp', email: 'ada@example.test', verified_at: tick(-30), otp_id: 'o1'}, identity_signature: 'kid0.' + 'Z'.repeat(86)}};
   const t = drawnText(Buffer.from(renderReceiptPdf(withId)).toString('latin1')).replace(/\n/g, ' ');
-  assert.ok(t.includes('Email code verified for ada@example.test at 2026-10-07 08:59:30 UTC'), 'identity line');
+  // changed by WS-02 (C5): the receipt names only the masked address the code went to.
+  assert.ok(t.includes('Email code verified to a***@e***.test at 2026-10-07 08:59:30 UTC'), 'identity line');
+  assert.ok(!t.includes('ada@example.test'), 'never the full address');
   assert.ok(t.replace(/ /g, '').includes('kid0.' + 'Z'.repeat(86)), 'identity signature');
   assert.ok(drawnText(text).includes('None: the name was typed by the reviewer'));
 });

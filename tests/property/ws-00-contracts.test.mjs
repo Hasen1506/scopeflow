@@ -149,9 +149,12 @@ test('slot placeholders: one file per slot, each names its owner and renders nul
   const slots = ['pay-block', 'whatsapp-share', 'data-notice', 'language-picker', 'co-card', 'retainer-counter', 'rate-card-picker', 'tds-field', 'msmed-terms', 'cosigner-editor', 'contact-change', 'payment-settings', 'timezone-select', 'theme-switcher'];
   const dir = new URL('../../app/components/slots/', import.meta.url);
   assert.deepEqual(readdirSync(dir).sort(), slots.map(s => s + '.tsx').sort());
+  // changed by WS-02: cosigner-editor and contact-change are implemented (no longer null placeholders).
+  const implemented = new Set(['cosigner-editor', 'contact-change']);
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);
+    if (implemented.has(s)) { assert.match(src, /export default function \w+\(/, s); continue; }
     assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
   }
 });

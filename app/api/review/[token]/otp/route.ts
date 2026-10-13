@@ -1,40 +1,41 @@
 import {z} from 'zod';
-import {db, json, body, safeOrigin, allowWrite, failure, hash, secret} from '@/lib/server';
-import {MailError, brandEmail} from '@/lib/mail';
-import {brandForProject} from '@/lib/brand-server';
-import {publicUrl} from '@/lib/origin';
-import {OTP_MAX_ATTEMPTS, OTP_SENDS_PER_WINDOW, OTP_TTL_MS, OtpDeliveryError, OtpUnavailable, codeHash, deliverCode, generateCode, maskDestination, normalizeCode, otpEmail, type OtpChannel} from '@/lib/otp';
+import {json, body, safeOrigin, allowWrite, failure} from '@/lib/server';
+import {type OtpChannel} from '@/lib/otp';
 import type {Scope} from '@/lib/scope';
 import {loadLedger} from '@/lib/ledger-server';
 import {linkExpired} from '@/lib/link';
-import {parseCosigners} from '@/lib/cosign';
+import {resolveReviewToken, linkStateOf} from '@/lib/review-link';
+import {sendCode, verifyCode} from '@/lib/otp-send';
+import type {OtpAction} from '@/lib/otp-server';
 type Ctx = {params: Promise<{token: string}>};
-type Row = {id: string; project_id: string; version: number; status: string; content: string; created: string; latest: number; require_otp: boolean; client_email: string | null; client_phone: string | null; otp_channel: string | null; cosigners: string | null; link_issued: string | null; link_expiry_days: number | null};
 
 const input = z.discriminatedUnion('action', [
-  z.object({action: z.literal('send')}).strict(),
+  z.object({action: z.literal('send'), target: z.union([z.number().int().min(1), z.null()]).optional()}).strict(),
   z.object({action: z.literal('verify'), code: z.string().max(20)}).strict(),
 ]);
 
-// PR B: the reviewer proves control of the project's client email before deciding.
-// send   -> a 6-digit code goes to the client email the creator set (never one the reviewer types)
-// verify -> a correct code returns a short-lived otp_session for the decision request
+// PR B + M14/M15: the reviewer proves control of the project's client email or phone before deciding.
+// send   -> a 6-digit code goes to the client contact the creator set (never one the reviewer types),
+//           bound to what is waiting on this link: the decision on a pending version, or a change
+//           order on the approved one (optionally one target seq). Rate- and cost-limited.
+// verify -> a correct code returns a short-lived otp_session, consumed by the one record it backs.
+// Countersigners never use this link: each role has its own link and code (/api/cosign/<token>/otp).
 export async function POST(request: Request, ctx: Ctx) {
   try {
     if (!safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
     const {token} = await ctx.params;
-    if (!/^[a-f0-9]{64}$/.test(token)) return json({error: 'This review link was not found.'}, 404);
-    const row = await db().prepare('SELECT v.id,v.project_id,v.version,v.status,v.content,v.created,p.latest,p.require_otp,p.client_email,p.client_phone,p.otp_channel,p.cosigners,p.link_issued,p.link_expiry_days FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<Row>();
+    const row = await resolveReviewToken(token);
     if (!row) return json({error: 'This review link was not found.'}, 404);
-    if (linkExpired(row)) return json({error: 'This review link has expired. Ask the creator for a new link.', code: 'link_expired'}, 410);
+    if (row.readonly) return json({error: 'The creator closed this link for new changes. Your record stays available here.', code: 'link_readonly', readonly_reason: row.readonly_reason}, 403);
+    if (linkExpired(linkStateOf(row))) return json({error: 'This review link has expired. Ask the creator for a new link.', code: 'link_expired'}, 410);
     if (!row.require_otp) return json({error: 'This scope does not need an email code.', code: 'otp_not_required'}, 409);
-    // A code confirms either the decision on a pending version or one on a change order to the approved latest version.
     if (row.version !== row.latest) return json({error: 'This version has been replaced. Ask the creator for the latest link.'}, 409);
+    let action: OtpAction = 'decision';
     if (row.status !== 'pending') {
       const ledger = row.status === 'approved' ? await loadLedger(row.project_id, {forClient: true}) : null;
       const changeOrder = !!ledger?.agreement && ledger.baseline?.id === row.id && ledger.agreement.pending > 0;
-      const cosignWaiting = row.status === 'approved' && parseCosigners(row.cosigners).length > Number((await db().prepare('SELECT COUNT(*) AS n FROM version_cosigns WHERE project_id=? AND version=?').bind(row.project_id, row.version).first<{n: number}>())?.n ?? 0);
-      if (!changeOrder && !cosignWaiting) return json({error: 'This version already has a decision and nothing is waiting for you.'}, 409);
+      if (!changeOrder) return json({error: 'This version already has a decision and nothing is waiting for you.'}, 409);
+      action = 'change_order';
     }
     const channel = (row.otp_channel ?? 'email') as OtpChannel;
     const destination = channel === 'email' ? row.client_email : row.client_phone;
@@ -44,41 +45,10 @@ export async function POST(request: Request, ctx: Ctx) {
     try { raw = await body(request); } catch { return json({error: 'Provide valid JSON under 24 KB.'}, 400); }
     const parsed = input.safeParse(raw);
     if (!parsed.success) return json({error: 'Choose send or verify.'}, 400);
-    const now = Date.now();
-
     if (parsed.data.action === 'send') {
-      const recent = await db().prepare('SELECT COUNT(*) AS n FROM review_otps WHERE version_id=? AND created > ?').bind(row.id, new Date(now - OTP_TTL_MS).toISOString()).first<{n: number}>();
-      if (Number(recent?.n ?? 0) >= OTP_SENDS_PER_WINDOW) return json({error: 'Three codes were sent in the last 10 minutes. Use the latest one, or wait before asking again.', code: 'otp_send_limit'}, 429);
-      const id = crypto.randomUUID(), code = generateCode();
-      await db().prepare('INSERT INTO review_otps (id,version_id,email,channel,code_hash,expires,created) VALUES (?,?,?,?,?,?,?)').bind(id, row.id, destination, channel, await codeHash(id, code), new Date(now + OTP_TTL_MS).toISOString(), new Date(now).toISOString()).run();
-      const content = JSON.parse(row.content) as Scope;
-      try {
-        const brand = await brandForProject(row.project_id);
-        const otpMessage = otpEmail({code, title: content.title, version: row.version});
-        await deliverCode(destination, {...brandEmail(otpMessage, brand && {name: brand.name, color: brand.color, logoUrl: brand.logoHash ? publicUrl(request, '/api/brand/' + brand.logoHash) : null}), sms: otpMessage.sms}, {code, version_id: row.id, id}, process.env, channel, {fromName: brand?.name, replyTo: brand?.replyTo});
-      } catch (e) {
-        await db().prepare('DELETE FROM review_otps WHERE id=?').bind(id).run();
-        if (e instanceof OtpUnavailable) return json({error: 'Codes cannot be sent on this server right now. Ask the creator to turn off the identity check or set up delivery.', code: 'otp_unavailable'}, 503);
-        if (e instanceof MailError || e instanceof OtpDeliveryError) return json({error: e.message, code: 'mail_failed'}, 502);
-        throw e;
-      }
-      return json({sent: true, to: maskDestination(channel, destination), channel, expires_in: OTP_TTL_MS / 1000});
+      const target = action === 'change_order' && parsed.data.target != null ? String(parsed.data.target) : null;
+      return sendCode(request, {versionId: row.id, projectId: row.project_id, version: row.version, owner: row.owner, title: (JSON.parse(row.content) as Scope).title, action, target}, channel, destination);
     }
-
-    const code = normalizeCode(parsed.data.code);
-    if (!/^\d{6}$/.test(code)) return json({error: 'Enter the 6-digit code from the email.'}, 400);
-    const otp = await db().prepare('SELECT id,code_hash,attempts,expires FROM review_otps WHERE version_id=? AND verified IS NULL ORDER BY created DESC LIMIT 1').bind(row.id).first<{id: string; code_hash: string; attempts: number; expires: string}>();
-    if (!otp || Date.parse(otp.expires) <= now) return json({error: 'This code has expired. Send a new one.', code: 'otp_expired'}, 410);
-    if (otp.attempts >= OTP_MAX_ATTEMPTS) return json({error: 'Too many wrong codes. Send a new one.', code: 'otp_locked'}, 429);
-    if (await codeHash(otp.id, code) !== otp.code_hash) {
-      const counted = await db().prepare('UPDATE review_otps SET attempts=attempts+1 WHERE id=? AND attempts < ? RETURNING attempts').bind(otp.id, OTP_MAX_ATTEMPTS).first<{attempts: number}>();
-      const left = OTP_MAX_ATTEMPTS - (counted?.attempts ?? OTP_MAX_ATTEMPTS);
-      return json({error: left > 0 ? `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.` : 'Too many wrong codes. Send a new one.', code: left > 0 ? 'otp_wrong' : 'otp_locked', attempts_left: left}, left > 0 ? 400 : 429);
-    }
-    const session = secret();
-    // Single use: only the first correct submission wins (verified IS NULL in the WHERE clause).
-    const marked = await db().prepare('UPDATE review_otps SET verified=?,session_hash=? WHERE id=? AND verified IS NULL AND attempts < ? RETURNING id').bind(new Date(now).toISOString(), await hash(session), otp.id, OTP_MAX_ATTEMPTS).first<{id: string}>();
-    if (!marked) return json({error: 'This code was already used. Send a new one.', code: 'otp_used'}, 409);
-    return json({verified: true, otp_session: session, email: maskDestination(channel, destination), channel});
+    return verifyCode({versionId: row.id, channel, destination, cosignRole: null}, parsed.data.code);
   } catch (e) { return failure(e); }
 }

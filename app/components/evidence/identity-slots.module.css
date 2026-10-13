@@ -1,0 +1,6 @@
+/* WS-02 slots: ContactChange and CosignerEditor. Tokens only. */
+.panel { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 1rem; background: var(--paper); }
+.locked { color: var(--ink); font-size: var(--fs-2); }
+.roles { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.75rem; }
+.role { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 0.75rem; display: grid; gap: 0.4rem; }
+.link { font-family: var(--font-ui); font-variant-numeric: tabular-nums slashed-zero; font-size: var(--fs-1); word-break: break-all; }

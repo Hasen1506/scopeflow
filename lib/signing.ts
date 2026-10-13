@@ -34,20 +34,48 @@ export function signingSource(env: Env = process.env): 'dedicated' | 'cookie_fal
   const fallbackAllowed = env.NODE_ENV !== 'production' || env.SCOPEFLOW_ALLOW_COOKIE_SIGNING === '1';
   return fallbackAllowed && usable(env.NEON_AUTH_COOKIE_SECRET) ? 'cookie_fallback' : 'off';
 }
+/**
+ * C1: the signing status. `previous_only` means only retired secrets are set (records still verify,
+ * nothing new can be sealed). In production anything but `dedicated` fails closed (signingBlocked).
+ */
+export function signingStatus(env: Env = process.env): 'dedicated' | 'cookie_fallback' | 'previous_only' | 'off' {
+  const source = signingSource(env);
+  if (source !== 'off') return source;
+  return (env.SCOPEFLOW_SIGNING_SECRET_PREVIOUS ?? '').split(',').map(x => x.trim()).some(usable) ? 'previous_only' : 'off';
+}
+/** C1: true when a new record must not be created because it could not be sealed with the dedicated key. */
+export function signingBlocked(env: Env = process.env) {
+  return env.NODE_ENV === 'production' && signingStatus(env) !== 'dedicated';
+}
 /** The signing key: SCOPEFLOW_SIGNING_SECRET, else (outside production) derived from NEON_AUTH_COOKIE_SECRET. */
 function keys() {
   const source = signingSource();
   return source === 'off' ? null : derive((source === 'dedicated' ? process.env.SCOPEFLOW_SIGNING_SECRET : process.env.NEON_AUTH_COOKIE_SECRET)!);
 }
+type Trust = 'current' | 'legacy';
 /**
- * Keys accepted for verification, by key id: the current key, the cookie-secret-derived
- * key (records signed before SCOPEFLOW_SIGNING_SECRET was set) and any retired secrets in
- * SCOPEFLOW_SIGNING_SECRET_PREVIOUS (comma-separated), so rotation never looks like tampering.
+ * C6: keys accepted for verification, by key id. The current dedicated key and retired dedicated
+ * secrets (SCOPEFLOW_SIGNING_SECRET_PREVIOUS, comma-separated) are fully trusted, so rotation never
+ * looks like tampering. The NEON_AUTH_COOKIE_SECRET-derived key is accepted only outside production,
+ * when SCOPEFLOW_ALLOW_COOKIE_SIGNING=1, or when its key id is listed in SCOPEFLOW_LEGACY_KEY_IDS
+ * (records sealed before the dedicated secret existed); it then verifies as `legacy_key`.
  */
-function verificationKeys() {
-  const secrets = [process.env.SCOPEFLOW_SIGNING_SECRET, process.env.NEON_AUTH_COOKIE_SECRET, ...(process.env.SCOPEFLOW_SIGNING_SECRET_PREVIOUS ?? '').split(',').map(x => x.trim())].filter(usable);
-  return new Map(secrets.map(secret => { const key = derive(secret); return [key.kid, key] as const; }));
+export function verificationKeys(env: Env = process.env) {
+  const map = new Map<string, {key: Key; trust: Trust}>();
+  for (const secret of [env.SCOPEFLOW_SIGNING_SECRET, ...(env.SCOPEFLOW_SIGNING_SECRET_PREVIOUS ?? '').split(',').map(x => x.trim())].filter(usable)) {
+    const key = derive(secret); map.set(key.kid, {key, trust: 'current'});
+  }
+  if (usable(env.NEON_AUTH_COOKIE_SECRET)) {
+    const key = derive(env.NEON_AUTH_COOKIE_SECRET);
+    const listed = (env.SCOPEFLOW_LEGACY_KEY_IDS ?? '').split(',').map(x => x.trim()).includes(key.kid);
+    const allowed = env.NODE_ENV !== 'production' || env.SCOPEFLOW_ALLOW_COOKIE_SIGNING === '1' || listed;
+    // Outside production the cookie key is the dev signing key itself: fully trusted there.
+    if (allowed && !map.has(key.kid)) map.set(key.kid, {key, trust: env.NODE_ENV !== 'production' && signingSource(env) === 'cookie_fallback' ? 'current' : 'legacy'});
+  }
+  return map;
 }
+/** The key id the cookie secret would derive (for SCOPEFLOW_LEGACY_KEY_IDS), or null. */
+export function cookieKeyId(env: Env = process.env) { return usable(env.NEON_AUTH_COOKIE_SECRET) ? derive(env.NEON_AUTH_COOKIE_SECRET).kid : null; }
 
 export const anchorMessage = (anchor: string) => 'scopeflow-anchor-v1:' + anchor;
 export const entryMessage = (hash: string) => 'scopeflow-entry-v1:' + hash;
@@ -60,20 +88,34 @@ export function signRecord(message: string) {
 }
 
 export type SignatureState = 'valid' | 'invalid' | 'unsigned';
-export function verifyRecord(message: string, signature: string | null | undefined): SignatureState {
+export type SignatureCheck = 'valid' | 'legacy_key' | 'unknown_key' | 'invalid' | 'unsigned';
+/** C6: the full answer: which kind of key sealed it, if any we trust. */
+export function verifyRecordDetailed(message: string, signature: string | null | undefined, env: Env = process.env): SignatureCheck {
   if (!signature) return 'unsigned';
   const [kid, value] = signature.split('.');
-  const k = verificationKeys().get(kid);
-  if (!k || !value) return 'invalid';
+  const k = verificationKeys(env).get(kid);
+  if (!value) return 'invalid';
+  if (!k) return 'unknown_key';
   try {
-    return verify(null, Buffer.from(message), k.publicKey, Buffer.from(value, 'base64url')) ? 'valid' : 'invalid';
+    return verify(null, Buffer.from(message), k.key.publicKey, Buffer.from(value, 'base64url')) ? (k.trust === 'current' ? 'valid' : 'legacy_key') : 'invalid';
   } catch {
     return 'invalid';
   }
+}
+/** Integrity answer for seals and chains: an allow-listed legacy key still counts as valid; an untrusted key does not. */
+export function verifyRecord(message: string, signature: string | null | undefined): SignatureState {
+  const state = verifyRecordDetailed(message, signature);
+  return state === 'legacy_key' ? 'valid' : state === 'unknown_key' ? 'invalid' : state;
 }
 
 export function publicSigningKey() {
   const k = keys();
   return k ? {kty: 'OKP', crv: 'Ed25519', x: k.x, kid: k.kid, alg: 'EdDSA', use: 'sig'} : null;
+}
+/** Every key a receipt may have been sealed with (current first), each marked current or legacy, for /api/signing-key. */
+export function publishedKeys(env: Env = process.env) {
+  const current = publicSigningKey();
+  const rest = [...verificationKeys(env).entries()].filter(([kid]) => kid !== current?.kid).map(([kid, {key, trust}]) => ({kty: 'OKP', crv: 'Ed25519', x: key.x, kid, alg: 'EdDSA', use: 'sig', status: trust === 'current' ? 'retired' : 'legacy'}));
+  return [...(current ? [current] : []), ...rest];
 }
 export function signingConfigured() { return !!keys(); }

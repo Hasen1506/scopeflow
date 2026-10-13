@@ -106,10 +106,11 @@ const {anchor, signature, content_sha256} = decision.data.receipt;
   eq(page.status, 200);
 }
 
-// A revoked review link no longer serves the receipt; the owner still can.
+// changed by WS-02 (H4, §6.3): revoking a decided version stops new actions, but the client keeps
+// their copy: the read-only link still serves the receipt. The owner still can too.
 {
   eq((await call(`/api/scopes/${project_id}/review-link`, {method: 'POST', cookie, body: {version: 1, action: 'revoke'}})).status, 200);
-  eq((await call(`/api/review/${token}/receipt`)).status, 404);
+  eq((await call(`/api/review/${token}/receipt`)).status, 200);
   eq((await call(`/api/scopes/${project_id}/receipt?version=1`, {cookie})).status, 200);
   eq((await call(`/api/review/${'z'.repeat(64)}/receipt`)).status, 404);
 }

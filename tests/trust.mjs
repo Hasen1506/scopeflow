@@ -45,7 +45,9 @@ const waitFor = async (fn, ms = 8000) => { const end = Date.now() + ms; let v; w
   const got = (await call('/api/scopes/' + s.project_id, {cookie})).data.project;
   ok(Math.abs(Date.parse(got.link_expires) - (Date.parse(s.created) + 7 * 86400000)) < 2000, 'expires 7 days after the version was saved');
   eq((await call('/api/review/' + s.token)).data.link_expires, got.link_expires);
-  localSql(`UPDATE scopeflow.projects SET link_issued='2000-01-01T00:00:00.000Z' WHERE id='${s.project_id}'`);
+  // changed by WS-02 (H5): expiry is per version (version_links.link_issued), not project-wide.
+  const backdate = () => localSql(`INSERT INTO scopeflow.version_links (project_id,version,link_issued) VALUES ('${s.project_id}',1,'2000-01-01T00:00:00.000Z') ON CONFLICT (project_id,version) DO UPDATE SET link_issued='2000-01-01T00:00:00.000Z'`);
+  backdate();
   const expired = await call('/api/review/' + s.token);
   eq(expired.status, 410); eq(expired.data.code, 'link_expired');
   eq((await approve(s.token)).status, 410);
@@ -54,7 +56,7 @@ const waitFor = async (fn, ms = 8000) => { const end = Date.now() + ms; let v; w
   eq((await call('/api/review/' + fresh)).status, 200);
   eq((await approve(fresh)).status, 200);
   // Decided: the link never expires, whatever the setting.
-  localSql(`UPDATE scopeflow.projects SET link_issued='2000-01-01T00:00:00.000Z' WHERE id='${s.project_id}'`);
+  backdate();
   eq((await call('/api/review/' + fresh)).status, 200);
   eq((await patch(s.project_id, {link_expiry_days: null})).data.project.link_expiry_days, null);
 }
@@ -67,9 +69,10 @@ const waitFor = async (fn, ms = 8000) => { const end = Date.now() + ms; let v; w
   eq(needs.status, 400); eq(needs.data.code, 'otp_needs_phone');
   const on = await patch(s.project_id, {client_phone: '+919876543210', otp_channel: 'sms', require_otp: true});
   eq(on.status, 200); eq([on.data.project.otp_channel, on.data.project.client_phone, on.data.project.require_otp], ['sms', '+919876543210', true]);
-  eq((await call('/api/review/' + s.token)).data.identity_check, {method: 'sms_otp', channel: 'sms', to: '+91******3210'});
+  // changed by WS-02 (C5 §6.2.6): masked as +91 ****3210; the check names the step it is for (M14).
+  eq((await call('/api/review/' + s.token)).data.identity_check, {method: 'sms_otp', channel: 'sms', to: '+91 ****3210', action: 'decision'});
   const sent = await call(`/api/review/${s.token}/otp`, {method: 'POST', body: {action: 'send'}});
-  eq(sent.status, 200); eq(sent.data.channel, 'sms'); eq(sent.data.to, '+91******3210');
+  eq(sent.status, 200); eq(sent.data.channel, 'sms'); eq(sent.data.to, '+91 ****3210');
   const logged = lastCode(s.id);
   eq([logged.email, logged.channel], ['+919876543210', 'sms']);
   const verified = await call(`/api/review/${s.token}/otp`, {method: 'POST', body: {action: 'verify', code: logged.code}});
@@ -77,10 +80,13 @@ const waitFor = async (fn, ms = 8000) => { const end = Date.now() + ms; let v; w
   const decided = await approve(s.token, {otp_session: verified.data.otp_session});
   eq(decided.status, 200); eq(decided.data.receipt.identity.method, 'sms_otp'); eq(decided.data.receipt.identity.phone, '+919876543210');
   const pdf = (await call(`/api/review/${s.token}/receipt`, {raw: true})).bytes.toString('latin1');
-  ok(pdf.includes('SMS code verified for +919876543210'), 'receipt names the SMS check');
+  // changed by WS-02 (C5): the receipt names the masked number only.
+  ok(pdf.includes('SMS code verified to +91 ****3210'), 'receipt names the SMS check');
+  ok(!pdf.includes('+919876543210'), 'never the full number');
 }
 
 // Countersignatures: listed roles sign the approved version once each, with their own signature.
+// changed by WS-02 (H1): roles sign on their own link (/api/cosign/<token>), never the client's link.
 let packProject, packToken;
 {
   const s = await create();
@@ -88,16 +94,19 @@ let packProject, packToken;
   eq((await patch(s.project_id, {cosigners: [{id: 'Bad Id', role: 'Finance'}]})).status, 400);
   eq((await patch(s.project_id, {cosigners: [{id: 'a', role: 'One'}, {id: 'a', role: 'Two'}]})).status, 400);
   eq((await patch(s.project_id, {cosigners: [{id: 'finance', role: 'Finance approver'}, {id: 'legal', role: 'Legal'}]})).data.project.cosigners.length, 2);
-  const cosign = body => call(`/api/review/${s.token}/cosign`, {method: 'POST', body});
   const ackBody = async () => ({acknowledged: true, content_sha256: (await ack(base, s.token, {decision: 'approved', signer: 'x', comment: '', version: 1})).content_sha256});
-  eq((await cosign({cosigner_id: 'finance', signer: 'Fin Ance', ...await ackBody()})).status, 409); // not approved yet
+  eq((await call(`/api/review/${s.token}/cosign`, {method: 'POST', body: {cosigner_id: 'finance', signer: 'Fin Ance', ...await ackBody()}})).data.code, 'use_your_cosigner_link');
   const decided = await approve(s.token);
   eq(decided.status, 200);
   const review = (await call('/api/review/' + s.token)).data;
   eq(review.cosign.waiting, 2); eq(review.cosign.roles.map(r => r.id), ['finance', 'legal']);
-  eq((await cosign({cosigner_id: 'ceo', signer: 'Someone', ...await ackBody()})).status, 404);
-  eq((await cosign({cosigner_id: 'finance', signer: 'Fin Ance', acknowledged: true, content_sha256: '0'.repeat(64)})).status, 409);
-  const signed = await cosign({cosigner_id: 'finance', signer: 'Fin Ance', ...await ackBody()});
+  const links = (await call('/api/scopes/' + s.project_id, {cookie})).data.cosign_links;
+  eq(links.map(l => l.cosigner_id), ['finance', 'legal']);
+  const roleToken = id => links.find(l => l.cosigner_id === id).cosign_path.split('/').pop();
+  const cosign = (id, body) => call(`/api/cosign/${roleToken(id)}`, {method: 'POST', body});
+  eq((await call('/api/cosign/' + 'e'.repeat(64), {method: 'POST', body: {signer: 'Someone', ...await ackBody()}})).status, 404);
+  eq((await cosign('finance', {signer: 'Fin Ance', acknowledged: true, content_sha256: '0'.repeat(64)})).status, 409);
+  const signed = await cosign('finance', {signer: 'Fin Ance', ...await ackBody()});
   eq(signed.status, 201);
   const c = signed.data.cosign;
   const key = await (await fetch(base + '/api/signing-key')).json();
@@ -105,7 +114,7 @@ let packProject, packToken;
   const [kid, sig] = c.signature.split('.');
   eq(kid, key.keys[0].kid);
   ok(verify(null, Buffer.from(message), createPublicKey({key: {kty: 'OKP', crv: 'Ed25519', x: key.keys[0].x}, format: 'jwk'}), Buffer.from(sig, 'base64url')), 'countersignature verifies with the public key');
-  eq((await cosign({cosigner_id: 'finance', signer: 'Again', ...await ackBody()})).data.code, 'already_signed');
+  eq((await cosign('finance', {signer: 'Again', ...await ackBody()})).data.code, 'already_signed');
   eq((await call('/api/review/' + s.token)).data.cosign.waiting, 1);
   eq((await call('/api/scopes/' + s.project_id, {cookie})).data.cosigns.map(x => x.cosigner_id), ['finance']);
   const refused = (() => { try { localSql(`UPDATE scopeflow.version_cosigns SET signer='Mallory' WHERE project_id='${s.project_id}'`); return 'updated'; } catch { return 'refused'; } })();

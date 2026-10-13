@@ -5,6 +5,7 @@ import {itemsOf, formatMoney, label, type Scope} from './scope';
 import {fxLine, schedule, totals} from './money';
 import {formatDay, stamp} from './time';
 import type {PaymentLine} from './ledger';
+import {acceptanceWording, codeLine, evidenceStatement, evidenceWording, fingerprintWording, maskAddress, type SealStatus} from './evidence';
 
 // The audit-grade decision receipt: a server-generated PDF of the decided scope with its
 // fingerprints, the Ed25519 signature, signer details, timestamps (UTC and a named time
@@ -20,7 +21,13 @@ export type ReceiptModel = {
   /** Payments on the signed record of this version (Razorpay deposits and payments the creator recorded). */
   payments?: PaymentLine[];
   /** Countersignatures on this version, each Ed25519 over the anchor and its own details. */
-  cosigns?: {role: string; signer: string; signed: string; signature: string | null}[];
+  cosigns?: {role: string; signer: string; signed: string; signature: string | null; verified_to?: string | null}[];
+  /** C1/C5/§6.1: the seal check and what the record proves. Absent in older callers: wording is then derived from `signature`. */
+  seal?: SealStatus;
+  /** When the client contact the code went to was put on file (C5: "on file since"). */
+  contact_since?: string | null;
+  /** SF-15: an Aadhaar eSign through a provider, when the record has one. */
+  esign?: {provider: string; signed_sha256: string; completed: string | null} | null;
   /** RFC 3161 timestamps from an independent authority over this version's fingerprints. */
   timestamps?: {subject: string; digest: string; tsa: string; gen_time: string}[];
   time_zone: string; generated: string; verify_url: string;
@@ -93,10 +100,14 @@ export function renderReceiptPdf(m: ReceiptModel, brand: PdfBrand | null = null)
   left('Decision', label(m.status));
   left('Signer (as typed)', m.signer ?? 'not recorded');
   left('Decided', stamp(m.decided, m.time_zone));
-  // Identity evidence (email one-time code) when the project required it.
-  if (ctx.identity?.method === 'email_otp') left('Identity check', `Email code verified for ${ctx.identity.email ?? 'the client email'} at ${stamp(ctx.identity.verified_at ?? null, m.time_zone)}`);
-  else if (ctx.identity?.method === 'sms_otp' || ctx.identity?.method === 'whatsapp_otp') left('Identity check', `${ctx.identity.method === 'sms_otp' ? 'SMS' : 'WhatsApp'} code verified for ${ctx.identity.phone ?? 'the client phone'} at ${stamp(ctx.identity.verified_at ?? null, m.time_zone)}`);
+  // Identity evidence (one-time code) when the project required it: the masked address only (C5).
+  const since = ctx.identity ? ((ctx as {contact_since?: string | null}).contact_since ?? m.contact_since ?? null) : null;
+  const masked = ctx.identity?.method === 'email_otp' ? maskAddress('email', ctx.identity.email ?? '') : ctx.identity?.method === 'sms_otp' || ctx.identity?.method === 'whatsapp_otp' ? maskAddress('sms', ctx.identity.phone ?? '') : null;
+  if (ctx.identity?.method === 'email_otp') left('Identity check', `Email ${codeLine(masked!, since, m.time_zone)} at ${stamp(ctx.identity.verified_at ?? null, m.time_zone)}`);
+  else if (masked) left('Identity check', `${ctx.identity!.method === 'sms_otp' ? 'SMS' : 'WhatsApp'} ${codeLine(masked, since, m.time_zone)} at ${stamp(ctx.identity!.verified_at ?? null, m.time_zone)}`);
   else left('Identity check', 'None: the name was typed by the reviewer');
+  left('What this proves', evidenceStatement({decision: m.status, code_to: masked, on_file_since: since, owner_session: !!ctx.owner_session, time_zone: m.time_zone, plain: true}));
+  left('Acceptance', acceptanceWording({esign: m.esign ? {provider: m.esign.provider} : null}));
   left('Acknowledged', ctx.acknowledged ? 'Yes: reviewed this version, fee, deliverables and revisions' : 'Not recorded');
   left('Channel', ctx.channel === 'review_link' ? 'Private review link' : (ctx.channel ?? 'not recorded'));
   if (ctx.ip !== undefined) left('Network address', String(ctx.ip));
@@ -105,12 +116,16 @@ export function renderReceiptPdf(m: ReceiptModel, brand: PdfBrand | null = null)
   y = Math.min(y, top - qrSize - 18);
 
   heading('Fingerprints and signature');
+  const seal: SealStatus = m.seal ?? (m.signature ? 'dedicated' : 'unsigned');
+  row('Seal', evidenceWording(seal, {kid: m.key?.kid ?? m.signature?.split('.')[0] ?? null, at: m.decided ? stamp(m.decided, m.time_zone) : null, verifyUrl: m.verify_url, doc: {esign: m.esign ? {provider: m.esign.provider} : null}}));
   row('Content SHA-256', m.content_sha256, 'mono');
+  para(fingerprintWording(m.content_sha256.slice(0, 16) + '…'), {size: 7.5, gray: 0.4});
   row('Record fingerprint', m.anchor, 'mono');
-  row('Signature (Ed25519)', m.signature ?? 'Not signed (signing is not configured on this server)', 'mono');
+  row('Signed (Ed25519)', m.signature ?? 'Not sealed (sealing was not configured when this was saved)', 'mono');
   if (m.key) row('Public key', `kid ${m.key.kid} · x ${m.key.x}`, 'mono');
   if (ctx.identity_signature) row('Identity signature', ctx.identity_signature, 'mono');
-  for (const c of m.cosigns ?? []) row('Countersignature', `${c.role}: ${c.signer} · ${stamp(c.signed, m.time_zone)} · signature ${c.signature ?? 'not signed'}`, 'mono');
+  for (const c of m.cosigns ?? []) row('Countersignature', `${c.role}: ${c.signer}${c.verified_to ? ` (${codeLine(c.verified_to)})` : ''} · ${stamp(c.signed, m.time_zone)} · signature ${c.signature ?? 'not sealed'}`, 'mono');
+  if (m.esign) row('Aadhaar eSign', `Digitally signed PDF from ${m.esign.provider}${m.esign.completed ? ` at ${stamp(m.esign.completed, m.time_zone)}` : ''} · SHA-256 ${m.esign.signed_sha256}`, 'mono');
   for (const t of m.timestamps ?? []) row('RFC 3161 timestamp', `${t.subject === 'decision' ? 'Decision' : t.subject.startsWith('cosign:') ? 'Countersignature' : 'Record'} timestamped ${stamp(t.gen_time, m.time_zone)} by ${t.tsa} over ${t.digest}`, 'mono');
   if (m.ledger) row('Ledger head', `${m.ledger.head} (${m.ledger.count} ${m.ledger.count === 1 ? 'entry' : 'entries'})`, 'mono');
   row('Verify', m.verify_url, 'mono');
@@ -148,7 +163,7 @@ export function renderReceiptPdf(m: ReceiptModel, brand: PdfBrand | null = null)
 
   heading('About this receipt');
   para(`Generated ${stamp(m.generated, m.time_zone)}. Project ${m.project_id}.`, {size: 8, gray: 0.35});
-  para('This is a record of a workflow approval. The signer’s name is self-reported unless an identity check is shown above; it is not a qualified or verified electronic signature. Scan the QR code or open the verify link to check that this record still matches the stored, signed original.', {size: 8, gray: 0.35});
+  para(`This is a record of ${m.esign ? 'an Aadhaar eSign through ' + m.esign.provider : 'an electronic acceptance (typed name + click)'}, recorded and sealed by ScopeFlow. The signer’s name is self-reported unless an identity check is shown above, and a code shows only that the person approving could read messages sent to that address. Scan the QR code or open the verify link to check that this record still matches the stored, sealed original.`, {size: 8, gray: 0.35});
   return doc.toBytes();
 }
 const n2 = (v: number) => (Math.round(v * 100) / 100).toString();

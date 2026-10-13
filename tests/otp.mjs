@@ -25,6 +25,8 @@ const lastCode = versionId => {
   const lines = readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(l => l.version_id === versionId);
   return lines.at(-1) ?? null;
 };
+// changed by WS-02 (M15): codes have a cooldown (30 s, 2 min, 10 min); move earlier sends back 11 minutes.
+const pastCooldown = versionId => localSql(`UPDATE scopeflow.review_otps SET created=to_char((created::timestamptz - interval '11 minutes') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE version_id='${versionId}'`);
 const scope = () => ({title: 'OTP fixture ' + randomUUID().slice(0, 8), client: 'Fictional Client', deliverables: '', items: [{id: 'i_logo', title: 'Logo suite', qty: 1, unit: '', price: 500, acceptance: ''}], client_inputs: [], exclusions: '', fee: 500, currency: 'USD', revisions: 2, due: '', notes: ''});
 
 const cookie = await signIn(base, `otp-${Date.now()}@example.test`);
@@ -49,7 +51,8 @@ const S = '/api/scopes/' + project_id;
 // The review page learns that a code is needed, with a masked address only.
 {
   const r = await call('/api/review/' + token);
-  eq(r.data.identity_check, {method: 'email_otp', channel: 'email', to: 'a******@example.test'});
+  // changed by WS-02 (C5 §6.2.6, M14): masked as a***@e***.test; the check names the step it is for.
+  eq(r.data.identity_check, {method: 'email_otp', channel: 'email', to: 'a***@e***.test', action: 'decision'});
   ok(!JSON.stringify(r.data).includes('ada.client@example.test'), 'full client email never reaches the review page');
 }
 
@@ -65,7 +68,7 @@ const decide = async extra => call('/api/review/' + token, {method: 'POST', body
 // Send a code; wrong guesses are counted and lock the code after five.
 {
   const sent = await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'send'}});
-  eq(sent.status, 200); eq(sent.data.sent, true); eq(sent.data.to, 'a******@example.test');
+  eq(sent.status, 200); eq(sent.data.sent, true); eq(sent.data.to, 'a***@e***.test');
   const {code, email} = lastCode(versionId);
   eq(email, 'ada.client@example.test');
   ok(/^\d{6}$/.test(code), 'six digit code in the dev log');
@@ -81,17 +84,19 @@ const decide = async extra => call('/api/review/' + token, {method: 'POST', body
 
 // Expired codes are refused.
 {
+  pastCooldown(versionId);
   eq((await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'send'}})).status, 200);
   localSql(`UPDATE scopeflow.review_otps SET expires='2000-01-01T00:00:00.000Z' WHERE version_id='${versionId}'`);
   const r = await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'verify', code: lastCode(versionId).code}});
   eq(r.status, 410); eq(r.data.code, 'otp_expired');
 }
 
-// Three sends per 10 minutes.
+// changed by WS-02 (M15): a cooldown between sends replaces "three sends per 10 minutes".
 {
+  pastCooldown(versionId);
   eq((await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'send'}})).status, 200);
   const limited = await call(`/api/review/${token}/otp`, {method: 'POST', body: {action: 'send'}});
-  eq(limited.status, 429); eq(limited.data.code, 'otp_send_limit');
+  eq(limited.status, 429); eq(limited.data.code, 'otp_cooldown'); ok(limited.data.retry_after > 0, 'retry_after');
 }
 
 // The right code verifies once and the decision records signed identity evidence.
@@ -131,7 +136,7 @@ let session;
   const proposed = await call(S + '/ledger', {method: 'POST', cookie, body: {kind: 'change_order', baseline_version: 1, payload: co, request_id: 'otp-co-' + randomUUID().slice(0, 8)}});
   eq(proposed.status, 201);
   const seq = proposed.data.seq;
-  eq((await call('/api/review/' + token)).data.identity_check, {method: 'email_otp', channel: 'email', to: 'a******@example.test'});
+  eq((await call('/api/review/' + token)).data.identity_check, {method: 'email_otp', channel: 'email', to: 'a***@e***.test', action: 'change_order'}); // changed by WS-02
   const settle = extra => call(`/api/review/${token}/change-order`, {method: 'POST', body: {seq, decision: 'approved', signer: 'Ada Client', comment: '', ...extra}});
   const refused = await settle({});
   eq(refused.status, 403); eq(refused.data.code, 'otp_required');
