@@ -10,7 +10,8 @@ export async function GET(request: Request, ctx: Ctx) {
     const {token, seq} = await ctx.params;
     if (!await allowRead('receipt-ip:' + await ipKey(request), 30)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     if (!/^[a-f0-9]{64}$/.test(token) || !/^\d{1,9}$/.test(seq)) return json({error: 'Invoice not found.'}, 404);
-    const row = await db().prepare("SELECT i.project_id,i.owner FROM versions v JOIN invoices i ON i.project_id=v.project_id AND i.version=v.version WHERE v.token=? AND v.revoked=0 AND v.status='approved' AND i.seq=?").bind(token, Number(seq)).first<{project_id: string; owner: string}>();
+    // integration: GET is read-only; a revoked or closed link keeps serving the client's record (live scenario 7, H10)
+    const row = await db().prepare("SELECT i.project_id,i.owner FROM versions v JOIN invoices i ON i.project_id=v.project_id AND i.version=v.version WHERE v.token=? AND v.status='approved' AND i.seq=?").bind(token, Number(seq)).first<{project_id: string; owner: string}>();
     if (!row) return json({error: 'Invoice not found.'}, 404);
     const inv = (await loadDocs(readSql(), row.project_id)).invoices.find(i => i.row.seq === Number(seq));
     if (!inv) return json({error: 'Invoice not found.'}, 404);
