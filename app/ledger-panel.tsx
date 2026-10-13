@@ -97,7 +97,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
     } catch (e) { setError((e as Error).message); } finally { withdrawInflight.current.delete(seq); setWithdrawing(w => w.filter(x => x !== seq)); }
   }
 
-  if (!view) return <section className="ledger section-gap"><h3>Agreement ledger</h3>{error ? <p className="error" role="alert">{error}</p> : <Skeleton lines={3} cards={1} label="Loading ledger…" />}</section>;
+  if (!view) return <section className="ledger section-gap"><h4 className="h-sub">Agreement ledger</h4>{error ? <p className="error" role="alert">{error}</p> : <Skeleton lines={3} cards={1} label="Loading ledger…" />}</section>;
   const a = view.agreement, base = view.baseline?.content;
   const cur = a?.currency ?? 'USD';
   const items = base ? [...(a?.items ?? []), ...(a?.removed ?? [])] : [];
@@ -123,7 +123,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
   return (
     <section className="ledger section-gap">
       <div className="small-title">
-        <h3>Agreement ledger</h3>
+        <h4 className="h-sub">Agreement ledger</h4>
         {(view.open || !view.chain.intact || view.chain.count > 0) && <span className="actions">
           {view.chain.intact
             ? <span className="chain ok" title={`Chain head ${view.chain.head}`}><ShieldCheck size={14} />{view.chain.count} {view.chain.count === 1 ? 'entry' : 'entries'} · {view.chain.head.slice(0, 8)}</span>

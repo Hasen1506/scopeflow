@@ -16,6 +16,16 @@ export function MilestonesEditor({scope, onChange}: {scope: Scope; onChange: (m:
   const sum = Math.round(list.reduce((a, m) => a + (Number.isFinite(m.pct) ? m.pct : 0), 0) * 100) / 100;
   const total = totals({...scope, fee: Number.isFinite(scope.fee) ? scope.fee : 0}).total;
   const lines = schedule({milestones: list.map(m => ({...m, pct: Number.isFinite(m.pct) ? m.pct : 0}))}, total);
+  // Visual re-audit #5: amounts only mean something once the shares add up to 100%; until then show a dash, never $0.00.
+  const balanced = Math.abs(sum - 100) <= 0.01, remaining = Math.max(0, Math.round((100 - sum) * 100) / 100);
+  // Visual re-audit #5: a new milestone takes the share still unassigned; when the schedule is already at 100%, it
+  // splits the last milestone in two, so adding a row never pushes the total past 100%.
+  const addMilestone = () => {
+    if (!list.length) return onChange([{id: newId('m'), title: 'On signature', pct: 100, due: ''}]);
+    if (remaining > 0) return onChange([...list, {id: newId('m'), title: '', pct: remaining, due: ''}]);
+    const last = list[list.length - 1], lastPct = Number.isFinite(last.pct) ? last.pct : 0, keep = Math.round(lastPct * 50) / 100;
+    onChange([...list.slice(0, -1), {...last, pct: keep}, {id: newId('m'), title: '', pct: Math.round((lastPct - keep) * 100) / 100, due: ''}]);
+  };
   const update = (i: number, patch: Partial<Milestone>) => onChange(list.map((m, j) => (j === i ? {...m, ...patch} : m)));
   const remove = (i: number) => { const next = list.filter((_, j) => j !== i); onChange(next.length ? next : undefined); };
   return (
@@ -26,13 +36,13 @@ export function MilestonesEditor({scope, onChange}: {scope: Scope; onChange: (m:
           <input aria-label={`Milestone ${i + 1}`} placeholder={i === 0 ? 'e.g. On signature' : 'e.g. On delivery'} maxLength={120} value={m.title} onChange={e => update(i, {title: e.target.value})} />
           <input aria-label={`Share for ${m.title || 'milestone ' + (i + 1)} (%)`} type="number" min={0} max={100} step="0.01" inputMode="decimal" value={Number.isFinite(m.pct) ? m.pct : ''} onChange={e => update(i, {pct: num(e.target.value)})} />
           <input aria-label={`Due date for ${m.title || 'milestone ' + (i + 1)}`} type="date" value={m.due} onChange={e => update(i, {due: e.target.value})} />
-          <span className="fine">{formatMoney(lines[i]?.amount ?? 0, scope.currency)}</span>
+          <span className="fine">{balanced ? formatMoney(lines[i]?.amount ?? 0, scope.currency) : '—'}</span>
           <button type="button" className="icon" aria-label={`Remove ${m.title || 'milestone'}`} onClick={() => remove(i)}><X size={15} /></button>
         </div>
       ))}
       <div className="items-foot">
-        <button type="button" className="secondary" onClick={() => onChange([...list, {id: newId('m'), title: list.length ? '' : 'On signature', pct: Math.max(0, Math.round((100 - sum) * 100) / 100) || 50, due: ''}])}><Plus size={16} />Add milestone</button>
-        {list.length > 0 && <span className={Math.abs(sum - 100) > 0.01 ? 'warn-text' : 'fine'}>Adds up to {sum}%{Math.abs(sum - 100) > 0.01 ? ' (needs 100%)' : ''}{scope.deposit_pct ? ' · clear the deposit above to use milestones' : ''}</span>}
+        <button type="button" className="secondary" onClick={addMilestone}><Plus size={16} />Add milestone</button>
+        {list.length > 0 && <span className={Math.abs(sum - 100) > 0.01 ? 'warn-text' : 'fine'}>Adds up to {sum}%{Math.abs(sum - 100) > 0.01 ? ' (needs 100%)' : ''}{scope.deposit_pct ? ' · clear the deposit above to use milestones' : ''}{sum > 100.01 ? ' · lower a share to bring it to 100%' : ''}{!balanced && list.length > 0 ? ' · amounts show once it adds up to 100%' : ''}</span>}
       </div>
     </fieldset>
   );

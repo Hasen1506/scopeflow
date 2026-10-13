@@ -182,3 +182,15 @@ export function hexColorProblem(value: string): string | null {
   if (!v) return null;
   return /^#[0-9a-fA-F]{6}$/.test(v) ? null : 'Use a six-digit hex colour such as #1f6feb, or leave it empty.';
 }
+
+/**
+ * Visual re-audit #6: the save banner after the owner fixes a deposit/schedule conflict (e.g. "Clear deposit").
+ * When the banner carries `problem` and that problem is gone, the problem sentence is dropped, and so is the
+ * Payment schedule name it brought in; when nothing else is listed, the banner goes (null). Otherwise unchanged.
+ */
+export function bannerAfterFix(error: string, problem: string, stillThere: boolean): string | null {
+  if (!error || stillThere || !error.startsWith(VALIDATION_BANNER) || !error.endsWith(' ' + problem)) return error;
+  const head = error.slice(VALIDATION_BANNER.length, error.length - problem.length - 1).replace(/\.$/, '');
+  const names = head.split(', ').filter(n => n && n !== FIELD_LABELS.milestones);
+  return names.length ? VALIDATION_BANNER + names.join(', ') + '.' : null;
+}

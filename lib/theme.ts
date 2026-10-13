@@ -53,6 +53,15 @@ export function applyTheme(choice: ThemeChoice, {store = true}: {store?: boolean
   d.dataset.mode = mode;
   d.dataset.scheme = resolveScheme(mode, prefersDark());
   if (store) try { localStorage.setItem(THEME_KEY, choice.theme); localStorage.setItem(MODE_KEY, choice.mode); } catch { /* storage unavailable: the choice lasts for this page */ }
+  syncThemeColor();
+}
+
+/** UX-C57: the browser chrome colour (<meta name=theme-color>) follows the page background of the applied theme. */
+export function syncThemeColor() {
+  if (typeof document === 'undefined') return;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  if (!bg) return;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.setAttribute('content', bg); m.removeAttribute('media'); });
 }
 
 function readChoice(): ThemeChoice & {scheme: Scheme} {
@@ -63,7 +72,7 @@ export function subscribeTheme(callback: () => void) {
   const observer = new MutationObserver(callback);
   observer.observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme', 'data-mode', 'data-scheme']});
   const media = typeof matchMedia === 'function' ? matchMedia(DARK_QUERY) : null;
-  const onMedia = () => { const c = readChoice(); if (c.mode === 'system') document.documentElement.dataset.scheme = resolveScheme('system', prefersDark()); };
+  const onMedia = () => { const c = readChoice(); if (c.mode === 'system') { document.documentElement.dataset.scheme = resolveScheme('system', prefersDark()); syncThemeColor(); } };
   const onStorage = (e: StorageEvent) => { if (e.key === THEME_KEY || e.key === MODE_KEY) applyTheme(parseChoice({theme: localStorage.getItem(THEME_KEY), mode: localStorage.getItem(MODE_KEY)}), {store: false}); };
   media?.addEventListener('change', onMedia);
   window.addEventListener('storage', onStorage);

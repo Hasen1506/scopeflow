@@ -41,7 +41,7 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!entry) return json({error: 'That entry is not a payment on the record.', code: 'not_a_payment'}, 400);
     return await withProjectLock(id, async tx => {
       const s = await invoicingState(p.row, l, {tx});
-      if (!s.profile.business_name) return json({error: 'Add your business name in Data controls first: it is printed on the voucher.', code: 'profile_required'}, 409);
+      if (!s.profile.business_name) return json({error: 'Add your business name in Settings (Business details) first: it is printed on the voucher.', code: 'profile_required'}, 409);
       const existing = s.docs.vouchers.find(v => v.ledger_seq === entry.seq);
       if (existing) return json({receipt_voucher: {seq: existing.seq, number: existing.number}, replayed: true});
       const [v] = await ensureReceiptVouchers(tx, {owner: p.auth.user, projectId: id, version: baseline.version, content, entries: l.entries, profile: s.profile, project: p.row, agreement: s.agreement!}, entry.seq);

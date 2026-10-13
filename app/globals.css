@@ -36,7 +36,7 @@
   --ink:#1A2452;--ink-2:#46507A;--ink-3:#55607F;
   --accent:#1F3FA8;--accent-hover:#18338A;--on-accent:#FBF7EE;--accent-soft:#E2E6F4;
   --rule:#D6CAB1;--rule-strong:#767E9C;--rule-accent:#1F3FA8;
-  --paper:#FFFDF8;--paper-ink:#1A2452;--paper-ink-2:#4A5578;--paper-rule:#E1D8C5;--paper-accent:#1F3FA8;
+  --paper:#FFFDF8;--paper-ink:#1A2452;--paper-ink-2:#4A5578;--placeholder:#6A7392;--paper-rule:#E1D8C5;--paper-accent:#1F3FA8;
   --ok:#1E6A43;--ok-bg:#DDEBE0;--warn:#7A5410;--warn-bg:#F3E6C5;--bad:#A3201C;--bad-bg:#F8E1DC;--info-bg:#E4E7F3;
   --band:#1F3FA8;--on-band:#F3EBD9;--on-band-2:#DCD3BE;--band-rule:rgba(243,235,217,.38);
   --focus:#1F3FA8;--focus-halo:rgba(31,63,168,.22);
@@ -84,15 +84,15 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline-offset:0
 
 /* ---- Forms -------------------------------------------------------------------------------- */
 input,textarea,select{width:100%;border:1px solid var(--rule-strong);border-radius:var(--r-sm);background:var(--paper);padding:11px 13px;color:var(--paper-ink);font-family:var(--font-ui);font-size:var(--fs-3);transition:border-color var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),background-color var(--dur-1) var(--ease)}
-input::placeholder,textarea::placeholder{color:var(--ink-3);opacity:1}
-:root input::placeholder,:root textarea::placeholder{color:#6A7392}
+/* UX-C06: one placeholder token per theme at about 4.6-4.9:1 on the input, lighter than typed text (the inks run 6.6-10:1). */
+input::placeholder,textarea::placeholder{color:var(--placeholder);opacity:1}
 input:hover:not(:disabled),textarea:hover:not(:disabled),select:hover:not(:disabled){border-color:var(--accent)}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 input:disabled,textarea:disabled,select:disabled{opacity:.6;cursor:not-allowed}
 input[readonly]{background:var(--surface-2);color:var(--ink)}
 textarea{resize:vertical;line-height:var(--lh-2)}
 input[type=checkbox],input[type=radio]{width:auto;accent-color:var(--accent)}
-label{display:block;font-family:var(--font-ui);font-size:var(--fs-2);font-weight:var(--fw-ui);margin:18px 0;color:var(--ink)}
+label{display:block;font-family:var(--font-ui);font-size:var(--fs-2);font-weight:var(--fw-ui);margin:var(--s4) 0;color:var(--ink)}
 label input,label textarea,label select{display:block;margin-top:7px;font-weight:var(--fw-1)}
 label .quiet{font-weight:var(--fw-1)}
 /* Inline validation: native constraints show only after the person has interacted (no JS). */
@@ -156,7 +156,7 @@ label select{margin-top:7px}
 .fine{font-size:var(--fs-2);color:var(--ink-3);margin-top:12px;font-family:var(--font-ui)}
 .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.03fr);gap:32px;align-items:start}
 .preview-col{position:sticky;top:20px}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)}
 .inline-field{display:flex;gap:8px;align-items:stretch}
 .inline-field input{flex:1;min-width:0}
 .trust-settings{border-top:1px solid var(--rule);padding-top:14px}
@@ -166,10 +166,10 @@ label select{margin-top:7px}
 /* UX-C16: signer chips carry long text (name, verified address, date); let them wrap inside a 390px card. */
 .cosign-list .tag{white-space:normal;max-width:100%;min-width:0;overflow-wrap:anywhere}
 @media (max-width:640px){.two-col{grid-template-columns:1fr}}
-.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.section-gap{margin-top:28px}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3)}
+.section-gap{margin-top:var(--s5)}
 .review-shell{width:100%;max-width:860px;margin:0 auto;padding:36px 20px 80px}
-.review-shell .paper{margin-bottom:25px}
+.review-shell .paper{margin-bottom:var(--s5)}
 .line-list{white-space:pre-wrap;overflow-wrap:anywhere}
 .mono{font-family:var(--font-ui);font-variant-numeric:tabular-nums slashed-zero;overflow-wrap:anywhere}
 
@@ -202,12 +202,12 @@ label select{margin-top:7px}
 .small-title{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .small-title .tag{margin-left:0}
 .rule{height:1px;background:var(--paper-rule);margin:28px 0}
-.muted-box{background:var(--info-bg);border:1px solid var(--rule);border-radius:var(--r);padding:16px 18px;font-size:var(--fs-2);margin:18px 0}
+.muted-box{background:var(--info-bg);border:1px solid var(--rule);border-radius:var(--r);padding:var(--s4) var(--s4);font-size:var(--fs-2);margin:var(--s4) 0}
 .muted-box label{margin-top:0}
 .warn-box{background:var(--warn-bg);color:var(--ink);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
 .error{border:1px solid color-mix(in srgb,var(--bad) 45%,transparent);background:var(--bad-bg);color:var(--bad);padding:13px 15px;border-radius:var(--r);margin:15px 0;font-family:var(--font-ui);font-size:var(--fs-2)}
 .error .secondary{margin-top:10px}
-.empty{padding:25px 0;color:var(--ink-2)}
+.empty{padding:var(--s5) 0;color:var(--ink-2)}
 .empty-state{display:grid;grid-template-columns:96px 1fr;gap:18px;align-items:center;padding:22px 0;color:var(--ink-2)}
 .empty-state img{width:96px;height:96px;border-radius:var(--r)}
 :root .empty-state img{mix-blend-mode:multiply}
@@ -313,7 +313,7 @@ label select{margin-top:7px}
 .item-meta label,.item-accept{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2)}
 .item-meta input,.item-accept input{padding:7px 9px;font-size:var(--fs-2);margin-top:3px}
 .input-row{display:grid;grid-template-columns:1fr 160px 34px;gap:8px;align-items:center;margin:8px 0}
-.milestone-row{grid-template-columns:1fr 90px 160px 110px 34px}.milestone-row .fine{text-align:right;white-space:nowrap}
+.milestone-row{grid-template-columns:minmax(8rem,1fr) 5.5rem 9.5rem auto 34px}.milestone-row .fine{text-align:right;white-space:nowrap}
 .fx-row{grid-template-columns:110px 1fr 160px 1fr 34px}
 /* UX-C50: revision bank: unit, amount, [overage rate], remove. */
 .bank-row{grid-template-columns:140px 1fr 1fr 34px}.bank-row.bank-money{grid-template-columns:140px 1fr 34px}
@@ -526,14 +526,14 @@ label select{margin-top:7px}
 .hero-in{display:none}
 [data-auth="in"] .hero-in{display:flex}
 [data-auth="in"] .hero-out{display:none}
-.editor.editing .notice-dock{bottom:118px}
+.editor.editing .notice-dock{bottom:calc(var(--save-bar-h,106px) + 12px)}
 .list-tools label .kbd{margin-left:6px;vertical-align:1px}
 input:user-invalid~#password-hint{color:var(--bad)}
 @media (max-width:900px){
   .topbar{padding:12px max(16px,3vw);flex-wrap:wrap;min-height:auto;row-gap:6px}
   .nav-wrap{display:contents}
   .topbar .brand{order:1}
-  .navlinks{order:3;width:calc(100% + 2*max(16px,3vw));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 calc(-1*max(16px,3vw));padding:0 max(6px,3vw);white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
+  .navlinks{order:3;width:100%;flex-wrap:wrap;row-gap:4px;margin:0;padding:0;white-space:nowrap}
   .navlinks::-webkit-scrollbar{display:none}
   .auth-layout{justify-items:center}
 }
@@ -755,7 +755,8 @@ label .fine{font-weight:var(--fw-1)}
 .pay-note{display:block;font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1);color:var(--ink-2);margin-top:2px}
 .receipt-list{list-style:none;padding:0;margin:var(--s2) 0 0}
 .receipt-list li{display:flex;justify-content:space-between;gap:var(--s3);padding:var(--s2) 0;border-top:1px solid var(--rule);font-size:var(--fs-2);line-height:var(--lh-2)}
-.flow-col.editing .notice-dock{bottom:118px}
+/* UX-C52: the dock clears the sticky save bar by its measured height (app/save-bar-height.tsx), not a fixed 118px. */
+.flow-col.editing .notice-dock{bottom:calc(var(--save-bar-h,106px) + 12px)}
 @media (max-width:900px){
   .summary-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tab-project{max-width:52vw}
@@ -882,7 +883,7 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
   --ink:#F3EBD9;--ink-2:#E4DCC8;--ink-3:#DCD3BE;
   --accent:#F3EBD9;--accent-hover:#FFFFFF;--on-accent:#1A3591;--accent-soft:#2A4AAE;
   --rule:rgba(243,235,217,.32);--rule-strong:rgba(243,235,217,.72);--rule-accent:#F3EBD9;
-  --paper:#F3EBD9;--paper-ink:#1A3591;--paper-ink-2:#3A4D93;--paper-rule:rgba(31,63,168,.28);--paper-accent:#1F3FA8;
+  --paper:#F3EBD9;--paper-ink:#1A3591;--paper-ink-2:#3A4D93;--placeholder:#54639D;--paper-rule:rgba(31,63,168,.28);--paper-accent:#1F3FA8;
   --ok:#BDEBCB;--ok-bg:#24479F;--warn:#F6D58E;--warn-bg:#2A48A0;--bad:#FFC2B8;--bad-bg:#2C46A2;--info-bg:#2645A6;
   --band:#1A3591;--on-band:#F3EBD9;--on-band-2:#DDD4BF;--band-rule:rgba(243,235,217,.32);
   --focus:#F3EBD9;--focus-halo:rgba(243,235,217,.28);
@@ -900,7 +901,7 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
   --ink:#EEE8DA;--ink-2:#C9CBDB;--ink-3:#B3B8CE;
   --accent:#9FB3F5;--accent-hover:#BCCBFA;--on-accent:#11152A;--accent-soft:#252F5C;
   --rule:#3A4266;--rule-strong:#7D86AB;--rule-accent:#9FB3F5;
-  --paper:#1A1F38;--paper-ink:#EEE8DA;--paper-ink-2:#C9CBDB;--paper-rule:#30375A;--paper-accent:#9FB3F5;
+  --paper:#1A1F38;--paper-ink:#EEE8DA;--paper-ink-2:#C9CBDB;--placeholder:#888B9F;--paper-rule:#30375A;--paper-accent:#9FB3F5;
   --ok:#8FD6A8;--ok-bg:#1F3828;--warn:#EBC77A;--warn-bg:#3B3219;--bad:#FF9E94;--bad-bg:#4A2A28;--info-bg:#2A3151;
   --band:#18338A;--on-band:#F3EBD9;--on-band-2:#DCD3BE;--band-rule:rgba(243,235,217,.32);
   --focus:#9FB3F5;--focus-halo:rgba(159,179,245,.3);
@@ -915,7 +916,7 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
   --ink:#F3EBD9;--ink-2:#DDD4BF;--ink-3:#CFC6B0;
   --accent:#F3EBD9;--accent-hover:#FFFFFF;--on-accent:#0F1D55;--accent-soft:#1E3080;
   --rule:rgba(243,235,217,.28);--rule-strong:rgba(243,235,217,.66);--rule-accent:#F3EBD9;
-  --paper:#1A2A6E;--paper-ink:#F3EBD9;--paper-ink-2:#DDD4BF;--paper-rule:rgba(243,235,217,.24);--paper-accent:#F3EBD9;
+  --paper:#1A2A6E;--paper-ink:#F3EBD9;--paper-ink-2:#DDD4BF;--placeholder:#9D9CA4;--paper-rule:rgba(243,235,217,.24);--paper-accent:#F3EBD9;
   --ok:#BDEBCB;--ok-bg:#273A6A;--warn:#F6D58E;--warn-bg:#2D3969;--bad:#FFC2B8;--bad-bg:#343768;--info-bg:#283774;
   --band:#0B1747;--on-band:#F3EBD9;--on-band-2:#DDD4BF;
   --focus:#F3EBD9;--focus-halo:rgba(243,235,217,.28);
@@ -923,7 +924,6 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 }
 
 /* Literal colours elsewhere in this sheet that assume the cream paper: re-pointed to tokens off theme B light. */
-:root[data-theme="a"] input::placeholder,:root[data-theme="a"] textarea::placeholder,:root[data-scheme="dark"] input::placeholder,:root[data-scheme="dark"] textarea::placeholder{color:var(--paper-ink-2)}
 :root[data-theme="a"] .vc-slip,:root[data-scheme="dark"] .vc-slip{background:var(--warn-bg)}
 :root[data-theme="a"] select option,:root[data-scheme="dark"] select option{background:var(--paper);color:var(--paper-ink)}
 :root[data-theme="a"] .tag,:root[data-theme="a"] .diff-badge,:root[data-theme="a"] .chain{border-color:currentColor;background:transparent}
@@ -1028,3 +1028,35 @@ main#content:focus{outline:none}
 /* B-3/#30: the fee's status sits beside the field, not inside its label. */
 .field-stack>.warn-text,.field-stack>.error-text{margin-top:-6px}
 .error>p+p{margin-top:6px}
+/* UX-C49: milestone, FX and revision-bank rows fold by the width of their card, not the viewport: at 901-1200px
+   the two-column editor leaves the scope card only ~380-520px, where the fixed columns overflowed. */
+@container (max-width:600px){
+ .input-row.milestone-row,.input-row.fx-row,.input-row.bank-row,.input-row.bank-row.bank-money{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+ .input-row.milestone-row>input:first-child{grid-column:1/-1}
+ .input-row.milestone-row .fine{text-align:left}
+ .input-row.milestone-row .icon,.input-row.fx-row .icon,.input-row.bank-row .icon{grid-column:2;justify-self:end}
+ .input-row.milestone-row input[type=date],.input-row.fx-row input[type=date]{grid-column:auto}
+}
+/* UX-C10: the card for the step the tracker marks current (or needing attention) stands out from the others. */
+.flow-step[data-state=current]{border-left:4px solid var(--accent)}
+.flow-step[data-state=attention]{border-left:4px solid var(--warn)}
+.flow-step[data-state=current] .step-num{background:var(--accent);color:var(--on-accent)}
+.flow-step[data-state=attention] .step-num{border-color:var(--warn);background:var(--warn);color:var(--bg)}
+/* UX-C27: brief "Saved" next to controls that save as soon as they change. */
+.saved-note{display:inline-flex;align-items:center;gap:4px;min-height:1lh;margin:var(--s1) 0 0;font-family:var(--font-ui);font-size:var(--fs-2);color:var(--ok)}
+.saved-note:empty{visibility:hidden}
+/* UX-C24: the account page keeps its height while sign-in and settings load. */
+.account-loading{min-height:60vh}
+/* UX-C39: why Save business details is unavailable, next to the button. */
+.actions .save-reason{margin:0;flex-basis:100%}
+/* UX-C31: wide headers name the themes; narrow ones keep the letters (names stay in the accessible label). */
+.theme-switch .theme-name{display:none}
+@media (min-width:1101px){.theme-switch .theme-letter{display:none}.theme-switch .theme-name{display:inline}}
+@media (max-width:720px){.topbar.menu-open .theme-switch .theme-letter{display:none}.topbar.menu-open .theme-switch .theme-name{display:inline}}
+/* UX-C66: the agreement chips explain themselves where they are shown. */
+.chip-help{margin-top:var(--s2);font-size:var(--fs-2)}
+.chip-help summary{cursor:pointer;color:var(--ink-2);font-family:var(--font-ui)}
+.chip-help ul{margin:var(--s2) 0 0;padding-left:var(--s4)}
+/* Visual re-audit #12: a disclosure title with a "· hint" reads as one wrapping line, not two columns. */
+.ai-draft>summary:has(>.quiet),.disclosure>summary:has(>.quiet),.scope-check>summary:has(>.quiet){display:block;position:relative;padding-right:40px}
+.ai-draft>summary:has(>.quiet)::after,.disclosure>summary:has(>.quiet)::after,.scope-check>summary:has(>.quiet)::after{position:absolute;right:16px;top:50%;margin:-6px 0 0}

@@ -4,7 +4,8 @@ import Link from 'next/link';
 import {ArrowUpRight,Plus,Printer,Keyboard,X} from 'lucide-react';
 import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
-import {formatMoney} from '@/lib/scope';
+import {formatMoney,hasDepositScheduleConflict,DEPOSIT_SCHEDULE_CONFLICT} from '@/lib/scope';
+import {bannerAfterFix} from '@/lib/editor';
 import {StageChip,StageTracker,NextStep} from '../workflow';
 import {Header,Paper,Skeleton} from '../ui';
 import Landing from '../landing';
@@ -20,6 +21,8 @@ import {settingsStep} from './settings';
 /** The signed-in workspace and the try-without-account editor (split from app/workspace.tsx, L8: no behaviour change). */
 export default function Workspace(){
   const w=useWorkspace();const {confirmDialog,shortcutsOn,setShortcutsOn,cards,actionError,active,activeOv,busy,changed,deleteText,draft,error,goHome,importDraft,importError,importOpen,importText,isSample,keysOpen,linkAction,loading,manageLink,newScope,next,nextActions,notice,opening,preview,projectAction,runProjectAction,setDeleteText,setImportOpen,setImportText,setKeysOpen,setLinkAction,setNotice,setProjectAction,setTab,setTrying,setUndo,shownAction,shownLink,signedIn,stage,steps,tab,tryEditor,trying,undo,undoReplace}=w;
+  // Visual re-audit #6: once the deposit/schedule conflict is fixed (Clear deposit), the banner stops naming it.
+  const shownError=bannerAfterFix(error,DEPOSIT_SCHEDULE_CONFLICT,hasDepositScheduleConflict(draft));
   // H4 (WS-02 semantics, WS-09 copy): a decided version's client keeps a read-only copy after revoke/replace.
   const linkCopy=linkDialogCopy(shownLink,decidedStatus(active?.status));
  return <><Header/><main className="shell" id="content" tabIndex={-1}>
@@ -45,7 +48,7 @@ export default function Workspace(){
      {changesStep(w)}
      {paymentStep(w)}
      {settingsStep(w)}
-     <div className="notice-dock">{error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="muted-box" role="status"><span>{notice}</span><button type="button" className="dismiss" aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={14}/></button></p>}{undo&&<p className="muted-box" role="status"><span>Your previous draft was replaced. <button className="help-link" onClick={undoReplace}>Undo</button> <button className="help-link" onClick={()=>setUndo(null)}>Dismiss</button></span></p>}</div>
+     <div className="notice-dock">{shownError&&<p className="error" role="alert">{shownError}</p>}{notice&&<p className="muted-box" role="status"><span>{notice}</span><button type="button" className="dismiss" aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={14}/></button></p>}{undo&&<p className="muted-box" role="status"><span>Your previous draft was replaced. <button className="help-link" onClick={undoReplace}>Undo</button> <button className="help-link" onClick={()=>setUndo(null)}>Dismiss</button></span></p>}</div>
     </div>
     <div className="preview-col"><div className="preview-bar no-print"><p className="eyebrow">{active&&!changed?'The locked scope':'Live draft preview'}</p><button className="secondary" onClick={()=>window.print()}><Printer size={16}/>Print / PDF</button></div><Paper scope={preview} version={active?active.version+(changed?1:0):1} status={active&&!changed?active.status:'draft'}/><p className="fine no-print">A workflow approval record. Reviewer names are self-reported; this is not a verified electronic signature.</p></div></div>
     </div>

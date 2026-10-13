@@ -116,7 +116,7 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
           <label className="consent"><input type="checkbox" checked={includesTax} onChange={e => setIncludesTax(e.target.checked)} /> The amount includes GST</label>
           <label>Description <span className="quiet">· optional</span><input maxLength={200} placeholder={milestone ? 'Milestone payment for the approved scope' : 'Balance for the approved scope'} value={description} onChange={e => setDescription(e.target.value)} /></label>
           <TdsField value={tds} onChange={setTds} label="TDS on this invoice" />
-          <p className="consequence">Invoices are numbered in order and cannot be edited or deleted once issued; cancel one with a credit note. Your business details from Data controls are printed as the seller{pos ? `; place of supply ${stateName(pos)}` : ''}.</p>
+          <p className="consequence">Invoices are numbered in order and cannot be edited or deleted once issued; cancel one with a credit note. Your business details from Settings are printed as the seller{pos ? `; place of supply ${stateName(pos)}` : ''}.</p>
           {error && <p className="error" role="alert">{error}{needsProfile && <> <Link className="help-link" href="/account#h-business">Add business details</Link></>}</p>}
           <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy ? 'Issuing…' : 'Issue invoice'}</button><button type="button" className="secondary" disabled={busy} onClick={closeForm}>Cancel</button></div>
         </form>

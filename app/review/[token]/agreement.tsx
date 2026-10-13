@@ -86,6 +86,8 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
         {check.state === 'ok' && !check.signed && <span className="chain unsigned" title={check.head}><ShieldAlert size={14} />{t('chip.unsealed')}</span>}
         {check.state === 'failed' && <span className="chain bad"><ShieldAlert size={14} />{t('chip.failed')}</span>}
       </div>
+      {/* UX-C66: the chips explain themselves here (the same glossary text as the decision card's). */}
+      {(check.state === 'ok' || check.state === 'failed') && <details className="chip-help"><summary>{t('glossary.title')}</summary><ul><li>{t('glossary.recordCheck')}</li><li>{t('glossary.seal')}</li></ul></details>}
       <p className="quiet section-gap">{t('agreement.intro', {version: scope.version})}</p>
       <AgreementNowCard now={now} t={t} />
       <div className="agreement-grid">

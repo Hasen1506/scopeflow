@@ -49,7 +49,7 @@ export async function POST(request: Request, ctx: Ctx) {
     const l = await loadLedger(id);
     const out = await withProjectLock(id, async tx => {
       const s = await invoicingState(row, l, {tx, issueVouchers: !!l.baseline});
-      if (!s.profile.business_name) return json({error: 'Add your business name in Data controls (Business details) first: it is printed on the invoice.', code: 'profile_required'}, 409);
+      if (!s.profile.business_name) return json({error: 'Add your business name in Settings (Business details) first: it is printed on the invoice.', code: 'profile_required'}, 409);
       if (!l.baseline || !l.content || !l.agreement || !s.agreement || !s.cap) return json({error: 'Invoices are issued once the client approves the scope.', code: 'not_approved'}, 409);
       const content = l.content, a = s.agreement, cap = s.cap, currency = a.currency;
       // M9: a milestone invoice: its frozen share, less what earlier live invoices for it asked for (min with C2).
