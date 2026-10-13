@@ -6,6 +6,7 @@ import {toast} from 'sonner';
 import {Version,label,formatMoney} from '@/lib/scope';
 import {paymentsOf,paymentMethods,PAYMENT_METHOD_LABEL,refundableOf} from '@/lib/ledger';
 import {InvoicePanel} from '../invoice-panel';
+import {ClientNotices} from './client-notices';
 import type {Agreement,LedgerEntry,PaymentLine} from '@/lib/ledger';
 import {api,post} from '../ui';
 import {totals} from '@/lib/money';
@@ -38,6 +39,8 @@ export function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUr
    <p className="fine">The statement PDF shows the agreed total, every payment on the record and the balance due. Send it with an invoice or a payment reminder; your client can download the same statement from their review link.</p>
   </div>
   <InvoicePanel projectId={version.project_id} currency={cur} balance={balance} archived={archived}/>
+  {/* WS-09 mount (WS-06): invoice email status and WhatsApp share; nothing until WS-06 lands. */}
+  <ClientNotices projectId={version.project_id} list="invoices" reload={entries.length}/>
   <ReceiptList decided={decided} receiptUrl={receiptUrl}/>
  </>;
 }

@@ -9,6 +9,7 @@ import {LintPanel} from '../lint-panel';
 import {clampNumber,amountProblem} from '@/lib/editor';
 import {currencyList} from '@/lib/currency';
 import {AiQuality} from '../scope-check';
+import TdsField from '../components/slots/tds-field';
 import {EMAIL} from './state';
 import type {Ws} from './state';
 
@@ -33,6 +34,8 @@ export function editorFields(w:Ws){const {fieldErrs,active,ai,aiQuality,applyTem
       <MilestonesEditor scope={draft} onChange={m=>optional('milestones',m)}/>
       <FxEditor scope={draft} onChange={fx=>optional('fx',fx)}/>
       <RevisionBankEditor scope={draft} onChange={b=>optional('revision_bank',b)}/>
+      {/* WS-09 mount (WS-03 slot): TDS the client will deduct, an explicit input, never defaulted. Renders nothing until WS-03 lands. */}
+      <TdsField value={draft.tds??null} disabled={busy} onChange={(v:{section_2025:string;legacy_label?:string|null;rate_pct:number}|null)=>{type T=NonNullable<Scope['tds']>;setDraft(x=>{const n={...x};if(v)n.tds={section_2025:v.section_2025 as T['section_2025'],legacy_label:(v.legacy_label??null) as T['legacy_label'],rate_pct:v.rate_pct,base:'taxable_value'};else delete n.tds;return n;});setIsSample(false);}}/>
      </details>
      <label>Outside this scope<textarea maxLength={3000} rows={2} value={draft.exclusions} onChange={e=>field('exclusions',e.target.value)}/></label>
      <ClientInputsEditor inputs={draft.client_inputs??[]} onChange={client_inputs=>{setDraft(x=>({...x,client_inputs}));setIsSample(false);setNotice('');}}/>
