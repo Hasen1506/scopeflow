@@ -7,8 +7,10 @@ import { safeReturnPath } from '@/lib/origin';
 import { forgetDrafts } from '@/lib/editor';
 import { rememberSession } from '@/lib/theme';
 
-export default function AuthForm({ mode, returnTo, token, configured }: {
+export default function AuthForm({ mode, returnTo, token, configured, explicitReturn = true }: {
   mode: string; returnTo: string; token?: string; configured: boolean;
+  /** False when no return_to was given: a new account then goes to first-run onboarding (LT-04). */
+  explicitReturn?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -48,7 +50,9 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
           : await authClient.signIn.email({ email, password, callbackURL });
         if (result.error) throw new Error(result.error.message || 'Unable to sign in.');
         const session = await authClient.getSession();
-        if (session.data?.user) { router.push(destination); router.refresh(); }
+        // LT-04/SF-11: a new account without a specific destination starts with onboarding.
+        const next = mode === 'sign-up' && !explicitReturn ? '/onboarding' : destination;
+        if (session.data?.user) { router.push(next); router.refresh(); }
         else setMessage('Check your email to verify your account, then sign in.');
       }
     } catch (error) { setError(error instanceof Error ? error.message : 'Please try again.'); }
@@ -59,9 +63,10 @@ export default function AuthForm({ mode, returnTo, token, configured }: {
     {configured && currentEmail && (mode === 'sign-in' || mode === 'sign-up') && <p className="muted-box auth-current" role="status">You are signed in as <b>{currentEmail}</b>. {mode === 'sign-in' ? 'Signing in with another email signs that account out first.' : 'Creating a new account signs that account out first.'} <Link className="help-link" href={safeReturnPath(returnTo)}>Stay signed in</Link></p>}
     {!configured ? <p className="error" role="alert">Sign-in is temporarily unavailable. Please contact support or try again later.</p> :
       <form onSubmit={submit} className="section-gap">
-        {mode === 'sign-up' && <><label>Your name<input name="name" autoComplete="name" required minLength={2} maxLength={120} /></label><span className="field-hint">Enter at least 2 characters.</span></>}
-        {mode !== 'reset-password' && <><label>Email<input name="email" type="email" autoComplete="email" required maxLength={254} /></label><span className="field-hint">Enter a full email address, like name@example.com.</span></>}
-        {mode !== 'forgot-password' && <label>Password<input name="password" type="password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} aria-describedby={mode === 'sign-in' ? undefined : 'password-hint'} />{mode !== 'sign-in' && <span id="password-hint" className="fine block">Use at least 8 characters. A longer passphrase is stronger.</span>}</label>}
+        {/* LT-11: each label names only its field (the hint sits outside the label); hints are tied by aria-describedby. */}
+        {mode === 'sign-up' && <><label>Your name<input name="name" autoComplete="name" required minLength={2} maxLength={120} aria-describedby="name-hint" /></label><span id="name-hint" className="field-hint">Enter at least 2 characters.</span></>}
+        {mode !== 'reset-password' && <><label>Email<input name="email" type="email" autoComplete="email" required maxLength={254} aria-describedby="email-hint" /></label><span id="email-hint" className="field-hint">Enter a full email address, like name@example.com.</span></>}
+        {mode !== 'forgot-password' && <><label>Password<input name="password" type="password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} aria-describedby={mode === 'sign-in' ? undefined : 'password-hint'} /></label>{mode !== 'sign-in' && <span id="password-hint" className="fine block">Use at least 8 characters. A longer passphrase is stronger.</span>}</>}
         <button className="primary section-gap" disabled={busy || (mode === 'reset-password' && !token)}>{busy ? 'Please wait…' : mode === 'sign-up' ? 'Create account' : mode === 'forgot-password' ? 'Send reset link' : mode === 'reset-password' ? 'Update password' : 'Sign in'}</button>
       </form>}
     {error && <p className="error" role="alert">{error}</p>}

@@ -14,7 +14,8 @@ const {templateContent, builtinTemplates} = await import('../../lib/template-sto
 test('provider selection: off without keys, OpenAI preferred, override and models from env', () => {
   assert.equal(llm.llmConfig({}), null);
   assert.deepEqual(llm.llmStatus({}), {enabled: false, provider: null, model: null, careful_model: null, warning: null, reason: 'No OPENAI_API_KEY or ANTHROPIC_API_KEY is set on this server.'});
-  assert.deepEqual(llm.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}), {provider: 'anthropic', apiKey: 'sk-ant', model: llm.DEFAULT_MODELS.anthropic});
+  // changed by WS-06 (L11): the config now carries the registry's ordered fallbacks.
+  assert.deepEqual(llm.llmConfig({ANTHROPIC_API_KEY: 'sk-ant'}), {provider: 'anthropic', apiKey: 'sk-ant', model: llm.DEFAULT_MODELS.anthropic, fallbacks: [{provider: 'anthropic', apiKey: 'sk-ant', model: llm.FALLBACK_MODELS.fast.anthropic[0]}]});
   assert.equal(llm.llmConfig({OPENAI_API_KEY: 'sk-o', ANTHROPIC_API_KEY: 'sk-a'}).provider, 'openai');
   assert.equal(llm.llmConfig({OPENAI_API_KEY: 'sk-o', ANTHROPIC_API_KEY: 'sk-a', SCOPEFLOW_LLM_PROVIDER: 'anthropic'}).provider, 'anthropic');
   assert.equal(llm.llmConfig({OPENAI_API_KEY: 'sk-o', SCOPEFLOW_OPENAI_MODEL: 'gpt-x'}).model, 'gpt-x');

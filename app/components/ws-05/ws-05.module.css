@@ -1,0 +1,18 @@
+/* WS-05 components (CoCard, RetainerCounter, RateCardPicker, retainer panel, rate-card settings). Design tokens only. */
+.card { border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface); padding: 16px; margin-top: 12px; }
+.eyebrow { font-size: var(--fs-1); letter-spacing: var(--label-track); color: var(--ink-3); text-transform: uppercase; margin: 0 0 6px; }
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 10px 0; }
+.totals > div { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 8px 10px; background: var(--paper); }
+.totals span { display: block; font-size: var(--fs-1); color: var(--ink-2); }
+.totals strong { color: var(--ink); }
+.hash { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--ink-3); word-break: break-all; }
+.counter { display: grid; gap: 8px; margin: 10px 0; }
+.counterRow { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.counterRow meter { grid-column: 1 / -1; width: 100%; }
+.over { color: var(--bad); }
+.warn { background: var(--warn-bg); color: var(--warn); border-radius: var(--r-sm); padding: 8px 10px; margin: 8px 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.row label { flex: 1 1 140px; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-2); }
+.table th, .table td { border-bottom: 1px solid var(--rule); padding: 6px 4px; text-align: left; }
+.table td.num, .table th.num { text-align: right; }

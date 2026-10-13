@@ -12,7 +12,9 @@ the first table is optional: a feature without its variables is off, and the UI 
 | Variable | What it does | Notes |
 | --- | --- | --- |
 | `SCOPEFLOW_SIGNING_SECRET` | Seeds the Ed25519 key that signs client decisions, ledger entries and PDF receipts; `/verify` checks receipts against it. | Generate once: `openssl rand -base64 48`. **Never change it casually**: records signed with an old key only keep verifying if the old value is kept in `SCOPEFLOW_SIGNING_SECRET_PREVIOUS` (comma-separated). **A production build no longer signs with `NEON_AUTH_COOKIE_SECRET`**: without this variable new records are unsigned (records signed earlier with the cookie-derived key still verify). `SCOPEFLOW_ALLOW_COOKIE_SIGNING=1` restores the old fallback while you migrate. `/api/health` reports `signing: dedicated | cookie_fallback | off`. |
-| `SCOPEFLOW_CRON_SECRET` | Authorizes the daily job's payment reconciliation call. | `render.yaml` generates it and shares it with the cron job. |
+| `SCOPEFLOW_CRON_SECRET` | Authorizes the cron jobs' calls to the web service (reconciliation, head digest, housekeeping, analytics export). | `render.yaml` generates it and shares it with the cron services. |
+| `SCOPEFLOW_ADMIN_TOKEN` | Operator token for `/api/readiness`, `/api/analytics` and the cron callbacks. | `render.yaml` generates it. |
+| `DATABASE_MIGRATION_URL` | Owner-role connection used only by the pre-deploy migration step. | Set in the dashboard (docs/ws-10.md). |
 
 Keys in a KMS or HSM: the signing key is derived in process from the secret. Moving it into a cloud KMS or an
 HSM needs that service's account and its signing API (AWS KMS, Google Cloud KMS or a PKCS#11 device); the
@@ -108,21 +110,44 @@ Digio or Leegality) and their API keys; it is not built in.
 | `SCOPEFLOW_CONTEXT_RETENTION_DAYS` | Server-wide default (1–3650 days) for owners who set no retention. After that many days the IP address and user agent on client decisions and client ledger entries become `redacted`. Owners can set their own period, a per-project period, and legal holds. |
 | `SCOPEFLOW_PLAN`, `SCOPEFLOW_LIMIT_<NAME>` | Plan tier (`beta`, `free`, `solo`) and per-limit overrides (`lib/plans.ts`). |
 
-## The daily job
+## Plan and cost (founder decision, H15)
 
-`render.yaml` defines the `scopeflow-retention` cron job (Render Starter plan). It runs, in order:
+Render's free web plan spins down after 15 idle minutes (a cold start of tens of seconds for the next client
+who opens a review link) and has no cron jobs. `render.yaml` therefore puts the web service and the four
+cron services on **Starter**: about US$7/month for the web service plus a small per-minute charge for each
+cron run (the four daily jobs run for seconds; budget a few US$ a month in total). Check Render's current
+price list before switching; the alternative is to keep the free plan and run `node scripts/cron.mjs <job>`
+by hand, accepting cold starts and stale reconciliation.
 
-1. `node scripts/redact-expired.mjs`: retention redaction (project period, else owner, else server default)
-   and expiry of archived drafts for owners who turned it on (projects on legal hold are skipped by both),
-   and removal of unsaved scope drafts left unedited for 90 days.
-2. `node scripts/send-reminders.mjs`: automatic reminders for unanswered scopes and overdue invoices
-   (needs `APP_URL` and the email variables; `--dry-run` lists what it would send).
-3. `node scripts/reconcile-payments.mjs`: records payments whose webhook was lost (calls the web service with
-   `SCOPEFLOW_CRON_SECRET`).
-4. `node scripts/check-models.mjs`: the model-lifecycle warning.
+## Deploys and migrations
 
-Every step is idempotent and prints one JSON line. Manual setup: build `npm ci --omit=dev --ignore-scripts`,
-schedule `30 20 * * *` (20:30 UTC = 02:00 IST).
+`preDeployCommand: npm run db:migrate:deploy` runs the migrations once per deploy, before traffic moves, as
+the owner role in `DATABASE_MIGRATION_URL` (falls back to `DATABASE_URL` with a warning). The web process
+only runs `npm start`. The role split (runtime role `scopeflow_app`, C7) and its operator steps are in
+[ws-10.md](ws-10.md).
+
+## The cron jobs
+
+`render.yaml` defines four cron services (Starter). Each runs `node scripts/cron.mjs <job...>`: every job in
+its own process, recorded in `scopeflow.cron_runs`, so one failing job never skips another and
+`/api/readiness` shows the last run, staleness and failures per job.
+
+| Service | Schedule (UTC) | Jobs |
+| --- | --- | --- |
+| `scopeflow-retention` | `30 20 * * *` (02:00 IST) | `retention` (`scripts/redact-expired.mjs`: redaction, draft expiry, stale unsaved drafts), `heads` (publish yesterday's signed ledger-head digest), `housekeeping` (expired idempotency keys, OAuth codes and tokens, old cron runs) |
+| `scopeflow-reminders` | `30 3 * * *` (09:00 IST) | `reminders` (`scripts/send-reminders.mjs`; needs the email variables, `--dry-run` lists what it would send) |
+| `scopeflow-reconcile` | `0 */6 * * *` | `reconcile` (`scripts/reconcile-payments.mjs`; no mail dependency) |
+| `scopeflow-check-models` | `0 22 * * *` | `check-models`, then `analytics` (PostHog export when `POSTHOG_KEY` is set; purges events older than 400 days) |
+
+Every job is idempotent. Manual setup: build `npm ci --omit=dev --ignore-scripts`, start command as above.
+
+## Health and readiness
+
+`/api/health` (Render's health check) is 200 only when the database answers and, in production, records are
+signed with the dedicated key. Everything optional is reported by
+`GET /api/readiness` with `Authorization: Bearer $SCOPEFLOW_ADMIN_TOKEN`: `summary` maps each check
+(signing, database, db_role, mail, inbound, otp, otp_spend, payments, cron, tsa, heads, models, encryption,
+analytics, proxy, canonical) to `ok`, `warn`, `off` or `fail`.
 
 ## Keep the OTP dev flags unset in production
 
@@ -146,4 +171,7 @@ Render and out of shared environment groups.
 5. With Razorpay or Stripe: pay one test-mode deposit and one invoice, refund part of one, and check the
    ledger entries.
 6. With forwarding: create a forwarding address on a test project and forward one email to it.
-7. Run the cron job once by hand and check its output.
+7. Run each cron service once by hand and check `/api/readiness` → `checks.cron.jobs`.
+8. WS-10: migration 0016 (runtime role, deletion audit, head digests, cron runs, idempotency keys, OAuth
+   grants, analytics). Follow the operator steps in [ws-10.md](ws-10.md); check that the onrender host
+   answers 308 and `/api/readiness` shows no `fail`.

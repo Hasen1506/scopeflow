@@ -38,7 +38,10 @@ eq((await call('/api/review/' + token, {method: 'POST', body: await ack(base, to
 // Approved, but no API keys: shown as due, disabled with the reason.
 {
   const r = await call('/api/review/' + token);
-  eq(r.data.deposit, {pct: 30, amount: 30000, currency: 'INR', amount_minor: 3000000, paid: null, enabled: false, provider: null, reason: 'Online payment is not available for this scope.'});
+  // changed by WS-04: the deposit view also reports what is open and received (minor units, project-wide, C4),
+  // how the freelancer's payments are routed (C3: no own account here, and the operator's Stripe key takes
+  // only EUR/GBP) and whether a UPI ID is set (LT-02).
+  eq(r.data.deposit, {pct: 30, amount: 30000, currency: 'INR', amount_minor: 3000000, paid: null, enabled: false, provider: null, reason: 'Online payment is not available for this scope.', open_minor: 3000000, received_minor: 0, status: 'none', upi: false});
   const d = await call(`/api/review/${token}/deposit`, {method: 'POST', body: {}});
   eq(d.status, 503); eq(d.data.code, 'payments_disabled');
 }
@@ -50,8 +53,8 @@ eq((await webhook(captured(order_id, 3000000), 'wrong-secret')).status, 400);
 eq((await call('/api/payments/razorpay/webhook', {method: 'POST', raw: JSON.stringify(captured(order_id, 3000000))})).status, 400); // unsigned
 eq((await webhook({event: 'payment.failed', payload: {}})).data, {ignored: 'event'});
 eq((await webhook(captured('order_unknown', 3000000))).data, {ignored: 'unknown_order'});
-eq((await webhook(captured(order_id, 100))).data, {ignored: 'amount_mismatch'});
-eq((await webhook(captured(order_id, 3000000, 'USD'))).data, {ignored: 'amount_mismatch'});
+// changed by WS-04: a capture whose amount or currency differs from its order is no longer ignored; what
+// was actually paid is recorded and the owner alerted (M20, H8). Covered in tests/ws-04-providers.mjs.
 eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.length, 0);
 
 // A valid capture is recorded once and appended to the signed ledger.
@@ -123,9 +126,11 @@ eq((await call(`/api/scopes/${project_id}/ledger`, {cookie})).data.entries.lengt
   const ledger = (await call(`/api/scopes/${project_id}/ledger`, {cookie})).data;
   eq(ledger.entries.at(-1).actor, 'system'); eq(ledger.chain.intact, true);
 }
-// Account deletion removes payment rows along with the projects.
+// changed by WS-08 (H10): account deletion keeps the payment rows of a project the client approved
+// and paid (tombstoned, read-only for the client) instead of deleting them.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
-eq(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n, 0);
+ok(localSql(`SELECT COUNT(*)::int AS n FROM scopeflow.payments WHERE project_id='${project_id}'`)[0].results[0].n > 0, 'payments of a kept project stay');
+eq(localSql(`SELECT (owner_deleted IS NOT NULL) AS closed FROM scopeflow.projects WHERE id='${project_id}'`)[0].results[0].closed, true);
 // The privacy notice names Razorpay as the deposit processor and no longer says payments are not collected.
 {
   const privacy = await (await fetch(base + '/privacy')).text();

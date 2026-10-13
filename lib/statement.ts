@@ -4,6 +4,8 @@ import {paymentsOf, type Agreement, type LedgerEntry, type PaymentLine} from './
 import {fxLine, schedule, totals, type ScheduleLine} from './money';
 import {formatMoney, type Scope} from './scope';
 import {formatDay, stamp} from './time';
+import {gstFromExclusive, type HeadKind} from './invoice-gst';
+import {exponentOf} from './minor';
 
 // Statement of account for an approved project: what the agreement says is owed (the current
 // fee after approved change orders, plus tax), every payment on the signed record (Razorpay
@@ -22,16 +24,36 @@ export type StatementModel = {
   lines: PaymentLine[]; paid: number; balance: number; overpaid: number;
   head: string | null; entries: number;
   time_zone: string; generated: string;
+  /** WS-03: the tax heads (CGST + SGST, IGST or one head), the same head logic as the project's invoices (§9.3). */
+  heads?: {name: string; rate: number; amount: number}[];
+  /** WS-03 (M10): invoices and advance vouchers with what the one allocation says the payments cover. */
+  billing?: StatementBilling;
+};
+export type StatementBilling = {
+  invoices: {number: string; issued: string; total: number; covered: number; status: string; tds: number; tds_credited: number; cancelled_by: string[]}[];
+  vouchers: {number: string; received: string; amount: number; covered: number}[];
+  credits: {number: string; invoice: string; amount: number}[];
+  tds_credited: number; unapplied: number;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** The statement for the approved baseline `content` (version `version`) and its ledger entries. Pure. */
-export function statementModel({project_id, version, content, agreement, entries, time_zone = 'UTC', generated}: {project_id: string; version: number; content: Scope; agreement: Agreement; entries: LedgerEntry[]; time_zone?: string; generated: string}): StatementModel {
+export function statementModel({project_id, version, content, agreement, entries, time_zone = 'UTC', generated, kind, billing}: {project_id: string; version: number; content: Scope; agreement: Agreement; entries: LedgerEntry[]; time_zone?: string; generated: string; kind?: HeadKind; billing?: StatementBilling}): StatementModel {
   const own = entries.filter(e => e.baseline_version === version);
   const t = totals(content, agreement.fee), signed = totals(content);
+  let heads: StatementModel['heads'];
+  if (kind && t.tax_pct > 0) {
+    // Per head, in minor units: the statement agrees with the invoices to the paisa (plan §9.3).
+    const e = 10 ** exponentOf(agreement.currency), b = gstFromExclusive(Math.round(agreement.fee * e), t.tax_pct, kind);
+    heads = b.heads.map(h => ({name: h.name === 'GST' ? t.tax_label : h.name, rate: h.rate, amount: h.amount / e}));
+    t.tax = round2(b.heads.reduce((a, h) => a + h.amount, 0) / e); t.total = round2(b.total / e);
+  }
   const {lines, paid} = paymentsOf(own);
-  return {
+  const extra: Partial<StatementModel> = {};
+  if (heads) extra.heads = heads;
+  if (billing) extra.billing = billing;
+  return {...extra,
     project_id, version, title: content.title, client: content.client, currency: agreement.currency,
     fee_base: agreement.fee_base, fee: agreement.fee, tax_label: t.tax_label, tax_pct: t.tax_pct, tax: t.tax, total: t.total,
     deposit_pct: signed.deposit_pct, deposit: signed.deposit,
@@ -86,7 +108,8 @@ export function renderStatementPdf(m: StatementModel, brand: PdfBrand | null = n
 
   heading('What is owed');
   amount('Agreed fee', money(m.fee), {note: m.fee !== m.fee_base ? `Approved at ${money(m.fee_base)}; changed by approved change orders.` : ''});
-  if (m.tax_pct > 0) amount(`${m.tax_label} (${m.tax_pct}%)`, money(m.tax));
+  if (m.heads) for (const h of m.heads) amount(`${h.name} (${Math.round(h.rate * 1000) / 1000}%)`, money(h.amount));
+  else if (m.tax_pct > 0) amount(`${m.tax_label} (${m.tax_pct}%)`, money(m.tax));
   amount(m.tax_pct > 0 ? `Total with ${m.tax_label}` : 'Total', money(m.total), {font: 'bold'});
   if (m.deposit_pct > 0) amount(`Deposit on signature (${m.deposit_pct}%)`, money(m.deposit), {note: m.paid >= m.deposit ? 'Covered by the payments below.' : 'Part of the total above, due on signature.'});
   if (m.fx) para(m.fx, {size: 8.5, gray: 0.4});
@@ -102,6 +125,17 @@ export function renderStatementPdf(m: StatementModel, brand: PdfBrand | null = n
   amount('Total received', money(m.paid));
   amount(m.overpaid > 0 ? 'Received above the total' : 'Balance due', money(m.overpaid > 0 ? m.overpaid : m.balance), {font: 'bold', note: m.balance === 0 && m.overpaid === 0 ? 'Paid in full.' : ''});
 
+  if (m.billing && (m.billing.invoices.length || m.billing.vouchers.length)) {
+    heading('Invoices and advances');
+    for (const v of m.billing.vouchers) amount(`${v.number} · advance received ${formatDay(v.received)}`, money(v.amount), {note: v.covered >= v.amount - 0.005 ? 'Received.' : `${money(v.covered)} of it on the record.`});
+    for (const i of m.billing.invoices) {
+      const note = i.cancelled_by.length ? `Cancelled by ${i.cancelled_by.join(', ')}.` : i.status === 'paid' ? 'Paid.' : i.status === 'paid_net_of_tds' ? `Paid net of TDS; TDS of ${money(i.tds)} awaits its certificate.` : i.status === 'tds_credited' ? 'Paid; TDS certificate recorded.' : i.covered > 0 ? `${money(i.covered)} received, ${money(round2(i.total - i.covered - i.tds_credited))} open.` : 'Open.';
+      amount(`${i.number} · issued ${formatDay(i.issued)}`, money(i.total), {note});
+    }
+    for (const c of m.billing.credits) amount(`${c.number} · credit note against ${c.invoice}`, '-' + money(c.amount));
+    if (m.billing.tds_credited > 0) amount('TDS credited (certificates recorded)', money(m.billing.tds_credited));
+    if (m.billing.unapplied > 0) para(`${money(m.billing.unapplied)} received is not yet applied to an invoice.`, {size: 8.5, gray: 0.4});
+  }
   if (m.schedule.length) {
     heading('Payment schedule');
     for (const l of m.schedule) amount(`${l.title} (${l.pct}%)${l.due ? ` · due ${formatDay(l.due)}` : ''}`, money(l.amount), {note: l.status === 'paid' ? 'Paid.' : l.status === 'part' ? `${money(l.covered)} received, ${money(round2(l.amount - l.covered))} open.` : 'Open.'});

@@ -1,9 +1,10 @@
 import {z} from 'zod';
 import {db, json, ownerAuth, body, allowRead, failure} from '@/lib/server';
 import {templateAccess} from '@/lib/template-server';
-import {toView, type TemplateRow} from '@/lib/template-store';
+import {revisionView, toView, type TemplateRow} from '@/lib/template-store';
 type Ctx = {params: Promise<{id: string}>};
-// Template versioning: GET lists the kept earlier revisions; POST {revision} restores one (as a new
+// Template versioning: GET lists the kept earlier revisions with their content (SF-18: the Templates
+// section diffs any two of them); POST {revision} restores one (as a new
 // revision, so the history is never rewritten).
 export async function GET(request: Request, ctx: Ctx) {
   try {
@@ -11,10 +12,10 @@ export async function GET(request: Request, ctx: Ctx) {
     if (!auth) return json({error: 'Sign in to manage templates.'}, 401);
     if (!await allowRead('owner:' + auth.user)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     const {id} = await ctx.params;
-    const t = await db().prepare('SELECT revision,name,updated FROM templates WHERE id=? AND owner=?').bind(id, auth.user).first<{revision: number; name: string; updated: string}>();
+    const t = await db().prepare('SELECT revision,name,content,updated FROM templates WHERE id=? AND owner=?').bind(id, auth.user).first<{revision: number; name: string; content: string; updated: string}>();
     if (!t) return json({error: 'Template not found.'}, 404);
-    const rows = await db().prepare('SELECT revision,name,created FROM template_revisions WHERE template_id=? ORDER BY revision DESC').bind(id).all<{revision: number; name: string; created: string}>();
-    return json({current: {revision: t.revision, name: t.name, saved: t.updated}, revisions: rows.results.map(r => ({revision: r.revision, name: r.name, saved: r.created}))});
+    const rows = await db().prepare('SELECT revision,name,content,created FROM template_revisions WHERE template_id=? ORDER BY revision DESC').bind(id).all<{revision: number; name: string; content: string; created: string}>();
+    return json({current: revisionView({revision: t.revision, name: t.name, content: t.content, created: t.updated}), revisions: rows.results.map(revisionView)});
   } catch (e) { return failure(e); }
 }
 export async function POST(request: Request, ctx: Ctx) {

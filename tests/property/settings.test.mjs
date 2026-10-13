@@ -22,15 +22,19 @@ test('settings: retention 1–3650 days or null, draft expiry 7–3650 days or n
   }
   assert.deepEqual(fromRow(null), defaultSettings);
   assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: '180'}), 180);
-  assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: 'forever'}), null);
-  assert.equal(defaultRetentionDays({}), null);
+  // changed by WS-08: M32 founder decision — the server default is 180 days; "keep" disables it.
+  // @covers M32
+  assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: 'forever'}), 180);
+  assert.equal(defaultRetentionDays({SCOPEFLOW_CONTEXT_RETENTION_DAYS: 'keep'}), null);
+  assert.equal(defaultRetentionDays({}), 180);
 });
 
 test('owner wording replaces the default email; subject stays header-safe and HTML escaped', () => {
   const m = signatureEmail({title: 'Logo <x>', client: 'Ada\r\nBcc: evil@example.test', version: 2, reviewUrl: 'https://s.example/review/abc', template: {subject: 'Sign {title} v{version} {link}', body: 'Hi {client},\n\nPlease review: {link}\nThanks'}});
   assert.equal(m.subject, 'Sign Logo <x> v2');
   assert.ok(!/[\r\n]/.test(m.subject));
-  assert.ok(m.text.startsWith('Hi Ada Bcc: evil@example.test,\n\nPlease review: https://s.example/review/abc\nThanks'));
+  // changed by WS-06 (M19): owner text is link-free, so the address in the client name is defanged.
+  assert.ok(m.text.startsWith('Hi Ada Bcc: evil@example[.]test,\n\nPlease review: https://s.example/review/abc\nThanks'));
   assert.ok(m.html.includes('<a href="https://s.example/review/abc">https://s.example/review/abc</a>'));
   assert.ok(!m.html.includes('<x>'));
   const subjectOnly = signatureEmail({title: 'T', client: 'C', version: 1, reviewUrl: 'https://s.example/r', template: {subject: 'Custom {title}'}});

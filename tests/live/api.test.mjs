@@ -5,10 +5,10 @@
 import {test, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';
-import {base, call, database, owner, project, changeOrder} from './support.mjs';
+import {base, call, database, owner, project, changeOrder, clearLimits as clearAllLimits} from './support.mjs';
 
 let db, A, F, approved, pending, revoked;
-const clearLimits = () => db.query('DELETE FROM scopeflow.rate_limits');
+const clearLimits = () => clearAllLimits(db); // changed by WS-10 (M26): read limits are in server memory
 async function snapshot(ownerId) {
   const r = await db.query(`SELECT
     (SELECT count(*) FROM scopeflow.projects WHERE owner=$1) AS projects,

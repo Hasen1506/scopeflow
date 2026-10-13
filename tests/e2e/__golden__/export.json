@@ -109,7 +109,10 @@
         "ref_seq": 1,
         "outcome": "approved",
         "signer": "Ada Client",
-        "comment": ""
+        "comment": "",
+        "acknowledged": true,
+        "co_sha256": "620e70e0dd39d613bb4b09c55cb2eade3d23f5f89e9c6964322ad6f5a891fd44",
+        "total_incl_tax_minor": 40000
       },
       "ref": "settle:1",
       "prev_hash": "<chain-hash>",

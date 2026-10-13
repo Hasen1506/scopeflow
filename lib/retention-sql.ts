@@ -11,6 +11,16 @@
 // on legal hold. Queries use positional ? parameters (lib/server's convention).
 
 type Param = string | number | boolean | null;
+
+/** M32 (founder decision): client IP address and browser details are kept 180 days unless configured. */
+export const DEFAULT_RETENTION_DAYS = 180;
+/** SCOPEFLOW_CONTEXT_RETENTION_DAYS (1–3650), "keep" (no server default), else 180 days. */
+export function serverRetentionDefault(env: Record<string, string | undefined>): number | null {
+  const raw = env.SCOPEFLOW_CONTEXT_RETENTION_DAYS?.trim();
+  if (raw === 'keep') return null;
+  const n = Number(raw);
+  return raw && Number.isInteger(n) && n >= 1 && n <= 3650 ? n : DEFAULT_RETENTION_DAYS;
+}
 const days = 'coalesce(p.retention_days, s.context_retention_days, ?::int)';
 const redactPatch = (column: string) => `(${column}::jsonb || jsonb_build_object('ip','redacted','user_agent','redacted','redacted_at',?::text))::text`;
 const notRedacted = (column: string) => `${column} IS NOT NULL AND ${column} LIKE '{%' AND coalesce(${column}::jsonb->>'ip','redacted') <> 'redacted'`;
@@ -35,22 +45,13 @@ export function expiredDraftsQuery(owner: string | null, now: string): [string, 
 }
 
 /**
- * Deleting one draft project, in order, inside one transaction with the 'drafts' bypass (the
- * immutability triggers still refuse anything but pending versions). Every statement re-checks
- * that the project has no client evidence and is not on legal hold, so a decision or a hold that
- * lands first wins. The last statement deletes the project; zero changes there means it was kept.
+ * Deleting one draft project (WS-08, WS-10 C7): one call to the SECURITY DEFINER function
+ * scopeflow.ws08_delete_draft (migration 0022a), which takes the project lock, re-checks that the
+ * project has no client decision or ledger entry and is not on legal hold (a decision or a hold
+ * that lands first wins), and only then deletes. Returns {deleted: boolean}.
  */
-export function draftDeleteQueries(id: string, owner: string): [string, Param[]][] {
-  const draft = `EXISTS (SELECT 1 FROM projects WHERE id=? AND owner=? AND NOT legal_hold) AND NOT EXISTS (SELECT 1 FROM versions WHERE project_id=? AND status<>'pending') AND NOT EXISTS (SELECT 1 FROM ledger_entries WHERE project_id=?)`;
-  const guard = [id, owner, id, id];
-  return [
-    ['SELECT id FROM versions WHERE project_id=? AND project_id IN (SELECT id FROM projects WHERE owner=?) FOR UPDATE', [id, owner]],
-    ["DELETE FROM rate_limits WHERE id IN (SELECT 'review:'||v.id FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.id=? AND p.owner=?)", [id, owner]],
-    [`DELETE FROM inbound_messages WHERE project_id=? AND ${draft}`, [id, ...guard]],
-    [`DELETE FROM versions WHERE project_id=? AND status='pending' AND ${draft}`, [id, ...guard]],
-    ['DELETE FROM projects WHERE id=? AND owner=? AND NOT legal_hold AND NOT EXISTS (SELECT 1 FROM versions WHERE project_id=?)', [id, owner, id]],
-    ['DELETE FROM review_views WHERE project_id=? AND NOT EXISTS (SELECT 1 FROM projects WHERE id=?)', [id, id]],
-  ];
+export function deleteDraftQuery(id: string, owner: string): [string, Param[]] {
+  return ['SELECT scopeflow.ws08_delete_draft(?, ?) AS deleted', [id, owner]];
 }
 
 // Unsaved scope drafts kept with the account (the drafts table, one per owner) are removed after
@@ -61,4 +62,43 @@ export function unsavedDraftCutoff(now: string) {
 }
 export function staleUnsavedDraftsQuery(now: string): [string, Param[]] {
   return ['DELETE FROM drafts WHERE updated < ?', [unsavedDraftCutoff(now)]];
+}
+
+// ---- H10: account deletion keeps the client's record (tombstones) -------------------------
+//
+// Deleting an account removes the owner's own data (profile, settings, templates, drafts, API
+// and OAuth tokens, forwarded emails, pending versions, plan) and every project that never got a
+// client decision, ledger entry, invoice or payment. Projects with client evidence are
+// tombstoned: marked owner_deleted, kept read-only (database triggers from migration 0022) until
+// retain_until, then purged by the daily retention job unless a legal hold is set. All of it runs
+// inside SECURITY DEFINER functions (migration 0022a), never through an app-side bypass.
+
+/** GST records are kept 72 months from the annual-return due date (CGST s.36; CA to confirm). Default: 8 years. */
+export const TOMBSTONE_RETENTION_YEARS = 8;
+export function tombstoneRetentionYears(env: Record<string, string | undefined>) {
+  const n = Number(env.SCOPEFLOW_TOMBSTONE_RETENTION_YEARS);
+  return Number.isInteger(n) && n >= 1 && n <= 20 ? n : TOMBSTONE_RETENTION_YEARS;
+}
+export function retainUntil(now: string, years: number) {
+  const d = new Date(now);
+  d.setUTCFullYear(d.getUTCFullYear() + years);
+  return d.toISOString();
+}
+
+/**
+ * Closes `owner`'s account in one call to scopeflow.ws08_close_account (migration 0022a, SECURITY
+ * DEFINER): deletes the owner's own data and every project without client evidence, tombstones
+ * the rest until `until`, refuses (raises) under legal hold. Returns {projects_kept}.
+ */
+export function closeAccountQuery(owner: string, now: string, until: string): [string, Param[]] {
+  return ['SELECT scopeflow.ws08_close_account(?, ?, ?) AS projects_kept', [owner, now, until]];
+}
+
+/** Tombstoned projects past retain_until and not on legal hold: [sql, params] returning ids. */
+export function expiredTombstonesQuery(now: string): [string, Param[]] {
+  return ['SELECT id FROM projects WHERE owner_deleted IS NOT NULL AND retain_until IS NOT NULL AND retain_until::timestamptz < ?::timestamptz AND NOT legal_hold ORDER BY retain_until LIMIT 500', [now]];
+}
+/** Purges one expired tombstoned project through scopeflow.ws08_purge_tombstone. Returns {purged}. */
+export function purgeTombstoneQuery(id: string, now: string): [string, Param[]] {
+  return ['SELECT scopeflow.ws08_purge_tombstone(?, ?) AS purged', [id, now]];
 }

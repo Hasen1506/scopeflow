@@ -1,7 +1,8 @@
 import {z} from 'zod';
 import {limits} from '@/lib/plans';
 import {db, json, owner, body, safeOrigin, allowWrite, failure} from '@/lib/server';
-import {radarBasis} from '@/lib/radar-server';
+import {priceChangeOrder, radarBasis} from '@/lib/radar-server';
+import '@/lib/readiness-warnings';
 import {embeddingConfig} from '@/lib/embeddings';
 import {llmConfig, llmStatus} from '@/lib/llm';
 import {clausesOf, scopeRadar} from '@/lib/radar';
@@ -28,6 +29,8 @@ export async function POST(request: Request, ctx: Ctx) {
     const {scope, agreement, basis} = found;
     const result = await scopeRadar(parsed.data.message, scope, agreement, {config, embeddings: embeddingConfig()});
     const status = llmStatus();
-    return json({result, basis, clauses: clausesOf(scope, agreement), ai: {enabled: status.enabled, provider: status.provider, model: config?.model ?? null, quality: config ? parsed.data.quality : null}, semantic: !!embeddingConfig()});
+    // WS-06: a drafted change order also comes with prices from the rate card or the owner's earlier scopes (review before proposing).
+    const suggested = result.change_order ? await priceChangeOrder(user, result.change_order, agreement.currency, id) : null;
+    return json({result, basis, clauses: clausesOf(scope, agreement), ai: {enabled: status.enabled, provider: status.provider, model: config?.model ?? null, quality: config ? parsed.data.quality : null}, semantic: !!embeddingConfig(), ...(suggested?.prices.length ? {suggested} : {})});
   } catch (e) { return failure(e); }
 }

@@ -1,6 +1,7 @@
 'use client';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
 import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
+import {amountProblem} from '@/lib/editor';
 
 const num = (value: string, fallback: number) => (value === '' || Number.isNaN(Number(value)) ? fallback : Number(value));
 
@@ -31,7 +32,7 @@ export function ItemsEditor({items, currency, onChange}: {items: Item[]; currenc
           <div className="item-meta">
             <label>Qty<input type="number" min={1} max={10000} value={item.qty} onChange={e => update(index, {qty: Math.max(1, Math.round(num(e.target.value, 1)))})} /></label>
             <label>Unit<input maxLength={40} placeholder="pages, concepts…" value={item.unit} onChange={e => update(index, {unit: e.target.value})} /></label>
-            <label>Price ({currency})<input type="number" min={0} step="0.01" placeholder="optional" value={item.price ?? ''} onChange={e => update(index, {price: e.target.value === '' ? null : Math.max(0, num(e.target.value, 0))})} /></label>
+            <label>Price ({currency})<input type="number" min={0} step="0.01" placeholder="optional" value={item.price ?? ''} aria-invalid={!!amountProblem(item.price, currency)} onChange={e => update(index, {price: e.target.value === '' ? null : num(e.target.value, 0)})} />{amountProblem(item.price, currency) && <span className="error-text" role="alert">{amountProblem(item.price, currency)}</span>}</label>
           </div>
           <label className="item-accept">Done when<input maxLength={1000} placeholder="Acceptance criteria, e.g. approved in Figma, delivered as SVG" value={item.acceptance} onChange={e => update(index, {acceptance: e.target.value})} /></label>
         </div>

@@ -1,0 +1,56 @@
+{
+  "content": {
+    "number": "CN-0001",
+    "issued": "2026-10-11",
+    "reason": "Order cancelled by the client before work started",
+    "full": true,
+    "invoice": {
+      "seq": 7,
+      "number": "AS-0007",
+      "issued": "2026-10-09",
+      "total": 3835060
+    },
+    "seller": {
+      "name": "Ada Studio",
+      "address": "12 MG Road, Chennai",
+      "tax_id": "33ABCDE1234F1Z5",
+      "payment_details": "UPI ada@okbank"
+    },
+    "client": {
+      "name": "Kaveri Foods",
+      "email": "ops@kaveri.test"
+    },
+    "project": {
+      "id": "golden-project-0001",
+      "title": "Packaging redesign",
+      "version": 1
+    },
+    "currency": "INR",
+    "breakdown": {
+      "taxable": 3250050,
+      "heads": [
+        {
+          "name": "CGST",
+          "rate": 9,
+          "amount": 292505
+        },
+        {
+          "name": "SGST",
+          "rate": 9,
+          "amount": 292505
+        }
+      ],
+      "round_off": 0,
+      "total": 3835060
+    },
+    "gst": {
+      "seller_state": "33",
+      "client_gstin": "33AAACK1234F1Z5",
+      "place_of_supply": "33"
+    }
+  },
+  "pdf": {
+    "sha256": "a48c587eaf3a75ed14f7655185ef4f4ba5d91d5c8519e5005a2f057bd881c255",
+    "bytes": 2551
+  }
+}

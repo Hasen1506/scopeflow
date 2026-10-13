@@ -8,7 +8,44 @@ retried or quarantined: a flaky test is a bug, fixed at its root.
 | `npm run test:props` | Property-based (fast-check), golden records, differential vs pre-PR-3 | nothing (pure) | ~5 s |
 | `npm run test:live` | Live API properties, fuzzing, DB-trigger immutability, client-vs-server differential | server + auth fixture + `scopeflow_test` | ~20 s |
 | `npm run test:e2e` | Golden Playwright flow in Chromium | server + **fresh** auth fixture | ~30 s |
-| `npm run test:local` | The existing integration suites | server + auth fixture | ~15 s |
+| `npm run test:local` | The existing integration suites, then every `tests/ws-*.mjs` workstream suite | server + auth fixture | ~15 s |
+| `node scripts/check-coverage.mjs` | Coverage gate: every `@covers <ID>` tag is a matrix id, every item of a landed workstream is tagged | nothing | <1 s |
+
+## CI pipeline (WS-10)
+
+`.github/workflows/ci.yml` runs, in order: typecheck, lint, `test:props`, the **coverage gate**,
+`npm run build:capped` (the production build under a 460 MB heap, L10), `db:migrate`, then the
+local doubles and `next start`, Playwright (desktop Chromium plus the Pixel 7 / iPhone 13 mobile
+projects for `*mobile*.spec.ts`), `test:local` and `test:live`.
+
+Local doubles, all on `127.0.0.1`, started from `tests/support/`:
+
+| Double | Port | Stands in for |
+| --- | --- | --- |
+| `auth-service.mjs` | 55433 | Neon Auth (Better Auth protocol) |
+| `tsa-service.mjs` `/` | 55434 | RFC 3161 TSA (`SCOPEFLOW_TSA_URL`) |
+| `tsa-service.mjs` `/fx` | 55434 | Frankfurter v1 rates (`SCOPEFLOW_FX_URL`) |
+| `tsa-service.mjs` `/fbil` | 55434 | FBIL reference rates, Frankfurter v2 shape (`SCOPEFLOW_FBIL_URL`, WS-01) |
+| `tsa-service.mjs` `/stripe`, `/embeddings` | 55434 | Stripe API, Voyage embeddings |
+
+Provider contract fixtures (Razorpay `order.paid`, `payment.captured`, `refund.processed`,
+`subscription.*`; Stripe checkout events), copied from the providers' documentation, live in
+`tests/fixtures/providers/` and are checked by `tests/property/ws-10-providers.test.mjs`.
+
+Read limits are kept in the server's memory since M26, so `tests/run-local.mjs` clears them
+between suites with `DELETE /api/readiness?scope=read-limits` (operator token; the route answers
+404 unless `APP_URL` is on localhost), next to the `rate_limits` table reset for write limits.
+`tests/ws-10-platform.mjs` starts a second production server on port 5173 + 37 (signing off,
+`APP_URL=https://scope-flow.tech`) for the health and canonical-host checks, and stops it.
+
+## Coverage tags
+
+Every test that covers an item of `tests/coverage-matrix.json` (IMPLEMENTATION_PLAN.md §14)
+carries a comment `// @covers <ID>` (several ids per line allowed, spaces or commas). The gate
+fails on a tag that is not a matrix id, and on any uncovered item whose primary workstream has
+landed, which a workstream signals by adding `docs/ws-XX.md`. Items of workstreams that have not
+landed are reported only. `npm run test:coverage` (`--strict`) requires every item, for the final
+integration. Files under `tests/fixtures/` and `__golden__` do not count.
 
 ## Determinism
 

@@ -58,9 +58,10 @@ eq(created.data.scope.content.fx, terms.fx);
 // ---- GST profile and client billing details ----------------------------------------------------
 const profile = (await call('/api/profile', {cookie})).data.profile;
 eq([profile.gst_state, profile.sac_code, profile.lut_arn], ['', '', '']);
-eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z5', gst_state: '99'}})).status, 400);
-eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z5', sac_code: '99A'}})).status, 400);
-const saved = await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z5', invoice_prefix: 'NT-', gst_state: '33', sac_code: '998314', lut_arn: 'AD330925000123X'}});
+// changed by WS-08 (LT-17): GSTINs are checksum-validated; 33ABCDE1234F1Z5 fails its check character, 33ABCDE1234F1Z7 is valid.
+eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z7', gst_state: '99'}})).status, 400);
+eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', tax_id: '33ABCDE1234F1Z7', sac_code: '99A'}})).status, 400);
+const saved = await call('/api/profile', {method: 'PUT', cookie, body: {...profile, business_name: 'Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z7', invoice_prefix: 'NT-', gst_state: '33', sac_code: '998314', lut_arn: 'AD330925000123X'}});
 eq(saved.status, 200); eq(saved.data.profile.sac_code, '998314');
 // An older client that sends the profile without the GST fields still saves (they default to empty).
 {
@@ -95,13 +96,14 @@ eq((await call(I, {method: 'POST', cookie, body: {milestone_id: 'm_sign'}})).dat
 {
   const pdf = await pdfText(`${I}/1`, cookie);
   // Bengaluru client of a Chennai seller: inter-state, so IGST.
-  for (const s of ['TAX INVOICE', 'GSTIN: 33ABCDE1234F1Z5', 'State: Tamil Nadu (33)', 'GSTIN: 29AAACN1234F1Z5', 'Place of supply: Karnataka (29)', 'Reverse charge: No', 'SAC 998314', 'Taxable value', 'Rs.80,000.00', 'IGST (18%)', 'Rs.14,400.00', 'Rs.94,400.00',
+  for (const s of ['TAX INVOICE', 'GSTIN: 33ABCDE1234F1Z7', 'State: Tamil Nadu (33)', 'GSTIN: 29AAACN1234F1Z5', 'Place of supply: Karnataka (29)', 'Reverse charge: No', 'SAC 998314', 'Taxable value', 'Rs.80,000.00', 'IGST (18%)', 'Rs.14,400.00', 'Rs.94,400.00',
     'Amount in words: Ninety-four thousand four hundred rupees only', 'On signature (40% milestone)', 'In USD at the agreed 0.012012', '$1,133.93', 'Authorised signatory', 'Net 30 from each invoice']) ok(pdf.includes(s), 'tax invoice states ' + s);
   ok(!pdf.includes('CGST'), 'inter-state invoice has no CGST');
 }
 // Same state: CGST + SGST. A partial milestone invoice leaves the rest open for the next one.
 eq((await call(P, {method: 'PATCH', cookie, body: {client_gstin: '', client_state: '33'}})).status, 200);
-const second = await call(I, {method: 'POST', cookie, body: {milestone_id: 'm_beta', amount: 50000, due_days: 0}});
+// changed by WS-03: a partial milestone amount entered tax-inclusive says so (the default is now the taxable value).
+const second = await call(I, {method: 'POST', cookie, body: {milestone_id: 'm_beta', amount: 50000, includes_tax: true, due_days: 0}});
 eq(second.status, 201); eq(second.data.invoice.due, second.data.invoice.issued);
 {
   const pdf = await pdfText(`${I}/2`, cookie);
@@ -115,7 +117,7 @@ eq(second.status, 201); eq(second.data.invoice.due, second.data.invoice.issued);
 // Export: a client outside India under the seller's LUT.
 eq((await call(P, {method: 'PATCH', cookie, body: {client_state: '96'}})).status, 200);
 {
-  const r = await call(I, {method: 'POST', cookie, body: {amount: 1000, description: 'Export check'}});
+  const r = await call(I, {method: 'POST', cookie, body: {amount: 1000, includes_tax: true, description: 'Export check'}}); // changed by WS-03: includes_tax keeps the old ₹1,000 total
   const pdf = await pdfText(`${I}/${r.data.invoice.seq}`, cookie);
   for (const s of ['Place of supply: Outside India (export)', 'Supply meant for export on payment of IGST.']) ok(pdf.includes(s), 'export invoice states ' + s);
 }
@@ -135,9 +137,10 @@ eq((await call(`${P}/ledger`, {method: 'POST', cookie, body: {kind: 'payment_rec
 
 // ---- Revision bank ------------------------------------------------------------------------------
 const L = `${P}/ledger`;
-eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-02', note: 'Hero copy'}}})).status, 400); // hours required
-eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-02', note: 'Hero copy', used: 6.5}}})).status, 201);
-eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-05', note: 'Footer', used: 5}}})).status, 201);
+const today = new Date().toISOString().slice(0, 10); // changed by WS-05: M8 bounds feedback dates by today and the approval date
+eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: today, note: 'Hero copy'}}})).status, 400); // hours required
+eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: today, note: 'Hero copy', used: 6.5}}})).status, 201);
+eq((await call(L, {method: 'POST', cookie, body: {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: today, note: 'Footer', used: 5}}})).status, 201);
 {
   const a = (await call(L, {cookie})).data.agreement;
   eq(a.bank, {unit: 'hours', allowed: 10, used: 11.5, left: 0, over: 1.5, overage_rate: 2500, overage_value: 3750});

@@ -1,0 +1,61 @@
+{
+  "manifest": [
+    {
+      "name": "summary.txt",
+      "description": "Plain-language summary of the dispute (what was agreed, paid and changed)"
+    },
+    {
+      "name": "scope.json",
+      "description": "The agreed scope / BOQ (bill of quantities) as approved"
+    },
+    {
+      "name": "acceptance/",
+      "description": "Vendor acceptance: the decision receipts (receipt-v*.pdf) for every decided version"
+    },
+    {
+      "name": "change-orders.csv",
+      "description": "Every change order with its status, amount and who decided it"
+    },
+    {
+      "name": "payments.csv",
+      "description": "Stage payments and refunds with dates, methods and UTR / references"
+    },
+    {
+      "name": "inspections.csv",
+      "description": "Inspection sign-offs and inputs recorded on the agreement"
+    },
+    {
+      "name": "timeline.txt",
+      "description": "Timeline of the record, oldest first"
+    },
+    {
+      "name": "photos/site-2026-09-01.jpg",
+      "description": "Site photo"
+    },
+    {
+      "name": "photos/site-2026-09-15.jpg",
+      "description": "Site photo"
+    },
+    {
+      "name": "statement.pdf",
+      "description": "Statement of account"
+    },
+    {
+      "name": "records.json",
+      "description": "Every version, decision and ledger entry (JSON)"
+    },
+    {
+      "name": "chain-proof.json",
+      "description": "Fingerprints, signatures and the chain check"
+    },
+    {
+      "name": "section63-certificate.pdf",
+      "description": "BSA 2023 s.63 certificate template with the hash of every file"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "description": "SHA-256 of every file"
+    }
+  ],
+  "summary": "What was agreed: Ada Interiors agreed to \"Kitchen renovation\" for Meera Rao on 2026-08-01, for a total of ₹4,72,000.00.\n\nWhat was paid: ₹2,36,000.00 (2 stage payments, each listed with its UTR or reference in payments.csv). Still due under the agreement: ₹2,36,000.00.\n\nChanges: Granite upgrade (approved, +₹23,600.00).\n\nInspections and sign-offs: 2026-09-15 Plumbing rough-in signed off.\n\nSite photos: 2 in photos/.\n\nHow to use this pack: file the complaint online at https://edaakhil.nic.in (the District Commission hears claims up to ₹50 lakh). Attach the files listed in MANIFEST.txt. This summary is not legal advice.\n\nPrepared by Scopeflow on 2026-10-07.\n"
+}

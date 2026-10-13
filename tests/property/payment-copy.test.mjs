@@ -63,18 +63,26 @@ test('reviewer guide and review page describe the deposit accurately', () => {
   const guide = read('app/reviewer-guide/page.tsx');
   assert.match(guide, /pay it on the review link after approving, through Razorpay Checkout or Stripe Checkout, into the operator’s merchant account/);
   assert.match(guide, /Saving or approving a scope never charges anyone by itself/);
-  const review = read('app/review/[token]/review.tsx');
+  // changed by WS-07: the client page's copy moved into the message catalog (SF-09); review.tsx renders it.
+  const review = read('app/review/[token]/review.tsx') + read('messages/en.json');
   assert.match(review, /Approving or requesting changes does not charge you\. If the scope asks for a deposit, it is paid separately on this page after you approve, through Razorpay or Stripe/);
 });
 
-test('the code matches the copy: keys come from the server environment, not the creator', async () => {
-  // The copy says the operator configures the account; if per-creator accounts (Route) ever land,
-  // this fails and the terms, guide and privacy notice must be updated with it.
-  const rz = read('lib/razorpay.ts');
-  assert.match(rz, /env\.RAZORPAY_KEY_ID/);
-  assert.match(read('lib/stripe.ts'), /env\.STRIPE_SECRET_KEY/);
+// changed by WS-04: client money no longer goes through the operator's keys (C3, plan §11). The
+// code now routes every client charge to an account the freelancer owns; the operator's keys are
+// refused for client charges in production. The terms, reviewer guide and privacy copy that still
+// describe the operator's merchant account are owned elsewhere (change request in the WS-04 PR).
+test('the code matches the routing: client charges go to the freelancer, operator keys refused in production', async () => {
+  // @covers C3
   const route = read('lib/checkout-server.ts');
-  assert.match(route, /razorpayConfig\(\)!/);
-  assert.match(route, /stripeConfig\(\)!/);
-  assert.doesNotMatch(route + rz + read('lib/stripe.ts'), /account_id|transfers|linked_account|stripe_account|transfer_data|application_fee/i, 'no Razorpay Route or Stripe Connect transfers to creators');
+  assert.match(route, /routeForOwner\(/, 'checkout picks the owner’s destination');
+  assert.doesNotMatch(route, /razorpayConfig\(\)!|stripeConfig\(\)!/, 'no unconditional operator keys');
+  const accounts = read('lib/payment-accounts.ts');
+  assert.match(accounts, /SCOPEFLOW_ALLOW_OPERATOR_COLLECTION/);
+  assert.match(accounts, /NODE_ENV !== 'production'/);
+  const R = await import('../../lib/payment-accounts.ts');
+  assert.equal(R.chooseRoute([], 'INR', {NODE_ENV: 'production', RAZORPAY_KEY_ID: 'rzp_live_x', RAZORPAY_KEY_SECRET: 's', RAZORPAY_WEBHOOK_SECRET: 'w'}).online, null);
+  // Stripe Connect transfers are not used; Route transfers only behind SCOPEFLOW_ROUTE_ENABLED.
+  assert.doesNotMatch(route + read('lib/stripe.ts'), /transfer_data|application_fee|stripe_account/i);
+  assert.match(read('lib/payment-accounts.ts'), /SCOPEFLOW_ROUTE_ENABLED/);
 });

@@ -1,0 +1,24 @@
+/* M22: verification badge on the OAuth consent page and the connected-apps list. Design tokens only (app/globals.css, WS-09). */
+.client {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.verified,
+.unverified {
+  display: inline-block;
+  padding: 2px var(--s2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-1);
+  font-weight: var(--fw-2);
+  letter-spacing: .02em;
+}
+.verified {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+.unverified {
+  color: var(--warn);
+  background: var(--warn-bg);
+}

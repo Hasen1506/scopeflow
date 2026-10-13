@@ -26,7 +26,8 @@ const scope = {title: 'Billing fixture ' + randomUUID().slice(0, 8), client: 'Ka
 const empty = await call('/api/profile', {cookie});
 eq(empty.status, 200); eq(empty.data.profile.business_name, ''); eq(empty.data.profile.auto_remind_days, null);
 eq((await call('/api/profile')).status, 401);
-const profile = {...empty.data.profile, business_name: 'Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z5', payment_details: 'UPI ada@okbank', invoice_prefix: 'AS-', default_currency: 'INR', default_tax_label: 'GST', default_tax_pct: 18, default_deposit_pct: 30, default_payment_terms: 'Net 15', auto_remind_days: 5};
+// changed by WS-08 (LT-17): GSTINs are checksum-validated; 33ABCDE1234F1Z5 fails its check character, 33ABCDE1234F1Z7 is valid.
+const profile = {...empty.data.profile, business_name: 'Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z7', payment_details: 'UPI ada@okbank', invoice_prefix: 'AS-', default_currency: 'INR', default_tax_label: 'GST', default_tax_pct: 18, default_deposit_pct: 30, default_payment_terms: 'Net 15', auto_remind_days: 5};
 eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, auto_remind_days: 4}})).status, 400);
 eq((await call('/api/profile', {method: 'PUT', cookie, body: {...profile, invoice_prefix: 'bad prefix'}})).status, 400);
 
@@ -39,15 +40,17 @@ eq((await call(I, {method: 'POST', cookie, body: {amount: 100}})).data.code, 'pr
 eq((await call('/api/profile', {method: 'PUT', cookie, body: profile})).data.profile, profile);
 eq((await call(I, {method: 'POST', cookie, body: {amount: 100}})).data.code, 'not_approved');
 eq((await call('/api/review/' + token, {method: 'POST', body: await ack(base, token, {decision: 'approved', signer: 'Ada', comment: '', version: 1})})).status, 200);
-eq((await call(I, {method: 'POST', cookie, body: {amount: 118001}})).status, 400); // total with tax is 1,18,000
+// changed by WS-03 (C2): amounts are the taxable value unless includes_tax; over the agreement is 409 exceeds_uninvoiced.
+eq((await call(I, {method: 'POST', cookie, body: {amount: 118001, includes_tax: true}})).status, 409); // total with tax is 1,18,000
 eq((await call(I, {method: 'POST', cookie, body: {amount: 10.005}})).status, 400);
 eq((await call(I, {method: 'POST', cookie, body: {amount: 10, extra: 1}})).status, 400);
 eq((await call(I, {method: 'POST', cookie: other, body: {amount: 10}})).status, 404);
 const rid = 'inv-' + randomUUID();
-const first = await call(I, {method: 'POST', cookie, body: {amount: 35400, description: 'Deposit (30%)', due_days: 7, request_id: rid}});
+// changed by WS-03: the amount entered here includes GST (the default is now the taxable value).
+const first = await call(I, {method: 'POST', cookie, body: {amount: 35400, includes_tax: true, description: 'Deposit (30%)', due_days: 7, request_id: rid}});
 eq(first.status, 201); eq(first.data.invoice.number, 'AS-0001'); eq(first.data.invoice.amount, 35400);
-eq((await call(I, {method: 'POST', cookie, body: {amount: 35400, description: 'Deposit (30%)', due_days: 7, request_id: rid}})).data, {invoice: first.data.invoice, replayed: true});
-const second = await call(I, {method: 'POST', cookie, body: {amount: 82600}});
+eq((await call(I, {method: 'POST', cookie, body: {amount: 35400, includes_tax: true, description: 'Deposit (30%)', due_days: 7, request_id: rid}})).data, {invoice: first.data.invoice, replayed: true}); // changed by WS-03: includes_tax
+const second = await call(I, {method: 'POST', cookie, body: {amount: 82600, includes_tax: true}}); // changed by WS-03: includes_tax
 eq(second.data.invoice.number, 'AS-0002');
 eq((await call(I, {cookie})).data.invoices.map(i => i.number), ['AS-0001', 'AS-0002']);
 {
@@ -55,7 +58,7 @@ eq((await call(I, {cookie})).data.invoices.map(i => i.number), ['AS-0001', 'AS-0
   eq(r.status, 200); eq(r.headers.get('content-type'), 'application/pdf');
   const pdf = Buffer.from(await r.arrayBuffer()).toString('latin1').replace(/\\([()])/g, '$1');
   // A GSTIN seller charging GST issues a tax invoice; with no client state on record the place of supply is the seller's own state.
-  for (const s of ['TAX INVOICE', 'AS-0001', 'Ada Studio', 'GSTIN: 33ABCDE1234F1Z5', 'Kaveri Foods', 'Deposit (30%)', 'CGST (9%)', 'SGST (9%)', 'Place of supply: Tamil Nadu (33)', 'Rs.35,400.00', 'UPI ada@okbank']) ok(pdf.includes(s), 'invoice PDF states ' + s);
+  for (const s of ['TAX INVOICE', 'AS-0001', 'Ada Studio', 'GSTIN: 33ABCDE1234F1Z7', 'Kaveri Foods', 'Deposit (30%)', 'CGST (9%)', 'SGST (9%)', 'Place of supply: Tamil Nadu (33)', 'Rs.35,400.00', 'UPI ada@okbank']) ok(pdf.includes(s), 'invoice PDF states ' + s);
   eq((await call(I + '/1', {cookie: other})).status, 404);
   eq((await call(I + '/99', {cookie})).status, 404);
 }
@@ -66,7 +69,8 @@ assert.throws(() => localSql(`UPDATE scopeflow.invoices SET amount=1 WHERE proje
 assert.throws(() => localSql(`DELETE FROM scopeflow.invoices WHERE project_id=${q(project_id)}`), /immutable/); passed++;
 // Paid in full: nothing left to invoice.
 eq((await call(`/api/scopes/${project_id}/ledger`, {method: 'POST', cookie, body: {kind: 'payment_received', baseline_version: 1, payload: {amount: 118000, method: 'bank_transfer', received: '2026-10-01'}}})).status, 201);
-eq((await call(I, {method: 'POST', cookie, body: {amount: 1}})).status, 400);
+// changed by WS-03 (C2): invoiced in full, so nothing is left to invoice: 409 exceeds_uninvoiced (was 400 on the paid balance).
+eq((await call(I, {method: 'POST', cookie, body: {amount: 1}})).data.code, 'exceeds_uninvoiced');
 
 // ---- Review-link opens --------------------------------------------------------------------
 const pending = await call('/api/scopes', {method: 'POST', cookie, body: {...scope, title: 'Opens fixture ' + randomUUID().slice(0, 8)}});
@@ -101,8 +105,9 @@ eq(dry(), []);
 }
 
 // ---- New drafts and deletion ------------------------------------------------------------------
-// Account deletion removes invoices, opens and the business profile with everything else.
+// changed by WS-08 (H10): account deletion keeps issued invoices (GST records) read-only with the
+// tombstoned project; opens of a project without client evidence and the business profile go.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
-eq(localSql(`SELECT (SELECT COUNT(*)::int FROM scopeflow.invoices WHERE project_id=${q(project_id)}) + (SELECT COUNT(*)::int FROM scopeflow.review_views WHERE project_id=${q(P.project_id)}) AS n`)[0].results[0].n, 0);
+eq(localSql(`SELECT (SELECT COUNT(*)::int FROM scopeflow.invoices WHERE project_id=${q(project_id)}) AS kept, (SELECT COUNT(*)::int FROM scopeflow.review_views WHERE project_id=${q(P.project_id)}) AS opens`)[0].results[0], {kept: 2, opens: 0});
 eq((await call('/api/profile', {cookie})).data.profile.business_name, '');
 console.log(`billing: ${passed} checks passed`);

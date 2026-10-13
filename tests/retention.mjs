@@ -63,9 +63,13 @@ eq(await attempt('UPDATE scopeflow.ledger_entries SET context=$1 WHERE id=$2', [
 eq(await attempt('UPDATE scopeflow.ledger_entries SET context=$1 WHERE id=$2', [redacted, old + '-e1'], true), 'ok');
 eq(await attempt('UPDATE scopeflow.ledger_entries SET context=$1, payload=$2 WHERE id=$3', [redacted, '{"ref_seq":2}', old + '-e1'], true), 'P0001');
 
-// No retention set: nothing is redacted. Then 30 days: old records are redacted, the fresh one is not.
+// changed by WS-08 (M26b/M32): listing projects never redacts, even past the 180-day server default
+// (the fixtures are older); only the daily job and saving a period do. Then 30 days: old records are
+// redacted, the fresh one is not.
+// @covers M32
 await call('/api/scopes', {cookie});
 eq((await snapshot()).decision_context, before.decision_context);
+eq((await call('/api/settings', {cookie})).data.effective_retention_days, 180);
 const saved = await call('/api/settings', {method: 'PUT', cookie, body: {...wording, context_retention_days: 30}});
 eq(saved.status, 200); eq(saved.data.redacted, {versions: 1, entries: 1});
 {
@@ -89,8 +93,9 @@ eq(saved.status, 200); eq(saved.data.redacted, {versions: 1, entries: 1});
   eq(mailto.searchParams.get('body'), `Hi Acme Co,\n\nYour scope: ${send.data.review_url}\n\nSent with Scopeflow`);
 }
 
-// Account deletion removes the settings row (and the fixtures).
+// Account deletion removes the settings row; changed by WS-08 (H10): decided fixtures are kept, tombstoned.
 eq((await call('/api/account', {method: 'DELETE', cookie, body: {confirmation: 'DELETE'}})).status, 200);
 eq((await db.query('SELECT COUNT(*)::int AS n FROM scopeflow.account_settings WHERE owner=$1', [owner])).rows[0].n, 0);
+eq((await db.query('SELECT COUNT(*)::int AS n FROM scopeflow.projects WHERE owner=$1 AND owner_deleted IS NULL', [owner])).rows[0].n, 0);
 await db.end();
 console.log(`retention: ${passed} checks passed`);

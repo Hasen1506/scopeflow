@@ -1,0 +1,69 @@
+{
+  "entity": "event",
+  "account_id": "acc_BFQ7uQEaa7j2z7",
+  "event": "order.paid",
+  "contains": [
+    "payment",
+    "order"
+  ],
+  "payload": {
+    "payment": {
+      "entity": {
+        "id": "pay_29QQoUBi66xm2f",
+        "entity": "payment",
+        "amount": 590000,
+        "currency": "INR",
+        "status": "captured",
+        "order_id": "order_9A33XWu170gUtm",
+        "invoice_id": null,
+        "international": false,
+        "method": "upi",
+        "amount_refunded": 0,
+        "refund_status": null,
+        "captured": true,
+        "description": "Deposit",
+        "card_id": null,
+        "bank": null,
+        "wallet": null,
+        "vpa": "gaurav.kumar@exampleupi",
+        "email": "gaurav.kumar@example.com",
+        "contact": "+919000090000",
+        "notes": {
+          "project": "TEST-project",
+          "version": "1",
+          "purpose": "deposit"
+        },
+        "fee": 11800,
+        "tax": 1800,
+        "error_code": null,
+        "error_description": null,
+        "acquirer_data": {
+          "rrn": "313106738382",
+          "upi_transaction_id": "F7C5B7D3B7E9A1C2"
+        },
+        "created_at": 1760245800
+      }
+    },
+    "order": {
+      "entity": {
+        "id": "order_9A33XWu170gUtm",
+        "entity": "order",
+        "amount": 590000,
+        "amount_paid": 590000,
+        "amount_due": 0,
+        "currency": "INR",
+        "receipt": "sf-TEST-project-1-deposit",
+        "offer_id": null,
+        "status": "paid",
+        "attempts": 1,
+        "notes": {
+          "project": "TEST-project",
+          "version": "1",
+          "purpose": "deposit"
+        },
+        "created_at": 1760245700
+      }
+    }
+  },
+  "created_at": 1760245810
+}

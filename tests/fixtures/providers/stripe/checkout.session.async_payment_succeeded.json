@@ -1,0 +1,24 @@
+{
+  "id": "evt_1Q0TESTasync0000001",
+  "object": "event",
+  "created": 1760245900,
+  "livemode": false,
+  "type": "checkout.session.async_payment_succeeded",
+  "data": {
+    "object": {
+      "id": "cs_test_a1TESTsession0000000000000002",
+      "object": "checkout.session",
+      "amount_total": 42000,
+      "currency": "gbp",
+      "metadata": {
+        "project": "TEST-project",
+        "version": "1",
+        "purpose": "invoice"
+      },
+      "mode": "payment",
+      "payment_intent": "pi_3Q0TESTintent000000000002",
+      "payment_status": "paid",
+      "status": "complete"
+    }
+  }
+}

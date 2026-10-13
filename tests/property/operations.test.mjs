@@ -152,7 +152,8 @@ test('logos: a branded invoice PDF embeds the logo (with its transparency) and d
 
 test('inbound: Postmark and generic payloads parse; the project token comes from the address', () => {
   const pm = inbound.parseInbound({FromFull: {Email: 'Owner@Studio.in'}, ToFull: [{Email: 'scope-0123456789abcdef01234567@in.example.com', Name: ''}], Subject: 'Fwd: one more thing\r\nBcc: x', TextBody: 'please also add a banner', MessageID: 'abc-1'});
-  assert.deepEqual(pm, {recipients: ['scope-0123456789abcdef01234567@in.example.com'], from: 'owner@studio.in', subject: 'Fwd: one more thing Bcc: x', text: 'please also add a banner', messageId: 'abc-1'});
+  // changed by WS-06 (L7): the parse also returns the envelope recipients and the SPF/DKIM/DMARC verdicts.
+  assert.deepEqual(pm, {recipients: ['scope-0123456789abcdef01234567@in.example.com'], envelope: [], from: 'owner@studio.in', subject: 'Fwd: one more thing Bcc: x', text: 'please also add a banner', messageId: 'abc-1', auth: {spf: null, dkim: null, dmarc: null}});
   const generic = inbound.parseInbound({from: 'A <a@b.co>', to: 'X <scope-0123456789abcdef01234567+fwd@in.example.com>, other@b.co', subject: 's', html: '<p>Hello<br>there &amp; you</p>'});
   assert.equal(generic.text, 'Hello\nthere & you');
   assert.equal(inbound.tokenFrom(generic.recipients, 'in.example.com'), '0123456789abcdef01234567');
@@ -248,9 +249,11 @@ test('retention SQL: legal hold is excluded everywhere; placeholders match the p
     assert.match(drafts, /p\.archived IS NOT NULL AND NOT p\.legal_hold/);
     assert.match(drafts, /status<>'pending'/);
   }
-  const steps = rsql.draftDeleteQueries('p1', 'o1');
-  for (const [sql, params] of steps) assert.equal(count(sql), params.length, sql);
-  assert.match(steps[4][0], /^DELETE FROM projects .*NOT legal_hold/);
+  // changed by WS-08 (WS-10 C7): draft deletion is one call to a SECURITY DEFINER function; its
+  // legal-hold and evidence re-checks live in migration 0022a (tests/property/ws-08-modes-billing).
+  const [del, delParams] = rsql.deleteDraftQuery('p1', 'o1');
+  assert.equal(count(del), delParams.length, del);
+  assert.match(del, /^SELECT scopeflow\.ws08_delete_draft\(\?, \?\)/);
 });
 
 test('stripe: form encoding, signature check, paid events and provider choice', () => {
@@ -268,10 +271,14 @@ test('stripe: form encoding, signature check, paid events and provider choice', 
   assert.equal(stripe.stripePaidEvent({type: 'checkout.session.completed', data: {object: {...session, payment_status: 'unpaid'}}}), null);
   assert.equal(stripe.stripePaidEvent({type: 'payment_intent.created', data: {object: session}}), null);
   assert.equal(stripe.stripeConfig({STRIPE_SECRET_KEY: 'pk_test_1'}), null, 'a publishable key is refused');
-  const both = {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's', STRIPE_SECRET_KEY: 'sk_test_1'};
+  // changed by WS-04: operator Razorpay keys need RAZORPAY_WEBHOOK_SECRET (H7), and outside development
+  // they never take a client payment (C3; covered in tests/property/ws-04-payments.test.mjs).
+  const both = {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's', RAZORPAY_WEBHOOK_SECRET: 'w', STRIPE_SECRET_KEY: 'sk_test_1'};
   assert.equal(rz.providerFor('INR', both), 'razorpay');
   assert.equal(rz.providerFor('USD', both), 'stripe');
-  assert.equal(rz.providerFor('USD', {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's'}), 'razorpay');
+  assert.equal(rz.providerFor('USD', {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's', RAZORPAY_WEBHOOK_SECRET: 'w'}), 'razorpay');
+  assert.equal(rz.providerFor('INR', {RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's'}), null, 'no webhook secret: misconfigured');
+  assert.equal(rz.providerFor('INR', {...both, NODE_ENV: 'production'}), null, 'operator keys refused in production');
   assert.equal(rz.providerFor('INR', {STRIPE_SECRET_KEY: 'sk_test_1'}), 'stripe');
   assert.equal(rz.providerFor('INR', {}), null);
   assert.equal(rz.providerFor('USD', {STRIPE_SECRET_KEY: 'sk_test_1', STRIPE_CURRENCIES: 'eur, gbp'}), null, 'STRIPE_CURRENCIES limits Stripe');

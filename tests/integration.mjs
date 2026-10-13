@@ -34,12 +34,13 @@ status(await call('/api/scopes','POST',{...s,due:'2026-02-30'}),400);
 status(await call('/api/scopes','POST',{...s,notes:'x'.repeat(25000)}),400);
 const rpc=(method,params={},authenticated=true,headers={})=>call('/mcp','POST',{jsonrpc:'2.0',id:1,method,params},authenticated,{'Accept':'application/json, text/event-stream',...headers});
 const init=await rpc('initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'Local QA',version:'1'}},false);status(init,200);eq(init.value.result.protocolVersion,'2025-11-25');
-const tools=await rpc('tools/list',{},false);status(tools,200);eq(tools.value.result.tools.length,10);assert.ok(tools.value.result.tools.every(t=>t.outputSchema&&t.annotations));passed++;
+// changed by WS-10 (SF-26): five money tools join the ten (lib/mcp-money.ts).
+const tools=await rpc('tools/list',{},false);status(tools,200);eq(tools.value.result.tools.length,15);assert.ok(tools.value.result.tools.every(t=>t.outputSchema&&t.annotations));passed++;
 status(await rpc('tools/call',{name:'list_scopes',arguments:{}},false),401);
 status(await rpc('tools/call',{name:'list_scopes',arguments:{}},false,{'oai-authenticated-user-id':'spoofed','oai-authenticated-user-email':'spoofed@example.com'}),401);
 const otherTools=await rpc('tools/call',{name:'list_scopes',arguments:{}},false,otherHeaders);status(otherTools,200);eq(otherTools.value.result.structuredContent.scopes,[]);
 const listed=await rpc('tools/call',{name:'list_scopes',arguments:{}});status(listed,200);assert.ok(listed.value.result.structuredContent.scopes.every(x=>!('token' in x)));passed++;
-const templates=await rpc('tools/call',{name:'list_scope_templates',arguments:{}},false);eq(templates.value.result.structuredContent.templates.length,8);
+const templates=await rpc('tools/call',{name:'list_scope_templates',arguments:{}},false);eq(templates.value.result.structuredContent.templates.length,12); // changed by WS-09: SF-22 adds four vertical packs to the eight starters
 const invalid=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:randomUUID(),user_confirmed:false}});eq(invalid.value.error.code,-32602);
 const requestId=randomUUID();const created=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:requestId,user_confirmed:true}});status(created,200);
 // SF-02/SF-07: no review link for agents; the workspace URL uses the public origin, never 0.0.0.0.

@@ -60,7 +60,9 @@ eq((await call('/api/health')).data, {status: 'ok', signing: 'dedicated'});
   ok(hold.data.project.legal_hold_set, 'hold time recorded');
   eq((await call(P(plain.project_id), {method: 'PATCH', cookie, body: {retention_days: 30}})).data.project.retention_days, 30);
   // The account keeps network details (no account setting); the project settings decide.
-  await call('/api/scopes', {cookie}); // opportunistic retention on the project list
+  // changed by WS-08 (M26b): the project list never redacts; the daily retention job does.
+  const retentionJob = () => { const r = spawnSync(process.execPath, ['scripts/redact-expired.mjs'], {encoding: 'utf8', env: process.env}); assert.equal(r.status, 0, r.stderr); };
+  retentionJob();
   const ip = id => JSON.parse(rows(`SELECT decision_context FROM scopeflow.versions WHERE project_id=${q(id)}`)[0].decision_context).ip;
   eq(ip(plain.project_id), 'redacted');
   ok(ip(held.project_id) !== 'redacted', 'a project on legal hold is never redacted');
@@ -70,7 +72,7 @@ eq((await call('/api/health')).data, {status: 'ok', signing: 'dedicated'});
   // Lifting the hold clears the note and lets retention run.
   const lifted = await call(P(held.project_id), {method: 'PATCH', cookie, body: {legal_hold: false}});
   eq([lifted.data.project.legal_hold, lifted.data.project.legal_hold_reason, lifted.data.project.legal_hold_set], [false, '', null]);
-  await call('/api/scopes', {cookie});
+  retentionJob(); // changed by WS-08 (M26b): was the project list
   eq(ip(held.project_id), 'redacted');
 }
 
@@ -148,7 +150,10 @@ const cookie = await fresh('brand');
 
 // ---- Email forwarding into the radar -------------------------------------------------------------
 {
-  const cookie = await fresh('inbound');
+  // changed by WS-06 (L7): forwards come from the owner's own sign-in address (on the project's
+  // allow-list) and name the project in the envelope recipient (OriginalRecipient), not To/Cc.
+  const ownerEmail = `ops-inbound-${randomUUID()}@example.test`;
+  const cookie = await signIn(base, ownerEmail);
   const s = await newScope(cookie);
   const P = `/api/scopes/${s.project_id}`;
   const empty = await call(P + '/inbound', {cookie});
@@ -158,17 +163,17 @@ const cookie = await fresh('brand');
   ok(/^scope-[0-9a-f]{24}@in\.scopeflow\.test$/.test(address), address);
   eq((await call(P, {method: 'PATCH', cookie, body: {inbound: 'on'}})).data.project.inbound_address, address, '"on" keeps an existing address');
   const post = (body, auth = 'Bearer ' + process.env.SCOPEFLOW_INBOUND_SECRET) => call('/api/inbound/email', {method: 'POST', body, headers: auth ? {Authorization: auth} : {}});
-  const mail = {FromFull: {Email: 'me@studio.in'}, ToFull: [{Email: address}], Subject: 'Fwd: hosting', TextBody: 'See below\n\n---------- Forwarded message ---------\nFrom: Ada <ada@acme.co>\nSubject: hosting\n\nCould you also set up website hosting on your server for us?', MessageID: 'msg-' + randomUUID()};
+  const mail = {FromFull: {Email: ownerEmail}, ToFull: [{Email: address}], OriginalRecipient: address, Subject: 'Fwd: hosting', TextBody: 'See below\n\n---------- Forwarded message ---------\nFrom: Ada <ada@acme.co>\nSubject: hosting\n\nCould you also set up website hosting on your server for us?', MessageID: 'msg-' + randomUUID()};
   eq((await post(mail, null)).status, 401);
   eq((await post(mail, 'Bearer wrong')).status, 401);
   eq((await post(mail, 'Basic ' + Buffer.from('postmark:' + process.env.SCOPEFLOW_INBOUND_SECRET).toString('base64'))).status, 201);
   eq((await post(mail)).data.duplicate, true, 'the same MessageID is stored once');
-  eq((await post({...mail, ToFull: [{Email: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test'}], MessageID: 'x-' + randomUUID()})).data, {accepted: false, reason: 'unknown_address'});
+  eq((await post({...mail, ToFull: [{Email: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test'}], OriginalRecipient: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test', MessageID: 'x-' + randomUUID()})).data, {accepted: false, reason: 'unknown_address'});
   eq((await post({to: address})).status, 400);
   const list = await call(P + '/inbound', {cookie});
   eq(list.data.messages.length, 1);
   const m = list.data.messages[0];
-  eq([m.sender, m.subject, m.body], ['me@studio.in', 'Fwd: hosting', 'Could you also set up website hosting on your server for us?']);
+  eq([m.sender, m.subject, m.body], [ownerEmail, 'Fwd: hosting', 'Could you also set up website hosting on your server for us?']);
   eq(m.radar.verdict, 'out_of_scope');
   eq(m.radar.citations[0].kind, 'exclusion');
   eq((await call(P + '/inbound', {method: 'PATCH', cookie, body: {message_id: m.id, status: 'dismissed'}})).status, 200);
@@ -239,13 +244,22 @@ const payer = await fresh('stripe');
   const p = (await call('/api/profile', {cookie: payer})).data.profile;
   assert.equal((await call('/api/profile', {method: 'PUT', cookie: payer, body: {...p, business_name: 'Asha Design'}})).status, 200);
 }
-const webhook = (session, signature) => { const body = JSON.stringify({id: 'evt_' + randomUUID().slice(0, 12), type: 'checkout.session.completed', data: {object: session}}); return call('/api/payments/stripe/webhook', {method: 'POST', raw: body, headers: {'Stripe-Signature': signature ?? stripeSign(body)}}); };
+// changed by WS-04: client payments go to the freelancer's OWN Stripe account (C3); the operator's
+// STRIPE_SECRET_KEY is refused for client charges in production (`next start`). The freelancer
+// connects their key (the same CI double) and points their webhook at their account's URL.
+const stripeAccount = await call('/api/payment-accounts', {method: 'POST', cookie: payer, body: {kind: 'stripe_keys', secret_key: process.env.STRIPE_SECRET_KEY, webhook_secret: process.env.STRIPE_WEBHOOK_SECRET, currencies: ['EUR', 'GBP']}});
+eq(stripeAccount.status, 201);
+const stripeHook = new URL(stripeAccount.data.account.webhook_url).pathname;
+eq(stripeHook, `/api/payments/stripe/webhook/${stripeAccount.data.account.id}`);
+const webhook = (session, signature) => { const body = JSON.stringify({id: 'evt_' + randomUUID().slice(0, 12), type: 'checkout.session.completed', data: {object: session}}); return call(stripeHook, {method: 'POST', raw: body, headers: {'Stripe-Signature': signature ?? stripeSign(body)}}); };
 {
   const s = await newScope(payer, {deposit_pct: 30, fee: 1000});
   eq((await call(`/api/review/${s.token}/deposit`, {method: 'POST', body: {}})).data.code, 'not_approved');
   eq((await approve(s.token)).status, 200);
   const view = await call('/api/review/' + s.token);
-  eq([view.data.deposit.enabled, view.data.deposit.provider, view.data.ledger.online_payments], [true, 'stripe', true]);
+  // changed by WS-04: ledger.online_payments (review route, not WS-04's) still reads the operator-level
+  // status, which is off in production; the deposit view reads the freelancer's own route.
+  eq([view.data.deposit.enabled, view.data.deposit.provider], [true, 'stripe']);
   const start = await call(`/api/review/${s.token}/deposit`, {method: 'POST', body: {}});
   eq([start.status, start.data.provider, start.data.amount_minor, start.data.currency], [200, 'stripe', 30000, 'EUR']);
   ok(start.data.url.startsWith('https://checkout.stripe.test/c/cs_test_'), start.data.url);
@@ -258,7 +272,7 @@ const webhook = (session, signature) => { const body = JSON.stringify({id: 'evt_
   const paid = await stub(`/_pay/${sessionId}`, 'POST');
   eq((await webhook(paid, 't=1,v1=00')).status, 400);
   eq((await webhook({...paid, payment_status: 'unpaid'})).data, {ignored: 'event'});
-  eq((await webhook({...paid, amount_total: 1})).data, {ignored: 'amount_mismatch'});
+  // changed by WS-04: an amount mismatch is recorded as paid with an alert (M20), not ignored; see tests/ws-04-providers.mjs.
   const recorded = await webhook(paid);
   eq([recorded.status, recorded.data.recorded, recorded.data.ledger], [200, true, true]);
   eq((await webhook(paid)).data, {recorded: false, duplicate: true});

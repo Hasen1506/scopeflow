@@ -1,0 +1,25 @@
+{
+  "name": "Scopeflow",
+  "short_name": "Scopeflow",
+  "description": "Scopes, change orders and client approvals. Share a client's message to Scopeflow to check it against the agreement.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4EEE1",
+  "theme_color": "#F4EEE1",
+  "icons": [
+    {"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ],
+  "share_target": {
+    "action": "/api/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [{"name": "files", "accept": ["image/*"]}]
+    }
+  }
+}

@@ -7,7 +7,9 @@ import {formatInZone, formatDay} from '@/lib/time';
 import {ItemsEditor} from './items-editor';
 import {ScopeCheck} from './scope-check';
 import {api, post, Skeleton} from './ui';
-import {changeOrderProblems, nextForm, type LedgerForm} from '@/lib/ledger-form';
+import {changeOrderProblems, changeOrderNudges, nextForm, type LedgerForm} from '@/lib/ledger-form';
+import RateCardPicker from './components/slots/rate-card-picker';
+import {RetainerPanel} from './retainer-panel';
 
 export type LedgerView = {
   open: boolean; reason: string | null;
@@ -15,7 +17,7 @@ export type LedgerView = {
   agreement: Agreement | null; entries: LedgerEntry[];
   chain: {intact: true; head: string; count: number} | {intact: false; at: number; reason: string};
 };
-type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'fee_delta' | 'days_delta' | 'revisions_delta' | 'bank_delta'>>;
+type CoPrefill = Partial<Pick<ChangeOrder, 'title' | 'reason' | 'request_quote' | 'add_items' | 'remove_item_ids' | 'fee_delta' | 'days_delta' | 'revisions_delta' | 'bank_delta' | 'revises' | 'rate_card'>>;
 type Form = LedgerForm;
 // The viewer's own calendar date, not UTC's (feedback that arrived this morning in Chennai is dated today).
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -29,6 +31,9 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
   const [busy, setBusy] = useState(false);
   const [roundNote, setRoundNote] = useState('');
   const pendingWrite = useRef<{signature:string;id:string}|null>(null);
+  // LT-08: withdrawals in flight (optimistic: the CO shows as withdrawn at once; a second click is ignored).
+  const [withdrawing, setWithdrawing] = useState<number[]>([]);
+  const withdrawInflight = useRef(new Set<number>());
   // True while the open form holds input that has not been recorded.
   const dirty = useRef(false);
   const formArea = useRef<HTMLDivElement>(null);
@@ -68,9 +73,20 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
       pendingWrite.current=null;
       dirty.current = false;
       setView(result); setForm(null);
-      setNotice(kind === 'change_order' ? `CO-${result.seq} recorded. The client can approve it on their review link.` : 'Recorded on the ledger.');
+      setNotice(kind === 'change_order' ? `CO-${result.seq} recorded${result.withdrawn ? `, replacing CO-${result.withdrawn} (withdrawn)` : ''}. The client can approve it on their review link.` : 'Recorded on the ledger.');
       return true;
     } catch (e) { setError((e as Error).message); return false; } finally { setBusy(false); }
+  }
+
+  // LT-08: one fast, idempotent request; the UI updates before the server answers and rolls back on failure.
+  async function withdraw(seq: number) {
+    if (withdrawInflight.current.has(seq) || !view?.baseline) return;
+    withdrawInflight.current.add(seq);
+    setWithdrawing(w => [...w, seq]); setError(''); setNotice('');
+    try {
+      const result = await api(`/api/scopes/${projectId}/ledger`, post({kind: 'settle', baseline_version: view.baseline.version, payload: {ref_seq: seq, outcome: 'withdrawn'}}));
+      setView(result); setNotice(`CO-${seq} withdrawn.`);
+    } catch (e) { setError((e as Error).message); } finally { withdrawInflight.current.delete(seq); setWithdrawing(w => w.filter(x => x !== seq)); }
   }
 
   if (!view) return <section className="ledger section-gap"><h3>Agreement ledger</h3>{error ? <p className="error" role="alert">{error}</p> : <Skeleton lines={3} cards={1} label="Loading ledger…" />}</section>;
@@ -123,6 +139,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
             </div>
           )}
           {a.pending > 0 && <p className="fine">{a.pending} change order{a.pending > 1 ? 's' : ''} awaiting the client{reviewUrl ? ' on ' : '.'}{reviewUrl && <a className="help-link" href={reviewUrl} target="_blank" rel="noreferrer">their review link</a>}</p>}
+          {base.engagement === 'retainer' && base.retainer && <RetainerPanel projectId={projectId} items={a.items} onChanged={load} />}
           <ScopeCheck projectId={projectId} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => { if (a.bank) { setRoundNote(note); openForm('revision_round'); } else void submit('revision_round', {feedback_date: today(), note}); }} />
           <div className="actions section-gap">
             <button type="button" className={toggle('change_order')} aria-pressed={form === 'change_order'} disabled={busy} onClick={() => openForm('change_order')}><FilePlus2 size={16} />Change order</button>
@@ -131,7 +148,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
             <button type="button" className={toggle('goodwill')} aria-pressed={form === 'goodwill'} disabled={busy} onClick={() => openForm('goodwill')}><Gift size={16} />Goodwill</button>
           </div>
           <div ref={formArea}>
-            {form === 'change_order' && <ChangeOrderForm key={JSON.stringify(coSeed)} seed={coSeed} agreement={a} busy={busy} error={error} onInvalid={setError} onDirty={setDirty} onSubmit={(p, id) => submit('change_order', p, id)} onCancel={closeForm} />}
+            {form === 'change_order' && <ChangeOrderForm key={JSON.stringify(coSeed)} seed={coSeed} agreement={a} scope={base} projectId={projectId} busy={busy} error={error} onInvalid={setError} onDirty={setDirty} onSubmit={(p, id) => submit('change_order', p, id)} onCancel={closeForm} />}
             {form === 'revision_round' && <RoundForm key={roundNote} busy={busy} error={error} used={a.revisions_used} allowed={a.revisions_allowed} bank={a.bank} currency={cur} seedNote={roundNote} onSubmit={p => submit('revision_round', p)} onCancel={closeForm} />}
             {form === 'client_input' && <InputForm busy={busy} error={error} inputs={(base.client_inputs ?? []).filter(i => !a.delays.some(d => d.input_id === i.id))} onSubmit={p => submit('client_input', p)} onCancel={closeForm} />}
             {form === 'goodwill' && <GoodwillForm busy={busy} error={error} currency={cur} onDirty={setDirty} onSubmit={p => submit('goodwill', p)} onCancel={closeForm} />}
@@ -143,7 +160,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
       {view.entries.length > 0 && (
         <ol className="timeline">
           {[...view.entries].reverse().map(e => {
-            const co = a?.change_orders.find(c => c.seq === e.seq);
+            const found = a?.change_orders.find(c => c.seq === e.seq);
+            const co = found && withdrawing.includes(found.seq) ? {...found, status: 'withdrawn' as const} : found;
             const stale = view.baseline && e.baseline_version !== view.baseline.version;
             return (
               <li key={e.seq} className={'kind-' + e.kind}>
@@ -152,7 +170,10 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
                   {co && <span className={'tag status-' + (co.status === 'proposed' ? 'pending' : co.status === 'approved' ? 'approved' : 'changes_requested')}>{label(co.status)}</span>}
                 </div>
                 <span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : e.actor === 'system' ? 'Scopeflow (Razorpay)' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
-                {co?.status === 'proposed' && <button className="link-button" disabled={busy} onClick={() => { if (window.confirm(`Withdraw CO-${co.seq}? The client will no longer be able to approve it.`)) void submit('settle', {ref_seq: co.seq, outcome: 'withdrawn'}); }}>Withdraw</button>}
+                {co?.status === 'proposed' && <span className="actions">
+                  <button className="link-button" disabled={busy} onClick={() => openForm('change_order', {title: co.title, reason: co.reason, request_quote: co.request_quote, add_items: co.add_items, remove_item_ids: co.remove_item_ids, fee_delta: co.fee_delta, days_delta: co.days_delta, revisions_delta: co.revisions_delta, ...(co.bank_delta ? {bank_delta: co.bank_delta} : {}), revises: co.seq})}>Revise</button>
+                  <button className="link-button" disabled={withdrawing.includes(co.seq)} onClick={() => { if (window.confirm(`Withdraw CO-${co.seq}? The client will no longer be able to approve it.`)) void withdraw(co.seq); }}>Withdraw</button>
+                </span>}
               </li>
             );
           })}
@@ -166,12 +187,13 @@ function InlineError({error}: {error: string}) {
   return error ? <p className="error" role="alert">{error}</p> : null;
 }
 
-function ChangeOrderForm({seed, agreement, busy, error, onInvalid, onDirty, onSubmit, onCancel}: {seed: CoPrefill; agreement: Agreement; busy: boolean; error: string; onInvalid: (message: string) => void; onDirty: (dirty: boolean) => void; onSubmit: (p: ChangeOrder, requestId: string) => Promise<boolean>; onCancel: () => void}) {
+function ChangeOrderForm({seed, agreement, scope, projectId, busy, error, onInvalid, onDirty, onSubmit, onCancel}: {seed: CoPrefill; agreement: Agreement; scope: Scope; projectId: string; busy: boolean; error: string; onInvalid: (message: string) => void; onDirty: (dirty: boolean) => void; onSubmit: (p: ChangeOrder, requestId: string) => Promise<boolean>; onCancel: () => void}) {
   const [title, setTitle] = useState(seed.title ?? '');
   const [reason, setReason] = useState(seed.reason ?? '');
   const [quote, setQuote] = useState(seed.request_quote ?? '');
   const [add, setAdd] = useState<Item[]>(seed.add_items ?? []);
-  const [remove, setRemove] = useState<string[]>([]);
+  const [remove, setRemove] = useState<string[]>(seed.remove_item_ids ?? []);
+  const [rateCard, setRateCard] = useState<ChangeOrder['rate_card']>(seed.rate_card);
   const [fee, setFee] = useState(String(seed.fee_delta ?? 0));
   const [days, setDays] = useState(String(seed.days_delta ?? 0));
   const [rounds, setRounds] = useState(String(seed.revisions_delta ?? 0));
@@ -179,7 +201,8 @@ function ChangeOrderForm({seed, agreement, busy, error, onInvalid, onDirty, onSu
   // One id per drafted change order, so a retried submit cannot record it twice.
   const [requestId] = useState(() => crypto.randomUUID());
   const cur = agreement.currency;
-  const payload: ChangeOrder = {title, reason, request_quote: quote, add_items: add, remove_item_ids: remove, fee_delta: Number(fee) || 0, days_delta: Math.round(Number(days) || 0), revisions_delta: Math.round(Number(rounds) || 0), ...(agreement.bank && Number(bankDelta) ? {bank_delta: Number(bankDelta)} : {})};
+  const payload: ChangeOrder = {title, reason, request_quote: quote, add_items: add, remove_item_ids: remove, fee_delta: Number(fee) || 0, days_delta: Math.round(Number(days) || 0), revisions_delta: Math.round(Number(rounds) || 0), ...(agreement.bank && Number(bankDelta) ? {bank_delta: Number(bankDelta)} : {}), ...(seed.revises ? {revises: seed.revises} : {}), ...(rateCard ? {rate_card: rateCard} : {})};
+  const nudges = changeOrderNudges(payload);
   const itemTotal = add.reduce((s, i) => s + (i.price ?? 0), 0);
   const fingerprint = JSON.stringify(payload);
   const [initial] = useState(fingerprint);
@@ -190,7 +213,9 @@ function ChangeOrderForm({seed, agreement, busy, error, onInvalid, onDirty, onSu
     void onSubmit(payload, requestId);
   }
   return (
-    <form className="ledger-form" aria-label="New change order" onSubmit={e => { e.preventDefault(); record(); }}>
+    <form className="ledger-form" aria-label={seed.revises ? `Revise CO-${seed.revises}` : 'New change order'} onSubmit={e => { e.preventDefault(); record(); }}>
+      {seed.revises && <p className="muted-box">Recording this withdraws CO-{seed.revises} and proposes the revised change order in its place, in one step.</p>}
+      <RateCardPicker currency={agreement.currency} projectId={projectId} onPick={draft => { setTitle(draft.title); setReason(r => r || draft.reason); setAdd(a => [...a, ...draft.add_items]); setFee(f => String(Math.round(((Number(f) || 0) + draft.fee_delta) * 100) / 100)); setRateCard(draft.rate_card); }} />
       <label>Change order title<input required minLength={3} maxLength={160} value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Instagram templates" /></label>
       <label>Client’s request, in their words <span className="quiet">· optional</span><textarea rows={2} maxLength={2000} value={quote} onChange={e => setQuote(e.target.value)} /></label>
       <label>Why this is a change <span className="quiet">· optional</span><input maxLength={2000} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Social templates are listed as outside this scope" /></label>
@@ -209,9 +234,10 @@ function ChangeOrderForm({seed, agreement, busy, error, onInvalid, onDirty, onSu
       </div>
       {agreement.bank && <label>Revision {agreement.bank.unit === 'hours' ? 'hours added' : `budget added (${cur})`} <span className="quiet">· {agreement.bank.left} left now</span><input type="number" step={agreement.bank.unit === 'hours' ? '0.25' : '0.01'} value={bankDelta} onChange={e => setBankDelta(e.target.value)} /></label>}
       {itemTotal > 0 && Number(fee) !== itemTotal && <p className="fine">Added deliverables are priced at {formatMoney(itemTotal, cur)}. <button type="button" className="link-button" onClick={() => setFee(String(itemTotal))}>Use as fee change</button></p>}
-      <p className="muted-box">Client will see: <strong>{title || 'Untitled'}</strong>{coSummary(payload, cur, agreement.items) ? ' · ' + coSummary(payload, cur, agreement.items) : ''}. New fee {formatMoney(agreement.fee + payload.fee_delta, cur)}.</p>
+      {nudges.map(n => <p key={n} className="muted-box warn-box" role="note">{n}</p>)}
+      <p className="muted-box">Client will see: <strong>{title || 'Untitled'}</strong>{coSummary(payload, cur, agreement.items) ? ' · ' + coSummary(payload, cur, agreement.items) : ''}. New fee {formatMoney(agreement.fee + payload.fee_delta, cur)}{scope.tax_pct ? ` + ${scope.tax_label || 'Tax'} ${scope.tax_pct}% = ${formatMoney(Math.round((agreement.fee + payload.fee_delta) * (100 + scope.tax_pct)) / 100, cur)}` : ''}.</p>
       <InlineError error={error} />
-      <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy ? 'Saving…' : 'Record for client review'}</button><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancel</button></div>
+      <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy ? 'Saving…' : seed.revises ? `Record revision of CO-${seed.revises}` : 'Record for client review'}</button><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancel</button></div>
     </form>
   );
 }

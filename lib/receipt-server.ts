@@ -4,7 +4,8 @@ import {db, json} from './server';
 import {publicUrl} from './origin';
 import {paymentsOf, sha256} from './ledger';
 import {anchorOf, loadLedger} from './ledger-server';
-import {anchorMessage, publicSigningKey, verifyRecord, type SignatureState} from './signing';
+import {anchorMessage, publicSigningKey, verifyRecordDetailed, type SignatureCheck} from './signing';
+import {chipWording, evidenceWording, sealStatus, maskAddress} from './evidence';
 import {renderReceiptPdf, verifyUrl, type ReceiptModel} from './receipt';
 import {validTimeZone} from './time';
 import {timestampsFor} from './timestamps';
@@ -13,7 +14,7 @@ import {ensurePdfFonts} from './pdf-fonts';
 import {renderStatementPdf, statementModel} from './statement';
 import type {Scope} from './scope';
 
-export type DecidedRow = {id: string; project_id: string; version: number; status: string; content: string; signer: string | null; comment: string | null; decided: string | null; signature: string | null; decision_context: string | null; timezone?: string | null};
+export type DecidedRow = {id: string; project_id: string; version: number; status: string; content: string; signer: string | null; comment: string | null; decided: string | null; signature: string | null; decision_context: string | null; timezone?: string | null; contact_since?: string | null};
 
 /** Time zone for receipt timestamps: a valid IANA `tz` query parameter, else the project's time zone, else UTC. */
 export function receiptTimeZone(request: Request, projectZone?: string | null) {
@@ -40,7 +41,8 @@ export async function receiptModel(request: Request, row: DecidedRow): Promise<R
     if (entries.length) ledger = {head: entries[entries.length - 1].hash, count: entries.length};
     payments = paymentsOf(entries).lines;
   }
-  const cosigns = row.status === 'approved' ? (await db().prepare('SELECT role,signer,signed,signature FROM version_cosigns WHERE project_id=? AND version=? ORDER BY signed').bind(row.project_id, row.version).all<{role: string; signer: string; signed: string; signature: string | null}>()).results : [];
+  const cosigns = row.status === 'approved' ? (await db().prepare('SELECT role,signer,signed,signature,context FROM version_cosigns WHERE project_id=? AND version=? ORDER BY signed').bind(row.project_id, row.version).all<{role: string; signer: string; signed: string; signature: string | null; context: string | null}>()).results.map(({context: c, ...rest}) => { let v: string | null = null; try { v = (JSON.parse(c ?? '{}') as {verified_to?: string}).verified_to ?? null; } catch { v = null; } return {...rest, verified_to: v}; }) : [];
+  const esign = await db().prepare("SELECT provider,signed_sha256,completed FROM scopeflow.esign_records WHERE project_id=? AND version=? AND status='signed'").bind(row.project_id, row.version).first<{provider: string; signed_sha256: string; completed: string | null}>();
   const timestamps = (await timestampsFor(row.project_id, row.version)).map(({subject, digest, tsa, gen_time}) => ({subject, digest, tsa, gen_time}));
   let context: ReceiptModel['context'] = null;
   try { context = row.decision_context ? JSON.parse(row.decision_context) : null; } catch { context = null; }
@@ -50,6 +52,7 @@ export async function receiptModel(request: Request, row: DecidedRow): Promise<R
     content_sha256: await sha256(JSON.stringify(content)),
     signer: row.signer, decided: row.decided, comment: row.comment,
     anchor, signature: row.signature, key: keyFor(row.signature), context, ledger, payments, cosigns, timestamps,
+    seal: sealStatus(verifyRecordDetailed(anchorMessage(anchor), row.signature)), contact_since: row.contact_since ?? null, esign: esign ?? null,
     time_zone: receiptTimeZone(request, row.timezone), generated: new Date().toISOString(),
     verify_url: verifyUrl(origin, row.project_id, row.version, anchor),
   };
@@ -65,35 +68,64 @@ export async function pdfResponse(bytes: Uint8Array, filename: string) {
   }});
 }
 
+function pdfBytesResponse(bytes: Uint8Array, filename: string, cached: boolean) {
+  return new Response(Buffer.from(bytes), {status: 200, headers: {
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${filename.replace(/[^A-Za-z0-9._-]/g, '-')}"`,
+    'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Receipt-Cache': cached ? 'hit' : 'miss',
+  }});
+}
+
 /** PDF receipt for a decided version, or a JSON error when it has no decision yet. */
 export async function receiptResponse(request: Request, row: DecidedRow | null) {
   if (!row) return json({error: 'This record was not found.'}, 404);
   if (row.status === 'pending' || !row.decided) return json({error: 'This version has no client decision yet, so there is no receipt.', code: 'no_decision'}, 409);
   const model = await receiptModel(request, row);
-  return pdfResponse(renderReceiptPdf(model, pdfBrand(await brandForProject(row.project_id))), `scopeflow-receipt-${row.project_id.slice(0, 12)}-v${row.version}.pdf`);
+  const brand = pdfBrand(await brandForProject(row.project_id));
+  const filename = `scopeflow-receipt-${row.project_id.slice(0, 12)}-v${row.version}.pdf`;
+  // QA-01: a receipt is rendered (and PAdES-signed) once per record state, then served from the cache.
+  const {generated: _generated, ...stable} = model;
+  const key = await sha256(JSON.stringify({v: 1, stable, brand}));
+  const hit = await db().prepare('SELECT pdf FROM scopeflow.receipt_cache WHERE key=?').bind(key).first<{pdf: string}>().catch(() => null);
+  if (hit) return pdfBytesResponse(Buffer.from(hit.pdf, 'base64'), filename, true);
+  const signed = await maybeSignPdf(renderReceiptPdf(model, brand));
+  await db().prepare('INSERT INTO scopeflow.receipt_cache (key,project_id,pdf,created) VALUES (?,?,?,?) ON CONFLICT (key) DO NOTHING').bind(key, row.project_id, Buffer.from(signed).toString('base64'), new Date().toISOString()).run().catch(() => {/* the cache never blocks a receipt */});
+  return pdfBytesResponse(signed, filename, false);
 }
 
 export type Verification = {
   record: 'match' | 'mismatch' | 'not_found';
-  signature: SignatureState | null;
-  details: null | {title: string; client: string; version: number; status: string; signer: string | null; decided: string | null; content_sha256: string; kid: string | null; signature: string | null};
+  /** C6: 'legacy_key' for an allow-listed earlier key; 'unknown_key' for a key this server does not trust. */
+  signature: SignatureCheck | null;
+  /** The full fingerprint, when the caller gave the 16-character short form (LT-09). */
+  anchor?: string;
+  evidence?: {chip: string; line: string};
+  details: null | {title: string; client: string; version: number; status: string; signer: string | null; decided: string | null; content_sha256: string; kid: string | null; signature: string | null; code_to: string | null; owner_session: boolean};
 };
 
 /**
- * Public check behind the receipt's QR code: does the stored record still hash to the
- * printed fingerprint, and does the stored Scopeflow signature over that fingerprint verify?
- * Nothing is disclosed unless the caller already holds the 256-bit fingerprint.
+ * Public check behind the receipt's QR code: does the stored record still hash to the printed
+ * fingerprint, and does the stored Scopeflow signature over that fingerprint verify? Nothing is
+ * disclosed unless the caller already holds the fingerprint (the full 64 characters, or the 16 the
+ * page prints next to the project id).
  */
 export async function verifyAnchor(projectId: string, version: number, anchor: string): Promise<Verification> {
-  const row = await db().prepare("SELECT project_id,version,status,content,signer,decided,signature FROM versions WHERE project_id=? AND version=? AND status<>'pending'").bind(projectId, version).first<DecidedRow>();
+  const row = await db().prepare("SELECT project_id,version,status,content,signer,decided,signature,decision_context FROM versions WHERE project_id=? AND version=? AND status<>'pending'").bind(projectId, version).first<DecidedRow>();
   if (!row) return {record: 'not_found', signature: null, details: null};
   const own = await anchorOf(row);
-  if (own !== anchor) return {record: 'mismatch', signature: null, details: null};
+  const short = anchor.length === 16;
+  if (short ? !own.startsWith(anchor) : own !== anchor) return {record: 'mismatch', signature: null, details: null};
   const content = JSON.parse(row.content) as Scope;
+  const check = verifyRecordDetailed(anchorMessage(own), row.signature);
+  const status = sealStatus(check);
+  const kid = row.signature?.split('.')[0] ?? null;
+  let ctx: {owner_session?: boolean; identity?: {method?: string; email?: string; phone?: string}} = {};
+  try { ctx = row.decision_context ? JSON.parse(row.decision_context) : {}; } catch { ctx = {}; }
+  const codeTo = ctx.identity?.method === 'email_otp' && ctx.identity.email ? maskAddress('email', ctx.identity.email) : ctx.identity?.phone ? maskAddress('sms', ctx.identity.phone) : null;
   return {
-    record: 'match',
-    signature: verifyRecord(anchorMessage(anchor), row.signature),
-    details: {title: content.title, client: content.client, version: row.version, status: row.status, signer: row.signer, decided: row.decided, content_sha256: await sha256(JSON.stringify(content)), kid: row.signature?.split('.')[0] ?? null, signature: row.signature},
+    record: 'match', signature: check, ...(short ? {anchor: own} : {}),
+    evidence: {chip: chipWording(status), line: evidenceWording(status, {kid})},
+    details: {title: content.title, client: content.client, version: row.version, status: row.status, signer: row.signer, decided: row.decided, content_sha256: await sha256(JSON.stringify(content)), kid, signature: row.signature, code_to: codeTo, owner_session: ctx.owner_session === true},
   };
 }
 

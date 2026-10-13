@@ -1,6 +1,6 @@
 # Scopeflow early beta
 
-Client scope approvals for freelancers: immutable versions, bearer review links, client decisions, version history, account-scoped API tokens, and a staging-only WebMCP draft tool, scope templates, project search and status filters, project JSON export, review-link revocation/replacement, self-service deletion of account data, and nine MCP tools (seven need your account, connected with OAuth 2.1 or an API token). Scopes can be reused as new drafts; unsaved work warns before replacement and browser creation retries use idempotency keys.
+Client scope approvals for freelancers: immutable versions, bearer review links, client decisions, version history, account-scoped API tokens, and a staging-only WebMCP draft tool, scope templates, project search and status filters, project JSON export, review-link revocation/replacement, self-service deletion of account data, and fourteen MCP tools (twelve need your account, connected with OAuth 2.1 or an API token; the rate-card, retainer, invoice and payment tools go through the owner routes and their rules). Scopes can be reused as new drafts; unsaved work warns before replacement and browser creation retries use idempotency keys.
 
 ## Render and Neon
 
@@ -9,8 +9,13 @@ Neon Auth handles signup, login, logout, and password recovery. Clients review
 scopes using their private links without creating accounts. Cloudflare and
 OpenAI Sites authentication are no longer runtime requirements.
 
-See [the deployment guide](docs/render-deployment.md) for the Render Blueprint,
-Neon setup, required environment variables, and live checks.
+See [the deployment guide](docs/render-deployment.md) for the Render Blueprint
+(Starter web service, migrations in the pre-deploy step with the owner role, four
+recording cron services), Neon setup, required environment variables, and live
+checks; [DEPLOY.md](docs/DEPLOY.md) for the release checklist and costs; and
+[docs/ws-10.md](docs/ws-10.md) for the platform hardening (trusted-proxy client IPs,
+in-memory read limits, error taxonomy and idempotency keys, database role split,
+canonical host, health vs readiness, OAuth token families, analytics).
 
 ```sh
 npm ci --include=dev --include=optional
@@ -28,7 +33,12 @@ review links, MCP tools, and ledger checks, follow the guide's disposable local
 PostgreSQL/auth fixture setup and run `npm run test:local`. These suites refuse
 remote database targets and must not run on production data.
 
-`npm run lint` passes with no errors and gates CI (`.github/workflows/ci.yml`). Billing remains disabled. Live Neon email
+`npm run lint` passes with no errors and gates CI (`.github/workflows/ci.yml`), as do the
+coverage gate (`node scripts/check-coverage.mjs`: every critique id of a landed workstream
+has a test tagged `@covers <ID>`) and a production build under a 460 MB heap
+(`npm run build:capped`). See [docs/testing.md](docs/testing.md) for every layer.
+`/api/health` reports the database and, in production, dedicated signing;
+`/api/readiness` (operator token) reports everything else. Billing remains disabled. Live Neon email
 verification/recovery, Render deployment, operational monitoring, and connector
 directory approval require external setup and verification.
 
@@ -66,8 +76,11 @@ clients: `/.well-known/oauth-protected-resource` (RFC 9728),
 `/.well-known/oauth-authorization-server` (RFC 8414), dynamic client registration
 at `/oauth/register`, Client ID Metadata Documents for hosts in `OAUTH_CIMD_HOSTS`
 (default `chatgpt.com`), authorization code + PKCE (S256) at `/oauth/authorize`,
-`/oauth/token` with rotating refresh tokens, `/oauth/revoke`, and RFC 9207 `iss`
-on every authorization response. Unauthenticated tool calls return HTTP 401 with
+`/oauth/token` with rotating refresh tokens (reuse of a rotated one revokes the
+whole grant), `/oauth/revoke`, and RFC 9207 `iss` on every authorization response.
+The consent page names the redirect host and marks dynamically registered clients
+as unverified; reserved brand names are refused for DCR. `/connect` lists and
+disconnects each grant separately. Unauthenticated tool calls return HTTP 401 with
 `WWW-Authenticate: Bearer resource_metadata=...` and `_meta["mcp/www_authenticate"]`.
 OAuth access tokens are bound to the `/mcp` resource and are not accepted by the REST API.
 

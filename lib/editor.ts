@@ -89,7 +89,8 @@ export function forgetDrafts() {
   }
 }
 /** The scope fields an unsaved draft may carry (scopeSchema's keys; a unit test keeps them in step). */
-export const DRAFT_FIELDS = ['title', 'client', 'deliverables', 'items', 'client_inputs', 'exclusions', 'fee', 'currency', 'revisions', 'due', 'notes', 'tax_label', 'tax_pct', 'deposit_pct', 'payment_terms', 'milestones', 'fx', 'revision_bank'] as const;
+// Phase 0 (contracts commit): the optional fields client_country … language added to scopeSchema.
+export const DRAFT_FIELDS = ['title', 'client', 'deliverables', 'items', 'client_inputs', 'exclusions', 'fee', 'currency', 'revisions', 'due', 'notes', 'tax_label', 'tax_pct', 'deposit_pct', 'payment_terms', 'milestones', 'fx', 'revision_bank', 'client_country', 'engagement', 'retainer', 'tds', 'msmed', 'language'] as const;
 /** A draft sent to the server, reduced to the editor's fields; null when it is not a scope draft. */
 export function draftForStorage(input: unknown): Scope | null {
   const draft = normalizeDraft(input) as Record<string, unknown> | null;
@@ -97,4 +98,69 @@ export function draftForStorage(input: unknown): Scope | null {
   const kept: Record<string, unknown> = {};
   for (const k of DRAFT_FIELDS) if (draft[k] !== undefined) kept[k] = draft[k];
   return kept as unknown as Scope;
+}
+
+// ---- WS-09 LT-06 / LT-07: field-level validation messages ---------------------------------------
+/** Largest fee or item price the scope schema accepts (lib/scope.ts). */
+export const MAX_AMOUNT = 10_000_000;
+/** "₹1,00,00,000" for INR, "$10,000,000" for USD: the amount cap in the scope's currency, no decimals. */
+export function maxAmountLabel(currency: string) {
+  try { return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {style: 'currency', currency, maximumFractionDigits: 0}).format(MAX_AMOUNT); }
+  catch { return MAX_AMOUNT.toLocaleString('en-US') + ' ' + currency; }
+}
+/** Inline problem for an item price or fee as typed: never coerced, just explained (LT-07). */
+export function amountProblem(value: number | null | undefined, currency: string, what = 'Price') {
+  if (value == null || Number.isNaN(value)) return null;
+  if (!Number.isFinite(value)) return `${what} must be a number.`;
+  if (value < 0) return `${what} can't be negative`;
+  if (value > MAX_AMOUNT) return `Max ${maxAmountLabel(currency)}`;
+  return null;
+}
+/** Editor labels for the scope fields a validation message can point at. */
+export const FIELD_LABELS: Record<string, string> = {
+  title: 'Project name', client: 'Client', deliverables: 'Deliverables', items: 'Deliverables', client_inputs: 'Client inputs',
+  exclusions: 'Outside this scope', fee: 'Project fee', currency: 'Currency', revisions: 'Revision rounds', due: 'Target delivery',
+  notes: 'Working terms', tax_label: 'Tax name', tax_pct: 'Tax (%)', deposit_pct: 'Deposit (%)', payment_terms: 'Payment terms',
+  milestones: 'Payment schedule', fx: 'Exchange rate', revision_bank: 'Revision bank',
+};
+/** The subset of a zod issue the editor reads (zod 3 and 4 shapes). */
+export type FieldIssue = {path: (string | number)[]; code?: string; message: string; minimum?: number | bigint; maximum?: number | bigint; type?: string; origin?: string};
+/** The editor field an issue belongs to: `items.2.title` is shown under Deliverables. */
+export function issueField(issue: Pick<FieldIssue, 'path'>) {
+  const top = String(issue.path[0] ?? '');
+  return top === 'items' ? 'deliverables' : top;
+}
+/** A human sentence for one schema issue, never a raw key (LT-06). */
+export function humanIssue(issue: FieldIssue): string {
+  const kind = issue.type ?? issue.origin;
+  const min = issue.minimum === undefined ? undefined : Number(issue.minimum);
+  const max = issue.maximum === undefined ? undefined : Number(issue.maximum);
+  let text: string;
+  if (issue.code === 'too_small' && kind === 'string') text = min && min > 1 ? `Use at least ${min} characters` : 'This can’t be empty';
+  else if (issue.code === 'too_big' && kind === 'string') text = `Use at most ${max} characters`;
+  else if (issue.code === 'too_small' && kind === 'number') text = min === 0 ? 'Can’t be negative' : `Use ${min} or more`;
+  else if (issue.code === 'too_big' && kind === 'number') text = `Use ${max?.toLocaleString('en-US')} or less`;
+  else if (issue.code === 'too_small' && kind === 'array') text = `Add at least ${min}`;
+  else if (issue.code === 'too_big' && kind === 'array') text = `Use at most ${max}`;
+  else if (issue.code === 'invalid_type' && /number|nan/i.test(issue.message)) text = 'Enter a number';
+  else if (issue.code === 'invalid_type' || issue.code === 'invalid_enum_value' || issue.code === 'invalid_value') text = 'Choose a valid value';
+  else text = issue.message;
+  if (issue.path[0] === 'items' && typeof issue.path[1] === 'number') {
+    const sub = String(issue.path[2] ?? '');
+    const what = sub === 'title' ? 'name' : sub === 'qty' ? 'quantity' : sub;
+    return `Deliverable ${issue.path[1] + 1}${what ? ' ' + what : ''}: ${text.charAt(0).toLowerCase() + text.slice(1)}`;
+  }
+  return text;
+}
+/** Field → first human message, from zod issues or a server `{fields}` answer (WS-10 errors). */
+export function fieldErrors(issues: FieldIssue[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const issue of issues) { const f = issueField(issue); if (f && !out[f]) out[f] = humanIssue(issue); }
+  return out;
+}
+export const VALIDATION_BANNER = 'Check the highlighted fields: ';
+/** The banner above the save bar: names the fields by their labels. */
+export function validationBanner(fields: Record<string, string>) {
+  const names = [...new Set(Object.keys(fields).map(f => FIELD_LABELS[f] ?? f))];
+  return VALIDATION_BANNER + names.join(', ') + '.';
 }

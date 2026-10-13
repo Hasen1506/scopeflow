@@ -37,17 +37,48 @@ the repository using [render.yaml](../render.yaml). Alternatively, create a
 
 | Setting | Value |
 | --- | --- |
-| Build command | `npm ci --include=dev --include=optional && npm run build` |
-| Start command | `npm run db:migrate && npm start` |
+| Plan | **Starter** (no spin-down; WS-10 H15, cost in [DEPLOY.md](DEPLOY.md)) |
+| Build command | `npm ci --include=dev --include=optional && npm run build:capped && npm prune --omit=dev` |
+| Pre-deploy command | `npm run db:migrate:deploy` (owner role, `DATABASE_MIGRATION_URL`) |
+| Start command | `npm start` (never migrates) |
 | Health check | `/api/health` |
 | Node version | Pinned in `.node-version` to 24.19.0 |
 
 Render supplies `PORT`; Next listens on `0.0.0.0` and uses that port. The
-Blueprint selects Render's free web-service plan as a starting point. Free
-services can sleep when idle; cold starts are expected. Pick a paid service if
-you need continuously running hosting. Neon's free plan is also subject to its
-current storage, compute, and authentication limits. Check each provider's
-dashboard/pricing before choosing production capacity.
+Blueprint (WS-10) puts the web service on Render's **Starter** plan: the free plan
+spins down when idle, and its cold starts broke MCP clients and review links. The
+build runs with a 460 MB heap (`build:capped`, L10) so it fits a 512 MB instance
+(it skips only Next's in-build type check; `npm run typecheck` gates CI first),
+and dev dependencies are pruned from the runtime image after the build. Neon's
+free plan is also subject to its current storage, compute, and authentication
+limits. Check each provider's dashboard/pricing before choosing production capacity.
+
+### Cron services (WS-10 H15, M31)
+
+The Blueprint defines four separate Render cron jobs, each one process running
+`node scripts/cron.mjs <job...>` and recording every job in `scopeflow.cron_runs`
+(start, end, status, exit code):
+
+| Cron service | Jobs | Notes |
+| --- | --- | --- |
+| retention | `retention`, `heads`, `housekeeping` | daily; `heads` publishes the signed ledger-head digest (`/api/heads/<date>`) |
+| reminders | `reminders` | mail failures never stop the other jobs |
+| reconcile | `reconcile` | every 6 h; no mail dependency |
+| check-models | `check-models`, `analytics` | model availability, optional PostHog export |
+
+`/api/readiness` (operator token) shows each job's last run, staleness and failures.
+
+### Database roles (WS-10 C7)
+
+| Variable | Role | Used by |
+| --- | --- | --- |
+| `DATABASE_MIGRATION_URL` | the table owner (Neon's owner role) | `preDeployCommand` only |
+| `DATABASE_URL` | a login role in `scopeflow_app` (no ownership, no TRUNCATE/TRIGGER, no DELETE on the ledger) | the web service and crons |
+
+Migration `0016` creates the `scopeflow_app` group. Create the login role once
+(`CREATE ROLE scopeflow_runtime LOGIN PASSWORD '<generated>' IN ROLE scopeflow_app;`)
+and switch `DATABASE_URL` to it only after account deletion and draft expiry use
+`scopeflow.delete_project_tombstone` (WS-08); see [ws-10.md](ws-10.md) for the order.
 
 Set these values securely in the Render service:
 
@@ -56,7 +87,13 @@ Set these values securely in the Render service:
 | `DATABASE_URL` | Neon's pooled PostgreSQL connection string; secret |
 | `NEON_AUTH_BASE_URL` | Neon's Auth URL for the same branch |
 | `NEON_AUTH_COOKIE_SECRET` | A private random value of at least 32 characters; the Blueprint generates it |
-| `APP_URL` | Your canonical public origin, exactly as the browser shows it: `https://scopeflow-qnng.onrender.com` for the current service. No path. Used for workspace links and as the OAuth issuer. If unset, the app uses the proxy's `X-Forwarded-Proto` + `Host` of each request; a mismatch is logged once. |
+| `APP_URL` | The canonical public origin, `https://scope-flow.tech`. `sync: false` in the Blueprint: set it in the dashboard, never in render.yaml (H16). No path. Used for links, the OAuth issuer and the MCP resource. Any other public host (for example `scopeflow-qnng.onrender.com`) gets 308 to it for pages and well-known documents and 421 with `canonical_url` for API/MCP calls; health checks and webhooks are answered on any host. |
+| `DATABASE_MIGRATION_URL` | Owner-role connection string for migrations (C7); secret. |
+| `SCOPEFLOW_TRUSTED_PROXY` / `SCOPEFLOW_TRUSTED_HOPS` | `cloudflare` / `1` (H3): the client address is `cf-connecting-ip` from a Cloudflare edge, else the right-most X-Forwarded-For hop Render appended. Never the left-most value. |
+| `SCOPEFLOW_ADMIN_TOKEN` | Operator token for `/api/readiness`, `/api/analytics` and the cron callbacks (falls back to `SCOPEFLOW_CRON_SECRET`). |
+| `SCOPEFLOW_TSA_URL` | RFC 3161 timestamp authority; the Blueprint defaults to `https://freetsa.org/tsr`. |
+| `SCOPEFLOW_ENCRYPTION_KEY` | 32-byte base64 key-encryption key for secrets at rest (`lib/crypto-box.ts`). |
+| `SCOPEFLOW_ANALYTICS`, `POSTHOG_KEY`, `POSTHOG_HOST` | Product analytics (SF-14): `on`/`off`; optional PostHog EU export. |
 | `SCOPEFLOW_SIGNING_SECRET` | Random value of at least 32 characters (`openssl rand -base64 48`); the Blueprint generates it. Seeds the Ed25519 key that signs client decisions and ledger entries. Keep it stable; when rotating, put the old value in `SCOPEFLOW_SIGNING_SECRET_PREVIOUS` (comma-separated) so old records still verify. If unset, a key is derived from `NEON_AUTH_COOKIE_SECRET`. |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Optional, build-time. A role address (for example `support@your-domain`) shown on Support, Privacy, Terms and Data controls. When unset, pages link to the Support page instead of a personal inbox. |
 | `PG_POOL_MAX` | Optional. PostgreSQL client pool size (default 15, 2-100). Use Neon's pooled connection string. |
@@ -83,8 +120,8 @@ it invalidates signed session-cache cookies. Never commit real values or paste
 database passwords or session secrets into chat. No Neon management API key is
 required.
 
-Migrations run at startup so the free Render plan does not need a pre-deploy
-command. They take a PostgreSQL advisory lock, record checksums, and commit
+Migrations run once per deploy in Render's pre-deploy step (`npm run
+db:migrate:deploy`, owner role), never at startup (WS-10 OP-02). They take a PostgreSQL advisory lock, record checksums, and commit
 atomically; repeated starts safely skip already-applied migrations. A failed
 migration stops startup. Existing application writes are transactional and
 serialized only where they must be: per project (revisions, client decisions,
@@ -92,10 +129,10 @@ ledger entries) and per owner (project creation cap, account deletion), using
 transaction-scoped advisory locks keyed by that id. Reads that need a coherent
 view run as REPEATABLE READ READ ONLY snapshots without locks. Migration
 `0001_integrity_oauth.sql` adds triggers that make decided versions and ledger
-entries immutable (only account deletion may remove them, through an explicit
-transaction-local bypass). For defence in depth, run the app with a
-least-privilege role that does not own the tables (SELECT, INSERT, UPDATE,
-DELETE only) and run migrations with the owner role.
+entries immutable. Since migration `0016` (C7) the transaction-local bypass works
+only for the table owner, that is inside SECURITY DEFINER functions such as
+`scopeflow.delete_project_tombstone`, and the runtime role cannot disable
+triggers; run the app as the `scopeflow_app` login role and migrations as the owner.
 
 The current checked-in migration chain lives in `db/migrations`. Legacy SQLite
 migrations in `drizzle` are retained only for historical regression tests.
@@ -129,8 +166,10 @@ Do not edit an already-applied migration.
 ## Verify the deployed app
 
 1. `/api/health` must return HTTP 200 with `{"status":"ok"}`. It checks that the
-   database schema is reachable and auth settings are present; it does not
-   establish live Neon Auth connectivity.
+   database is reachable and, in production, that signing uses a dedicated
+   secret (503 `signing_not_dedicated` otherwise, M30). Then
+   `curl -H "Authorization: Bearer $SCOPEFLOW_ADMIN_TOKEN" https://scope-flow.tech/api/readiness`
+   must show no `fail` (mail, inbound, webhooks, crons, TSA, models, DB role).
 2. Create a fictional account at `/auth/sign-up`, verify its email as configured,
    sign in at `/auth/sign-in`, and test the password-reset email flow.
 3. Save a fictional scope, open its review link while signed out, approve it,
@@ -183,7 +222,7 @@ In separate terminals, run `node tests/support/auth-service.mjs` and
 `npm run dev`. Then run `npm run db:migrate`, `npm run typecheck`, and
 `npm run test:local`. The fixture service uses in-memory accounts and never
 sends email; live Neon verification/recovery delivery must be tested separately.
-Build with `npm run build`, and test the production server with
+Build with `npm run build` (CI uses `npm run build:capped`), and test the production server with
 `PORT=5173 npm start` after stopping the dev server.
 
 ## Existing data and integrations

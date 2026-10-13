@@ -5,19 +5,19 @@
 import {test, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';
-import {call, database, owner, project, changeOrder} from './support.mjs';
+import {call, database, owner, project, changeOrder, clearLimits} from './support.mjs';
 
 const {checkClientRecord} = await import('../../lib/record-check.ts');
 let db, A, P, original;
 before(async () => {
   db = await database();
   A = await owner('prop-diff-owner');
-  await db.query('DELETE FROM scopeflow.rate_limits');
+  await clearLimits(db); // changed by WS-10 (M26): read limits are in server memory
   P = await project(A, 'Differential baseline', {approve: true});
   const seq = await changeOrder(A, P.project_id, 400);
   assert.equal((await call(`/api/review/${P.token}/change-order`, {method: 'POST', body: {seq, decision: 'approved', signer: 'Fictional Client', comment: ''}})).status, 200);
   await changeOrder(A, P.project_id, 250, 'Pending extra');
-  for (const body of [{kind: 'goodwill', baseline_version: 1, payload: {title: 'Hidden favour', value: 80, visible: false}}, {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: '2026-10-08', note: 'Colour'}}]) {
+  for (const body of [{kind: 'goodwill', baseline_version: 1, payload: {title: 'Hidden favour', value: 80, visible: false}}, {kind: 'revision_round', baseline_version: 1, payload: {feedback_date: new Date().toISOString().slice(0, 10), note: 'Colour'}}]) { // changed by WS-05: M8 date bounds
     assert.equal((await call(`/api/scopes/${P.project_id}/ledger`, {method: 'POST', cookie: A.cookie, body})).status, 201);
   }
   original = {
@@ -65,7 +65,7 @@ test('the in-browser check and server verification agree on every tampering', as
   await fc.assert(fc.asyncProperty(fc.constantFrom(...Object.keys(tampers)), async name => {
     await restore();
     await asAdmin(tampers[name]);
-    await db.query('DELETE FROM scopeflow.rate_limits');
+    await clearLimits(db); // changed by WS-10 (M26): read limits are in server memory
     const server = (await call(`/api/scopes/${P.project_id}/ledger`, {cookie: A.cookie})).json;
     const review = (await call(`/api/review/${P.token}`)).json;
     const serverOk = server.chain.intact && server.seal.state !== 'invalid';

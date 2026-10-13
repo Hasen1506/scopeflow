@@ -8,12 +8,14 @@ const {verifyChain,anchorHash}=await import('../lib/ledger.ts');
 const base=process.env.SCOPEFLOW_TEST_URL||'http://localhost:5173';
 assert.equal(new URL(base).hostname,'localhost','This test creates disposable LOCAL fixtures only.');
 let passed=0;
+// changed by WS-05: M8 bounds ledger dates by today (+1 day) and the approval date, so the fixture dates are relative to today.
+const today=new Date().toISOString().slice(0,10),day=n=>new Date(Date.parse(today+'T00:00:00Z')+n*86400000).toISOString().slice(0,10);
 const cookie=await signIn(base);
 async function call(path,method='GET',data,authenticated=true,headers={}){const r=await fetch(base+path,{method,headers:{...(authenticated?{cookie}:{}),...(data!==undefined?{'Content-Type':'application/json'}:{}),...headers},body:data!==undefined?JSON.stringify(data):undefined});const text=await r.text();let value;try{value=JSON.parse(text)}catch{value=text}return {status:r.status,value};}
 function status(r,n){assert.equal(r.status,n,JSON.stringify(r.value));passed++;}
 function eq(a,b){assert.deepEqual(a,b);passed++;}
 
-const s={title:'Ledger QA '+Date.now(),client:'Fictional Client',deliverables:'',items:[{id:'logo',title:'Logo suite',price:1000},{id:'guide',title:'Brand guidelines',qty:12,unit:'pages',price:800}],client_inputs:[{id:'brief',title:'Questionnaire',due:'2026-10-10'}],exclusions:'Print',fee:1800,currency:'USD',revisions:1,due:'2026-11-01',notes:'Fixture.'};
+const s={title:'Ledger QA '+Date.now(),client:'Fictional Client',deliverables:'',items:[{id:'logo',title:'Logo suite',price:1000},{id:'guide',title:'Brand guidelines',qty:12,unit:'pages',price:800}],client_inputs:[{id:'brief',title:'Questionnaire',due:day(-4)}],exclusions:'Print',fee:1800,currency:'USD',revisions:1,due:day(20),notes:'Fixture.'};
 const created=await call('/api/scopes','POST',s);status(created,201);
 const project=created.value.scope.project_id,token=created.value.scope.token;
 const L='/api/scopes/'+project+'/ledger';
@@ -37,11 +39,11 @@ const replay=await call(L,'POST',{kind:'change_order',baseline_version:1,payload
 status(await call(L,'POST',{kind:'change_order',baseline_version:1,payload:{...co,fee_delta:1},request_id:rid}),409);
 const second=await call(L,'POST',{kind:'change_order',baseline_version:1,payload:{title:'Drop guidelines',remove_item_ids:['guide'],fee_delta:-800}});status(second,201);
 status(await call(L,'POST',{kind:'settle',baseline_version:1,payload:{ref_seq:1,outcome:'approved'}}),400);
-status(await call(L,'POST',{kind:'revision_round',baseline_version:1,payload:{feedback_date:'2026-10-20',note:'Round one'}}),201);
-status(await call(L,'POST',{kind:'revision_round',baseline_version:1,payload:{feedback_date:'2026-10-25'}}),201);
-status(await call(L,'POST',{kind:'client_input',baseline_version:1,payload:{input_id:'brief',received:'2026-10-14'}}),201);
-status(await call(L,'POST',{kind:'client_input',baseline_version:1,payload:{input_id:'brief',received:'2026-10-15'}}),400);
-status(await call(L,'POST',{kind:'client_input',baseline_version:1,payload:{input_id:'ghost',received:'2026-10-15'}}),400);
+status(await call(L,'POST',{kind:'revision_round',baseline_version:1,payload:{feedback_date:today,note:'Round one'}}),201);
+status(await call(L,'POST',{kind:'revision_round',baseline_version:1,payload:{feedback_date:day(1)}}),201);
+status(await call(L,'POST',{kind:'client_input',baseline_version:1,payload:{input_id:'brief',received:today}}),201);
+status(await call(L,'POST',{kind:'client_input',baseline_version:1,payload:{input_id:'brief',received:day(1)}}),400);
+status(await call(L,'POST',{kind:'client_input',baseline_version:1,payload:{input_id:'ghost',received:day(1)}}),400);
 status(await call(L,'POST',{kind:'goodwill',baseline_version:1,payload:{title:'Extra logo concept',value:150,hours:2}}),201);
 status(await call(L,'POST',{kind:'goodwill',baseline_version:1,payload:{title:'Private rush fix',value:50,visible:false}}),201);
 
@@ -57,7 +59,7 @@ status(await call(RC,'POST',{seq:2,decision:'approved',signer:'Fictional Reviewe
 
 const owner=await call(L);status(owner,200);
 const a=owner.value.agreement;
-eq(a.fee,2200);eq(a.due,'2026-11-10');eq(a.days_shift,9);eq([a.revisions_allowed,a.revisions_used,a.rounds_over],[1,2,1]);
+eq(a.fee,2200);eq(a.due,day(29));eq(a.days_shift,9);eq([a.revisions_allowed,a.revisions_used,a.rounds_over],[1,2,1]);
 eq(a.items.map(i=>i.id),['logo','guide','social']);eq(a.change_orders.map(c=>c.status),['approved','withdrawn']);
 eq(a.goodwill_value,200);eq(a.delays[0].days_late,4);eq(owner.value.chain.intact,true);
 

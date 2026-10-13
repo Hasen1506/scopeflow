@@ -1,15 +1,19 @@
-import { getDatabase } from '@/db/client';
 import { authConfigured, getAuth } from '@/lib/auth/server';
-import { signingSource } from '@/lib/signing';
+import { health } from '@/lib/readiness';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// M30: Render's health check. 200 only when the database answers and, in production, records are
+// signed with the dedicated key (C1). Optional integrations (mail, payments, AI, ...) never fail it:
+// /api/readiness reports them.
 export async function GET() {
+  const headers = { 'Cache-Control': 'no-store' };
   try {
-    if (!authConfigured()) throw new Error('Auth configuration is missing');
+    if (!authConfigured()) return Response.json({ status: 'unavailable', reason: 'auth_not_configured' }, { status: 503, headers });
     getAuth();
-    await getDatabase().prepare('SELECT id FROM projects LIMIT 1').all();
-    return Response.json({ status: 'ok', signing: signingSource() }, { headers: { 'Cache-Control': 'no-store' } });
+    const h = await health();
+    if (!h.ok) return Response.json({ status: 'unavailable', reason: h.reason, signing: h.signing }, { status: 503, headers });
+    return Response.json({ status: 'ok', signing: h.signing }, { headers });
   } catch {
-    return Response.json({ status: 'unavailable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    return Response.json({ status: 'unavailable', reason: 'configuration' }, { status: 503, headers });
   }
 }
