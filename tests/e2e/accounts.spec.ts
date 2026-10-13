@@ -15,6 +15,8 @@ async function signUp(page: Page, who: typeof A) {
   await page.getByLabel('Password', {exact: true}).fill(who.password);
   await page.getByRole('button', {name: 'Create account'}).click();
   await expect(page.getByRole('tab', {name: /Projects \(0\)/})).toBeVisible();
+  // Wait for the workspace to finish loading: a click on New scope before then is undone when the project list lands.
+  await expect(page.getByText('No saved scopes yet')).toBeVisible();
 }
 async function signInAs(page: Page, who: typeof A) {
   await page.getByLabel('Email').fill(who.email);
