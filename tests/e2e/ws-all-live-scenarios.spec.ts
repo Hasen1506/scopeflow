@@ -71,8 +71,8 @@ const agreementNow = (page: Page, row: string) => page.locator(`[data-testid=agr
 const pdfText = (bytes: Buffer) => [...bytes.toString('latin1').matchAll(/\((?:[^()\\]|\\[()\\]|\\[0-7]{3})*\) Tj/g)].map(m => m[0].slice(1, -4).replace(/\\([0-7]{3})/g, (_, o) => String.fromCharCode(parseInt(o, 8))).replace(/\\([()\\])/g, '$1')).join(' ');
 async function businessProfile(o: Owner) {
   const empty = (await (await o.request.get('/api/profile')).json()).profile;
-  const r = await o.request.put('/api/profile', {headers: o.H, data: {...empty, business_name: 'TEST Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z5', payment_details: 'UPI ada@okbank', invoice_prefix: 'INV-', default_currency: 'INR'}});
-  expect(r.ok(), await r.text()).toBe(true);
+  const r = await o.request.put('/api/profile', {headers: o.H, data: {...empty, business_name: 'TEST Ada Studio', business_address: '12 MG Road, Chennai', tax_id: '33ABCDE1234F1Z7', payment_details: 'UPI ada@okbank', invoice_prefix: 'INV-', default_currency: 'INR'}});
+  expect(r.ok(), await r.text()).toBe(true); // integration: 74 uses a checksum-valid GSTIN (WS-08 LT-17)
 }
 const invoice = (o: Owner, id: string, data: Record<string, unknown>) => o.request.post(`/api/scopes/${id}/invoices`, {headers: o.H, data: {request_id: 'live-' + crypto.randomUUID().slice(0, 8), ...data}});
 

@@ -68,7 +68,7 @@ CI on 92f093b failed 13 e2e tests. Every one passed on its own WS branch, so eac
   the client page no longer shows the endpoint's `data_notice` line. A `data_notice` in the review payload itself is
   still shown. M32 now checks the honest "kept while the creator keeps this project" line with the notice endpoint
   returning 404. It then checks the real WS-08 wiring ("kept for N days, then removed", shown once).
-- **Tests.** `ws-03-invoicing` now uses the valid checksum GSTIN `33ABCDE1234F1Z7` (WS-08 LT-17). `…F1Z5` fails the check
+- **Tests.** `ws-03-invoicing` and `ws-all-live-scenarios` (businessProfile) now use the valid checksum GSTIN `33ABCDE1234F1Z7` (WS-08 LT-17). `…F1Z5` fails the check
   character. `ws-05-ledger` now expects the WS-07 §6.1 chip wording "Verified · sealed by Scopeflow" (it was "Verified in your browser").
 - **LT-13 golden.** `tests/golden/ws-07-client-copy.golden.txt` was regenerated from CI output. The new copy is intended:
   the WS-08 retention period now appears in the notice, and the repeated server line is gone.
