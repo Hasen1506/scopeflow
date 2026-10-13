@@ -265,7 +265,8 @@ eq(co2.value.seq, 2);
   // Owner-recorded money is exempt from the cap too.
   status(await entry(owner, C.ledger, 'tds_credit', {amount_minor: 250000, currency: 'INR', credited: today, section: '194J(b)', certificate: '', note: ''}), 201, 'TDS credit at cap');
   const v = (await call(C.ledger, 'GET', undefined, {auth: owner})).value;
-  eq(v.entries.slice(-2).map(e => [e.seq, e.kind]), [[201, 'payment'], [202, 'tds_credit']]);
+  // integration: WS-04 records the ₹500 over the balance as its own excess_payment entry right after the payment
+  eq(v.entries.slice(-3).map(e => [e.seq, e.kind]), [[201, 'payment'], [202, 'excess_payment'], [203, 'tds_credit']]);
   const pdf = await fetch(base + '/api/scopes/' + C.project_id + '/statement', {headers: {cookie: owner}});
   eq(pdf.status, 200);
   ok(Buffer.from(await pdf.arrayBuffer()).toString('latin1').includes('Rs.30,000'), 'the statement shows the payment');
