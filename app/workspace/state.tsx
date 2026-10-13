@@ -131,7 +131,7 @@ export function useWorkspace(){
   if(keepText===synced.current||(keepText===null&&synced.current===undefined))return;
   const id=setTimeout(()=>{void syncDraft(keepText===null?null:draft,keepText);},1200);return()=>clearTimeout(id);},[draft,active,account,keepText,syncDraft,syncRetry]);
  function tryEditor(){setTrying(true);setTab('project');requestAnimationFrame(()=>window.scrollTo({top:0}));}
- // UX-C41/N1: every confirmation, including replacing an unsaved draft, uses the in-app dialog (no window.confirm).
+ // UX-C41/N1: replacing an unsaved draft is confirmed in the in-app dialog too.
  const [confirm,confirmDialog]=useConfirm();
  async function canReplace(){return !dirty||await confirm({title:'Replace this unsaved draft?',body:'Your saved versions will stay in project history.',confirmLabel:'Replace draft',cancelLabel:'Keep editing'});}
  async function newScope(){if(!(await canReplace()))return false;stash();setReviseOpen(false);setLedgerView(null);creationRequest.current=null;setActive(null);setHistory([]);setClientEmail('');setSavedEmail('');setArchived(null);setFromTemplate(null);setTimeZone(null);setTrust(null);setCosigns([]);setCosignLinks([]);setLinkExpiresAt(null);setSendFallback(null);setDraft({...blank,...defaults});setIsSample(false);setLink('');setNotice('');setError('');setTrying(true);setTab('project');return true;}
@@ -145,9 +145,7 @@ export function useWorkspace(){
  async function startFromAgreement(){if(!active)return;setBusy(true);setError('');try{const l=await api(`/api/scopes/${active.project_id}/ledger`);const a=l.agreement;if(!a){setError('There is no approved agreement to start from.');return;}const items=a.items.map(({source:_source,...i}:{source:unknown}&Item)=>i);setDraft(x=>({...x,items,deliverables:items.map(itemLine).join('\n'),fee:a.fee,revisions:a.revisions_allowed,due:a.due}));setSupersede(null);setNotice('Draft updated from the current agreement: approved change orders, fee, rounds and delivery date are folded in. Review it, then save.');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  async function copy(value:string,what='Link'){try{await navigator.clipboard.writeText(value);toast.success(what+' copied to clipboard.');}catch{setNotice('Select the link and copy it manually.');}}
  // One click: show this version's review link and copy it (was Show review link, then Copy link).
- // #43: without an email provider the primary action copies the link (and offers the mail-app draft when a client email is set) instead of pretending to send.
- // N4: copy only. No /send round-trip (which saved the email and then said email is not set up); with a valid client email
- // the mail-app draft is offered as a secondary action built here from the same link.
+ // #43/N4: copy only (no /send round-trip); with a valid client email, offer the mail-app draft for the same link.
  async function copyLinkToSend(){const url=await copyReviewLink();const email=clientEmail.trim().toLowerCase();if(!url||!active)return;setSendFallback(EMAIL.test(email)?{to:email,review_url:url,mailto:reviewMailto(email,{title:active.content.title,client:active.content.client,version:active.version,reviewUrl:url})}:null);}
  async function copyReviewLink(){if(!active||active.revoked)return null;const url=location.origin+'/review/'+active.token;setLink(url);await copy(url,'Review link');return url;}
  async function importDraft(){let value:Scope;try{value=scopeSchema.parse(JSON.parse(importText));}catch{setImportError('Use the complete Scopeflow JSON format from the Muse & API page.');return;}if(!(await canReplace()))return;stash();creationRequest.current=null;setDraft(value);setActive(null);setHistory([]);setLink('');setIsSample(false);setImportOpen(false);setTab('project');setNotice('Draft imported. Check the details before saving.');}
