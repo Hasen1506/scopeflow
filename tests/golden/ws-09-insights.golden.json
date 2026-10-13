@@ -1,0 +1,224 @@
+{
+  "projects": 3,
+  "fee_at_approval": {
+    "INR": 20000,
+    "USD": 1000
+  },
+  "fee_now": {
+    "INR": 27000,
+    "USD": 1500
+  },
+  "change_order_value": {
+    "INR": 7000,
+    "USD": 500
+  },
+  "goodwill_value": {
+    "INR": 1500,
+    "USD": 0
+  },
+  "goodwill_hours": 3,
+  "change_orders": {
+    "proposed": 0,
+    "approved": 3,
+    "declined": 1,
+    "withdrawn": 0,
+    "approval_rate": 0.75
+  },
+  "revision_rounds": {
+    "included": 8,
+    "used": 0,
+    "projects_over": 0,
+    "average_used": 0,
+    "average_included": 2.7
+  },
+  "client_delays": {
+    "count": 0,
+    "days": 0
+  },
+  "creep": {
+    "requests": 4,
+    "caught": {
+      "INR": 10000,
+      "USD": 500
+    },
+    "approved": {
+      "INR": 7000,
+      "USD": 500
+    },
+    "declined": {
+      "INR": 3000
+    },
+    "pending": {}
+  },
+  "clients": [
+    {
+      "client": "Kaveri Foods",
+      "projects": 2,
+      "change_orders": 3,
+      "approved_change_orders": 2,
+      "added_value": {
+        "INR": 7000
+      },
+      "goodwill": {
+        "INR": 1500
+      },
+      "rounds_over": 0,
+      "days_late": 0
+    },
+    {
+      "client": "Harbour Dental",
+      "projects": 1,
+      "change_orders": 1,
+      "approved_change_orders": 1,
+      "added_value": {
+        "USD": 500
+      },
+      "goodwill": {
+        "USD": 0
+      },
+      "rounds_over": 0,
+      "days_late": 0
+    }
+  ],
+  "observations": [
+    "Scope creep caught: ₹10,000.00 of extra work was put to clients as change orders; ₹7,000.00 was approved and billed, ₹3,000.00 declined (so not done for free).",
+    "Scope creep caught: $500.00 of extra work was put to clients as change orders; $500.00 was approved and billed.",
+    "You absorbed ₹1,500.00 of goodwill work (3h).",
+    "Kaveri Foods has needed change orders or extra rounds on most of their projects. Scope their next project more tightly.",
+    "Recovered from change orders in the last 12 months: ₹7,000.00, ₹2,000.00 of it this month.",
+    "Recovered from change orders in the last 12 months: $500.00, $500.00 of it this month."
+  ],
+  "recovered": {
+    "total": {
+      "INR": 7000,
+      "USD": 500
+    },
+    "this_month": {
+      "INR": 2000,
+      "USD": 500
+    },
+    "last_12": {
+      "INR": 7000,
+      "USD": 500
+    },
+    "change_orders": 3,
+    "inr": {
+      "value": 49500,
+      "locked": {
+        "USD": 500
+      },
+      "unconverted": {}
+    }
+  },
+  "money": {
+    "received": {
+      "INR": 25960,
+      "USD": 1500
+    },
+    "outstanding": {
+      "INR": 5900
+    },
+    "overdue": {
+      "INR": 5900
+    },
+    "msmed_overdue": {
+      "INR": 5900
+    },
+    "msmed_interest": {
+      "INR": 162.78
+    },
+    "tds_pending": 1
+  },
+  "flow": {
+    "co_latency_days": 2,
+    "radar": {
+      "catches": 3,
+      "acted": 1,
+      "change_orders": 4,
+      "approved": 3
+    },
+    "rate_card_hit_rate": null,
+    "retainer_utilisation": null
+  },
+  "series": [
+    {
+      "month": "2025-11",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2025-12",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-01",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-02",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-03",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-04",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-05",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-06",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-07",
+      "change_orders": 0,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-08",
+      "change_orders": 2,
+      "recovered": {},
+      "goodwill": {}
+    },
+    {
+      "month": "2026-09",
+      "change_orders": 2,
+      "recovered": {
+        "INR": 5000
+      },
+      "goodwill": {
+        "INR": 1500
+      }
+    },
+    {
+      "month": "2026-10",
+      "change_orders": 0,
+      "recovered": {
+        "INR": 2000,
+        "USD": 500
+      },
+      "goodwill": {}
+    }
+  ]
+}

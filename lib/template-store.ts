@@ -1,6 +1,8 @@
 import {z} from 'zod';
 import {scopeSchema, type Scope} from './scope';
-import {templates} from './templates';
+import {templates, type RateCardLine} from './templates';
+import {semanticDiff, describeChange} from './diff';
+import type {Mode} from './contracts';
 
 // PR D: the creator's saved templates. Content is validated with the scope schema; a template
 // is a starting point, so fee, client and dates are kept as the creator saved them.
@@ -11,8 +13,8 @@ export const tagsSchema = z.array(z.string().trim().toLowerCase().min(1).max(24)
 export const createTemplateSchema = z.object({name: templateName, content: z.unknown(), tags: tagsSchema.optional()}).strict();
 export const updateTemplateSchema = z.object({name: templateName.optional(), content: z.unknown().optional(), tags: tagsSchema.optional()}).strict().refine(x => x.name !== undefined || x.content !== undefined || x.tags !== undefined, 'Provide name, content or tags.');
 export type TemplateRow = {id: string; owner: string; name: string; content: string; created: string; updated: string; tags?: string | null; revision?: number | null; share_token?: string | null; origin?: string | null};
-export type TemplateView = {id: string; name: string; content: Scope; builtin: boolean; created?: string; updated?: string; tags: string[]; revision: number; share_path: string | null; origin: string | null};
-export const builtinTemplates = (): TemplateView[] => templates.map(t => ({id: 'builtin:' + t.id, name: t.name, content: t.content, builtin: true, tags: [], revision: 1, share_path: null, origin: null}));
+export type TemplateView = {id: string; name: string; content: Scope; builtin: boolean; created?: string; updated?: string; tags: string[]; revision: number; share_path: string | null; origin: string | null; modes?: Mode[]; pack?: string; rate_card?: RateCardLine[]};
+export const builtinTemplates = (): TemplateView[] => templates.map(t => ({id: 'builtin:' + t.id, name: t.name, content: t.content, builtin: true, tags: t.tags, revision: 1, share_path: null, origin: null, modes: t.modes, ...(t.pack ? {pack: t.pack} : {}), ...(t.rate_card ? {rate_card: t.rate_card} : {})}));
 const parseTags = (raw: string | null | undefined): string[] => { try { const t = JSON.parse(raw ?? '[]'); return Array.isArray(t) ? t.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
 export const toView = (row: TemplateRow): TemplateView => ({id: row.id, name: row.name, content: JSON.parse(row.content), builtin: false, created: row.created, updated: row.updated, tags: parseTags(row.tags), revision: row.revision ?? 1, share_path: row.share_token ? `/templates/shared/${row.share_token}` : null, origin: row.origin ?? null});
 /** What a share link shows: the template without its owner, ids or history. */
@@ -25,4 +27,21 @@ export function templateContent(raw: unknown): {content: Scope} | {error: string
   const parsed = scopeSchema.safeParse(blankClient ? {...(raw as object), client: 'Client'} : raw);
   if (!parsed.success) return {error: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')};
   return {content: blankClient ? {...parsed.data, client: ''} : parsed.data};
+}
+
+/** One revision of a template as the history shows it (SF-18). */
+export type RevisionView = {revision: number; name: string; saved: string; content: Scope};
+const safeContent = (raw: string): Scope => { try { return JSON.parse(raw) as Scope; } catch { return {} as Scope; } };
+export const revisionView = (r: {revision: number; name: string; created: string; content: string}): RevisionView => ({revision: r.revision, name: r.name, saved: r.created, content: safeContent(r.content)});
+/** What changed from one revision to another, as plain sentences (name first, then the scope). */
+export function revisionDiff(from: Pick<RevisionView, 'name' | 'content'>, to: Pick<RevisionView, 'name' | 'content'>): string[] {
+  const lines: string[] = [];
+  if (from.name !== to.name) lines.push(`Renamed “${from.name}” to “${to.name}”`);
+  for (const c of semanticDiff(from.content, to.content)) lines.push(describeChange(c, to.content.currency || from.content.currency || 'USD'));
+  return lines;
+}
+/** Templates matching a search (name, title, tags, pack) and, when given, one tag. */
+export function filterTemplates<T extends Pick<TemplateView, 'name' | 'tags' | 'content'> & {pack?: string}>(list: T[], query: string, tag = ''): T[] {
+  const q = query.trim().toLowerCase();
+  return list.filter(t => (!tag || t.tags.includes(tag)) && (!q || [t.name, t.content.title ?? '', t.pack ?? '', ...t.tags].some(x => x.toLowerCase().includes(q))));
 }

@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Instrument_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { SiteFooter } from "./site-footer";
-import { SESSION_HINT_KEY } from "@/lib/theme";
+import { SESSION_HINT_KEY, themeScript } from "@/lib/theme";
+import { ThemeProvider } from "./components/slots/theme-switcher";
 import "./globals.css";
 
 // Two families, nothing else (see the TYPE SCALE in globals.css): Fraunces for display, Instrument Sans for UI.
@@ -22,11 +23,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ color: "#F4EEE1" }],
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#F4EEE1" }, { media: "(prefers-color-scheme: dark)", color: "#11152A" }],
 };
 
-// Marks a returning signed-in owner before first paint, so the workspace heading shows without a layout shift.
-const sessionScript = `try{if(localStorage.getItem('${SESSION_HINT_KEY}')==='1')document.documentElement.dataset.auth='in'}catch(e){}`;
+// Before first paint: applies the saved theme/mode (lib/theme.ts, no flash) and marks a returning signed-in
+// owner, so the workspace heading shows without a layout shift.
+const sessionScript = `${themeScript}try{if(localStorage.getItem('${SESSION_HINT_KEY}')==='1')document.documentElement.dataset.auth='in'}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -34,9 +36,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${instrument.variable}`} suppressHydrationWarning>
+    <html lang="en" data-theme="b" data-mode="system" data-scheme="light" className={`${fraunces.variable} ${instrument.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: sessionScript }} /></head>
-      <body className="antialiased"><a className="skip-link" href="#main">Skip to content</a>{children}<SiteFooter /><Toaster position="bottom-center" duration={2600} /></body>
+      <body className="antialiased"><a className="skip-link" href="#main">Skip to content</a>{children}<SiteFooter /><ThemeProvider /><Toaster position="bottom-center" duration={2600} /></body>
     </html>
   );
 }

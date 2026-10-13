@@ -1,2 +1,2 @@
-import Workspace from './workspace';
+import Workspace from './workspace/shell';
 export default function Home() { return <Workspace />; }

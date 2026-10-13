@@ -134,7 +134,7 @@ test('notify.ts lists the events and refuses unknown ones without sending; mode.
 
 test('OpenAPI fragments: ten, each a {paths, schemas} pair of objects; merging keeps order and refuses redefinitions', () => {
   assert.equal(O.fragments.length, 10);
-  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes) and WS-04's (payment routes); WS-03's fragment; WS-06's fragment; WS-08's fragment; WS-07's fragment
+  // changed by WS-10: workstreams now fill their own fragment (WS-10's documents /api/heads, /api/readiness, /api/analytics, /api/oauth/grants); each is still a {paths, schemas} object. // integration: also covers WS-05's fragment (index 4: periods + rate-card routes) and WS-04's (payment routes); WS-03's fragment; WS-06's fragment; WS-08's fragment; WS-07's fragment; WS-09's fragment
   // changed by WS-07: owners fill their fragments, so a fragment only needs to be objects (it was "all empty"). // integration: WS-07's stricter non-array check kept.
   for (const f of O.fragments) for (const part of [f.paths, f.schemas]) assert.ok(part && typeof part === 'object' && !Array.isArray(part));
   const base = {'/b': 1, '/a': 2};
@@ -147,6 +147,7 @@ test('OpenAPI fragments: ten, each a {paths, schemas} pair of objects; merging k
 
 test('slot placeholders: one file per slot, each names its owner and renders null', () => {
   const slots = ['pay-block', 'whatsapp-share', 'data-notice', 'language-picker', 'co-card', 'retainer-counter', 'rate-card-picker', 'tds-field', 'msmed-terms', 'cosigner-editor', 'contact-change', 'payment-settings', 'timezone-select', 'theme-switcher'];
+  // WS-09 part C: theme-switcher implemented (integration: folded into the implemented union below).
   const dir = new URL('../../app/components/slots/', import.meta.url);
   // changed by WS-04: slots may have a colocated *.module.css, so only *.tsx files are compared.
   assert.deepEqual(readdirSync(dir).filter(f => f.endsWith('.tsx')).sort(), slots.map(s => s + '.tsx').sort());
@@ -157,8 +158,9 @@ test('slot placeholders: one file per slot, each names its owner and renders nul
   // changed by WS-06: whatsapp-share implemented (no longer null placeholders).
   // changed by WS-08: timezone-select implemented (no longer null placeholders).
   // changed by WS-07: data-notice, language-picker implemented (no longer null placeholders).
+  // changed by WS-09: theme-switcher implemented (no longer null placeholders).
   // integration: union of the implemented slots from each merged workstream.
-  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker', 'pay-block', 'payment-settings', 'tds-field', 'msmed-terms', 'whatsapp-share', 'timezone-select', 'data-notice', 'language-picker']);
+  const implemented = new Set(['cosigner-editor', 'contact-change', 'co-card', 'retainer-counter', 'rate-card-picker', 'pay-block', 'payment-settings', 'tds-field', 'msmed-terms', 'whatsapp-share', 'timezone-select', 'data-notice', 'language-picker', 'theme-switcher']);
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);
