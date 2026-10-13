@@ -1,5 +1,6 @@
 // WS-01 (M25): the SQL adapter's placeholder rewrite is a tokenizer, and data-modifying CTEs take
 // the write/lock path. Pure: a spy connection stands in for PostgreSQL.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

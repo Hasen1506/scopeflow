@@ -1,5 +1,6 @@
 // Phase 0 contracts (hark/ws-00-contracts): the shared stubs exist at their final paths and change
 // no behaviour. Pure: no server, no network, frozen clock, seeded properties.
+import '../support/fc-setup.mjs';
 import {test, mock} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, readdirSync} from 'node:fs';

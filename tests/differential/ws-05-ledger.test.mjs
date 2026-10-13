@@ -3,6 +3,7 @@
 // format (anchor and entry hashes, chain verification), every payload schema, checkEntry without a
 // date context, and the agreement fold. The only allowed difference is the added
 // `agreement.deliverables` view (LT-14), which is checked against its definition.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, scopeArb, freezeClock, tick} from '../support/property.mjs';

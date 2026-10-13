@@ -1,6 +1,7 @@
 // WS-10 pure suites (no server): client IP resolution behind proxies, the canonical-host rule, the
 // in-memory read limiter, the per-request session memo, the error taxonomy, envelope encryption and
 // the analytics privacy filter. Seeded (FC_SEED), no network.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

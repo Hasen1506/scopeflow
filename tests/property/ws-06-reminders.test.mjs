@@ -1,5 +1,6 @@
 // WS-06: reminder rules (scripts/send-reminders.mjs). Pure: TDS is never chased as unpaid money,
 // and a TDS-certificate reminder goes out at most once a quarter once the certificate is due.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock} from '../support/property.mjs';

@@ -1,5 +1,6 @@
 // WS-05: ledger kinds, change-order proof, date bounds, revise, deliverables fold, retainers and the
 // rate card. Pure: lib/* only, frozen clock, seeded properties.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock, tick} from '../support/property.mjs';

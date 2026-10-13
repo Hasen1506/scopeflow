@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit",
     "test:local": "node --env-file-if-exists=.env.local tests/run-local.mjs",
     "test:integration": "node --env-file-if-exists=.env.local tests/integration.mjs",
-    "test:props": "node --test \"tests/{property,golden,differential}/*.test.mjs\"",
+    "test:props": "node --import ./tests/support/fc-setup.mjs --test \"tests/{property,golden,differential}/*.test.mjs\"",
     "test:live": "node --env-file-if-exists=.env.local --test --test-concurrency=1 \"tests/live/*.test.mjs\"",
     "test:e2e": "node --env-file-if-exists=.env.local node_modules/@playwright/test/cli.js test",
     "test:coverage": "node scripts/check-coverage.mjs --strict",

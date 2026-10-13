@@ -2,6 +2,7 @@
 // operations keeps the live invoices (gross, advances included) within the agreement total.
 // M10: allocate() never goes negative, applies no more than was received net of refunds, and the
 // statement's coverage equals the sum of the invoices' coverage. Seeded (FC_SEED), frozen clock.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock} from '../support/property.mjs';

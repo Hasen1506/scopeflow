@@ -1,6 +1,7 @@
 // WS-02 pure tests: signing status and key policy (C1, C6), evidence wording and masking (C5, L1,
 // L2, L3, QA-02, QA-03), OTP limits (M15) and the diff-base rule (H2, M29). No server, no network,
 // seeded fast-check, frozen clock where time matters.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, readdirSync, statSync} from 'node:fs';

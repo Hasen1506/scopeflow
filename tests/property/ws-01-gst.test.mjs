@@ -1,4 +1,5 @@
 // WS-01: place of supply by recipient location (H13) and the per-head GST engine (M1, M2). Pure.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

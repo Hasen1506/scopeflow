@@ -1,6 +1,7 @@
 // WS-06: outbound mail. Pure (no server, no network): owner text inside the fixed templates (M19),
 // the mail router's failover across providers (SF-19), provider request shapes with the
 // List-Unsubscribe header, signed unsubscribe links and the bounce/complaint webhook parsers.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock, TEST_SECRET} from '../support/property.mjs';

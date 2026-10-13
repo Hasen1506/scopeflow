@@ -1,6 +1,7 @@
 // WS-06: WhatsApp. Pure (no server, no network): wa.me share links and the prefilled messages
 // (LT-03, SF-01), the Cloud API request bodies (SF-10 OTP template, SF-04 replies), the webhook
 // signature check and payload parser (SF-04), and the inbound sender rules (L7).
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock} from '../support/property.mjs';

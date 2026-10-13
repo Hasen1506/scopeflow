@@ -1,6 +1,7 @@
 // PR F: Razorpay deposit scaffold. Pure (no server, no network): configuration, minor units,
 // deposit amount, order creation through a stubbed fetch, webhook and checkout signature
 // verification, and parsing of paid events. Also checks the new ledger kind.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';

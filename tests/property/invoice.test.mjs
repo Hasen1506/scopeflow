@@ -1,6 +1,7 @@
 // Invoices, business profile and automatic reminders (pure): the tax split always adds up, numbers
 // are padded and prefixed, the amount is capped by the balance, the PDF is deterministic, profile
 // validation and draft defaults, and the automatic-reminder rule.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

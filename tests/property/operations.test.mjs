@@ -2,6 +2,7 @@
 // AWS Signature V4), the production signing-key rule, owner logos and their PDF embedding, email
 // forwarding parsing, embedding-based radar matching, the retention SQL, Stripe Checkout and
 // webhooks, refunds on the ledger, the model-lifecycle guard and template tags.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';

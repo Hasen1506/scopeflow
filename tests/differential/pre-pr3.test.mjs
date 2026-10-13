@@ -4,6 +4,7 @@
 //  B. The client's "Verified in your browser" check (lib/record-check.ts, the code the
 //     review page runs) vs the server's verification, on random and tampered records.
 // Every difference found is asserted to belong to a documented class (docs/testing.md).
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, scopeArb, idArb, freezeClock, tick} from '../support/property.mjs';

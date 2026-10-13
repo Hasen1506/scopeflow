@@ -1,5 +1,6 @@
 // Statement of account (lib/statement.ts): the figures come only from the approved baseline and its
 // ledger, the balance never goes negative, and the PDF is deterministic and states every figure.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock, tick} from '../support/property.mjs';

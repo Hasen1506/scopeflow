@@ -2,6 +2,7 @@
 // tax) and the read-only / link-problem states (H4, H10, LT-10). Pure: no server, frozen clock,
 // seeded properties; ledgers built with tests/support/chain.mjs exactly as the server builds them.
 // @covers LT-01 M7 SF-23 LT-10 H4 H10
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock, tick, scopeArb} from '../support/property.mjs';
