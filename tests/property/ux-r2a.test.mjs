@@ -132,7 +132,8 @@ test('N9: the operator billing note is keyed on admin emails or an explicit opt-
 
 test('visual #2: money figures never break mid-number on the review page or the workspace', () => {
   const css = code('app/globals.css');
-  assert.match(css, /\.scope-stats strong,\.summary-strip strong,\.pay-fig,\.terms-line strong,\.item-price\{white-space:nowrap;overflow-wrap:normal;word-break:normal\}/);
+  // R4-04 added the agreement tiles' money figures (.agreement-grid strong.money-fig) to the same rule.
+  assert.match(css, /\.scope-stats strong,\.summary-strip strong,\.pay-fig,\.terms-line strong,\.item-price(,[^{]+)?\{white-space:nowrap;overflow-wrap:normal;word-break:normal\}/);
   // R3-02: in the payment tiles only the figure is kept on one line; the explanatory notes wrap.
   assert.doesNotMatch(css, /\.pay-grid dd[^{]*\{[^}]*nowrap/);
   const moneyTsx = code('app/workspace/money.tsx');

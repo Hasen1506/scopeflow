@@ -277,7 +277,7 @@ label select{margin-top:7px}
 .scope-stats span{display:block;font-family:var(--font-ui);font-size:var(--fs-1);letter-spacing:.08em;text-transform:uppercase}
 .scope-stats strong{display:block;font-family:var(--font-display);font-size:var(--fs-5);font-weight:var(--fw-1);font-variant-numeric:tabular-nums;line-height:var(--lh-5);margin-top:4px}
 /* Visual #2: a money figure never breaks mid-number ("₹1,00,000.0" / "0"), whatever overflow-wrap the page sets. */
-.scope-stats strong,.summary-strip strong,.pay-fig,.terms-line strong,.item-price{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+.scope-stats strong,.summary-strip strong,.pay-fig,.terms-line strong,.item-price,.agreement-grid strong.money-fig{white-space:nowrap;overflow-wrap:normal;word-break:normal}
 @media (max-width:420px){.scope-stats{grid-template-columns:1fr;gap:12px}.summary-strip strong{font-size:var(--fs-4);line-height:var(--lh-4)}}
 /* Visual #9: a unit price is labelled "each" (or a legacy line price "for all N") under the line total. */
 .item-price{display:flex;flex-direction:column;align-items:flex-end;text-align:right}
@@ -328,6 +328,11 @@ label select{margin-top:7px}
 .item-meta{display:grid;grid-template-columns:80px 1fr 1fr;gap:8px}
 .item-meta label,.item-accept{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2)}
 .item-meta input,.item-accept input{padding:7px 9px;font-size:var(--fs-2);margin-top:3px}
+/* R4-02: the price cell holds its label, the line total it makes and the per-unit / line-total switch. */
+.item-meta .price-cell{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2);min-width:0}
+.item-meta .price-cell label{margin:0;font-size:inherit;color:inherit}
+.price-mode{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-top:3px;font-variant-numeric:tabular-nums}
+.price-mode .link-button{font-size:var(--fs-1)}
 .input-row{display:grid;grid-template-columns:1fr 160px 34px;gap:8px;align-items:center;margin:8px 0}
 .milestone-row{grid-template-columns:minmax(8rem,1fr) 5.5rem 9.5rem auto 34px}.milestone-row .fine{text-align:right;white-space:nowrap}
 .fx-row{grid-template-columns:110px 1fr 160px 1fr 34px}
@@ -429,6 +434,11 @@ label select{margin-top:7px}
 .agreement-grid meter.over::-moz-meter-bar{background:var(--bad)}
 .agreement-grid meter.over{accent-color:var(--bad)}
 .agreement-view .agreement-grid strong{font-size:var(--fs-4)}
+/* R4-04: a money tile's figure stays whole (.money-fig, nowrap). Two figures ("₹x / ₹y", .money-pair) wrap only between
+   them. In a narrow card a money tile takes the full row, so "₹1,00,00,000.00" fits instead of breaking mid-number. */
+.agreement-grid strong.money-pair{white-space:normal}
+@container (max-width:419px){.agreement-grid:not(:has(>div:nth-child(3):last-child))>div:has(>.money-fig){grid-column:1/-1}}
+@media (max-width:420px){.agreement-grid:not(:has(>div:nth-child(3):last-child))>div:has(>.money-fig){grid-column:1/-1}}
 .ledger-form{border:1px solid var(--rule-strong);border-radius:var(--r);padding:4px 16px 16px;margin:14px 0;background:var(--surface-2);animation:sf-fade-up var(--dur-3) var(--ease)}
 .change-order{border:1px solid var(--rule-strong);border-left:3px solid var(--accent);border-radius:var(--r);padding:18px;margin:18px 0;background:var(--surface-2)}
 .change-order blockquote{margin:10px 0;padding-left:14px;border-left:1px solid var(--rule-strong);color:var(--ink-2);font-style:italic;font-family:var(--font-display);font-size:var(--fs-3)}
@@ -521,7 +531,7 @@ label select{margin-top:7px}
   .footer-inner{grid-template-columns:1fr;gap:28px;padding-top:40px}
   .empty-state{grid-template-columns:72px 1fr}.empty-state img{width:72px;height:72px}
 }
-@media (max-width:600px){.milestone-row,.fx-row,.input-row.bank-row{grid-template-columns:1fr 1fr}.milestone-row .icon,.fx-row .icon,.bank-row .icon{justify-self:end}.item-meta{grid-template-columns:70px 1fr}.item-meta label:last-child{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
+@media (max-width:600px){.milestone-row,.fx-row,.input-row.bank-row{grid-template-columns:1fr 1fr}.milestone-row .icon,.fx-row .icon,.bank-row .icon{justify-self:end}.item-meta{grid-template-columns:70px 1fr}.item-meta label:last-child,.item-meta>.price-cell{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
 
 /* ---- Print: always the plain document --------------------------------------------------- */
 @media print{

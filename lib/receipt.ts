@@ -2,7 +2,7 @@ import QRCode from 'qrcode';
 import {PdfDocument, wrap, type Font} from './pdf';
 import {drawPdfBrand, type PdfBrand} from './brand';
 import {itemsOf, formatMoney, label, type Scope} from './scope';
-import {fxLine, schedule, totals} from './money';
+import {fxLine, itemPriceText, schedule, totals} from './money';
 import {formatDay, stamp} from './time';
 import type {PaymentLine} from './ledger';
 import {acceptanceWording, codeLine, evidenceStatement, evidenceWording, fingerprintWording, maskAddress, type SealStatus} from './evidence';
@@ -135,7 +135,7 @@ export function renderReceiptPdf(m: ReceiptModel, brand: PdfBrand | null = null)
   heading('Scope of work');
   for (const i of itemsOf(m.content)) {
     const qty = i.qty > 1 || i.unit ? ` × ${i.qty}${i.unit ? ' ' + i.unit : ''}` : '';
-    const price = i.price != null ? ` · ${formatMoney(i.price, m.content.currency)}` : '';
+    const price = itemPriceText(i, m.content.currency); // R4-02: the line total as on the client page
     para(`• ${i.title}${qty}${price}`, {size: 9.5, gap: 0});
     if (i.acceptance) para(`Done when: ${i.acceptance}`, {size: 8.5, gray: 0.35, indent: 10, gap: 0});
   }

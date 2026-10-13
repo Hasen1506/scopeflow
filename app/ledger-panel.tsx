@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {FilePlus2, Gift, Inbox, RefreshCw, RotateCcw, ShieldCheck, ShieldAlert} from 'lucide-react';
 import {coSummary, describeEntry, type Agreement, type ChangeOrder, type LedgerEntry} from '@/lib/ledger';
 import {formatMoney, label, type Item, type Scope} from '@/lib/scope';
+import {itemsTotal} from '@/lib/money';
 import {formatInZone, formatDay} from '@/lib/time';
 import {ItemsEditor} from './items-editor';
 import {ScopeCheck} from './scope-check';
@@ -135,11 +136,11 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
       {a && base && (
         <>
           <div className="agreement-grid">
-            <div><span>Current fee</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>was {formatMoney(a.fee_base, cur)}</em>}</div>
+            <div><span>Current fee</span><strong className="money-fig">{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>was {formatMoney(a.fee_base, cur)}</em>}</div>
             <div><span>Delivery</span><strong>{formatDay(a.due) || 'Not set'}</strong>{a.days_shift !== 0 && <em>{a.days_shift > 0 ? '+' : ''}{a.days_shift} days{a.due_base ? ` from ${formatDay(a.due_base)}` : ''}</em>}</div>
             <div><span>Revision rounds</span><strong className={a.rounds_over ? 'over' : ''}>{a.revisions_used} / {a.revisions_allowed}</strong><meter aria-label="Revision rounds used" aria-valuetext={`${a.revisions_used} of ${a.revisions_allowed}`} min={0} max={Math.max(1, a.revisions_allowed)} className={a.rounds_over || a.revisions_used >= a.revisions_allowed ? 'over' : undefined} value={Math.min(a.revisions_used, Math.max(1, a.revisions_allowed))} /></div>
-            {a.bank && <div><span>Revision {a.bank.unit === 'hours' ? 'hours' : 'budget'}</span><strong className={a.bank.over ? 'over' : ''}>{a.bank.unit === 'hours' ? `${a.bank.used}h / ${a.bank.allowed}h` : `${formatMoney(a.bank.used, cur)} / ${formatMoney(a.bank.allowed, cur)}`}</strong><meter aria-label={`Revision ${a.bank.unit === 'hours' ? 'hours' : 'budget'} used`} aria-valuetext={a.bank.unit === 'hours' ? `${a.bank.used} of ${a.bank.allowed} hours` : `${formatMoney(a.bank.used, cur)} of ${formatMoney(a.bank.allowed, cur)}`} min={0} max={Math.max(1, a.bank.allowed)} className={a.bank.over || a.bank.left === 0 ? 'over' : undefined} value={Math.min(a.bank.used, Math.max(1, a.bank.allowed))} />{a.bank.over > 0 && <em>{a.bank.unit === 'hours' ? `${a.bank.over}h over` : `${formatMoney(a.bank.over, cur)} over`}{a.bank.overage_value > 0 ? ` · ${formatMoney(a.bank.overage_value, cur)} billable` : ''}</em>}</div>}
-            <div><span>Goodwill absorbed</span><strong>{formatMoney(a.goodwill_value, cur)}</strong>{a.goodwill_hours > 0 && <em>{a.goodwill_hours}h unbilled</em>}</div>
+            {a.bank && <div><span>Revision {a.bank.unit === 'hours' ? 'hours' : 'budget'}</span><strong className={(a.bank.over ? 'over ' : '') + (a.bank.unit === 'hours' ? '' : 'money-fig money-pair')}>{a.bank.unit === 'hours' ? `${a.bank.used}h / ${a.bank.allowed}h` : `${formatMoney(a.bank.used, cur)} / ${formatMoney(a.bank.allowed, cur)}`}</strong><meter aria-label={`Revision ${a.bank.unit === 'hours' ? 'hours' : 'budget'} used`} aria-valuetext={a.bank.unit === 'hours' ? `${a.bank.used} of ${a.bank.allowed} hours` : `${formatMoney(a.bank.used, cur)} of ${formatMoney(a.bank.allowed, cur)}`} min={0} max={Math.max(1, a.bank.allowed)} className={a.bank.over || a.bank.left === 0 ? 'over' : undefined} value={Math.min(a.bank.used, Math.max(1, a.bank.allowed))} />{a.bank.over > 0 && <em>{a.bank.unit === 'hours' ? `${a.bank.over}h over` : `${formatMoney(a.bank.over, cur)} over`}{a.bank.overage_value > 0 ? ` · ${formatMoney(a.bank.overage_value, cur)} billable` : ''}</em>}</div>}
+            <div><span>Goodwill absorbed</span><strong className="money-fig">{formatMoney(a.goodwill_value, cur)}</strong>{a.goodwill_hours > 0 && <em>{a.goodwill_hours}h unbilled</em>}</div>
           </div>
           {a.bank && a.bank.left === 0 && (
             <div className="muted-box warn-box">
@@ -225,7 +226,7 @@ function ChangeOrderForm({seed, agreement, scope, projectId, busy, error, onInva
   const cur = agreement.currency;
   const payload: ChangeOrder = {title, reason, request_quote: quote, add_items: add, remove_item_ids: remove, fee_delta: Number(fee) || 0, days_delta: Math.round(Number(days) || 0), revisions_delta: Math.round(Number(rounds) || 0), ...(agreement.bank && Number(bankDelta) ? {bank_delta: Number(bankDelta)} : {}), ...(seed.revises ? {revises: seed.revises} : {}), ...(rateCard ? {rate_card: rateCard} : {})};
   const nudges = changeOrderNudges(payload);
-  const itemTotal = add.reduce((s, i) => s + (i.price ?? 0), 0);
+  const itemTotal = itemsTotal(add, cur).total; // R4-02: qty × unit_price lines count like on the client page
   const fingerprint = JSON.stringify(payload);
   const [initial] = useState(fingerprint);
   useEffect(() => { onDirty(fingerprint !== initial); }, [fingerprint, initial, onDirty]);

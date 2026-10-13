@@ -8,10 +8,12 @@ import {api, post, type ApiError} from '../ui';
 import WhatsAppShare, {ClientNotice} from '../components/slots/whatsapp-share';
 import {formatMoney} from '@/lib/currency';
 import {COPY_FAILED, copyText} from '@/lib/clipboard';
+import {exactUnitPrice, itemsTotal} from '@/lib/money';
+import {withUnitPrice} from '@/lib/editor';
 import styles from './share.module.css';
 
 type Citation = {id: string; kind: string; text: string};
-type Item = {id: string; title: string; qty: number; unit: string; price: number | null; acceptance: string};
+type Item = {id: string; title: string; qty: number; unit: string; price: number | null; unit_price?: number; acceptance: string};
 type ChangeOrder = {title?: string; reason?: string; request_quote?: string; add_items?: Item[]; fee_delta?: number; days_delta?: number; revisions_delta?: number};
 type Price = {item_id: string; unit_price: number; source: 'rate_card' | 'price_history'; matched: string};
 type Radar = {verdict: string; covered: string; engine: string; reasons: string[]; citations: Citation[]; reply: string; basis: string; note: string | null; change_order: ChangeOrder | null; prices: Price[]; currency: string; baseline_version: number | null; tax_pct: number; tax_label: string};
@@ -88,7 +90,11 @@ function ChangeOrderDraft({capture, radar, review, project}: {capture: Capture; 
   const [title, setTitle] = useState(co.title ?? 'Additional work'), [items, setItems] = useState<Item[]>(co.add_items ?? []);
   const [fee, setFee] = useState<string>(co.fee_delta ? String(co.fee_delta) : ''), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [proposed, setProposed] = useState<{seq: number; email: Email; amount: string | null} | null>(null);
-  const computed = useMemo(() => items.reduce((a, i) => a + (typeof i.price === 'number' ? i.price * i.qty : 0), 0), [items]);
+  // R4-03: a change-order item's `price` is its line total. The field here is a price per unit, so it is kept as
+  // unit_price and the fee is the sum of the line totals (qty × unit), exactly as the agreement will show them.
+  const computed = useMemo(() => itemsTotal(items, radar.currency).total, [items, radar.currency]);
+  const unitOf = (it: Item) => { const u = exactUnitPrice(it, radar.currency); return u ?? (typeof it.price === 'number' ? Math.round(it.price / Math.max(1, it.qty) * 100) / 100 : null); };
+  const setQty = (i: number, qty: number) => setItems(list => list.map((x, n) => { if (n !== i) return x; const u = x.unit_price == null && typeof x.price === 'number' ? exactUnitPrice(x, radar.currency) : null; return u != null ? withUnitPrice({...x, qty}, u) : {...x, qty}; }));
   const feeValue = fee === '' ? computed : Number(fee);
   const withTax = Math.round(feeValue * (1 + (radar.tax_pct || 0) / 100) * 100) / 100;
   const source = (id: string) => radar.prices.find(p => p.item_id === id);
@@ -96,7 +102,7 @@ function ChangeOrderDraft({capture, radar, review, project}: {capture: Capture; 
   async function propose() {
     setBusy(true); setError('');
     try {
-      const payload = {title, reason: co.reason ?? '', request_quote: co.request_quote ?? capture.text.slice(0, 2000), add_items: items.map(i => ({...i, price: typeof i.price === 'number' && Number.isFinite(i.price) ? i.price : null})), fee_delta: Number.isFinite(feeValue) ? feeValue : 0, days_delta: co.days_delta ?? 0, revisions_delta: co.revisions_delta ?? 0};
+      const payload = {title, reason: co.reason ?? '', request_quote: co.request_quote ?? capture.text.slice(0, 2000), add_items: items.map(({unit_price, ...i}) => ({...i, price: typeof i.price === 'number' && Number.isFinite(i.price) ? i.price : null, ...(typeof unit_price === 'number' && Number.isFinite(unit_price) ? {unit_price} : {})})), fee_delta: Number.isFinite(feeValue) ? feeValue : 0, days_delta: co.days_delta ?? 0, revisions_delta: co.revisions_delta ?? 0};
       const r = await api(`/api/scopes/${encodeURIComponent(capture.project_id!)}/ledger`, post({kind: 'change_order', baseline_version: radar.baseline_version, payload, request_id: 'share-' + capture.id.replaceAll('-', '')}));
       const n: Notices = await api(`/api/scopes/${encodeURIComponent(capture.project_id!)}/notifications`);
       const mine = n.change_orders.find(c => c.seq === r.seq);
@@ -110,8 +116,9 @@ function ChangeOrderDraft({capture, radar, review, project}: {capture: Capture; 
     <label className={styles.field}>Title<input value={title} onChange={e => setTitle(e.target.value)} maxLength={160} required minLength={3} /></label>
     {items.map((it, i) => <div className={styles.grid} key={it.id}>
       <label className={styles.field}>Deliverable<input value={it.title} onChange={e => setItem(i, {title: e.target.value})} maxLength={200} /></label>
-      <label className={styles.field}>Qty<input type="number" min={1} value={it.qty} onChange={e => setItem(i, {qty: Math.max(1, Number(e.target.value) || 1)})} /></label>
-      <label className={styles.field}>Unit price ({radar.currency})<input type="number" min={0} step="0.01" value={it.price ?? ''} onChange={e => setItem(i, {price: e.target.value === '' ? null : Number(e.target.value)})} data-testid="co-unit-price" /></label>
+      <label className={styles.field}>Qty<input type="number" min={1} value={it.qty} onChange={e => setQty(i, Math.max(1, Math.round(Number(e.target.value)) || 1))} /></label>
+      <label className={styles.field}>Unit price ({radar.currency})<input type="number" min={0} step="0.01" value={unitOf(it) ?? ''} onChange={e => setItems(list => list.map((x, n) => n === i ? withUnitPrice(x, e.target.value === '' ? null : Number(e.target.value)) : x))} data-testid="co-unit-price" /></label>
+      {it.qty > 1 && unitOf(it) != null && <p className={styles.fine} data-testid="co-line-total">{it.qty} × {formatMoney(unitOf(it)!, radar.currency)} = {formatMoney(itemsTotal([it], radar.currency).total, radar.currency)}</p>}
       {source(it.id) && <p className={styles.fine}>{source(it.id)!.source === 'rate_card' ? `From your rate card: ${source(it.id)!.matched}` : `From your earlier scope: ${source(it.id)!.matched}`}</p>}
     </div>)}
     <label className={styles.field}>Fee change ({radar.currency})<input type="number" step="0.01" value={fee === '' ? (computed || '') : fee} onChange={e => setFee(e.target.value)} data-testid="co-fee" /></label>

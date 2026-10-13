@@ -1,5 +1,6 @@
 // Pure helpers for the scope editor (unit-tested in tests/unit.mjs).
-import type {Scope} from './scope';
+import type {Item, Scope} from './scope';
+import {exactUnitPrice, itemsTotal, lineTotal} from './money';
 
 /** Number inputs: keep NaN (empty field) as-is, otherwise clamp into [min, max]. */
 export function clampNumber(value: number, min: number, max: number) {
@@ -62,7 +63,7 @@ const isRecord = (x: unknown): x is Record<string, unknown> => !!x && typeof x =
 const validItem = (x: unknown) => isRecord(x) && typeof x.id === 'string' && typeof x.title === 'string';
 const validInput = (x: unknown) => isRecord(x) && typeof x.id === 'string' && typeof x.title === 'string';
 function normalizeItem(i: Record<string, unknown>) {
-  return {id: i.id as string, title: i.title as string, qty: typeof i.qty === 'number' && Number.isFinite(i.qty) ? i.qty : 1, unit: typeof i.unit === 'string' ? i.unit : '', price: typeof i.price === 'number' && Number.isFinite(i.price) ? i.price : null, acceptance: typeof i.acceptance === 'string' ? i.acceptance : ''};
+  return {id: i.id as string, title: i.title as string, qty: typeof i.qty === 'number' && Number.isFinite(i.qty) ? i.qty : 1, unit: typeof i.unit === 'string' ? i.unit : '', price: typeof i.price === 'number' && Number.isFinite(i.price) ? i.price : null, ...(typeof i.unit_price === 'number' && Number.isFinite(i.unit_price) ? {unit_price: i.unit_price} : {}), acceptance: typeof i.acceptance === 'string' ? i.acceptance : ''};
 }
 /** A draft as the editor can render it, or null when it is not a scope draft. Malformed list rows are
  *  dropped instead of crashing the editor (drafts from older builds, edited by hand, or sent to the API). */
@@ -193,4 +194,53 @@ export function bannerAfterFix(error: string, problem: string, stillThere: boole
   const head = error.slice(VALIDATION_BANNER.length, error.length - problem.length - 1).replace(/\.$/, '');
   const names = head.split(', ').filter(n => n && n !== FIELD_LABELS.milestones);
   return names.length ? VALIDATION_BANNER + names.join(', ') + '.' : null;
+}
+
+// R4-02: an item is priced either by its line total (`price`) or per unit (`unit_price`, line = qty × unit_price).
+// Setting one clears the other, so what the owner types is always what the client page, PDF and totals use.
+type Priced = Pick<Item, 'qty' | 'price' | 'unit_price'>;
+/** The item priced by its line total (`price`); any unit price is removed. */
+export function withLinePrice<T extends Priced>(item: T, price: number | null): T {
+  const {unit_price: _unit, ...rest} = item;
+  return {...rest, price} as T;
+}
+/** The item priced per unit; `price` is cleared (null), and an empty field leaves it unpriced. */
+export function withUnitPrice<T extends Priced>(item: T, unit: number | null): T {
+  const {unit_price: _unit, ...rest} = item;
+  return (unit == null ? {...rest, price: null} : {...rest, price: null, unit_price: unit}) as T;
+}
+/** Switch to per-unit pricing without changing the line total; null when the total does not divide exactly by qty. */
+export function toPerUnit<T extends Priced>(item: T, currency: string): T | null {
+  if (item.unit_price != null) return item;
+  if (item.price == null) return withUnitPrice(item, null);
+  const unit = exactUnitPrice(item, currency);
+  return unit == null ? null : withUnitPrice(item, unit);
+}
+/** Switch to a line total, keeping the money the client sees (qty × unit_price). */
+export function toLineTotal<T extends Priced>(item: T, currency: string): T {
+  let line: number | null = null;
+  try { line = lineTotal(item, currency); } catch { /* too large to compute: left unpriced */ }
+  return withLinePrice(item, line);
+}
+/**
+ * R4-03: a drafted change order with a suggested price per unit on each unpriced new item (`unit` by item id), going
+ * in as unit_price because a change-order item's `price` is its line total; fee_delta, when not set, becomes the sum of
+ * the line totals. So 3 × ₹1,000 proposes ₹3,000 and the agreement shows ₹3,000 for that deliverable.
+ */
+export function priceCoItems<I extends Priced & {id: string}, C extends {add_items?: I[]; fee_delta?: number}>(co: C, unit: ReadonlyMap<string, number>, currency: string): C {
+  const add = (co.add_items ?? []).map(i => (typeof i.price === 'number' || i.unit_price != null || !unit.has(i.id) ? i : withUnitPrice(i, unit.get(i.id)!)));
+  const fee = itemsTotal(add, currency).total;
+  return {...co, add_items: add, ...(!co.fee_delta && fee ? {fee_delta: fee} : {})};
+}
+/**
+ * R4-05/R4-06: what a template keeps from the draft it replaces: the typed project name, client and client email,
+ * for a new (unsaved) draft that is not the example. The chip row and "Use template" (/?template=) both use it.
+ */
+export function templateKeep(s: {active: boolean; isSample: boolean; draft: Pick<Scope, 'title' | 'client'>; clientEmail: string}): {title?: string; client?: string; email?: string} {
+  const keep: {title?: string; client?: string; email?: string} = {};
+  if (s.active || s.isSample) return keep;
+  if (s.draft.title.trim()) keep.title = s.draft.title;
+  if (s.draft.client.trim()) keep.client = s.draft.client;
+  if (s.clientEmail.trim()) keep.email = s.clientEmail;
+  return keep;
 }

@@ -59,7 +59,7 @@
 .problem h1{font-size:var(--fs-5)}
 
 @media (max-width:480px){
-  .now dd{white-space:normal}
+  .now dd{white-space:normal;overflow-wrap:normal} /* R4-04: wraps between words only, never mid-number */
   .shell :global(.actions){flex-direction:column;align-items:stretch}
   .shell :global(.actions)>:global(*){width:100%;text-align:center}
 }

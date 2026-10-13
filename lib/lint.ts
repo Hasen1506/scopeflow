@@ -1,4 +1,5 @@
 import {formatMoney, itemsOf, type Scope} from './scope';
+import {itemsTotal} from './money';
 
 export type Severity = 'error' | 'warn' | 'info';
 export type LintIssue = {rule: string; severity: Severity; field: string; item_id?: string; subfield?: 'title' | 'acceptance'; message: string; fix?: string; rewrite?: Rewrite};
@@ -73,11 +74,11 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
   if (items.length && noAcceptance.length === items.length) add({rule: 'no-acceptance', severity: 'warn', field: 'items', message: 'No deliverable says when it counts as done.', fix: 'Add “Done when” criteria, e.g. file formats or approval in a specific tool.'});
   else if (noAcceptance.length) add({rule: 'some-acceptance', severity: 'info', field: 'items', message: `${noAcceptance.length} of ${items.length} deliverables have no “Done when” criteria.`});
 
-  const priced = items.filter(i => i.price != null);
-  const total = priced.reduce((sum, i) => sum + (i.price ?? 0), 0);
-  if (priced.length && priced.length === items.length && Math.abs(total - s.fee) > 0.005)
+  // R4-02: line totals as the client sees them (qty × unit_price when a unit price is set).
+  const {total, priced} = itemsTotal(items, s.currency);
+  if (priced && priced === items.length && Math.abs(total - s.fee) > 0.005)
     add({rule: 'fee-mismatch', severity: 'warn', field: 'fee', message: `Item prices add up to ${formatMoney(total, s.currency)} but the fee is ${formatMoney(s.fee, s.currency)}.`, fix: s.fee < total ? 'If this is a discount, say so in the working terms.' : 'Price every deliverable or explain the difference.'});
-  else if (priced.length && total > s.fee + 0.005)
+  else if (priced && total > s.fee + 0.005)
     add({rule: 'fee-mismatch', severity: 'warn', field: 'fee', message: `Priced items already exceed the fee (${formatMoney(total, s.currency)} > ${formatMoney(s.fee, s.currency)}).`});
   // PR C: payment terms that need each other.
   if ((s.deposit_pct ?? 0) > 0 && !s.payment_terms) add({rule: 'deposit-no-terms', severity: 'info', field: 'payment_terms', message: `A ${s.deposit_pct}% deposit is set but no payment terms say when the balance is due.`, fix: 'Add payment terms, e.g. “Balance due within 15 days of delivery”.'});

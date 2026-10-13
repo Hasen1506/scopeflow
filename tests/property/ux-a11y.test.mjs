@@ -27,7 +27,9 @@ test('UX-C36: editor inputs point at their error text and inline errors no longe
   }
   assert.ok(!/className="error-text" role="alert"/.test(editor), 'editor field errors are plain text');
   assert.ok(!/className="error-text" role="alert"/.test(items), 'item price errors are plain text');
-  assert.ok(items.includes("aria-describedby={describedBy(!!amountProblem(item.price, currency) && errorId('price-' + item.id))}"));
+  // R4-02: one price field per row (line total or per unit); it points at its error and at the line-total note.
+  assert.ok(items.includes("const problem = amountProblem(value, currency, what), id = errorId((perUnit ? 'unit_price-' : 'price-') + item.id)"));
+  assert.ok(items.includes("aria-describedby={describedBy(!!problem && id, !!note && hint)}"));
 });
 
 test('UX-C42: the clarity check speaks the verdict only, and only when it changes', () => {
