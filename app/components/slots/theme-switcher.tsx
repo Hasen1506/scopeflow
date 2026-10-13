@@ -3,7 +3,7 @@
 // Theme A/B switch plus colour mode (system / light / dark), and the ThemeProvider that keeps the
 // choice in step with the signed-in account. State and DOM helpers live in lib/theme.ts.
 import {useEffect, useSyncExternalStore, type ReactNode} from 'react';
-import {THEMES, MODES, applyTheme, fromSnapshot, isClientPath, parseChoice, serverThemeSnapshot, subscribeTheme, themeSnapshot, type ModeId, type ThemeChoice, type ThemeId} from '@/lib/theme';
+import {THEMES, MODES, applyTheme, fromSnapshot, isClientPath, parseChoice, serverThemeSnapshot, subscribeTheme, syncThemeColor, themeSnapshot, type ModeId, type ThemeChoice, type ThemeId} from '@/lib/theme';
 
 export function useTheme() {
   return fromSnapshot(useSyncExternalStore(subscribeTheme, themeSnapshot, serverThemeSnapshot));
@@ -20,6 +20,8 @@ export async function saveChoice(choice: ThemeChoice) {
 
 /** Loads the account's saved theme once signed in, so it follows the owner to any browser. */
 export function ThemeProvider({children}: {children?: ReactNode}) {
+  // UX-C57: the theme set before paint also sets the browser chrome colour.
+  useEffect(() => { syncThemeColor(); }, []);
   useEffect(() => {
     if (isClientPath(location.pathname)) return;
     let last = '';
@@ -50,7 +52,7 @@ export default function ThemeSwitcher({className = ''}: ThemeSwitcherProps) {
     <div className={`theme-switch ${className}`.trim()} role="group" aria-label="Theme">
       {THEMES.map(t => (
         <button key={t.id} type="button" aria-pressed={theme === t.id} title={`Theme ${t.id.toUpperCase()}: ${t.name}`} aria-label={`Theme ${t.id.toUpperCase()}, ${t.name}`} onClick={() => set({theme: t.id as ThemeId})}>
-          {t.id.toUpperCase()}
+          <span className="theme-letter" aria-hidden="true">{t.id.toUpperCase()}</span><span className="theme-name" aria-hidden="true">{t.id === 'a' ? 'Etched' : 'Original'}</span>
         </button>
       ))}
       <select aria-label="Colour mode" value={mode} onChange={e => set({mode: e.target.value as ModeId})}>

@@ -4,6 +4,7 @@ import {PenLine, Plus, ShieldCheck, Timer, X} from 'lucide-react';
 import {LINK_EXPIRY_CHOICES} from '@/lib/link';
 import {formatInZone} from '@/lib/time';
 import {api, post} from './ui';
+import {SavedNote, useSavedFlash} from './saved-status';
 
 export type OtpChannel = 'email' | 'sms' | 'whatsapp';
 export type ProjectSettings = {
@@ -27,9 +28,10 @@ export function TrustSettings({projectId, settings, channels, pending, expires, 
   cosigns: CosignView[]; approved: boolean; timeZone: string | null; onChange: (s: ProjectSettings) => void;
 }) {
   const [now] = useState(() => Date.now()), [busy, setBusy] = useState(false), [error, setError] = useState(''), [phone, setPhone] = useState(settings.client_phone), [role, setRole] = useState('');
+  const {saved, flash, clear} = useSavedFlash();
   async function patch(change: Partial<ProjectSettings>) {
-    setBusy(true); setError('');
-    try { const r = await api(`/api/scopes/${projectId}`, {...post(change), method: 'PATCH'}); onChange(r.project); }
+    setBusy(true); setError(''); clear();
+    try { const r = await api(`/api/scopes/${projectId}`, {...post(change), method: 'PATCH'}); onChange(r.project); flash(); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const channel = settings.otp_channel, needsPhone = channel !== 'email';
@@ -80,6 +82,7 @@ export function TrustSettings({projectId, settings, channels, pending, expires, 
           <button type="button" className="secondary" disabled={busy || role.trim().length < 2} onClick={() => { const base = slug(role); let id = base, n = 2; while (settings.cosigners.some(c => c.id === id)) id = `${base.slice(0, 21)}-${n++}`; void patch({cosigners: [...settings.cosigners, {id, role: role.trim()}]}).then(() => setRole('')); }}><Plus size={15} />Add role</button>
         </div>}
       </div>
+      <SavedNote saved={saved} />
       {error && <p className="error" role="alert">{error}</p>}
     </div>
   );

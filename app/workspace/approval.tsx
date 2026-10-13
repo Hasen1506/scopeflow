@@ -7,11 +7,12 @@ import {TrustSettings} from '../trust-settings';
 import WhatsAppShare from '../components/slots/whatsapp-share';
 import {revokedNote,decidedStatus} from '@/lib/review-link-copy';
 import type {Ws} from './state';
+import {stepState} from './step-state';
 
 export function approvalStep(w:Ws){const {refreshDecision,active,activeOv,ai,archived,busy,calloutCopies,copy,copyReviewLink,cosigns,history,link,linkExpiresAt,next,otpChannels,receiptUrl,remind,savedEmail,sendFallback,setLinkAction,setReviseOpen,setTrust,timeZone,trust}=w;
   // Visual #16: the current version's review link stays visible (with Open and Copy) after the editor session, not only right after saving or copying.
   const reviewLink=link||(active&&!active.revoked&&typeof location!=='undefined'?location.origin+'/review/'+active.token:'');
-  return (active&&<section id="step-approval" className="editor flow-step" aria-labelledby="h-approval">
+  return (active&&<section id="step-approval" className="editor flow-step" data-state={stepState(w,'approval')} aria-labelledby="h-approval">
       <div className="step-head"><span className="step-num" aria-hidden="true">2</span><h3 id="h-approval">Approval</h3></div>
       <div className="small-title"><h4 className="h-sub">Saved version {active.version}</h4><span className={'tag status-'+active.status}>{label(active.status)}</span>{archived&&<span className="tag status-archived">Archived</span>}</div>
       {active.signer&&active.decided&&<p className="decision-line">{active.status==='approved'?'Approved':'Changes requested'} by {active.signer} · {formatInZone(active.decided,timeZone)}</p>}{active.comment&&<p className="line-list quote">{active.comment}</p>}

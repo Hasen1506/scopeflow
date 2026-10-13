@@ -41,7 +41,7 @@ export function SiteFooter() {
           </div>
           <nav className="footer-col" aria-label="Product">
             <h2>Product</h2>
-            <ul><li><Link href="/">Workspace</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li><li><Link href="/account">Data controls</Link></li></ul>
+            <ul><li><Link href="/">Workspace</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li><li><Link href="/account">Settings</Link></li></ul>
           </nav>
           <nav className="footer-col" aria-label="Help">
             <h2>Help</h2>

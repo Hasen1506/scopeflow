@@ -6,6 +6,7 @@
 import {useEffect, useState, type ComponentType} from 'react';
 import * as share from '../components/slots/whatsapp-share';
 import {api, post} from '../ui';
+import {SavedNote, useSavedFlash} from '../saved-status';
 
 type Email = {status: string; at?: string | null} | null;
 type ShareInfo = {phone: string | null; lang: string | null; client: string; title: string; link: string};
@@ -49,11 +50,12 @@ export function ClientNotices({projectId, list, reload = 0}: {projectId: string;
 export function NotifyToggle({projectId, disabled}: {projectId: string; disabled?: boolean}) {
   const [data, setData] = useNotices(projectId, 0);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const {saved, flash, clear} = useSavedFlash();
   if (!ClientNotice || !data) return null;
   async function set(on: boolean) {
-    setBusy(true); setError('');
-    try { await api(`/api/scopes/${encodeURIComponent(projectId)}/notifications`, {...post({notify_client: on}), method: 'PATCH'}); setData(d => d && {...d, notify_client: on}); }
+    setBusy(true); setError(''); clear();
+    try { await api(`/api/scopes/${encodeURIComponent(projectId)}/notifications`, {...post({notify_client: on}), method: 'PATCH'}); setData(d => d && {...d, notify_client: on}); flash(); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  return <label className="check-row"><input type="checkbox" checked={data.notify_client} disabled={disabled || busy} onChange={e => void set(e.target.checked)} />Email my client about change orders, invoices and reminders{error && <span className="error-text" role="alert">{error}</span>}</label>;
+  return <><label className="check-row"><input type="checkbox" checked={data.notify_client} disabled={disabled || busy} onChange={e => void set(e.target.checked)} />Email my client about change orders, invoices and reminders{error && <span className="error-text" role="alert">{error}</span>}</label><SavedNote saved={saved} /></>;
 }
