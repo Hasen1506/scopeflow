@@ -1,7 +1,7 @@
 'use client';
 import {Check, FileText} from 'lucide-react';
 import {formatMoney, itemsOf, money, type Scope} from '@/lib/scope';
-import {fxLine, schedule, totals} from '@/lib/money';
+import {fxLine, itemPriceView, schedule, totals} from '@/lib/money';
 import {formatDay} from '@/lib/time';
 import type {Translate} from '@/lib/i18n';
 
@@ -19,7 +19,7 @@ export function ScopeDocument({scope, version = 1, status = 'pending', t, firstA
       <p className="quiet">{t('doc.preparedFor', {client: scope.client || t('doc.yourClient')})}</p>
       <div className="rule" />
       <p className="eyebrow doc-making">{t('doc.making')}</p>
-      {itemsOf(scope).map(i => <div className="deliverable" key={i.id}><Check size={18} /><span><span>{i.title}</span>{(i.qty > 1 || i.unit) && <span className="item-qty">× {i.qty}{i.unit ? ' ' + i.unit : ''}</span>}{i.acceptance && <span className="item-accept-line">{t('doc.doneWhen', {criteria: i.acceptance})}</span>}</span>{i.price != null && <span className="item-price">{formatMoney(i.price, scope.currency)}</span>}</div>)}
+      {itemsOf(scope).map(i => <div className="deliverable" key={i.id}><Check size={18} /><span><span>{i.title}</span>{(i.qty > 1 || i.unit) && <span className="item-qty">× {i.qty}{i.unit ? ' ' + i.unit : ''}</span>}{i.acceptance && <span className="item-accept-line">{t('doc.doneWhen', {criteria: i.acceptance})}</span>}</span>{(() => { const pv = itemPriceView(i, scope.currency); return pv && <span className="item-price"><span>{formatMoney(pv.line, scope.currency)}</span>{pv.each != null && <span className="item-price-note">{t('doc.priceEach', {amount: formatMoney(pv.each, scope.currency)})}</span>}{pv.forAll != null && <span className="item-price-note">{t('doc.priceForAll', {qty: pv.forAll})}</span>}</span>; })()}</div>)}
       <div className="scope-stats"><div><span>{t(firstApproved ? 'doc.feeFirstApproved' : 'doc.projectFee')}</span><strong>{money(scope)}</strong></div><div><span>{t('doc.revisions')}</span><strong>{t('doc.rounds', {count: scope.revisions})}</strong></div></div>
       {(tt.tax_pct > 0 || tt.deposit_pct > 0 || scope.payment_terms) && <div className="section-gap terms">
         {tt.tax_pct > 0 && <><p className="terms-line"><span>{t('doc.taxLine', {label: tt.tax_label, rate: tt.tax_pct})}</span><strong>{formatMoney(tt.tax, scope.currency)}</strong></p><p className="terms-line"><span>{t('doc.totalIncl', {label: tt.tax_label})}</span><strong>{formatMoney(tt.total, scope.currency)}</strong></p></>}

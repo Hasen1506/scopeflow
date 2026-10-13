@@ -123,3 +123,11 @@ export function rememberSession(signedIn: boolean) {
   if (signedIn) document.documentElement.dataset.auth = 'in'; else delete document.documentElement.dataset.auth;
   try { if (signedIn) localStorage.setItem(SESSION_HINT_KEY, '1'); else localStorage.removeItem(SESSION_HINT_KEY); } catch { /* storage unavailable */ }
 }
+
+/**
+ * N5: the business-name colour on the client page. The owner's chosen text colour wins over the accent; either is
+ * shaded until it reaches 4.5:1 on `background`. Null (so the page's own --ink applies) when nothing parses.
+ */
+export function brandNameInk(textColor: string | null | undefined, accent: string | null | undefined, background: string | null | undefined): string | null {
+  return readableOn(textColor || accent, background, 4.5);
+}

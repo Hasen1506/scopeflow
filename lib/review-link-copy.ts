@@ -39,3 +39,15 @@ export function linkDialogCopy(action: LinkAction, decided: boolean): LinkCopy {
 export const revokedNote = (decided: boolean) => decided
   ? 'Closed for new changes. Your client keeps a read-only copy.'
   : 'This version’s review link is revoked.';
+
+/**
+ * N4: the mail-app draft offered next to "Copy link to send" when this server has no email provider. Built in the
+ * browser from the copied link, so no request is made and nothing is saved. Same wording as the default signature email.
+ */
+export function reviewMailto(to: string, {title, client, version, reviewUrl}: {title: string; client: string; version: number; reviewUrl: string}): string {
+  const line = (v: string, max: number) => v.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  const t = line(title, 160), c = line(client, 120);
+  const subject = `Please review and approve: ${t} (version ${version})`;
+  const body = [`Hi ${c},`, '', `The scope of work "${t}" (version ${version}) is ready for your review.`, 'Open the link below to read it and approve it or request changes:', '', reviewUrl, '', 'The link is private to you. Please do not forward it.'].join('\n');
+  return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}

@@ -28,6 +28,16 @@ export function shouldAnnounce(lastAnnounced: string | null, settled: string): b
   return settled.length > 0 && settled !== lastAnnounced;
 }
 
+/**
+ * N6: a name for row `index` that no other row shares, for per-row buttons ("Remove …", "Due date for …"). The title
+ * when it is set and unique; otherwise "<fallback> N" (untitled) or "<title> (N)" (a repeated title), N counted from 1.
+ */
+export function rowName(titles: readonly string[], index: number, fallback: string): string {
+  const title = (titles[index] ?? '').trim(), n = index + 1;
+  if (!title) return `${fallback} ${n}`;
+  return titles.filter(t => t.trim() === title).length > 1 ? `${title} (${n})` : title;
+}
+
 /** UX-C45: single-key shortcuts (N, P, /, ?, 1–4) can be turned off; the choice is kept in this browser. */
 export const SHORTCUTS_KEY = 'scopeflow:shortcuts';
 export function shortcutsEnabled(stored: string | null | undefined): boolean {

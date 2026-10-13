@@ -3,7 +3,7 @@ import {useRef, useState} from 'react';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
 import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
 import {amountProblem, parseQty, QTY_MAX} from '@/lib/editor';
-import {describedBy, errorId, moveFocusTarget} from '@/lib/a11y';
+import {describedBy, errorId, moveFocusTarget, rowName} from '@/lib/a11y';
 
 const num = (value: string, fallback: number) => (value === '' || Number.isNaN(Number(value)) ? fallback : Number(value));
 
@@ -36,7 +36,7 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
             <div className="item-tools">
               <button type="button" className="icon" data-move={`${item.id}:up`} aria-label={`Move ${item.title || 'untitled item ' + (index + 1)} up`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button>
               <button type="button" className="icon" data-move={`${item.id}:down`} aria-label={`Move ${item.title || 'untitled item ' + (index + 1)} down`} disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} /></button>
-              <button type="button" className="icon" aria-label={`Remove ${item.title || 'deliverable'}`} onClick={() => onChange(items.filter((_, i) => i !== index))}><X size={15} /></button>
+              <button type="button" className="icon" aria-label={`Remove ${rowName(items.map(x => x.title), index, 'untitled item')}`} onClick={() => onChange(items.filter((_, i) => i !== index))}><X size={15} /></button>
             </div>
           </div>
           <div className="item-meta">
@@ -76,8 +76,8 @@ export function ClientInputsEditor({inputs, onChange}: {inputs: ClientInput[]; o
       {inputs.map((input, index) => (
         <div className="input-row" key={input.id}>
           <input aria-label={`Client input ${index + 1}`} placeholder="e.g. Final copy for every page" maxLength={200} value={input.title} onChange={e => update(index, {title: e.target.value})} />
-          <input aria-label={`Due date for ${input.title || 'client input'}`} type="date" value={input.due} onChange={e => update(index, {due: e.target.value})} />
-          <button type="button" className="icon" aria-label={`Remove ${input.title || 'client input'}`} onClick={() => onChange(inputs.filter((_, i) => i !== index))}><X size={15} /></button>
+          <input aria-label={`Due date for ${rowName(inputs.map(x => x.title), index, 'untitled client input')}`} type="date" value={input.due} onChange={e => update(index, {due: e.target.value})} />
+          <button type="button" className="icon" aria-label={`Remove ${rowName(inputs.map(x => x.title), index, 'untitled client input')}`} onClick={() => onChange(inputs.filter((_, i) => i !== index))}><X size={15} /></button>
         </div>
       ))}
       <button type="button" className="secondary" onClick={() => onChange([...inputs, {id: newId('c'), title: '', due: ''}])}><Plus size={16} />Add client input</button>

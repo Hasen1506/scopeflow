@@ -16,9 +16,13 @@ export const metadata: Metadata = {title: 'Plans — Scopeflow'};
 type Props = {searchParams: Promise<{currency?: string; checkout?: string; plan?: string}>};
 export const dynamic = 'force-dynamic';
 
-/** Server-setup detail (which keys are missing) is for the operator only: a dev server, or an email in SCOPEFLOW_ADMIN_EMAILS. */
+/**
+ * Server-setup detail (which keys are missing) is for the operator only: a signed-in email in SCOPEFLOW_ADMIN_EMAILS,
+ * or a local server that opts in with SCOPEFLOW_DEV_OPERATOR=1. N9: never inferred from NODE_ENV, so a preview or
+ * staging deploy run with `next dev` does not show env names to visitors.
+ */
 async function operatorView() {
- if (process.env.NODE_ENV !== 'production') return true;
+ if (process.env.SCOPEFLOW_DEV_OPERATOR === '1') return true;
  const admins = (process.env.SCOPEFLOW_ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
  if (!admins.length) return false;
  try { const user = await getUser({fresh: false}); return !!user?.email && admins.includes(user.email.toLowerCase()); } catch { return false; }

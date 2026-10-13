@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {readableOn, serverThemeSnapshot, subscribeTheme, themeSnapshot} from '@/lib/theme';
+import {brandNameInk, readableOn, serverThemeSnapshot, subscribeTheme, themeSnapshot} from '@/lib/theme';
 import {sha256, paymentsOf, computeAgreement} from '@/lib/ledger';
 import {Scope, Version, formatMoney} from '@/lib/scope';
 import {api, post, Skeleton, type ApiError} from '@/app/ui';
@@ -107,10 +107,11 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   // scheme. Text gets a shade that reaches 4.5:1 there and the accent rule one that reaches 3:1 (same hue).
   const themeKey = useSyncExternalStore(subscribeTheme, themeSnapshot, serverThemeSnapshot);
   const brandInk = useMemo(() => {
-    const color = brand?.color ?? null;
-    if (!color || typeof document === 'undefined') return {text: brand?.text_color ?? null, rule: color};
+    const color = brand?.color ?? null, textColor = brand?.text_color ?? null;
+    // N5: until the background is known (server render) no owner colour is applied unchecked; the name uses --ink.
+    if ((!color && !textColor) || typeof document === 'undefined') return {text: null, rule: color};
     const bg = themeKey && getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
-    return {text: readableOn(color, bg, 4.5) ?? brand?.text_color ?? null, rule: readableOn(color, bg, 3) ?? color};
+    return {text: brandNameInk(textColor, color, bg), rule: color ? readableOn(color, bg, 3) ?? color : null};
   }, [brand?.color, brand?.text_color, themeKey]);
   const replaced = !!scope && scope.version < scope.latest;
   const servedNewer = Number(data?.newer_version), newerVersion = newer?.version ?? (Number.isInteger(servedNewer) && servedNewer > (scope?.version ?? 0) ? servedNewer : null) ?? (replaced ? scope!.latest : null);
@@ -204,7 +205,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
             <label>{t('decide.comment')} <span className="quiet">{t('decide.commentHint')}</span><textarea id="decision-comment" rows={3} maxLength={3000} value={comment} onChange={e => setComment(e.target.value)} aria-describedby="comment-kept" /></label>
             <p className="fine" id="comment-kept">{t('decide.commentKept')}</p>
             <label className="consent"><Checkbox id="decide-consent" aria-required="true" aria-invalid={(!!decideError && !checked) || undefined} checked={checked} onCheckedChange={v => setChecked(v === true)} />{t('decide.consent', {version: scope.version})}</label>
-            {decideError && <div className="error" role="alert" id="decide-error"><p className="flush">{decideError}</p>{unavailable && <p className="flush">{resting && <span data-testid="decide-cooldown">{t('decide.retryIn', {seconds: cooldown})} </span>}<a className="help-link" href={tellSenderHref(t, scope.version, typeof location === 'undefined' ? '' : location.href, comment)} data-testid="tell-sender">{t('decide.tellSender')}</a></p>}</div>}
+            {decideError && <div className="error" role="alert" id="decide-error"><p className="flush">{decideError}</p>{unavailable && <p className="flush">{resting && <span data-testid="decide-cooldown">{t(cooldown === 1 ? 'decide.retryInOne' : 'decide.retryIn', {seconds: cooldown})} </span>}<a className="help-link" href={tellSenderHref(t, scope.version, typeof location === 'undefined' ? '' : location.href, comment)} data-testid="tell-sender">{t('decide.tellSender')}</a></p>}</div>}
             <div className="actions"><button className="primary" disabled={resting} aria-disabled={busy || resting || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={busy || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={busy || resting} aria-describedby={decideError ? 'decide-error' : undefined} onClick={() => decide('changes_requested')}>{t('decide.requestChanges')}</button></div>
             {identity && !otpSession && <p className="fine" id="decide-needs-code">{t('decide.needsCode')}</p>}
           </>}

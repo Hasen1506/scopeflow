@@ -189,11 +189,19 @@ export class BillingError extends Error {
   constructor(message: string, status: number, code: string) { super(message); this.status = status; this.code = code; }
 }
 
+/** N2: what a signed-in owner sees when a plan cannot be bought on this server. Names no env var or vendor setup. */
+export const BILLING_UNAVAILABLE = 'This plan isn’t on sale yet. Your account and projects are not affected.';
+/** N2: the operator detail (which env var is missing) goes to the server log; the owner gets the neutral line. */
+function billingUnavailable(operatorDetail: string): never {
+  console.warn('[billing] checkout unavailable: ' + operatorDetail);
+  throw new BillingError(BILLING_UNAVAILABLE, 409, 'billing_unavailable');
+}
+
 /** Starts a subscription checkout. Returns where to send the browser. */
 export async function startCheckout(owner: string, plan: PlanId, interval: Interval, currency: string, origin: string, env: Env = process.env) {
   if (!PLANS[plan].purchasable) throw new BillingError('That plan cannot be bought.', 400, 'plan_not_purchasable');
   const provider = providerFor(currency, env);
-  if (!provider) throw new BillingError(billingStatus(env).reason ?? `Paying in ${currency} is not available yet; choose INR or USD.`, 409, 'billing_unavailable');
+  if (!provider) { const reason = billingStatus(env).reason; if (reason) billingUnavailable(reason); throw new BillingError(`Paying in ${currency} is not available yet; choose INR or USD.`, 409, 'billing_unavailable'); }
   const db = await database(), now = new Date().toISOString();
   const current = await planRowFor(owner);
   if (current && current.plan === plan && current.status === 'active') throw new BillingError(`You are already on ${PLANS[plan].name}.`, 409, 'already_subscribed');
@@ -203,7 +211,7 @@ export async function startCheckout(owner: string, plan: PlanId, interval: Inter
     url = `/plans/checkout?subscription=${subscription}`;
   } else if (provider === 'razorpay') {
     const r = razorpayBilling(env)!, planId = r.planId(plan, interval);
-    if (!planId) throw new BillingError(`Set RAZORPAY_BILLING_PLAN_${plan.toUpperCase()}_${interval.toUpperCase()} to sell this plan.`, 409, 'billing_unavailable');
+    if (!planId) billingUnavailable(`Set RAZORPAY_BILLING_PLAN_${plan.toUpperCase()}_${interval.toUpperCase()} to sell this plan.`);
     const res = await fetch(r.api + '/v1/subscriptions', {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(r.keyId + ':' + r.keySecret).toString('base64')},
       body: JSON.stringify({plan_id: planId, total_count: interval === 'year' ? 10 : 120, customer_notify: 1, notes: {owner, plan, interval}})});
     const data = await res.json().catch(() => ({})) as {id?: string; short_url?: string};
@@ -211,7 +219,7 @@ export async function startCheckout(owner: string, plan: PlanId, interval: Inter
     subscription = data.id; url = data.short_url;
   } else {
     const s = stripeBilling(env)!, price = s.priceId(plan, interval);
-    if (!price) throw new BillingError(`Set STRIPE_BILLING_PRICE_${plan.toUpperCase()}_${interval.toUpperCase()} to sell this plan.`, 409, 'billing_unavailable');
+    if (!price) billingUnavailable(`Set STRIPE_BILLING_PRICE_${plan.toUpperCase()}_${interval.toUpperCase()} to sell this plan.`);
     const form = new URLSearchParams({mode: 'subscription', 'line_items[0][price]': price, 'line_items[0][quantity]': '1', client_reference_id: owner, success_url: origin + '/plans?checkout=done', cancel_url: origin + '/plans?checkout=cancelled',
       'metadata[owner]': owner, 'metadata[plan]': plan, 'metadata[interval]': interval, 'subscription_data[metadata][owner]': owner, 'subscription_data[metadata][plan]': plan, 'subscription_data[metadata][interval]': interval});
     const res = await fetch(s.api + '/v1/checkout/sessions', {method: 'POST', headers: {Authorization: 'Bearer ' + s.key, 'Content-Type': 'application/x-www-form-urlencoded'}, body: form});
