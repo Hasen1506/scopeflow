@@ -1,5 +1,6 @@
 import {itemsOf, formatMoney, type Item, type Scope, type ClientInput} from './scope';
 import {formatDay} from './time';
+import {itemPriceText, lineTotal} from './money';
 
 export type ItemField = 'title' | 'qty' | 'unit' | 'price' | 'acceptance';
 export type ScopeChange =
@@ -40,7 +41,8 @@ export function semanticDiff(prev: Scope, next: Scope): ScopeChange[] {
   const changes: ScopeChange[] = [];
   const items = pair(itemsOf(prev), itemsOf(next));
   for (const [before, after] of items.pairs) {
-    const fields = itemFields.filter(f => (before[f] ?? null) !== (after[f] ?? null));
+    // R4-02: "price" is the line's money as the client sees it (qty × unit_price when a unit price is set).
+    const fields = itemFields.filter(f => f === 'price' ? safeLine(before, prev.currency) !== safeLine(after, next.currency) : (before[f] ?? null) !== (after[f] ?? null));
     if (fields.length) changes.push({kind: 'item_changed', before, after, fields});
   }
   for (const item of items.added) changes.push({kind: 'item_added', item});
@@ -59,19 +61,21 @@ export function semanticDiff(prev: Scope, next: Scope): ScopeChange[] {
   return changes;
 }
 
+const safeLine = (i: Item, currency: string) => { try { return lineTotal(i, currency); } catch { return null; } };
+
 /** Plain-language one-liner per change, used by the review page and MCP responses. */
 export function describeChange(c: ScopeChange, currency: string): string {
-  const price = (p: number | null) => (p == null ? '' : ` · ${formatMoney(p, currency)}`);
+  const line = (i: Item) => { const v = safeLine(i, currency); return v == null ? 'unpriced' : formatMoney(v, currency); };
   const amount = (i: Item) => (i.qty > 1 || i.unit ? ` ×${i.qty}${i.unit ? ' ' + i.unit : ''}` : '');
   switch (c.kind) {
-    case 'item_added': return `Added: ${c.item.title}${amount(c.item)}${price(c.item.price)}`;
+    case 'item_added': return `Added: ${c.item.title}${amount(c.item)}${itemPriceText(c.item, currency)}`;
     case 'item_removed': return `Removed: ${c.item.title}${amount(c.item)}`;
     case 'item_changed': {
       const parts = c.fields.map(f => {
         if (f === 'title') return `renamed from “${c.before.title}”`;
         if (f === 'qty') return `quantity ${c.before.qty} → ${c.after.qty}`;
         if (f === 'unit') return `unit “${c.before.unit || '—'}” → “${c.after.unit || '—'}”`;
-        if (f === 'price') return `price ${c.before.price == null ? 'unpriced' : formatMoney(c.before.price, currency)} → ${c.after.price == null ? 'unpriced' : formatMoney(c.after.price, currency)}`;
+        if (f === 'price') return `price ${line(c.before)} → ${line(c.after)}`;
         return 'acceptance criteria updated';
       });
       return `Changed: ${c.after.title} (${parts.join('; ')})`;

@@ -58,11 +58,17 @@ function FragmentRow({label, value, row}: {label: string; value: string; row: st
 
 /** SF-23 / M7: what a change order costs incl. tax and what it does to the agreement total. */
 function ImpactLines({impact, t}: {impact: CoImpact; t: Translate}) {
-  const cur = impact.currency, sign = (n: number) => (n < 0 ? '−' : '+') + fmt(Math.abs(n), cur);
+  // R4-04: each signed figure ("+₹12,000.00") is one nowrap span, so its sign never ends a line on its own at 390.
+  const cur = impact.currency, figs: string[] = [];
+  const fig = (s: string) => `\uE000${figs.push(s) - 1}\uE001`;
+  const sign = (n: number) => fig((n < 0 ? '−' : '+') + fmt(Math.abs(n), cur));
+  const price = impact.tax !== 0 ? t('co.priceLine', {fee: sign(impact.fee), label: impact.tax_label, tax: fig(fmt(Math.abs(impact.tax), cur)), total: fig((impact.total < 0 ? '−' : '') + fmt(Math.abs(impact.total), cur))}) : t('co.priceNoTax', {fee: sign(impact.fee)});
+  const total = t('co.totalLine', {before: fig(fmt(impact.total_before, cur)), after: fig(fmt(impact.total_after, cur))});
+  const show = (text: string) => text.split(/\uE000(\d+)\uE001/).map((p, i) => (i % 2 ? <span key={i} className="whitespace-nowrap">{figs[Number(p)]}</span> : p));
   return (
     <div className={styles.impact} data-testid="co-impact">
-      <span><strong>{t('co.price')}: </strong>{impact.tax !== 0 ? t('co.priceLine', {fee: sign(impact.fee), label: impact.tax_label, tax: fmt(Math.abs(impact.tax), cur), total: (impact.total < 0 ? '−' : '') + fmt(Math.abs(impact.total), cur)}) : t('co.priceNoTax', {fee: sign(impact.fee)})}</span>
-      <span>{t('co.totalLine', {before: fmt(impact.total_before, cur), after: fmt(impact.total_after, cur)})}</span>
+      <span><strong>{t('co.price')}: </strong>{show(price)}</span>
+      <span>{show(total)}</span>
     </div>
   );
 }
@@ -91,11 +97,11 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
       <p className="quiet section-gap">{t('agreement.intro', {version: scope.version})}</p>
       <AgreementNowCard now={now} t={t} />
       <div className="agreement-grid">
-        <div><span>{t('agreement.fee')}</span><strong>{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>{t('agreement.approvedAt', {amount: formatMoney(a.fee_base, cur)})}</em>}</div>
+        <div><span>{t('agreement.fee')}</span><strong className="money-fig">{formatMoney(a.fee, cur)}</strong>{a.fee !== a.fee_base && <em>{t('agreement.approvedAt', {amount: formatMoney(a.fee_base, cur)})}</em>}</div>
         <div><span>{t('agreement.delivery')}</span><strong>{formatDay(a.due) || t('agreement.notSet')}</strong>{a.days_shift !== 0 && <em>{t('agreement.days', {days: (a.days_shift > 0 ? '+' : '') + a.days_shift})}</em>}</div>
         <div><span>{t('agreement.rounds')}</span><strong className={a.rounds_over ? 'over' : ''}>{t('agreement.roundsUsed', {used: a.revisions_used, allowed: a.revisions_allowed})}</strong></div>
-        {a.bank && <div><span>{t(a.bank.unit === 'hours' ? 'agreement.revHours' : 'agreement.revBudget')}</span><strong className={a.bank.over ? 'over' : ''}>{a.bank.unit === 'hours' ? t('agreement.hoursUsed', {used: a.bank.used, allowed: a.bank.allowed}) : t('agreement.budgetUsed', {used: formatMoney(a.bank.used, a.currency), allowed: formatMoney(a.bank.allowed, a.currency)})}</strong></div>}
-        <div><span>{t('agreement.goodwill')}</span><strong>{formatMoney(a.goodwill_value, cur)}</strong></div>
+        {a.bank && <div><span>{t(a.bank.unit === 'hours' ? 'agreement.revHours' : 'agreement.revBudget')}</span><strong className={(a.bank.over ? 'over ' : '') + (a.bank.unit === 'hours' ? '' : 'money-fig money-pair')}>{a.bank.unit === 'hours' ? t('agreement.hoursUsed', {used: a.bank.used, allowed: a.bank.allowed}) : t('agreement.budgetUsed', {used: formatMoney(a.bank.used, a.currency), allowed: formatMoney(a.bank.allowed, a.currency)})}</strong></div>}
+        <div><span>{t('agreement.goodwill')}</span><strong className="money-fig">{formatMoney(a.goodwill_value, cur)}</strong></div>
       </div>
       {ledger.retainer !== undefined && ledger.retainer !== null && <SlotOr name="retainer-counter"><RetainerCounter retainer={ledger.retainer} /></SlotOr>}
       {!readonly && pending.length > 0 && identity && onOtpVerified && <OtpGate token={token} to={identity.to} channel={identity.channel} session={otpSession} onVerified={onOtpVerified} purpose={t(pending.length > 1 ? 'co.otpMany' : 'co.otpOne')} />}

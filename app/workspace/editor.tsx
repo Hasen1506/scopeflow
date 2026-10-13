@@ -29,7 +29,7 @@ export function editorFields(w:Ws){const {emailTouched,setEmailTouched,fieldErrs
   const emailShown=emailBad&&(emailTouched||clientEmail.includes('@'));
   // #20/R3-01: the name and client typed above the templates survive picking one: they are merged into the staged
   // template in the same update, and a draft with only those two fields typed is not asked about.
-  const pickTemplate=(id:string)=>{const keep:{title?:string;client?:string}={};if(!active&&!w.isSample){if(draft.title.trim())keep.title=draft.title;if(draft.client.trim())keep.client=draft.client;}void applyTemplate(id,keep);};
+  const pickTemplate=(id:string)=>{void applyTemplate(id);};/* R4-05/06: applyTemplate keeps name, client and client email (templateKeep), same as /?template= */
   return <>
      <label>Project name<input maxLength={160} value={draft.title} onChange={e=>field('title',e.target.value)} aria-invalid={!!fieldErrs.title} aria-describedby={describedBy(fieldErrs.title?errorId('title'):'hint-title')}/>{fieldErrs.title&&<span id={errorId('title')} className="error-text">{fieldErrs.title}</span>}</label>{!fieldErrs.title&&<span id="hint-title" className="field-hint">Give the project a name of at least 3 characters.</span>}
      <label>Client<input maxLength={120} value={draft.client} onChange={e=>field('client',e.target.value)} aria-invalid={!!fieldErrs.client} aria-describedby={describedBy(fieldErrs.client?errorId('client'):'hint-client')}/>{fieldErrs.client&&<span id={errorId('client')} className="error-text">{fieldErrs.client}</span>}</label>{!fieldErrs.client&&<span id="hint-client" className="field-hint">Name the client (at least 2 characters).</span>}

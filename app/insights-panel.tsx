@@ -61,19 +61,19 @@ export function InsightsPanel({signedIn}: {signedIn: boolean}) {
       </section>}
       <h3>Across {data.projects} approved agreement{data.projects === 1 ? '' : 's'}</h3>
       <div className="agreement-grid">
-        <div><span>Fees at approval</span><strong>{money(data.fee_at_approval)}</strong><em>now {money(data.fee_now)}</em></div>
-        <div><span>Captured by change orders</span><strong>{money(data.change_order_value)}</strong><em>{co.approved} approved{co.approval_rate !== null ? ` · ${Math.round(co.approval_rate * 100)}% approval` : ''}</em></div>
-        <div><span>Scope creep caught</span><strong>{money(data.creep.caught)}</strong><em>{data.creep.requests} request{data.creep.requests === 1 ? '' : 's'} · {money(data.creep.approved)} billed{Object.values(data.creep.declined).some(v => v > 0) ? ` · ${money(data.creep.declined)} declined` : ''}</em></div>
-        <div><span>Goodwill absorbed</span><strong>{money(data.goodwill_value)}</strong>{data.goodwill_hours > 0 && <em>{data.goodwill_hours}h</em>}</div>
+        <div><span>Fees at approval</span><strong className="money-fig money-pair">{money(data.fee_at_approval)}</strong><em>now {money(data.fee_now)}</em></div>
+        <div><span>Captured by change orders</span><strong className="money-fig money-pair">{money(data.change_order_value)}</strong><em>{co.approved} approved{co.approval_rate !== null ? ` · ${Math.round(co.approval_rate * 100)}% approval` : ''}</em></div>
+        <div><span>Scope creep caught</span><strong className="money-fig money-pair">{money(data.creep.caught)}</strong><em>{data.creep.requests} request{data.creep.requests === 1 ? '' : 's'} · {money(data.creep.approved)} billed{Object.values(data.creep.declined).some(v => v > 0) ? ` · ${money(data.creep.declined)} declined` : ''}</em></div>
+        <div><span>Goodwill absorbed</span><strong className="money-fig money-pair">{money(data.goodwill_value)}</strong>{data.goodwill_hours > 0 && <em>{data.goodwill_hours}h</em>}</div>
         <div><span>Revision rounds</span><strong>{r.average_used ?? 0} used / {r.average_included ?? 0} sold</strong><em>per project · {r.projects_over} over</em></div>
       </div>
       {m && f && <>
         <h4 className="section-gap">Money</h4>
         <div className="agreement-grid">
-          <div><span>Received</span><strong>{money(m.received)}</strong><em>net of refunds</em></div>
-          <div><span>Outstanding</span><strong>{money(m.outstanding)}</strong><em>agreed total not yet received</em></div>
-          <div><span>Overdue</span><strong>{money(m.overdue)}</strong><em>{Object.keys(m.msmed_overdue).length ? `${money(m.msmed_overdue)} past the MSMED due date` : 'issued invoices past due'}</em></div>
-          <div><span>MSMED interest accrued</span><strong>{money(m.msmed_interest)}</strong><em>estimate · 3× RBI bank rate, monthly rests</em></div>
+          <div><span>Received</span><strong className="money-fig money-pair">{money(m.received)}</strong><em>net of refunds</em></div>
+          <div><span>Outstanding</span><strong className="money-fig money-pair">{money(m.outstanding)}</strong><em>agreed total not yet received</em></div>
+          <div><span>Overdue</span><strong className="money-fig money-pair">{money(m.overdue)}</strong><em>{Object.keys(m.msmed_overdue).length ? `${money(m.msmed_overdue)} past the MSMED due date` : 'issued invoices past due'}</em></div>
+          <div><span>MSMED interest accrued</span><strong className="money-fig money-pair">{money(m.msmed_interest)}</strong><em>estimate · 3× RBI bank rate, monthly rests</em></div>
           <div><span>TDS certificates pending</span><strong>{m.tds_pending}</strong><em>projects with TDS and money received</em></div>
         </div>
         <h4 className="section-gap">Flow</h4>

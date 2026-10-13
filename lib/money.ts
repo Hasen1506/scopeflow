@@ -64,6 +64,33 @@ export function itemPriceView(i: Pick<Item, 'qty' | 'price' | 'unit_price'>, cur
   return i.unit_price != null ? {line, each: i.unit_price, forAll: null} : {line, each: null, forAll: qty};
 }
 
+/**
+ * R4-02: the items' line totals added up exactly (minor units), with how many lines are priced. The one sum the
+ * owner's editor, the clarity check, feeCheck and change-order forms use, so each agrees with the client page.
+ * A line too large to compute exactly counts as unpriced here (the schema rejects it on save).
+ */
+export function itemsTotal(items: Pick<Item, 'qty' | 'price' | 'unit_price'>[], currency: string): {total: number; priced: number; unpriced: number} {
+  const lines = items.map(i => { try { return lineTotalMinor(i, currency); } catch { return null; } });
+  const priced = lines.filter((l): l is Minor => l != null);
+  return {total: fromMinor(sumMinor(priced), currency), priced: priced.length, unpriced: items.length - priced.length};
+}
+
+/** R4-02: " · ₹30,000.00 (₹2,500.00 each)" or " · ₹10,000.00" for one item line (receipt, version diff); '' when unpriced. */
+export function itemPriceText(i: Pick<Item, 'qty' | 'price' | 'unit_price'>, currency: string): string {
+  let v: ReturnType<typeof itemPriceView>;
+  try { v = itemPriceView(i, currency); } catch { return ''; }
+  if (!v) return '';
+  return ` · ${formatMoney(v.line, currency)}${v.each != null ? ` (${formatMoney(v.each, currency)} each)` : ''}`;
+}
+
+/** R4-02: the per-unit price an item implies: its unit_price, else its line total ÷ qty when that is exact in minor units, else null. */
+export function exactUnitPrice(i: Pick<Item, 'qty' | 'price' | 'unit_price'>, currency: string): number | null {
+  if (i.unit_price != null) return i.unit_price;
+  if (i.price == null) return null;
+  const qty = i.qty ?? 1, m = toMinor(i.price, currency);
+  return qty >= 1 && m % qty === 0 ? fromMinor(m / qty, currency) : null;
+}
+
 export type FeeCheck = {status: 'none' | 'match' | 'partial' | 'under' | 'over'; item_total: number; priced: number; unpriced: number; difference: number; message: string | null};
 /**
  * Do the item line totals add up to the fee? `under` = items sum to less than the fee with every

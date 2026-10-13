@@ -3,7 +3,10 @@ import type {ChangeOrder} from './ledger';
 import {db} from './server';
 import {loadLedger} from './ledger-server';
 import {computeAgreement, type Agreement} from './ledger';
-import type {Scope} from './scope';
+import type {Item, Scope} from './scope';
+import {exactUnitPrice, lineTotal} from './money';
+import {fromMinor, toMinor} from './minor';
+import {priceCoItems} from './editor';
 
 /** What the radar checks a request against: the current agreement after approval, else the latest version. */
 export async function radarBasis(projectId: string): Promise<{scope: Scope; agreement: Agreement; basis: 'agreement' | 'latest_version'} | null> {
@@ -51,22 +54,22 @@ export async function suggestPrice(owner: string, title: string, currency: strin
   for (const r of rows.results) {
     let s: Scope; try { s = JSON.parse(r.content) as Scope; } catch { continue; }
     if (s.currency !== currency) continue;
-    const hit = (s.items ?? []).filter(i => typeof i.price === 'number' && i.price > 0).map(i => ({i, n: score(want, i.title + ' ' + i.unit)})).filter(x => x.n > 0).sort((a, b) => b.n - a.n)[0];
-    if (hit) return {unit_price: hit.i.price!, currency, source: 'price_history', matched: hit.i.title};
+    const line = (i: Item) => { try { return lineTotal(i, currency); } catch { return null; } };
+    const hit = (s.items ?? []).filter(i => (line(i) ?? 0) > 0).map(i => ({i, n: score(want, i.title + ' ' + i.unit)})).filter(x => x.n > 0).sort((a, b) => b.n - a.n)[0];
+    // R4-03: an earlier scope's `price` is the line total for all its qty; suggest the price of one unit.
+    if (hit) return {unit_price: exactUnitPrice(hit.i, currency) ?? fromMinor(Math.round(toMinor(line(hit.i)!, currency) / Math.max(1, hit.i.qty ?? 1)), currency), currency, source: 'price_history', matched: hit.i.title};
   }
   return null;
 }
 
 /** The change order with each unpriced new item priced, and fee_delta set when it was zero. */
 export async function priceChangeOrder(owner: string, co: Partial<ChangeOrder>, currency: string, projectId?: string): Promise<{change_order: Partial<ChangeOrder>; prices: (PriceSuggestion & {item_id: string})[]}> {
-  const prices: (PriceSuggestion & {item_id: string})[] = [];
-  const add = await Promise.all((co.add_items ?? []).map(async item => {
-    if (typeof item.price === 'number') return item;
+  const found = await Promise.all((co.add_items ?? []).map(async item => {
+    if (typeof item.price === 'number' || item.unit_price != null) return null;
     const p = await suggestPrice(owner, item.title, currency, projectId);
-    if (!p) return item;
-    prices.push({...p, item_id: item.id});
-    return {...item, price: p.unit_price};
+    return p ? {...p, item_id: item.id} : null;
   }));
-  const fee = add.reduce((a, i) => a + (typeof i.price === 'number' ? i.price * i.qty : 0), 0);
-  return {change_order: {...co, add_items: add, ...(!co.fee_delta && fee ? {fee_delta: Math.round(fee * 100) / 100} : {})}, prices};
+  const prices = found.filter((p): p is PriceSuggestion & {item_id: string} => p !== null);
+  // R4-03: suggestions go in as unit_price (a change-order item's `price` is its line total); fee_delta = Σ line totals.
+  return {change_order: priceCoItems(co, new Map(prices.map(p => [p.item_id, p.unit_price])), currency), prices};
 }

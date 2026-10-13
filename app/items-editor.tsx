@@ -2,13 +2,20 @@
 import {useRef, useState} from 'react';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
 import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
-import {amountProblem, parseQty, QTY_MAX} from '@/lib/editor';
+import {amountProblem, parseQty, QTY_MAX, toLineTotal, toPerUnit, withLinePrice, withUnitPrice} from '@/lib/editor';
+import {itemsTotal, lineTotal} from '@/lib/money';
 import {describedBy, errorId, moveFocusTarget, rowName} from '@/lib/a11y';
 
 const num = (value: string, fallback: number) => (value === '' || Number.isNaN(Number(value)) ? fallback : Number(value));
 
 export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[]; currency: string; onChange: (items: Item[]) => void; errorRef?: string}) {
   const update = (index: number, patch: Partial<Item>) => onChange(items.map((x, i) => (i === index ? {...x, ...patch} : x)));
+  const replace = (index: number, item: Item) => onChange(items.map((x, i) => (i === index ? item : x)));
+  // R4-02: rows priced per unit. A row with a unit_price always is; an emptied unit-price field keeps its row here
+  // so the field does not jump back to a line total while the owner retypes it.
+  const [perUnit, setPerUnit] = useState<ReadonlySet<string>>(() => new Set(items.filter(i => i.unit_price != null).map(i => i.id)));
+  const unitMode = (i: Item) => i.unit_price != null || perUnit.has(i.id);
+  const setMode = (id: string, on: boolean) => setPerUnit(s => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
   const root = useRef<HTMLFieldSetElement>(null);
   const [moved, setMoved] = useState('');
   // UX-C44: after a move, focus stays on a move button of the moved row (the pressed one can become disabled at
@@ -22,8 +29,8 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
     setMoved(`${item.title || 'Deliverable'} moved to position ${to + 1} of ${next.length}.`);
     requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-move="${item.id}:${target}"]`)?.focus());
   };
-  const priced = items.filter(i => i.price != null);
-  const total = priced.reduce((sum, i) => sum + (i.price ?? 0), 0);
+  // R4-02: the same line totals as the client page and feeCheck (qty × unit_price when a unit price is set).
+  const {total, priced: pricedCount, unpriced} = itemsTotal(items, currency);
   return (
     <fieldset ref={root} className="items deliverables" aria-describedby={errorRef}>
       <legend><span className="deliverables-title">Deliverables</span>{items.length > 0 && <span className="count-chip">{items.length} {items.length === 1 ? 'deliverable' : 'deliverables'}</span>}<span className="quiet deliverables-hint">Each one is tracked across versions and change orders.</span></legend>
@@ -42,7 +49,9 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
           <div className="item-meta">
             <label>Qty<QtyInput value={item.qty} onChange={qty => update(index, {qty})} /></label>
             <label>Unit<input maxLength={40} placeholder="pages, concepts…" value={item.unit} onChange={e => update(index, {unit: e.target.value})} /></label>
-            <label>Price ({currency})<input type="number" min={0} step="0.01" placeholder="optional" value={item.price ?? ''} aria-invalid={!!amountProblem(item.price, currency)} aria-describedby={describedBy(!!amountProblem(item.price, currency) && errorId('price-' + item.id))} onChange={e => update(index, {price: e.target.value === '' ? null : num(e.target.value, 0)})} />{amountProblem(item.price, currency) && <span id={errorId('price-' + item.id)} className="error-text">{amountProblem(item.price, currency)}</span>}</label>
+            <PriceField item={item} name={rowName(items.map(x => x.title), index, 'untitled item')} currency={currency} perUnit={unitMode(item)}
+              onLine={price => replace(index, withLinePrice(item, price))} onUnit={unit => replace(index, withUnitPrice(item, unit))}
+              onMode={on => { const next = on ? toPerUnit(item, currency) : toLineTotal(item, currency); if (!next) return; setMode(item.id, on); replace(index, next); }} />
           </div>
           <label className="item-accept">Done when<input maxLength={1000} placeholder="Acceptance criteria, e.g. approved in Figma, delivered as SVG" value={item.acceptance} onChange={e => update(index, {acceptance: e.target.value})} /></label>
         </div>
@@ -50,9 +59,37 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
       <div className="small-title">
         <button type="button" className="secondary" onClick={() => onChange([...items, {id: newId(), title: '', qty: 1, unit: '', price: null, acceptance: ''}])}><Plus size={16} />Add deliverable</button>
         <span className="sr-only" role="status" aria-atomic="true">{moved}</span>
-        {priced.length > 0 && <span className="fine">Itemised total: {formatMoney(total, currency)}{priced.length < items.length ? ` (${items.length - priced.length} unpriced)` : ''}</span>}
+        {pricedCount > 0 && <span className="fine">Itemised total: {formatMoney(total, currency)}{unpriced ? ` (${unpriced} unpriced)` : ''}</span>}
       </div>
     </fieldset>
+  );
+}
+
+/**
+ * R4-02: one price field per row. A line total ("Price", for all of the qty) or, per unit, "Price each" with the
+ * line total it makes shown under it (no "unit" in these names: the row's Unit field keeps its label to itself). The switch keeps the money the same; it is offered per unit only when the
+ * line total divides exactly by the qty, so switching never changes what the client pays.
+ */
+function PriceField({item, name, currency, perUnit, onLine, onUnit, onMode}: {item: Item; name: string; currency: string; perUnit: boolean; onLine: (price: number | null) => void; onUnit: (unit: number | null) => void; onMode: (perUnit: boolean) => void}) {
+  const value = perUnit ? item.unit_price : item.price, what = perUnit ? 'Unit price' : 'Price';
+  const problem = amountProblem(value, currency, what), id = errorId((perUnit ? 'unit_price-' : 'price-') + item.id), hint = errorId('price-mode-' + item.id);
+  let line: number | null = null;
+  try { line = lineTotal(item, currency); } catch { /* shown as a field problem on save */ }
+  const canPerUnit = !perUnit && item.qty > 1 && toPerUnit(item, currency) != null;
+  const note = perUnit ? (line != null ? `= ${formatMoney(line, currency)} for ${item.qty}` : `× ${item.qty}`) : item.qty > 1 ? `Total for all ${item.qty}` : '';
+  return (
+    <div className="price-cell">
+      <label>{perUnit ? `Price each (${currency})` : `Price (${currency})`}
+        <input type="number" min={0} step="0.01" placeholder="optional" value={value ?? ''} aria-invalid={!!problem} aria-describedby={describedBy(!!problem && id, !!note && hint)}
+          onChange={e => { const v = e.target.value === '' ? null : num(e.target.value, 0); if (perUnit) onUnit(v); else onLine(v); }} />
+      </label>
+      {problem && <span id={id} className="error-text">{problem}</span>}
+      {(note || perUnit || canPerUnit) && <span className="fine block price-mode">
+        {note && <span id={hint}>{note}</span>}
+        {perUnit ? <button type="button" className="link-button" aria-label={`Enter a line total for ${name}`} onClick={() => onMode(false)}>Enter a line total</button>
+          : canPerUnit ? <button type="button" className="link-button" aria-label={`Price ${name} each`} onClick={() => onMode(true)}>Price each</button> : null}
+      </span>}
+    </div>
   );
 }
 
