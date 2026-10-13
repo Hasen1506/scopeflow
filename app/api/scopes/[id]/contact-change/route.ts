@@ -55,7 +55,8 @@ export async function POST(request: Request, ctx: Ctx) {
       const sent = await notify('contact_changed_old_address', {project_id: id, owner: auth.user, to: old, data: {title, field, from_masked: record.from_masked, to_masked: record.to_masked, at, reason: record.reason, reply_to: owner?.email ?? null, text}}).catch(() => null);
       notice = {...notice, delivered: !!sent?.delivered, channel: sent?.channel ?? 'log'};
       // Local/CI only: the mail stub log (the same dev log one-time codes go to), so tests can read the notice.
-      if (!sent?.delivered && otpDevMode() && process.env.SCOPEFLOW_OTP_DEV_LOG) { try { appendFileSync(process.env.SCOPEFLOW_OTP_DEV_LOG, JSON.stringify({kind: 'notice', event: 'contact_changed_old_address', project_id: id, to: old, text, at}) + '\n'); } catch { /* dev log only */ } }
+      // integration: with WS-06's mail router a CI stub provider can report delivered; log the notice in dev mode either way
+      if (otpDevMode() && process.env.SCOPEFLOW_OTP_DEV_LOG) { try { appendFileSync(process.env.SCOPEFLOW_OTP_DEV_LOG, JSON.stringify({kind: 'notice', event: 'contact_changed_old_address', project_id: id, to: old, text, at}) + '\n'); } catch { /* dev log only */ } }
     }
     await db().batch([
       db().prepare(`UPDATE projects SET ${field === 'email' ? 'client_email' : 'client_phone'}=?,contact_since=? WHERE id=? AND owner=?`).bind(next, next ? at : null, id, auth.user),
