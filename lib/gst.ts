@@ -144,7 +144,8 @@ export const supplyForPlace = (pos: PlaceOfSupply | null): SupplyType => pos ? p
 export type GstSplit = {kind: 'intra' | 'inter' | 'export'; cgst: number; sgst: number; igst: number};
 /**
  * How the tax on an invoice was charged before the per-head engine: same state as the seller, half
- * CGST and half SGST/UTGST (the odd paisa went to SGST); another state, IGST; outside India, an export.
+ * CGST and half SGST/UTGST (the odd paisa goes to CGST; the pre-rebuild float code occasionally
+ * gave it to SGST on very large amounts); another state, IGST; outside India, an export.
  * Kept unchanged so already-issued invoices read back exactly as they were issued; new invoices use
  * gstFromExclusive/gstFromInclusive (WS-03 wires lib/invoice.ts to them).
  * @deprecated for new invoices.

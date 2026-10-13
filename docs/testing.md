@@ -140,10 +140,10 @@ the test asserts the documented difference and nothing else:
 
 Not compared: `invoiceProblem` (C2 changed its signature, ws-03) and the PDF renderers (wording changed; goldens cover them).
 
-Finding: docs/ws-01.md and the `gstSplit` comment say the odd paisa goes to SGST. Neither build
-does that. Both give it to CGST, and the old float code sometimes gave it to SGST on large amounts
+Finding (fixed in this PR): docs/ws-01.md and the `gstSplit` comment said the odd paisa goes to
+SGST. Neither build does that. Both give it to CGST, and the old float code sometimes gave it to SGST on large amounts
 (₹82,538,997.07). `gstSplit` amounts are no longer read (only `.kind` is), so nothing issued
-changes. The comment is what's wrong.
+changes. The comment and doc now say CGST.
 
 **In-browser check vs server verification** (pure on random ledgers, and live against the real
 server after tampering rows with the triggers disabled): they agree on every case. Two

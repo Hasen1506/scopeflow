@@ -195,8 +195,8 @@ test('gst: validGstin, gstinState, stateName, isGstLabel unchanged', () => {
   }), {numRuns: RUNS});
 });
 
-// FINDING (docs/testing.md): docs/ws-01.md and the gstSplit comment say the odd paisa goes to SGST.
-// Neither build does that: both give it to CGST (cgst = half rounded up). The old float code
+// FINDING (docs/testing.md): docs/ws-01.md and the gstSplit comment used to say the odd paisa goes to
+// SGST (now corrected). Both builds give it to CGST (cgst = half rounded up). The old float code
 // sometimes rounded the half down on large amounts (₹82,538,997.07 → CGST .53 / SGST .54); the new
 // code is exact, so the only differences are those odd-paise ties (M3 class). gstSplit amounts are no
 // longer read anywhere (lib/invoice.ts uses only `.kind`; issued snapshots store their own split).
