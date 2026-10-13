@@ -89,7 +89,7 @@ export function RevisionBankEditor({scope, onChange}: {scope: Scope; onChange: (
     <fieldset className="items">
       <legend>Revision bank <span className="quiet">· optional: hours or a budget that feedback rounds draw on</span></legend>
       {!b ? <button type="button" className="secondary" onClick={() => set({})}><Plus size={16} />Add a revision bank</button> : (
-        <div className="input-row fx-row">
+        <div className={`input-row bank-row${b.unit === 'money' ? ' bank-money' : ''}`}>
           <select aria-label="Revision bank unit" value={b.unit} onChange={e => set({unit: e.target.value as RevisionBank['unit']})}><option value="hours">Hours</option><option value="money">Budget ({scope.currency})</option></select>
           <input aria-label={b.unit === 'hours' ? 'Hours included' : 'Budget included'} type="number" min={0} step={b.unit === 'hours' ? '0.25' : '0.01'} value={Number.isFinite(b.amount) ? b.amount : ''} onChange={e => set({amount: num(e.target.value)})} />
           {b.unit === 'hours' && <input aria-label={`Overage rate per hour (${scope.currency})`} placeholder="Overage rate / hour" type="number" min={0} step="0.01" value={b.overage_rate ?? ''} onChange={e => set({overage_rate: e.target.value === '' ? undefined : num(e.target.value)})} />}

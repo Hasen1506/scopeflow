@@ -89,7 +89,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 input:disabled,textarea:disabled,select:disabled{opacity:.6;cursor:not-allowed}
 input[readonly]{background:var(--surface-2)}
 textarea{resize:vertical;line-height:var(--lh-2)}
-input[type=checkbox]{width:auto;accent-color:var(--accent)}
+input[type=checkbox],input[type=radio]{width:auto;accent-color:var(--accent)}
 label{display:block;font-family:var(--font-ui);font-size:var(--fs-2);font-weight:var(--fw-ui);margin:18px 0;color:var(--ink)}
 label input,label textarea,label select{display:block;margin-top:7px;font-weight:var(--fw-1)}
 label .quiet{font-weight:var(--fw-1)}
@@ -161,6 +161,8 @@ label select{margin-top:7px}
 .trust-settings .h-sub{display:flex;gap:6px;align-items:center}
 .cosign-list{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px}
 .cosign-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* UX-C16: signer chips carry long text (name, verified address, date); let them wrap inside a 390px card. */
+.cosign-list .tag{white-space:normal;max-width:100%;min-width:0;overflow-wrap:anywhere}
 @media (max-width:640px){.two-col{grid-template-columns:1fr}}
 .three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .section-gap{margin-top:28px}
@@ -289,9 +291,14 @@ label select{margin-top:7px}
 .input-row{display:grid;grid-template-columns:1fr 160px 34px;gap:8px;align-items:center;margin:8px 0}
 .milestone-row{grid-template-columns:1fr 90px 160px 110px 34px}.milestone-row .fine{text-align:right;white-space:nowrap}
 .fx-row{grid-template-columns:110px 1fr 160px 1fr 34px}
+/* UX-C50: revision bank: unit, amount, [overage rate], remove. */
+.bank-row{grid-template-columns:140px 1fr 1fr 34px}.bank-row.bank-money{grid-template-columns:140px 1fr 34px}
 .payment-list .warn-text{display:inline;margin:0}.ok-text{color:var(--ok);font-weight:var(--fw-2)}
 .check-row{display:flex!important;gap:10px;align-items:flex-start;font-weight:var(--fw-1)}
 .check-row input{width:auto;margin-top:5px}
+/* UX-C59: workspace-mode radios and the analytics / GST checkboxes sit inline with their text. */
+.radio-row{display:flex!important;gap:10px;align-items:flex-start;font-weight:var(--fw-1)}
+.radio-row input{width:auto;display:inline-block;margin-top:5px;padding:0;flex:none}
 .ai-quality{border:0;padding:0;margin:10px 0;display:flex;flex-wrap:wrap;gap:4px 18px}
 .ai-quality legend{padding:0;margin-bottom:4px;width:100%}
 .ai-quality .check-row{margin:0}
@@ -469,7 +476,7 @@ label select{margin-top:7px}
   .footer-inner{grid-template-columns:1fr;gap:28px;padding-top:40px}
   .empty-state{grid-template-columns:72px 1fr}.empty-state img{width:72px;height:72px}
 }
-@media (max-width:600px){.milestone-row,.fx-row{grid-template-columns:1fr 1fr}.milestone-row .icon,.fx-row .icon{justify-self:end}.item-meta{grid-template-columns:70px 1fr}.item-meta label:last-child{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
+@media (max-width:600px){.milestone-row,.fx-row,.input-row.bank-row{grid-template-columns:1fr 1fr}.milestone-row .icon,.fx-row .icon,.bank-row .icon{justify-self:end}.item-meta{grid-template-columns:70px 1fr}.item-meta label:last-child{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
 
 /* ---- Print: always the plain document --------------------------------------------------- */
 @media print{
@@ -899,7 +906,7 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 .theme-switch button{border:0;background:transparent;min-width:30px;height:28px;padding:0 9px;border-radius:var(--r-pill);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-3);letter-spacing:.06em;color:var(--ink-2);transition:background-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
 .theme-switch button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
 .theme-switch button:hover:not([aria-pressed=true]){color:var(--ink);background:var(--accent-soft)}
-.theme-switch select{width:auto;height:28px;padding:0 8px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--ink-2);font-size:var(--fs-1);line-height:var(--lh-1)}
+.theme-switch select{width:auto;height:28px;padding:0 26px 0 10px;margin-top:0;border:0;border-radius:var(--r-pill);background-color:transparent;background-position:calc(100% - 12px) 52%,calc(100% - 7px) 52%;color:var(--ink-2);font-size:var(--fs-1);line-height:var(--lh-1)}
 .theme-switch select:hover:not(:disabled){color:var(--ink)}
 @media (max-width:900px){.theme-switch{order:2;margin-left:auto}}
 @media print{.theme-switch{display:none}}

@@ -7,6 +7,16 @@ export function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Deliverable quantity typed into the Qty field (UX-C37): a whole number in [1, 10000], or null while the field
+ *  is empty or not a number, so the editor can let the user clear it and type a new value without it snapping to 1. */
+export const QTY_MAX = 10000;
+export function parseQty(raw: string): number | null {
+  if (raw.trim() === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(QTY_MAX, Math.max(1, Math.round(n)));
+}
+
 /** Inline validation messages for the fee and revision rounds (BUG-1, BUG-2). */
 export function numberProblems(draft: Pick<Scope, 'fee' | 'revisions'>) {
   const problems: {fee?: string; revisions?: string} = {};

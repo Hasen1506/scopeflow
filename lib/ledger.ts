@@ -5,6 +5,16 @@ import {toMinor, fromMinor, exponentOf} from './minor';
 import {pctOfMinor} from './ledger-math';
 import {retainerState, type RetainerView} from './retainer';
 
+/** UX-C20: what the Payment step shows. The quote copy ("fixed when your client approves") is only for a version that
+ *  is not approved; an approved one waits for the ledger (loading) or says the ledger failed (error) instead. */
+export type PaymentPanelState = 'quote' | 'loading' | 'error' | 'agreement';
+export function paymentPanelState(input: {approved: boolean; loaded: boolean; agreement: boolean; error: string}): PaymentPanelState {
+  if (!input.approved) return 'quote';
+  if (input.agreement) return 'agreement';
+  if (!input.loaded) return input.error ? 'error' : 'loading';
+  return 'quote'; // the ledger answered but has no agreement for this version: show the signed quote figures
+}
+
 // ---------------------------------------------------------------------------
 // Entry payloads. Every post-approval event is one immutable ledger entry.
 // ---------------------------------------------------------------------------

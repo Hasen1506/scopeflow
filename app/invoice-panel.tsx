@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {useCallback, useEffect, useState} from 'react';
 import {FilePlus2} from 'lucide-react';
 import {toast} from 'sonner';
-import {api, post, type ApiError} from './ui';
+import {api, post, Skeleton, type ApiError} from './ui';
 import {formatMoney} from '@/lib/scope';
 import {formatDay} from '@/lib/time';
 import {gstinState, stateCodes, stateName} from '@/lib/gst';
@@ -39,8 +39,11 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
   const [requestId, setRequestId] = useState(''); // made when the form opens, so a retried submit is not issued twice
   const [billing, setBilling] = useState<Billing | null>(null);
   const [billingOpen, setBillingOpen] = useState(false);
+  const [billingError, setBillingError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const load = useCallback(() => Promise.all([
-    api(`/api/scopes/${projectId}/invoices`).then((d: Invoicing) => setData(d), () => setData({invoices: [], schedule: [], change_orders: [], net_days: null, invoiceable: null, receipt_vouchers: [], credit_notes: [], tds: {terms: null}, msmed: {invoices: []}})),
+    // UX-C21: a failed load is an error with a retry, never an empty list (which reads as "no invoices yet").
+    api(`/api/scopes/${projectId}/invoices`).then((d: Invoicing) => { setData(d); setLoadError(''); }, (e: Error) => setLoadError(e.message || 'Request failed.')),
     api(`/api/scopes/${projectId}`).then(d => setBilling({client_gstin: d.project.client_gstin ?? '', client_state: d.project.client_state ?? '', client_address: d.project.client_address ?? ''}), () => {}),
   ]), [projectId]);
   useEffect(() => { void load(); }, [load]);
@@ -79,17 +82,20 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
     catch (err) { toast.error((err as Error).message); }
   }
   async function saveBilling(e: React.FormEvent) {
-    e.preventDefault(); if (!billing) return; setBusy(true); setError('');
+    e.preventDefault(); if (!billing) return; setBusy(true); setBillingError('');
     try {
       const r = await api(`/api/scopes/${projectId}`, {...post(billing), method: 'PATCH'});
       setBilling({client_gstin: r.project.client_gstin, client_state: r.project.client_state, client_address: r.project.client_address}); setBillingOpen(false); toast.success('Client billing details saved. They are printed on new invoices.');
-    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+    } catch (err) { setBillingError((err as Error).message); } finally { setBusy(false); }
   }
   const pos = billing ? (gstinState(billing.client_gstin) || billing.client_state) : '';
   const interest = new Map((data?.msmed.invoices ?? []).map(x => [x.seq, x.text]));
   return (
     <div className="section-gap">
-      <div className="small-title"><h4 className="h-sub">Invoices</h4>{!open && !archived && leftGross > 0 && <button className="secondary" onClick={start}><FilePlus2 size={15} />Create invoice</button>}</div>
+      <div className="small-title"><h4 className="h-sub">Invoices</h4>{data && !open && !archived && leftGross > 0 && <button className="secondary" onClick={start}><FilePlus2 size={15} />Create invoice</button>}</div>
+      {loadError
+        ? <p className="error" role="alert">Couldn’t load invoices ({loadError}). <button type="button" className="help-link" onClick={() => void load()}>Retry</button></p>
+        : !data && <Skeleton lines={2} label="Loading invoices…" />}
       {data?.invoiceable && <p className="fine" data-testid="invoiceable">Up to {formatMoney(left, currency)} still to invoice{data.invoiceable.advances > 0 ? `, plus ${formatMoney(data.invoiceable.advances, currency)} received as an advance that the final invoice adjusts` : ''} (agreed total {formatMoney(data.invoiceable.agreement_total, currency)}).</p>}
       {plan.length > 0 && <ul className="receipt-list payment-list" aria-label="Payment schedule">{plan.map(m => <li key={m.id}><span><strong>{m.title}</strong> · {m.pct}% · {formatMoney(m.amount, currency)}{m.due ? ` · due ${formatDay(m.due)}` : ''}</span><span className="fine">{m.invoiced >= m.amount - 0.005 ? 'Invoiced' : m.invoiced > 0 ? `${formatMoney(m.invoiced, currency)} invoiced` : 'Not invoiced'}</span></li>)}</ul>}
       {cos.length > 0 && <ul className="receipt-list payment-list" aria-label="Approved change orders">{cos.map(c => <li key={c.seq}><span><strong>CO {c.title}</strong> · <span data-testid="co-display">{c.display}</span></span><span className="fine">{c.invoiced >= c.total - 0.005 ? 'Invoiced' : c.invoiced > 0 ? `${formatMoney(c.invoiced, currency)} invoiced` : 'Not invoiced'}</span></li>)}</ul>}
@@ -122,6 +128,7 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
             </div>
             <label>Billing address<textarea rows={2} maxLength={500} value={billing.client_address} onChange={e => setBilling({...billing, client_address: e.target.value})} /></label>
             <p className="fine">Printed on new invoices. The place of supply is the client’s GSTIN state, else the state above; with neither, an Indian client is billed from your own state and a client billed in another currency is treated as an export.</p>
+            {billingError && <p className="error" role="alert">{billingError}</p>}
             <div className="actions"><button type="submit" className="secondary" disabled={busy}>Save billing details</button></div>
           </form>
         </details>

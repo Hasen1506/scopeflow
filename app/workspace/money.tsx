@@ -4,20 +4,23 @@ import {useState} from 'react';
 import {Download,Banknote,FolderArchive} from 'lucide-react';
 import {toast} from 'sonner';
 import {Version,label,formatMoney} from '@/lib/scope';
-import {paymentsOf,paymentMethods,PAYMENT_METHOD_LABEL,refundableOf} from '@/lib/ledger';
+import {paymentsOf,paymentMethods,PAYMENT_METHOD_LABEL,refundableOf,paymentPanelState} from '@/lib/ledger';
 import {InvoicePanel} from '../invoice-panel';
 import {ClientNotices} from './client-notices';
 import type {Agreement,LedgerEntry,PaymentLine} from '@/lib/ledger';
-import {api,post} from '../ui';
+import {api,post,Skeleton} from '../ui';
 import {totals} from '@/lib/money';
 import {formatDay} from '@/lib/time';
 import type {Ws} from './state';
 
 /** Step 4: what the agreement says is owed, what has been received, what is still due, and the receipts. Real records only. */
-export function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUrl,history,archived,onRecorded}:{version:Version;agreement:Agreement|null;entries:LedgerEntry[];onlineDeposits:boolean|null;receiptUrl:(v:Version)=>string;history:Version[];archived:boolean;onRecorded:()=>void}){
+export function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUrl,history,archived,onRecorded,loaded=true,loadError='',onRetry}:{version:Version;agreement:Agreement|null;entries:LedgerEntry[];onlineDeposits:boolean|null;receiptUrl:(v:Version)=>string;history:Version[];archived:boolean;onRecorded:()=>void;loaded?:boolean;loadError?:string;onRetry?:()=>void}){
  const c=version.content,cur=c.currency,decided=history.filter(v=>v.status!=='pending'&&v.decided);
  const [formOpen,setFormOpen]=useState(false),[refundFor,setRefundFor]=useState<PaymentLine|'offline'|null>(null);
- if(version.status!=='approved'||!agreement){const q=totals(c);return <><p className="quiet">Payment details are fixed when your client approves. Until then this is the quote on version {version.version}.</p><dl className="pay-grid"><div><dt>Quoted fee</dt><dd>{formatMoney(c.fee,cur)}</dd></div>{q.tax_pct>0&&<div><dt>Total with {q.tax_label}</dt><dd>{formatMoney(q.total,cur)}</dd></div>}{q.deposit_pct>0&&<div><dt>Deposit on signature</dt><dd>{formatMoney(q.deposit,cur)}</dd></div>}</dl>{decided.length>0&&<ReceiptList decided={decided} receiptUrl={receiptUrl}/>}</>;}
+ const state=paymentPanelState({approved:version.status==='approved',loaded,agreement:!!agreement,error:loadError});
+ if(state==='loading')return <Skeleton lines={3} cards={1} label="Loading payments…"/>;
+ if(state==='error')return <><p className="error" role="alert">Couldn’t load the payment record ({loadError}).{onRetry&&<> <button type="button" className="help-link" onClick={onRetry}>Retry</button></>}</p>{decided.length>0&&<ReceiptList decided={decided} receiptUrl={receiptUrl}/>}</>;
+ if(state==='quote'||!agreement){const q=totals(c);return <><p className="quiet">Payment details are fixed when your client approves. Until then this is the quote on version {version.version}.</p><dl className="pay-grid"><div><dt>Quoted fee</dt><dd>{formatMoney(c.fee,cur)}</dd></div>{q.tax_pct>0&&<div><dt>Total with {q.tax_label}</dt><dd>{formatMoney(q.total,cur)}</dd></div>}{q.deposit_pct>0&&<div><dt>Deposit on signature</dt><dd>{formatMoney(q.deposit,cur)}</dd></div>}</dl>{decided.length>0&&<ReceiptList decided={decided} receiptUrl={receiptUrl}/>}</>;}
  const now=totals(c,agreement.fee),signed=totals(c);
  const {lines,paid}=paymentsOf(entries.filter(e=>e.baseline_version===version.version));
  const balance=Math.max(0,Math.round((now.total-paid)*100)/100);
@@ -81,10 +84,10 @@ export function PaymentForm({projectId,baseline,currency,suggested,balance,onDon
 }
 export function ReceiptList({decided,receiptUrl}:{decided:Version[];receiptUrl:(v:Version)=>string}){return <div className="section-gap"><h4 className="h-sub">Signed receipts</h4><ul className="receipt-list">{decided.map(v=><li key={v.id}><span>Version {v.version} · {label(v.status)}</span><a className="help-link" href={receiptUrl(v)} download>PDF receipt</a></li>)}</ul><p className="fine">Each PDF carries a QR code your client (or anyone) can check at <Link className="help-link" href="/verify">Verify a receipt</Link>.</p></div>;}
 
-export function paymentStep(w:Ws){const {active,archived,history,ledgerView,loadOverview,overview,receiptUrl,setLedgerReload}=w;
+export function paymentStep(w:Ws){const {active,archived,history,ledgerView,ledgerError,loadOverview,overview,receiptUrl,setLedgerReload}=w;
   return (active&&<section id="step-payment" className="editor flow-step" aria-labelledby="h-payment">
       <div className="step-head"><span className="step-num" aria-hidden="true">4</span><h3 id="h-payment">Payment &amp; receipts</h3></div>
-      <PaymentPanel version={active} agreement={ledgerView?.agreement??null} entries={ledgerView?.entries??[]} onlineDeposits={overview?.online_deposits??null} receiptUrl={receiptUrl} history={history} archived={!!archived} onRecorded={()=>{setLedgerReload(n=>n+1);void loadOverview();}}/>
+      <PaymentPanel version={active} agreement={ledgerView?.agreement??null} entries={ledgerView?.entries??[]} onlineDeposits={overview?.online_deposits??null} receiptUrl={receiptUrl} history={history} archived={!!archived} loaded={!!ledgerView} loadError={ledgerError} onRetry={()=>setLedgerReload(n=>n+1)} onRecorded={()=>{setLedgerReload(n=>n+1);void loadOverview();}}/>
      </section>
   );
 }

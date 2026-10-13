@@ -22,7 +22,7 @@ type Form = LedgerForm;
 // The viewer's own calendar date, not UTC's (feedback that arrived this morning in Chennai is dated today).
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, openChangeOrder = 0, reload = 0}: {projectId: string; reviewUrl: string | null; timeZone?: string | null; onView?: (view: LedgerView) => void; openChangeOrder?: number; reload?: number}) {
+export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLoadError, openChangeOrder = 0, reload = 0}: {projectId: string; reviewUrl: string | null; timeZone?: string | null; onView?: (view: LedgerView) => void; onLoadError?: (message: string) => void; openChangeOrder?: number; reload?: number}) {
   const [view, setView] = useState<LedgerView | null>(null);
   const [form, setForm] = useState<Form>(null);
   const [coSeed, setCoSeed] = useState<CoPrefill>({});
@@ -54,6 +54,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, open
   useEffect(() => { if (reload) queueMicrotask(() => void load()); }, [reload, load]);
   // The project page reads the agreement for its Payment step and stage tracker.
   useEffect(() => { if (view) onView?.(view); }, [view, onView]);
+  // UX-C20: the Payment step also needs to know when the ledger never loaded (its own error stays in this panel).
+  useEffect(() => { if (!view) onLoadError?.(error); }, [view, error, onLoadError]);
   // A "Record change order" press elsewhere on the page (or on a Projects card) opens the form once per press,
   // unless another form with typed input is open.
   useEffect(() => {
