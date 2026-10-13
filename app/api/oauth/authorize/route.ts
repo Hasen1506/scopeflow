@@ -1,5 +1,5 @@
 import {getUser} from '@/lib/auth/server';
-import {safeOrigin, allowWrite, failure} from '@/lib/server';
+import {safeOrigin, allowWrite, failure, readText, BODY_LIMITS} from '@/lib/server';
 import {validateAuthorize, issueCode, redirectWith} from '@/lib/oauth';
 export const dynamic = 'force-dynamic';
 const page = (message: string, status: number) => new Response(`<!doctype html><meta charset="utf-8"><title>Scopeflow</title><p>${message.replace(/[<>&"]/g, c => `&#${c.charCodeAt(0)};`)}</p><p><a href="/">Back to Scopeflow</a></p>`, {status, headers: {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'}});
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const user = await getUser();
     if (!user) return page('Your session ended. Start the connection again from your app.', 401);
     if (!await allowWrite('oauth-consent:' + user.userId, 20)) return page('Too many attempts. Try again in a minute.', 429);
-    const form = new URLSearchParams(await request.text());
+    const form = new URLSearchParams(await readText(request, BODY_LIMITS.oauth));
     const query = Object.fromEntries(['client_id', 'redirect_uri', 'state', 'scope', 'code_challenge', 'code_challenge_method', 'response_type', 'resource'].map(k => [k, form.get(k) ?? undefined]));
     const checked = await validateAuthorize(request, query);
     if (!checked.ok) {

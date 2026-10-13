@@ -1,4 +1,4 @@
-import {db, json, failure} from '@/lib/server';
+import {db, json, failure, readText, BODY_LIMITS} from '@/lib/server';
 import {sha256} from '@/lib/ledger';
 import {esignProvider} from '@/lib/esign';
 type Ctx = {params: Promise<{provider: string}>};
@@ -11,8 +11,8 @@ export async function POST(request: Request, ctx: Ctx) {
     const {provider: name} = await ctx.params;
     const provider = esignProvider(process.env, name);
     if (!provider || provider.id !== name) return json({error: 'Unknown eSign provider.'}, 404);
-    const raw = await request.text();
-    if (raw.length > 8_000_000) return json({error: 'Too large.'}, 413);
+    // H1: a signed PDF can be several MB; read at most BODY_LIMITS.esign (proxy.ts skips this path).
+    const raw = await readText(request, BODY_LIMITS.esign);
     const done = await provider.parseCallback(raw, request.headers).catch(() => null);
     if (!done) return json({error: 'Callback not authenticated.'}, 401);
     const pdf = done.signed_pdf;

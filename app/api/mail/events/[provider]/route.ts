@@ -1,4 +1,4 @@
-import {db, json, failure} from '@/lib/server';
+import {db, json, failure, readText} from '@/lib/server';
 import {basicPasswordValid, parsePostmark, parseResend, parseSes, snsConfirmUrl, svixValid, tokenValid, type MailEvent, type SnsEnvelope} from '@/lib/mail-events';
 import {mailDevMode, suppress} from '@/lib/mail-outbox';
 
@@ -18,8 +18,7 @@ export async function POST(request: Request, ctx: Ctx) {
   try {
     const {provider} = await ctx.params;
     if (!['resend', 'postmark', 'ses'].includes(provider)) return json({error: 'Unknown provider.'}, 404);
-    const raw = await request.text();
-    if (raw.length > MAX) return json({error: 'Payload too large.'}, 413);
+    const raw = await readText(request, MAX); // H1: bounded read; over the limit → 413
     const secret = process.env.SCOPEFLOW_MAIL_WEBHOOK_SECRET?.trim() || (mailDevMode() ? DEV_WEBHOOK_SECRET : '');
     let event: MailEvent | null = null;
     let data: unknown;

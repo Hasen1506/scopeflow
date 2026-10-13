@@ -150,6 +150,7 @@ eq(localSql(`SELECT (owner_deleted IS NOT NULL) AS closed FROM scopeflow.project
     for (const re of forbidden) eq(re.exec(text)?.[0] ?? null, null, `${path} says Scopeflow takes no payments`);
   }
   const terms = await (await fetch(base + '/terms')).text();
-  ok(terms.includes('Scopeflow itself is free during this beta') && terms.includes('Client payments') && terms.includes('Razorpay or Stripe merchant account the server operator configured'), 'terms describe client payments through Razorpay or Stripe');
+  // changed by the gap-audit fixes (H6): paid plans exist and client money goes to the creator's own account (C3).
+  ok(terms.includes('Every feature is free during the early beta') && terms.includes('Client payments') && terms.includes('the creator’s own Razorpay account') && terms.includes('never to Scopeflow'), 'terms describe client payments through Razorpay or Stripe');
 }
 console.log(`payments: ${passed} checks passed`);

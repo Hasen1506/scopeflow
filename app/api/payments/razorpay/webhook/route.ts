@@ -1,4 +1,4 @@
-import {db, json, failure} from '@/lib/server';
+import {db, json, failure, readText} from '@/lib/server';
 import {paidEvent, verifyWebhookSignature, webhookAccountId, webhookSecret} from '@/lib/razorpay';
 import {partnerConfig} from '@/lib/payment-accounts';
 import {eventIdOf, handleVerifiedEvent} from '@/lib/payment-record';
@@ -15,8 +15,7 @@ export async function POST(request: Request) {
   try {
     const operator = webhookSecret(), partner = partnerConfig()?.webhookSecret ?? null;
     if (!operator && !partner) return json({error: 'Payments webhook is not configured (RAZORPAY_WEBHOOK_SECRET).', code: 'payments_disabled'}, 503);
-    const raw = await request.text();
-    if (raw.length > 100_000) return json({error: 'Payload too large.'}, 413);
+    const raw = await readText(request, 100_000); // H1: bounded read; over the limit → 413
     const signature = request.headers.get('x-razorpay-signature');
     const viaOperator = !!operator && verifyWebhookSignature(raw, signature, operator);
     const viaPartner = !viaOperator && !!partner && verifyWebhookSignature(raw, signature, partner);

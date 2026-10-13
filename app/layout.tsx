@@ -3,6 +3,8 @@ import { Fraunces, Instrument_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { SiteFooter } from "./site-footer";
 import { SESSION_HINT_KEY, themeScript } from "@/lib/theme";
+import { configuredOrigin } from "@/lib/origin";
+import { SITE_ORIGIN_FALLBACK } from "@/config/site";
 import { ThemeProvider } from "./components/slots/theme-switcher";
 import "./globals.css";
 
@@ -13,9 +15,16 @@ import "./globals.css";
 const fraunces = Fraunces({ subsets: ["latin"], weight: "variable", axes: ["opsz"], style: ["normal", "italic"], variable: "--font-fraunces", display: "swap" });
 const instrument = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-instrument", display: "swap" });
 
+// M11 (gap audit): a canonical base and a share card for WhatsApp/LinkedIn links. No client data:
+// review pages inherit only this generic card.
+const SITE_TITLE = "Scopeflow — Client approvals, clearly";
+const SITE_DESCRIPTION = "Define deliverables, share a scope, and keep a clear history of client decisions.";
 export const metadata: Metadata = {
-  title: "Scopeflow — Client approvals, clearly",
-  description: "Define deliverables, share a scope, and keep a clear history of client decisions.",
+  metadataBase: new URL(configuredOrigin() ?? SITE_ORIGIN_FALLBACK),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  openGraph: { type: "website", siteName: "Scopeflow", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  twitter: { card: "summary", title: SITE_TITLE, description: SITE_DESCRIPTION },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

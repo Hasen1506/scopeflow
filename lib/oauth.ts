@@ -4,7 +4,7 @@
 // client registration, Client ID Metadata Documents for allowlisted hosts,
 // authorization code + PKCE (S256 only), RFC 8707 resource binding, RFC 9207 `iss`
 // in every authorization response, and rotating refresh tokens.
-import {db, hash, mcpResource} from '@/lib/server';
+import {db, hash, mcpResource, readText, BODY_LIMITS} from '@/lib/server';
 import {appOrigin} from '@/lib/origin';
 
 export const OAUTH_SCOPES = ['scopes:read', 'scopes:write'] as const;
@@ -332,8 +332,7 @@ export async function revoke(request: Request, form: URLSearchParams) {
 
 export async function readForm(request: Request) {
   const type = request.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
-  const text = await request.text();
-  if (text.length > 8000) throw new Error('Input too large');
+  const text = await readText(request, BODY_LIMITS.oauth); // H1: bounded read
   if (type === 'application/json') {
     const value = JSON.parse(text);
     return new URLSearchParams(Object.entries(value).map(([k, v]) => [k, String(v)]));

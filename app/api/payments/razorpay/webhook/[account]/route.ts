@@ -1,4 +1,4 @@
-import {json, failure} from '@/lib/server';
+import {json, failure, readText} from '@/lib/server';
 import {paidEvent, verifyWebhookSignature} from '@/lib/razorpay';
 import {razorpayFor} from '@/lib/payment-accounts-server';
 import {eventIdOf, handleVerifiedEvent} from '@/lib/payment-record';
@@ -14,8 +14,7 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!/^pa_[a-f0-9]{20}$/.test(account)) return json({error: 'Unknown payment account.'}, 404);
     const dest = await razorpayFor(account);
     if (!dest?.account || !dest.webhookSecret) return json({error: 'Unknown payment account.'}, 404);
-    const raw = await request.text();
-    if (raw.length > 100_000) return json({error: 'Payload too large.'}, 413);
+    const raw = await readText(request, 100_000); // H1: bounded read; over the limit → 413
     if (!verifyWebhookSignature(raw, request.headers.get('x-razorpay-signature'), dest.webhookSecret)) return json({error: 'Invalid signature.'}, 400);
     let payload: unknown;
     try { payload = JSON.parse(raw); } catch { return json({error: 'Invalid JSON.'}, 400); }

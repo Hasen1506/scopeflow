@@ -129,7 +129,8 @@ test('small UX items: source guards (C25, C29, C32, C33, C47, C63, C65)', () => 
   assert.ok(/<meter aria-label="Revision rounds used"/.test(ledger), 'C47 meter name');
   assert.ok(src('app/scope-check.tsx').includes("setTimeout(() => setCopied('idle')"), 'C29 copy resets');
   assert.ok(!editor.includes('Import Muse draft'), 'C32 no Muse jargon in the save bar');
-  assert.ok(shell.includes("Projects ({cards.filter(c=>c.stage!=='archived').length})"), 'C33 non-archived count');
+  // changed by R6: the unsaved draft is named beside the count ("Projects (1) · 1 draft").
+  assert.ok(shell.includes("Projects ({cards.filter(c=>c.stage!=='archived').length}){w.unsavedCard?' · 1 draft':''}"), 'C33 non-archived count');
   assert.ok(/<button className="secondary" disabled=\{busy\} onClick=\{\(\)=>\{setProjectAction\(null\);setDeleteText\(''\);\}\}>Cancel<\/button><button className=\{shownAction==='delete'/.test(shell), 'C63 cancel first');
   assert.ok(src('app/workspace/approval.tsx').includes('refreshDecision()'), 'C65 light refresh');
 });

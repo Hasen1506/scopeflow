@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {getUser} from '@/lib/auth/server';
-import {db, json, body, safeOrigin, allowWrite, failure} from '@/lib/server';
+import {db, json, body, safeOrigin, allowWrite, failure, readFormData, BodyTooLarge, BODY_LIMITS} from '@/lib/server';
 import {publicUrl} from '@/lib/origin';
 import {assignCapture, createCapture, loadCapture, ownerProjects, pickProject} from '@/lib/capture';
 export const runtime = 'nodejs';
@@ -27,11 +27,17 @@ export async function POST(request: Request) {
   try {
     const type = request.headers.get('content-type') ?? '';
     let text = '', url = '', files = 0;
+    let known: Awaited<ReturnType<typeof session>> | undefined;
     if (/multipart\/form-data|application\/x-www-form-urlencoded/i.test(type)) {
       // The share target posts from the installed app (same origin); a cross-site form is refused.
       if (request.headers.get('origin') && !safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
-      if (Number(request.headers.get('content-length') || 0) > 12 * 1024 * 1024) return json({error: 'The shared files are too large.'}, 413);
-      const form = await request.formData().catch(() => null);
+      // H1: the session is checked before the form is read, and the form is read within a limit
+      // (images are only counted, never stored): 1 MB signed in, 64 KB signed out (text only).
+      // Over the limit the owner is sent to /share, which asks for the text instead of the image.
+      const signedIn = known = await session(request);
+      let form: FormData | null;
+      try { form = await readFormData(request, signedIn ? BODY_LIMITS.share : 64 * 1024); }
+      catch (e) { if (e instanceof BodyTooLarge) return see(request, signedIn ? '/share?empty=1&files=1' : '/share?files=1'); form = null; }
       if (!form) return json({error: 'Share text or a link.'}, 400);
       const s = (k: string) => { const v = form.get(k); return typeof v === 'string' ? v.trim() : ''; };
       text = s('text') || s('title');
@@ -47,7 +53,7 @@ export async function POST(request: Request) {
     }
     text = text.slice(0, MAX_TEXT);
     const combined = (text || url).trim();
-    const user = await session(request);
+    const user = known !== undefined ? known : await session(request);
     const isForm = !/json/i.test(type);
     if (!user) {
       if (!isForm) return json({error: 'Sign in to check a shared message.'}, 401);

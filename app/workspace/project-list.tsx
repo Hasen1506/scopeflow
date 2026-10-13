@@ -17,7 +17,7 @@ export function projectList(w:Ws){const {active,amountLine,busy,cardAction,cards
     :<>
      {urgent&&<NextStep tone={urgent.stage==='changes_requested'||urgent.stage==='change_pending'?'attention':urgent.stage==='approved'?'ok':'info'} title={<>{urgent.next.title}<span className="quiet"> · {urgent.s.content.title}</span></>} actions={cardAction(urgent)}>{urgent.next.detail}</NextStep>}
      <SummaryStrip items={[
-      {label:'Awaiting review',value:String(count('awaiting')),note:count('changes_requested')?`${count('changes_requested')} with changes requested`:'scopes with a live link'},
+      {label:'Awaiting review',value:String(count('awaiting')),note:count('changes_requested')?`not counting ${count('changes_requested')} sent back with changes requested`:'scopes with a live link'},
       {label:'Change orders pending',value:String(cards.reduce((n,c)=>n+(c.ov?.pending_changes??0),0)),note:'awaiting your clients'},
       {label:'Agreed value',value:ins?moneyMap(ins.fee_now):'…',note:ins?`before tax, ${ins.projects} approved agreement${ins.projects===1?'':'s'}`:undefined},
       {label:'Still to collect',value:overview?moneyMap(dueByCurrency):'…',note:overview?(dueCount?`with tax, on ${dueCount} approved project${dueCount===1?'':'s'}`:'nothing outstanding'):undefined},
