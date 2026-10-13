@@ -1,6 +1,7 @@
 // PR C: money and terms. Pure: configured currencies with locale-aware formatting, the new
 // optional tax / deposit / payment-terms fields (legacy content unchanged), totals, the
 // fee-vs-items check, and timestamps shown with their time zone.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

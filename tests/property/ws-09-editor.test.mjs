@@ -1,6 +1,7 @@
 // WS-09 part A pure checks: zod issues become human field messages (LT-06), amounts are explained, never
 // coerced (LT-07), and units read as plain English (LT-12). Seeded, no network.
 // @covers LT-06 LT-07 LT-12
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

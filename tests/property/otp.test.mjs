@@ -1,6 +1,7 @@
 // PR B: email one-time code before signing. Pure (no server, no network): code hashing,
 // masking, the code email, dev-mode delivery, provider delivery through a stubbed fetch,
 // and the signed identity evidence that ties a verified email to the decision anchor.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync, readFileSync} from 'node:fs';

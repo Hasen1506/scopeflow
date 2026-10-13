@@ -1,6 +1,7 @@
 // PR D: templates library and AI drafting. Pure (no server, no network): provider selection,
 // JSON extraction, request shapes for OpenAI and Anthropic through a stubbed fetch, safe
 // errors, normalisation of model output into valid scope content, and the starter templates.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

@@ -1,5 +1,6 @@
 // CSRF guard (lib/origin.ts safeOrigin): a browser request from a foreign origin is never
 // accepted, whatever host the server is reached on. Pure: Request objects, no server.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

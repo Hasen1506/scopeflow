@@ -8,14 +8,11 @@
 //   * Signing uses a fixed test secret, so Ed25519 signatures are byte-for-byte stable.
 //   * No network: pure suites import lib/* only; live suites talk to localhost only.
 import './ts-resolve.mjs';
-import fc from 'fast-check';
+import {fc, SEED, RUNS} from './fc-setup.mjs';
 import {mock} from 'node:test';
 
-export const SEED = Number(process.env.FC_SEED ?? 20261007);
-export const RUNS = Number(process.env.FC_RUNS ?? 100);
 export const FROZEN_NOW = Date.parse('2026-10-07T09:00:00.000Z');
 export const TEST_SECRET = 'scopeflow-property-tests-signing-secret-0123456789';
-fc.configureGlobal({seed: SEED, numRuns: RUNS, endOnFailure: true});
 
 /** Freeze Date for the calling test file (timers stay real). */
 export function freezeClock(now = FROZEN_NOW) {
@@ -72,4 +69,4 @@ export function prng(seed) {
   let a = seed >>> 0;
   return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-export {fc};
+export {fc, SEED, RUNS};

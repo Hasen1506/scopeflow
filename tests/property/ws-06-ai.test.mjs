@@ -1,5 +1,6 @@
 // WS-06: AI drafting and the model registry. Pure (no server, no network; providers are stubbed):
 // the draft currency precedence (M11) and model fallbacks with a readiness warning (L11).
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock} from '../support/property.mjs';

@@ -1,6 +1,7 @@
 // PR E: scope-creep radar. Pure (no server, no network): numbered clauses, keyword verdicts
 // with clause citations, and LLM adjudication through a stubbed fetch that must cite clauses
 // that exist (otherwise the keyword verdict stands).
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';

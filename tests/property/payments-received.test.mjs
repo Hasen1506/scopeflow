@@ -1,6 +1,7 @@
 // Payments recorded by the creator (ledger kind payment_received). Pure: schema, validation against
 // the agreement, the paid total (with Razorpay deposits), wording, and that payments never move the
 // agreement itself (fee, items, dates stay exactly as the approved baseline plus change orders).
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, freezeClock, tick} from '../support/property.mjs';

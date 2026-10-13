@@ -1,4 +1,5 @@
 // WS-01: scope money validation (M5, LT-07 support) and unit prices (M6). Pure.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

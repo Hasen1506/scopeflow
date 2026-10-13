@@ -1,4 +1,5 @@
 // Invariants of the agreement ledger: append-only, tamper-evident, and the fee rule.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc, scopeArb, freezeClock, tick} from '../support/property.mjs';

@@ -1,6 +1,7 @@
 // WS-08 pure suites: GSTIN/VPA validation, modes, plans and entitlements, billing events,
 // subscription GST invoices, retention defaults, the tombstone SQL, onboarding suggestions and the
 // time-zone filter. Seeded (FC_SEED), frozen clock, no network.
+import '../support/fc-setup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
