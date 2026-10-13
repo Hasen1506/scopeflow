@@ -364,6 +364,13 @@ label select{margin-top:7px}
 .chain.unsigned{background:var(--warn-bg);color:var(--warn)}
 .agreement-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;margin:16px 0;background:var(--rule);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
 .agreement-grid>div{padding:14px;background:var(--surface)}
+/* SF-16 Insights: the ₹ recovered hero, the filter row and the monthly series. */
+.insights-hero{margin:var(--s4) 0;padding:var(--s5);background:var(--surface);border:1px solid var(--rule);border-radius:var(--r)}
+.insights-hero strong{display:block;font-family:var(--font-display);font-size:var(--fs-6);line-height:var(--lh-6);margin:var(--s2) 0}
+.insights-hero em{display:block;font-style:normal;color:var(--ink-2)}
+.insights-filters{align-items:flex-end;flex-wrap:wrap}
+.insights-series{width:100%;border-collapse:collapse;font-size:var(--fs-2)}
+.insights-series th,.insights-series td{padding:var(--s2);border-bottom:1px solid var(--rule);text-align:left}
 .agreement-grid span{display:block;font-family:var(--font-ui);font-size:var(--fs-1);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
 .agreement-grid strong{display:block;font-family:var(--font-display);font-size:var(--fs-4);font-weight:var(--fw-1);line-height:var(--lh-5);margin-top:4px;font-variant-numeric:tabular-nums;overflow-wrap:break-word}
 .agreement-grid strong.over{color:var(--bad)}
