@@ -5,6 +5,7 @@ import {loadLedger, appendEntry, LedgerConflict} from '@/lib/ledger-server';
 import {decisionContext} from '@/lib/decision';
 import {signEvidence} from '@/lib/otp';
 import {checkDecisionProof} from '@/lib/identity';
+import {resolveReviewToken} from '@/lib/review-link';
 type Ctx = {params: Promise<{token: string}>};
 
 const decisionSchema = z.object({
@@ -33,6 +34,9 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
     const {token} = await ctx.params;
     if (!/^[a-f0-9]{64}$/.test(token)) return json({error: 'This review link was not found.'}, 404);
+    // integration: a revoked/closed link answers 403 link_readonly like the review and OTP routes (live scenario 7)
+    const link = await resolveReviewToken(token);
+    if (link?.readonly) return json({error: 'The creator closed this link for new changes. Your record stays available here.', code: 'link_readonly', readonly_reason: link.readonly_reason}, 403);
     const row = await db().prepare('SELECT v.id,v.project_id,p.owner,p.require_otp FROM versions v JOIN projects p ON p.id=v.project_id WHERE v.token=? AND v.revoked=0').bind(token).first<{id: string; project_id: string; owner: string; require_otp: boolean}>();
     if (!row) return json({error: 'This review link was not found.'}, 404);
     if (!await allowWrite('review:' + row.id, 10)) return json({error: 'Too many attempts. Try again in a minute.'}, 429);

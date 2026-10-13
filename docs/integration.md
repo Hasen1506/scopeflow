@@ -82,3 +82,5 @@ CI on 92f093b failed 13 e2e tests. Every one passed on its own WS branch, so eac
   comes from every ledger entry on the project. The agreement itself still comes from the current version
   (ws-all-live-scenarios #4).
 - **ws-all-live-scenarios runs serially.** Each failure hid the tests after it, so this suite surfaced its failures one round at a time.
+
+- Round 5: change-order POST on a revoked/closed link returns 403 link_readonly (resolveReviewToken first), matching the review and OTP routes.
