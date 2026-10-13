@@ -142,11 +142,14 @@ test('OpenAPI fragments: ten, all empty in Phase 0; merging keeps order and refu
 
 test('slot placeholders: one file per slot, each names its owner and renders null', () => {
   const slots = ['pay-block', 'whatsapp-share', 'data-notice', 'language-picker', 'co-card', 'retainer-counter', 'rate-card-picker', 'tds-field', 'msmed-terms', 'cosigner-editor', 'contact-change', 'payment-settings', 'timezone-select', 'theme-switcher'];
+  const IMPLEMENTED = new Set(['theme-switcher']); // WS-09 part C
   const dir = new URL('../../app/components/slots/', import.meta.url);
   assert.deepEqual(readdirSync(dir).sort(), slots.map(s => s + '.tsx').sort());
   for (const s of slots) {
     const src = readFileSync(new URL(s + '.tsx', dir), 'utf8');
     assert.match(src, /^\/\/ Slot: \w+\. Owner: WS-\d\d /m, s);
+    // Implemented by their owner (no longer placeholders): the default export stays, the body is real.
+    if (IMPLEMENTED.has(s)) { assert.match(src, /export default function \w+\(/, s); continue; }
     assert.match(src, /export default function \w+\(_props: \w+Props\) \{\n  return null;\n\}/, s);
   }
 });

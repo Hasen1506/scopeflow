@@ -828,3 +828,78 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 .menu-who{padding:var(--s2) var(--s2) var(--s3);margin-bottom:var(--s1);border-bottom:1px solid var(--rule);font-size:var(--fs-1);line-height:var(--lh-1);color:var(--ink-2);overflow-wrap:anywhere}
 .menu-who b{display:block;font-size:var(--fs-2);line-height:var(--lh-2);font-weight:var(--fw-ui);color:var(--ink)}
 .auth-current{margin-bottom:var(--s4)}
+
+/* =============================================================================================
+   THEMES (WS-09 L9 / LT-18 / SF-21), ported from hark/redesign-etched (5bd6c60): tokens only.
+   <html data-theme="a|b" data-mode="light|dark|system" data-scheme="light|dark"> is set before first paint by
+   lib/theme.ts (themeScript). Theme B light is the :root block above, unchanged, so the default renders
+   exactly as before. Each block below only re-points colour/shape tokens; the type scale and the two
+   families are shared by both themes (Etched's Garamond was not ported: see docs/ws-09.md).
+   Every text/background pair is >= WCAG AA in all four combinations (tests/property/ws-09-theme.test.mjs).
+   ============================================================================================= */
+
+/* ---- Theme A: Etched (cream type on grained cobalt, thin cream rules, square corners) ------- */
+:root[data-theme="a"]{
+  color-scheme:dark;
+  --label-track:.2em;
+  --bg:#1F3FA8;--surface:#1C3A9C;--surface-2:#1A3591;--surface-3:#24459F;
+  --ink:#F3EBD9;--ink-2:#E4DCC8;--ink-3:#DCD3BE;
+  --accent:#F3EBD9;--accent-hover:#FFFFFF;--on-accent:#1A3591;--accent-soft:#2A4AAE;
+  --rule:rgba(243,235,217,.32);--rule-strong:rgba(243,235,217,.72);--rule-accent:#F3EBD9;
+  --paper:#F3EBD9;--paper-ink:#1A3591;--paper-ink-2:#3A4D93;--paper-rule:rgba(31,63,168,.28);--paper-accent:#1F3FA8;
+  --ok:#BDEBCB;--ok-bg:#24479F;--warn:#F6D58E;--warn-bg:#2A48A0;--bad:#FFC2B8;--bad-bg:#2C46A2;--info-bg:#2645A6;
+  --band:#1A3591;--on-band:#F3EBD9;--on-band-2:#DDD4BF;--band-rule:rgba(243,235,217,.32);
+  --focus:#F3EBD9;--focus-halo:rgba(243,235,217,.28);
+  --shadow-1:none;--shadow-2:0 18px 40px -20px rgba(4,12,48,.6);
+  --r-sm:2px;--r:2px;--r-lg:3px;--r-pill:2px;--btn-radius:2px;
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .02 0 0 0 0 .05 0 0 0 0 .2 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.3'/%3E%3C/svg%3E");
+  --ticks:linear-gradient(var(--rule),var(--rule));
+  --card:#1C3A9C;--popover:#1A3591;--secondary:#1C3A9C;--muted:#1C3A9C;--accent-foreground:var(--ink);--radius:2px;
+}
+
+/* ---- Theme B dark: cream ink on night cobalt ------------------------------------------------ */
+:root[data-scheme="dark"]{
+  color-scheme:dark;
+  --bg:#11152A;--surface:#181D36;--surface-2:#1F2542;--surface-3:#272E50;
+  --ink:#EEE8DA;--ink-2:#C9CBDB;--ink-3:#B3B8CE;
+  --accent:#9FB3F5;--accent-hover:#BCCBFA;--on-accent:#11152A;--accent-soft:#252F5C;
+  --rule:#2E3558;--rule-strong:#6B7398;--rule-accent:#9FB3F5;
+  --paper:#1A1F38;--paper-ink:#EEE8DA;--paper-ink-2:#C9CBDB;--paper-rule:#30375A;--paper-accent:#9FB3F5;
+  --ok:#8FD6A8;--ok-bg:#16301F;--warn:#EBC77A;--warn-bg:#33290F;--bad:#FF9E94;--bad-bg:#3A1715;--info-bg:#1E2547;
+  --band:#18338A;--on-band:#F3EBD9;--on-band-2:#DCD3BE;--band-rule:rgba(243,235,217,.32);
+  --focus:#9FB3F5;--focus-halo:rgba(159,179,245,.3);
+  --shadow-1:0 1px 0 rgba(0,0,0,.2),0 1px 2px rgba(0,0,0,.3);
+  --shadow-2:0 1px 0 rgba(0,0,0,.2),0 10px 30px -12px rgba(0,0,0,.6);
+  --card:var(--surface);--popover:var(--surface);--secondary:var(--surface-2);--muted:var(--surface-2);--accent-foreground:var(--accent);
+}
+
+/* ---- Theme A dark: Etched at night (deep cobalt, same cream rules) --------------------------- */
+:root[data-theme="a"][data-scheme="dark"]{
+  --bg:#0F1D55;--surface:#142466;--surface-2:#0B1747;--surface-3:#1B2C72;
+  --ink:#F3EBD9;--ink-2:#DDD4BF;--ink-3:#CFC6B0;
+  --accent:#F3EBD9;--accent-hover:#FFFFFF;--on-accent:#0F1D55;--accent-soft:#1E3080;
+  --rule:rgba(243,235,217,.28);--rule-strong:rgba(243,235,217,.66);--rule-accent:#F3EBD9;
+  --paper:#1A2A6E;--paper-ink:#F3EBD9;--paper-ink-2:#DDD4BF;--paper-rule:rgba(243,235,217,.24);--paper-accent:#F3EBD9;
+  --ok:#BDEBCB;--ok-bg:#162A5E;--warn:#F6D58E;--warn-bg:#1D2A5E;--bad:#FFC2B8;--bad-bg:#24275C;--info-bg:#18286A;
+  --band:#0B1747;--on-band:#F3EBD9;--on-band-2:#DDD4BF;
+  --focus:#F3EBD9;--focus-halo:rgba(243,235,217,.28);
+  --card:#142466;--popover:#0B1747;--secondary:#142466;--muted:#142466;--accent-foreground:var(--ink);
+}
+
+/* Literal colours elsewhere in this sheet that assume the cream paper: re-pointed to tokens off theme B light. */
+:root[data-theme="a"] input::placeholder,:root[data-theme="a"] textarea::placeholder,:root[data-scheme="dark"] input::placeholder,:root[data-scheme="dark"] textarea::placeholder{color:var(--paper-ink-2)}
+:root[data-theme="a"] .vc-slip,:root[data-scheme="dark"] .vc-slip{background:var(--warn-bg)}
+:root[data-theme="a"] select option,:root[data-scheme="dark"] select option{background:var(--paper);color:var(--paper-ink)}
+:root[data-theme="a"] .tag,:root[data-theme="a"] .diff-badge,:root[data-theme="a"] .chain{border-color:currentColor;background:transparent}
+:root[data-theme="a"] .paper{box-shadow:0 30px 60px -30px rgba(4,12,48,.75);outline:1px solid var(--rule);outline-offset:6px}
+:root[data-theme="a"] .site-footer{background:var(--band);background-image:var(--grain);border-top:1px solid var(--rule)}
+
+/* ---- Theme switch (header) ----------------------------------------------------------------- */
+.theme-switch{display:inline-flex;align-items:center;border:1px solid var(--rule-strong);border-radius:var(--r-pill);padding:2px;gap:2px;font-family:var(--font-ui)}
+.theme-switch button{border:0;background:transparent;min-width:30px;height:28px;padding:0 9px;border-radius:var(--r-pill);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-3);letter-spacing:.06em;color:var(--ink-2);transition:background-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
+.theme-switch button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
+.theme-switch button:hover:not([aria-pressed=true]){color:var(--ink);background:var(--accent-soft)}
+.theme-switch select{width:auto;height:28px;padding:0 8px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--ink-2);font-size:var(--fs-1);line-height:var(--lh-1)}
+.theme-switch select:hover:not(:disabled){color:var(--ink)}
+@media (max-width:900px){.theme-switch{order:2;margin-left:auto}}
+@media print{.theme-switch{display:none}}
