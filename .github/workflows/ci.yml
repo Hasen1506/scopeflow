@@ -87,8 +87,22 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:55434/ && break; sleep 1; done
       # Runs first, on the fresh database and auth fixture. No retries, no quarantine. Includes the
       # Pixel 7 / iPhone 13 mobile projects (playwright.config.ts).
+      # Visual baselines are rewritten on this runner, then the suite compares against those files.
+      # The committed pngs are replaced from the visual-snapshots artifact so later runs compare
+      # without rewriting.
       - name: Golden E2E (Playwright, desktop and mobile)
-        run: npm run test:e2e
+        run: |
+          npx playwright test tests/e2e/visual-pages.spec.ts tests/e2e/visual-themes.spec.ts --update-snapshots
+          npm run test:e2e
+      - name: Upload visual snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots
+          path: |
+            tests/e2e/visual-pages.spec.ts-snapshots
+            tests/e2e/visual-themes.spec.ts-snapshots
+          retention-days: 7
       - run: npm run test:local
       - name: Live property and differential tests (API, database triggers)
         run: npm run test:live

@@ -27,12 +27,28 @@ async function appearance(page: Page, name: string, theme: string, scheme: strin
   await expect(page.locator('html')).toHaveAttribute('data-scheme', scheme);
 }
 
+// Fonts swap in after first paint. Wait until that reflow has stopped so the
+// screenshot is one height, on this machine and on CI.
+async function settle(page: Page) {
+  await page.waitForFunction(() => document.documentElement.classList.contains('fonts-ready'));
+  await page.evaluate(async () => { await document.fonts.ready; });
+  let last = -1;
+  let stable = 0;
+  for (let i = 0; i < 25; i++) {
+    const h = await page.locator('main').first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    stable = h === last ? stable + 1 : 0;
+    last = h;
+    if (stable >= 2) return;
+    await page.waitForTimeout(80);
+  }
+}
+
 function shot(page: Page, file: string) {
-  return expect(page.locator('main').first()).toHaveScreenshot(file, {
+  return settle(page).then(() => expect(page.locator('main').first()).toHaveScreenshot(file, {
     animations: 'disabled',
     caret: 'hide',
     mask: [page.locator('.volatile'), page.locator('[data-testid=record-evidence]'), page.locator('[data-testid=evidence-fingerprint]')],
-  });
+  }));
 }
 
 test('landing, editor, account, templates, review and approved', async ({page, browser, baseURL}) => {
