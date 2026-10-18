@@ -81,6 +81,14 @@ export function classify(e: unknown): ErrorClass {
   return 'unexpected';
 }
 
+/** Optional owner webhook (SCOPEFLOW_ERROR_WEBHOOK). The body is the id and a short message, never a stack or a request body. */
+function reportUnexpected(id: string, e: unknown) {
+  const url = process.env.SCOPEFLOW_ERROR_WEBHOOK?.trim();
+  if (!url) return;
+  const message = (e instanceof Error ? e.message : 'unexpected').slice(0, 300);
+  void fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({source: 'scopeflow', id, message, at: new Date().toISOString()})}).catch(() => { /* the HTTP reply already carries the id */ });
+}
+
 /** A short random id, quoted in the reply and in the server log, so support can find the failure. */
 export function errorId() {
   const bytes = new Uint8Array(8);
@@ -105,6 +113,7 @@ export function errorResponse(e: unknown, log: (id: string, e: unknown) => void 
     default: {
       const id = errorId();
       log(id, e);
+      reportUnexpected(id, e);
       return json({error: `Something went wrong on our side (error ${id}). Please try again; if it keeps happening, quote this id to support.`, code: 'internal_error', error_id: id}, 500);
     }
   }

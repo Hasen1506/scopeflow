@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Fraunces, Instrument_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { SiteFooter } from "./site-footer";
 import { SESSION_HINT_KEY, themeScript } from "@/lib/theme";
 import { configuredOrigin } from "@/lib/origin";
 import { SITE_ORIGIN_FALLBACK } from "@/config/site";
-import { ThemeProvider } from "./components/slots/theme-switcher";
+import ThemeSwitcher, { ThemeProvider } from "./components/slots/theme-switcher";
 import "./globals.css";
 
 // Two families, nothing else (see the TYPE SCALE in globals.css): Fraunces for display, Instrument Sans for UI.
@@ -35,8 +36,10 @@ export const viewport: Viewport = {
   themeColor: [{ media: "(prefers-color-scheme: light)", color: "#F4EEE1" }, { media: "(prefers-color-scheme: dark)", color: "#11152A" }],
 };
 
-// Before first paint: applies the saved theme/mode (lib/theme.ts, no flash) and marks a returning signed-in
-// owner, so the workspace heading shows without a layout shift.
+// Before first paint: applies the saved appearance (lib/theme.ts) and marks a returning signed-in
+// owner, so the workspace shows instead of the marketing page. next/script beforeInteractive injects
+// this into the initial HTML. The attributes are not set on <html> in React, or a refresh would
+// reset them and flash the wrong theme and the landing page.
 const sessionScript = `${themeScript}try{if(localStorage.getItem('${SESSION_HINT_KEY}')==='1')document.documentElement.dataset.auth='in'}catch(e){}`;
 
 export default function RootLayout({
@@ -45,9 +48,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="b" data-mode="system" data-scheme="light" className={`${fraunces.variable} ${instrument.variable}`} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: sessionScript }} /></head>
-      <body className="antialiased"><a className="skip-link" href="#content">Skip to content</a>{children}<SiteFooter /><ThemeProvider /><Toaster position="bottom-center" duration={2600} /></body>
+    <html lang="en" className={`${fraunces.variable} ${instrument.variable}`} suppressHydrationWarning>
+      <body className="antialiased">
+        <Script id="scopeflow-boot" strategy="beforeInteractive">{sessionScript}</Script>
+        <a className="skip-link" href="#content">Skip to content</a>
+        <aside className="side-rail" aria-label="Appearance"><ThemeSwitcher /></aside>
+        {children}
+        <SiteFooter />
+        <ThemeProvider />
+        <Toaster position="bottom-center" duration={2600} />
+      </body>
     </html>
   );
 }

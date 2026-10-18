@@ -44,7 +44,7 @@ test('navigation: Projects home, one-tap next steps, the project page and the Ac
   // Account menu holds the account pages (were top-level nav links).
   await page.getByRole('button', {name: 'Account'}).click();
   const menu = page.getByRole('menu');
-  await expect(menu.getByRole('menuitem')).toHaveText([/Settings/, /Templates/, /Connect/, /Plans/]);
+  await expect(menu.getByRole('menuitem')).toHaveText([/Settings/, /Connect/, /Plans/]);
   await menu.getByRole('menuitem', {name: /Plans/}).click();
   await expect(page).toHaveURL(/\/plans$/);
   await expect(page.getByRole('complementary', {name: 'Next step'})).toBeVisible();

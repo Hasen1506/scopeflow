@@ -196,7 +196,13 @@ test('theme preference: strict on write, forgiving on read; client pages follow 
   assert.deepEqual(T.validChoice({theme: 'a', mode: 'dark'}), {theme: 'a', mode: 'dark'});
   for (const bad of [null, {}, {theme: 'c', mode: 'dark'}, {theme: 'a', mode: 'dim'}, {theme: 'a'}]) assert.equal(T.validChoice(bad), null);
   assert.deepEqual(T.parseChoice({theme: 'x', mode: 1}), T.DEFAULT_CHOICE);
-  assert.deepEqual(T.parseChoice(null), {theme: 'b', mode: 'system'});
+  assert.deepEqual(T.parseChoice(null), T.DEFAULT_CHOICE);
+  assert.deepEqual(T.choiceForAppearance('etched'), {theme: 'a', mode: 'light'});
+  assert.deepEqual(T.choiceForAppearance('dark'), {theme: 'b', mode: 'dark'});
+  assert.deepEqual(T.choiceForAppearance('light'), {theme: 'b', mode: 'light'});
+  assert.equal(T.appearanceOf({theme: 'a', mode: 'dark'}), 'etched');
+  assert.equal(T.appearanceOf({theme: 'b', mode: 'system'}, true), 'dark');
+  assert.equal(T.appearanceOf({theme: 'b', mode: 'system'}, false), 'light');
   assert.equal(T.resolveScheme('system', true), 'dark');
   assert.equal(T.resolveScheme('system', false), 'light');
   assert.equal(T.resolveScheme('light', true), 'light');

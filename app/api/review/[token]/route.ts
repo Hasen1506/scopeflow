@@ -1,4 +1,3 @@
-import {z} from 'zod';
 import {after} from 'next/server';
 import {paymentsStatus} from '@/lib/razorpay';
 import {loadBrand} from '@/lib/brand-server';
@@ -16,9 +15,10 @@ import {linkExpired, linkExpires} from '@/lib/link';
 import {cosignStatus, type Cosign} from '@/lib/cosign';
 import {signEvidence, type OtpChannel} from '@/lib/otp';
 import {checkDecisionProof, maskAddress, signingBlocked, signingUnavailable} from '@/lib/identity';
-import {canonical, formatExpiry} from '@/lib/evidence';
+import {canonical, decisionBody, decisionProblem, formatExpiry} from '@/lib/evidence';
 import {resolveReviewToken, linkStateOf, diffBaseFor, newerPointer, senderOf, markSent, rolesFor, inviteCosigners, type ReviewLink} from '@/lib/review-link';
 import {onBaselineApproved} from '@/lib/ledger-hooks';
+import {notify} from '@/lib/notify';
 import {withIdempotency} from '@/lib/idempotency';
 import {toResponse} from '@/lib/errors';
 type Ctx = {params: Promise<{token: string}>};
@@ -98,15 +98,10 @@ export async function GET(request: Request, ctx: Ctx) {
       ...(esignRow ? {esign: {provider: esignRow.provider, status: esignRow.status, signing_url: !row.readonly && esignRow.status === 'requested' ? esignRow.signing_url : null}} : {}),
       ...(contactHistory.length ? {contact_history: contactHistory} : {}),
       ...(newer ? newer : {}),
+      ...await (async () => { const sender = await senderOf(row.project_id); return sender.name || sender.email ? {sender} : {}; })(),
     });
   } catch (e) { return failure(e); }
 }
-
-const decisionInput = z.object({
-  decision: z.enum(['approved', 'changes_requested']), signer: z.string().trim().min(2).max(120), comment: z.string().trim().max(3000),
-  version: z.number().int(), acknowledged: z.literal(true), content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  otp_session: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-}).strict();
 
 export async function POST(request: Request, ctx: Ctx) {
   try {
@@ -131,9 +126,9 @@ export async function POST(request: Request, ctx: Ctx) {
 
 async function decide(request: Request, row: ReviewLink, token: string, raw: unknown): Promise<Response> {
   // SF-15: the reviewer's acknowledgement and the exact content they saw are required and recorded.
-  const input = decisionInput.safeParse(raw);
-  if (!input.success) return json({error: 'Enter your name, confirm you reviewed this version, and choose a decision.'}, 400);
-  if (input.data.decision === 'changes_requested' && !input.data.comment) return json({error: 'Please describe the changes you need.'}, 400);
+  const problem = decisionProblem(raw);
+  if (problem) return json({error: problem}, 400);
+  const input = {data: decisionBody.parse(raw)};
   // L12: a decision on a replaced version points to the newer one (the page keeps the typed comment).
   if (row.version !== row.latest) return json({error: 'A newer version of this scope exists. Open it to decide; your comment is kept on this device.', code: 'replaced', ...await newerPointer(row.project_id, row.latest)}, 409);
   if (input.data.version !== row.version) return json({error: 'Version mismatch. Reload this review.', code: 'version_mismatch'}, 409);
@@ -156,6 +151,9 @@ async function decide(request: Request, row: ReviewLink, token: string, raw: unk
   if (!r.meta.changes) return json({error: 'This version already has a decision or has been replaced. Ask the creator for the latest link.', code: 'already_decided'}, 409);
   // A decided version was evidently sent: lock the contact (C5) and freeze its countersigning roles (M17).
   await markSent(row.project_id, row.version, 'decision', decided);
+  let title = '';
+  try { title = String((JSON.parse(row.content) as {title?: string}).title ?? ''); } catch { title = ''; }
+  after(() => { void notify('client_decision', {project_id: row.project_id, data: {decision: input.data.decision, signer: input.data.signer, version: row.version, comment: input.data.comment, title}}); });
   if (input.data.decision === 'approved') {
     // WS-05: the new baseline replaces the previous approved one (baseline_superseded).
     try { await onBaselineApproved(row.project_id, before?.v ?? null, row.version); } catch (e) { console.error('Scopeflow onBaselineApproved failed', e instanceof Error ? e.message : 'unknown'); }

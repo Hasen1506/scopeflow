@@ -56,7 +56,7 @@ export function editorFields(w:Ws){const {emailTouched,setEmailTouched,fieldErrs
       {/* WS-09 mount (WS-03 slot): TDS the client will deduct, an explicit input, never defaulted. Renders nothing until WS-03 lands. */}
       <TdsField value={draft.tds??null} disabled={busy} onChange={(v:{section_2025:string;legacy_label?:string|null;rate_pct:number}|null)=>{type T=NonNullable<Scope['tds']>;setDraft(x=>{const n={...x};if(v)n.tds={section_2025:v.section_2025 as T['section_2025'],legacy_label:(v.legacy_label??null) as T['legacy_label'],rate_pct:v.rate_pct,base:'taxable_value'};else delete n.tds;return n;});setIsSample(false);}}/>
      </details>
-     <label>Outside this scope<textarea maxLength={3000} rows={2} value={draft.exclusions} onChange={e=>field('exclusions',e.target.value)}/></label>
+     <label>Outside this scope<textarea className="clause" maxLength={3000} rows={6} value={draft.exclusions} onChange={e=>field('exclusions',e.target.value)}/></label>
      <ClientInputsEditor inputs={draft.client_inputs??[]} onChange={client_inputs=>{setDraft(x=>({...x,client_inputs}));setIsSample(false);setNotice('');}}/>
      <label>Working terms<textarea maxLength={3000} rows={3} value={draft.notes} onChange={e=>field('notes',e.target.value)}/></label>
      <LintPanel scope={preview} onApply={next=>{setDraft(x=>({...x,items:next.items,notes:next.notes,exclusions:next.exclusions}));setIsSample(false);setNotice('Suggestion applied. Read the sentence once more before saving.');}}/>

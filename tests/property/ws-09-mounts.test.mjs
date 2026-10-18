@@ -33,8 +33,9 @@ test('every workspace slot is imported from app/components/slots and rendered as
   assert.match(src('changes.tsx'), /<ClientNotices [^>]*list="change_orders"/);
   assert.match(src('money.tsx'), /<ClientNotices [^>]*list="invoices"/);
   assert.match(src('settings.tsx'), /<NotifyToggle /);
-  // the theme switcher sits in the header.
-  assert.match(readFileSync(new URL('../../app/ui.tsx', import.meta.url), 'utf8'), /ThemeSwitcher/);
+  // the theme switcher sits in the side rail, not the header.
+  assert.match(readFileSync(new URL('../../app/layout.tsx', import.meta.url), 'utf8'), /ThemeSwitcher/);
+  assert.doesNotMatch(readFileSync(new URL('../../app/ui.tsx', import.meta.url), 'utf8'), /ThemeSwitcher/);
 });
 
 test('mounts are behaviour-neutral on a base without WS-06: no ClientNotice export, no request', async () => {

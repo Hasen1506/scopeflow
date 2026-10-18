@@ -329,9 +329,9 @@ label.label-for{margin-bottom:7px}
 .item-tools{display:flex;gap:4px}
 /* R5-03: on phones the title takes the whole first line (number + title) and the move/remove tools wrap below it. */
 @media (max-width:600px){.item-main{flex-wrap:wrap}.item-main>input{flex:1 1 calc(100% - 34px);min-width:0}.item-tools{flex:1 0 100%;justify-content:flex-end}}
-.item-meta{display:grid;grid-template-columns:80px 1fr 1fr;gap:8px}
-.item-meta label,.item-accept{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2)}
-.item-meta input,.item-accept input{padding:7px 9px;font-size:var(--fs-2);margin-top:3px}
+.item-meta{display:grid;grid-template-columns:minmax(7.5rem,8.75rem) minmax(0,1fr) minmax(0,1.15fr);gap:8px;align-items:end}
+.item-meta label,.item-accept{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2);min-width:0}
+.item-meta input,.item-accept input{box-sizing:border-box;height:44px;min-width:0;padding:7px 10px;font-size:var(--fs-2);margin-top:3px}
 /* R4-02: the price cell holds its label, the line total it makes and the per-unit / line-total switch. */
 .item-meta .price-cell{margin:8px 0 0;font-size:var(--fs-1);color:var(--ink-2);min-width:0}
 .item-meta .price-cell label{margin:0;font-size:inherit;color:inherit}
@@ -536,7 +536,7 @@ label.label-for{margin-bottom:7px}
   .footer-inner{grid-template-columns:1fr;gap:28px;padding-top:40px}
   .empty-state{grid-template-columns:72px 1fr}.empty-state img{width:72px;height:72px}
 }
-@media (max-width:600px){.milestone-row,.fx-row,.input-row.bank-row{grid-template-columns:1fr 1fr}.milestone-row .icon,.fx-row .icon,.bank-row .icon{justify-self:end}.item-meta{grid-template-columns:70px 1fr}.item-meta label:last-child,.item-meta>.price-cell{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
+@media (max-width:600px){.milestone-row,.fx-row,.input-row.bank-row{grid-template-columns:1fr 1fr}.milestone-row .icon,.fx-row .icon,.bank-row .icon{justify-self:end}.item-meta{grid-template-columns:minmax(7.5rem,8.75rem) minmax(0,1fr)}.item-meta label:last-child,.item-meta>.price-cell{grid-column:1/-1}.input-row{grid-template-columns:1fr 34px}.input-row input[type=date]{grid-column:1}.three-col{grid-template-columns:1fr}.scope-stats strong{font-size:var(--fs-5)}}
 
 /* ---- Print: always the plain document --------------------------------------------------- */
 @media print{
@@ -973,15 +973,20 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
   --rule:rgba(31,63,168,.28);--rule-strong:#6F7796;--focus:#1F3FA8;--focus-halo:rgba(31,63,168,.22);
 }
 
-/* ---- Theme switch (header) ----------------------------------------------------------------- */
-.theme-switch{display:inline-flex;align-items:center;border:1px solid var(--rule-strong);border-radius:var(--r-pill);padding:2px;gap:2px;font-family:var(--font-ui)}
-.theme-switch button{border:0;background:transparent;min-width:30px;height:28px;padding:0 9px;border-radius:var(--r-pill);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-3);letter-spacing:.06em;color:var(--ink-2);transition:background-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
-.theme-switch button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
+/* Appearance rail: Light, Dark, Etched. Fixed beside the app; a bottom bar on a phone. */
+body{padding-left:7.25rem}
+.side-rail{position:fixed;z-index:40;top:0;left:0;bottom:0;width:7.25rem;display:flex;flex-direction:column;justify-content:flex-end;padding:16px 10px 20px;border-right:1px solid var(--rule);background:color-mix(in srgb,var(--surface) 92%,transparent)}
+.theme-switch{display:flex;flex-direction:column;gap:6px;width:100%;font-family:var(--font-ui)}
+.theme-switch button{border:1px solid var(--rule-strong);background:transparent;width:100%;min-height:44px;padding:8px 8px;border-radius:var(--r-sm);font-size:var(--fs-2);line-height:var(--lh-2);font-weight:var(--fw-3);letter-spacing:.02em;color:var(--ink-2);transition:background-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.theme-switch button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .theme-switch button:hover:not([aria-pressed=true]){color:var(--ink);background:var(--accent-soft)}
-.theme-switch select{width:auto;height:28px;padding:0 26px 0 10px;margin-top:0;border:0;border-radius:var(--r-pill);background-color:transparent;background-position:calc(100% - 12px) 52%,calc(100% - 7px) 52%;color:var(--ink-2);font-size:var(--fs-1);line-height:var(--lh-1)}
-.theme-switch select:hover:not(:disabled){color:var(--ink)}
-@media (max-width:900px){.theme-switch{order:2;margin-left:auto}}
-@media print{.theme-switch{display:none}}
+.theme-switch .theme-name{display:inline}
+@media (max-width:720px){
+  body{padding-left:0;padding-bottom:calc(4.75rem + env(safe-area-inset-bottom))}
+  .side-rail{top:auto;right:0;bottom:0;width:auto;height:auto;flex-direction:row;justify-content:center;align-items:center;padding:8px 12px calc(8px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--rule)}
+  .theme-switch{flex-direction:row;max-width:28rem}
+}
+@media print{.side-rail,.theme-switch{display:none!important}body{padding-left:0!important;padding-bottom:0!important}}
 
 /* Responsive header: below ~720px the nav, Account menu and theme controls sit behind one Menu button. */
 .menu-toggle{display:none}
@@ -993,7 +998,6 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
   .topbar.menu-open .nav-wrap{order:3;display:flex;flex-direction:column;align-items:stretch;gap:12px;width:100%;padding:12px 0 6px;border-top:1px solid var(--rule);margin-top:10px}
   .topbar.menu-open .navlinks{order:0;flex-direction:column;align-items:stretch;flex-wrap:nowrap;width:auto;margin:0;padding:0;overflow:visible;white-space:normal;-webkit-mask-image:none;mask-image:none;gap:2px}
   .topbar.menu-open .navlinks a,.topbar.menu-open .navlinks .help-link,.topbar.menu-open .nav-menu{display:flex;width:100%;min-height:44px;align-items:center;text-align:left;justify-content:flex-start}
-  .topbar.menu-open .theme-switch{order:0;margin-left:0;align-self:flex-start}
 }
 @media print{.menu-toggle{display:none}}
 
@@ -1080,10 +1084,10 @@ main#content:focus{outline:none}
 .account-loading{min-height:60vh}
 /* UX-C39: why Save business details is unavailable, next to the button. */
 .actions .save-reason{margin:0;flex-basis:100%}
-/* UX-C31: wide headers name the themes; narrow ones keep the letters (names stay in the accessible label). */
-.theme-switch .theme-name{display:none}
-@media (min-width:1101px){.theme-switch .theme-letter{display:none}.theme-switch .theme-name{display:inline}}
-@media (max-width:720px){.topbar.menu-open .theme-switch .theme-letter{display:none}.topbar.menu-open .theme-switch .theme-name{display:inline}}
+/* Account and editor controls share one height. Clause fields (exclusions, default exclusions) are tall enough to read. */
+.editor input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=file]),.editor select{box-sizing:border-box;min-height:48px}
+.editor textarea{box-sizing:border-box;min-height:48px}
+.editor textarea.clause{min-height:9.5rem}
 /* UX-C66: the agreement chips explain themselves where they are shown. */
 .chip-help{margin-top:var(--s2);font-size:var(--fs-2)}
 .chip-help summary{cursor:pointer;color:var(--ink-2);font-family:var(--font-ui)}

@@ -42,6 +42,8 @@ type ReviewData = {
   link_expires_text?: string | null;
   /** WS-02: how the decision was evidenced. */
   evidence?: RecordEvidence | null;
+  /** Who handed out the link, when the account has a business name or reply-to address. */
+  sender?: {name: string | null; email: string | null} | null;
   /** WS-08: a server-written data notice line, when present. */
   data_notice?: string | null;
 };
@@ -198,6 +200,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
             {receipt && <div className="muted-box"><strong>{t('receipt.title')}</strong><p className="fine">{t('receipt.body')}</p><p className="mono fine">{t('receipt.version', {version: String(receipt.version), date: `${formatInZone(String(receipt.decided), timeZone)} (${String(receipt.decided)})`})}<br />{t('receipt.code', {code: String(receipt.anchor)})}<br />{t('receipt.seal', {seal: receipt.signature ? String(receipt.signature) : t('receipt.notSealed')})}</p></div>}
             <p className="fine">{t('decided.baselineNote', {version: scope.version})}</p>
           </> : ro.readonly ? <p className="fine" role="note">{t('closed.noActions')}</p> : <>
+            {data?.sender?.name && <p className="fine no-print" data-testid="sent-by">From {data.sender.name}. Approving records your decision on version {scope.version}. Requesting changes sends your comment back to them.</p>}
             <h2>{t('decide.heading')} <em>{t('decide.headingEm')}</em></h2>
             {(linkExpiresText || linkExpires) && <p className="fine" role="note">{t('decide.linkOpenUntil', {date: linkExpiresText ?? formatInZone(linkExpires!, timeZone)})}</p>}
             <p className="quiet section-gap">{t('decide.intro')}</p>

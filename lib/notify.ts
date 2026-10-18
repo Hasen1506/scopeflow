@@ -14,7 +14,7 @@ import type {NotifyEvent, NotifyPayload, NotifyResult} from './contracts';
 export type {NotifyEvent, NotifyPayload, NotifyResult};
 export const NOTIFY_EVENTS: readonly NotifyEvent[] = [
   'co_proposed', 'invoice_issued', 'payment_reminder', 'contact_changed_old_address',
-  'cosign_invite', 'payment_claim', 'payment_alert', 'account_closed_client_notice',
+  'cosign_invite', 'payment_claim', 'payment_alert', 'client_decision', 'account_closed_client_notice',
 ];
 /** Events that inform the client about money or scope; the owner can switch them off per project. */
 export const OPTIONAL_CLIENT_EVENTS: readonly NotifyEvent[] = ['co_proposed', 'invoice_issued', 'payment_reminder'];

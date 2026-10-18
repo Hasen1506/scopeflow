@@ -85,7 +85,9 @@ test('R3-06/R3-07/R3-08/R3-13/R3-15/R3-17: notify rule, connect wording, idle sa
   assert.match(connect, /Import a draft \(JSON\)…/);
   assert.match(read('app/saved-status.tsx'), /style=\{saved \? undefined : \{minHeight: 0, margin: 0\}\}/);
   const ui = read('app/ui.tsx');
-  assert.match(ui, /a\.href!=='\/templates'/);
+  // Templates stays in the main nav only, so it cannot also be the current Account item.
+  assert.match(ui, /<Link href="\/templates"/);
+  assert.ok(!/href:'\/templates'/.test(ui));
   assert.match(ui, /aria-current=\{path==='\/'&&session\?\.user\?'page':undefined\}/);
   assert.match(read('app/onboarding/page.tsx'), /<fieldset className="section-gap"><legend>Workspace mode/);
 });

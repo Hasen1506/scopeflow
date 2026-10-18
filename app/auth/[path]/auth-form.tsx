@@ -79,7 +79,7 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
         const session = await authClient.getSession();
         // LT-04/SF-11: a new account without a specific destination starts with onboarding.
         const next = mode === 'sign-up' && !explicitReturn ? '/onboarding' : destination;
-        if (session.data?.user) { await adoptBrowserZone(); router.push(next); router.refresh(); }
+        if (session.data?.user) { rememberSession(true); await adoptBrowserZone(); router.push(next); router.refresh(); }
         else setMessage('Check your email to verify your account, then sign in.');
       }
     } catch (error) {

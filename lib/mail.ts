@@ -305,6 +305,15 @@ export function cosignInviteEmail({title, role, seller, reviewUrl}: {title: stri
   ], para('Hello,') + para(`You are asked to countersign <strong>${escapeHtml(t)}</strong> as <strong>${escapeHtml(r)}</strong>.`) + para(`<a href="${escapeHtml(reviewUrl)}">Open the agreement</a>`) + `<p style="color:#666;font-size:13px">This link is private to you. Please do not forward it.</p>` + footer(s));
 }
 
+/** To the owner when a client approves a version or asks for changes. */
+export function ownerDecisionEmail({decision, title, signer, version, comment, workspaceUrl}: {decision: 'approved' | 'changes_requested'; title: string; signer: string; version: number; comment: string; workspaceUrl: string}): SignatureEmail {
+  const t = ownerLine(title, 160), s = ownerLine(signer, 120) || 'Your client', c = linkFree(oneLine(comment, 400));
+  const head = decision === 'approved' ? `${s} approved “${t}” (version ${version})` : `${s} requested changes to “${t}” (version ${version})`;
+  const note = c ? `Comment: ${c}` : 'No comment was added.';
+  return compose(head, [head + '.', '', note, '', 'Open the project:', '', workspaceUrl, '', 'Sent with Scopeflow'],
+    para(escapeHtml(head) + '.') + para(escapeHtml(note)) + para(`<a href="${escapeHtml(workspaceUrl)}">Open the project</a>`) + footer(''));
+}
+
 /** To the owner: the client says they paid (payment claim) or a payment could not be recorded (alert). */
 export function ownerAlertEmail({kind, title, detail, workspaceUrl}: {kind: 'payment_claim' | 'payment_alert'; title: string; detail: string; workspaceUrl: string}): SignatureEmail {
   const t = ownerLine(title, 160), d = linkFree(oneLine(detail, 400));

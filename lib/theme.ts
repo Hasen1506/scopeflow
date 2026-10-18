@@ -1,29 +1,37 @@
-// Themes (L9 / LT-18 / SF-21). Two visual themes share every component and differ only in tokens
-// (app/globals.css): "a" = Etched (cream on grained cobalt), "b" = ScopeFlow original (default, cobalt ink
-// on cream). Each has a light and a dark scheme. The owner picks the theme and a mode (light / dark /
-// follow the system); the choice lives on <html data-theme data-mode data-scheme>, is kept in this browser
-// and, when signed in, with the account (GET/PUT /api/theme, account_settings.theme_style/theme_mode).
-// Client pages (/review/...) always follow the visitor's system scheme, whatever is stored in this browser.
-// Pure module (no React import), so the root layout (a server component) can import the constants.
+// Themes. The owner picks one of three appearances. Internally they still map onto the token
+// sets in app/globals.css: "b"+light = Light (cream), "b"+dark = Dark, "a"+light = Etched
+// (cream type on grained cobalt). "system" remains a stored mode so older rows and the review
+// page still parse; the switcher never writes it. The choice lives on
+// <html data-theme data-mode data-scheme>, in this browser, and, when signed in, on the account
+// (GET/PUT /api/theme). Client pages (/review/...) follow the visitor's system scheme.
+// Pure module (no React import), so the root layout can import the constants.
 export const THEME_KEY = 'scopeflow:theme';
 export const MODE_KEY = 'scopeflow:mode';
 export type ThemeId = 'a' | 'b';
 export type ModeId = 'light' | 'dark' | 'system';
 export type Scheme = 'light' | 'dark';
+export type Appearance = 'light' | 'dark' | 'etched';
 export type ThemeChoice = {theme: ThemeId; mode: ModeId};
-export const THEMES: {id: ThemeId; name: string}[] = [
-  {id: 'a', name: 'Etched'},
-  {id: 'b', name: 'ScopeFlow original'},
-];
-export const MODES: {id: ModeId; name: string}[] = [
-  {id: 'system', name: 'System'},
+export const APPEARANCES: {id: Appearance; name: string}[] = [
   {id: 'light', name: 'Light'},
   {id: 'dark', name: 'Dark'},
+  {id: 'etched', name: 'Etched'},
 ];
-export const DEFAULT_CHOICE: ThemeChoice = {theme: 'b', mode: 'system'};
+export const DEFAULT_CHOICE: ThemeChoice = {theme: 'b', mode: 'light'};
 export const normalizeTheme = (value: unknown): ThemeId => (value === 'a' ? 'a' : 'b');
-export const normalizeMode = (value: unknown): ModeId => (value === 'light' || value === 'dark' ? value : 'system');
-export const resolveScheme = (mode: ModeId, prefersDark: boolean): Scheme => (mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode);
+export const normalizeMode = (value: unknown): ModeId => (value === 'dark' || value === 'system' ? value : 'light');
+export const resolveScheme = (mode: ModeId, prefersDark: boolean): Scheme => (mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode === 'dark' ? 'dark' : 'light');
+/** The three appearances. Etched is one look. A legacy "system" mode is pinned to the current scheme once. */
+export function appearanceOf(choice: ThemeChoice, prefersDark = false): Appearance {
+  if (choice.theme === 'a') return 'etched';
+  if (choice.mode === 'dark' || (choice.mode === 'system' && prefersDark)) return 'dark';
+  return 'light';
+}
+export function choiceForAppearance(appearance: Appearance): ThemeChoice {
+  if (appearance === 'etched') return {theme: 'a', mode: 'light'};
+  if (appearance === 'dark') return {theme: 'b', mode: 'dark'};
+  return {theme: 'b', mode: 'light'};
+}
 /** Pages a client sees: they follow the visitor's own system scheme, never a choice stored in this browser. */
 export const isClientPath = (path: string) => /^\/review\//.test(path);
 /** Parses a stored or posted preference; anything unknown becomes the default. */
@@ -38,21 +46,50 @@ export function validChoice(raw: unknown): ThemeChoice | null {
 }
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
-// Applies the saved theme before first paint (inline in app/layout.tsx), so there is no flash and no shift.
-export const themeScript = `try{var d=document.documentElement,s=localStorage,c=/^\\/review\\//.test(location.pathname),t=s.getItem('${THEME_KEY}'),m=s.getItem('${MODE_KEY}');t=t==='a'?'a':'b';m=c?'system':(m==='light'||m==='dark'?m:'system');d.dataset.theme=t;d.dataset.mode=m;d.dataset.scheme=m==='system'?(matchMedia('${DARK_QUERY}').matches?'dark':'light'):m}catch(e){}`;
+// Applies the saved appearance before first paint. Owner pages never stay on "system" (that made
+// Light/Dark look like they had not applied whenever the OS scheme disagreed). Review pages still follow it.
+export const themeScript = `try{var d=document.documentElement,s=localStorage,c=/^\\/review\\//.test(location.pathname),tr=s.getItem('${THEME_KEY}'),mr=s.getItem('${MODE_KEY}'),dark=matchMedia('${DARK_QUERY}').matches,t,m;if(c){d.dataset.theme=tr==='a'?'a':'b';d.dataset.mode='system';d.dataset.scheme=dark?'dark':'light'}else{t=tr==='a'?'a':'b';if(tr==null&&mr==null){t='b';m='light'}else if(t==='a'){m='light'}else if(mr==='dark'){t='b';m='dark'}else if(mr==='light'){t='b';m='light'}else{t='b';m=dark?'dark':'light'}if(!(tr==null&&mr==null)){try{s.setItem('${THEME_KEY}',t);s.setItem('${MODE_KEY}',m)}catch(e){}}d.dataset.theme=t;d.dataset.mode=m;d.dataset.scheme=m}}catch(e){}`;
 
 const prefersDark = () => typeof matchMedia === 'function' && matchMedia(DARK_QUERY).matches;
 const onClientPage = () => typeof location !== 'undefined' && isClientPath(location.pathname);
+
+const safeGet = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
+/** Both keys missing → '|' . Used so an account theme is applied only when this browser has not chosen. */
+export const storedStamp = () => (safeGet(THEME_KEY) ?? '') + '|' + (safeGet(MODE_KEY) ?? '');
+export function readStoredChoice(): ThemeChoice | null {
+  const theme = safeGet(THEME_KEY), mode = safeGet(MODE_KEY);
+  if (theme == null && mode == null) return null;
+  return parseChoice({theme, mode});
+}
+/** Re-applies the saved appearance after hydration. React must not own these attributes (see app/layout.tsx). */
+export function applyBoot() {
+  if (typeof document === 'undefined') return;
+  restoreSessionHint();
+  if (onClientPage()) { applyTheme(parseChoice({theme: safeGet(THEME_KEY), mode: 'system'}), {store: false}); return; }
+  const stored = readStoredChoice();
+  applyTheme(stored ? choiceForAppearance(appearanceOf(stored, prefersDark())) : DEFAULT_CHOICE, {store: stored != null});
+}
+export function restoreSessionHint() {
+  if (typeof document === 'undefined') return;
+  try { if (localStorage.getItem(SESSION_HINT_KEY) === '1') document.documentElement.dataset.auth = 'in'; } catch { /* storage unavailable */ }
+}
 
 /** Writes the choice to <html> (and this browser unless `store` is false). Client pages keep the system scheme. */
 export function applyTheme(choice: ThemeChoice, {store = true}: {store?: boolean} = {}) {
   if (typeof document === 'undefined') return;
   const d = document.documentElement;
-  const mode = onClientPage() ? 'system' : choice.mode;
-  d.dataset.theme = choice.theme;
-  d.dataset.mode = mode;
-  d.dataset.scheme = resolveScheme(mode, prefersDark());
-  if (store) try { localStorage.setItem(THEME_KEY, choice.theme); localStorage.setItem(MODE_KEY, choice.mode); } catch { /* storage unavailable: the choice lasts for this page */ }
+  if (onClientPage()) {
+    d.dataset.theme = normalizeTheme(choice.theme);
+    d.dataset.mode = 'system';
+    d.dataset.scheme = resolveScheme('system', prefersDark());
+    syncThemeColor();
+    return;
+  }
+  const next = choiceForAppearance(appearanceOf(choice, prefersDark()));
+  d.dataset.theme = next.theme;
+  d.dataset.mode = next.mode;
+  d.dataset.scheme = next.mode === 'dark' ? 'dark' : 'light';
+  if (store) try { localStorage.setItem(THEME_KEY, next.theme); localStorage.setItem(MODE_KEY, next.mode); } catch { /* storage unavailable: the choice lasts for this page */ }
   syncThemeColor();
 }
 
@@ -80,7 +117,7 @@ export function subscribeTheme(callback: () => void) {
 }
 /** Snapshot string 'theme|mode|scheme' for useSyncExternalStore (see app/components/slots/theme-switcher.tsx). */
 export const themeSnapshot = () => { const c = readChoice(); return `${c.theme}|${c.mode}|${c.scheme}`; };
-export const serverThemeSnapshot = () => 'b|system|light';
+export const serverThemeSnapshot = () => 'b|light|light';
 export function fromSnapshot(key: string): ThemeChoice & {scheme: Scheme} {
   const [theme, mode, scheme] = key.split('|');
   return {theme: normalizeTheme(theme), mode: normalizeMode(mode), scheme: scheme === 'dark' ? 'dark' : 'light'};

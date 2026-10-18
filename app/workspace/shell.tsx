@@ -1,5 +1,6 @@
 'use client';
 import {useSyncExternalStore} from 'react';
+import {SESSION_HINT_KEY} from '@/lib/theme';
 import {linkDialogCopy,decidedStatus} from '@/lib/review-link-copy';
 import Link from 'next/link';
 import {ArrowUpRight,Plus,Printer,Keyboard,X} from 'lucide-react';
@@ -24,17 +25,21 @@ import {settingsStep} from './settings';
 const COARSE='(pointer: coarse)';
 const subscribeCoarse=(cb:()=>void)=>{const m=window.matchMedia?.(COARSE);m?.addEventListener('change',cb);return()=>m?.removeEventListener('change',cb);};
 function useCoarsePointer(){return useSyncExternalStore(subscribeCoarse,()=>!!window.matchMedia?.(COARSE).matches,()=>false);}
+const subscribeHint=(cb:()=>void)=>{const onStorage=(e:StorageEvent)=>{if(!e.key||e.key===SESSION_HINT_KEY)cb();};window.addEventListener('storage',onStorage);const obs=new MutationObserver(cb);obs.observe(document.documentElement,{attributes:true,attributeFilter:['data-auth']});return()=>{window.removeEventListener('storage',onStorage);obs.disconnect();};};
+function authHinted(){try{return localStorage.getItem(SESSION_HINT_KEY)==='1'||document.documentElement.dataset.auth==='in';}catch{return false;}}
+function useAuthHint(){return useSyncExternalStore(subscribeHint,authHinted,()=>false);}
 
 /** The signed-in workspace and the try-without-account editor (split from app/workspace.tsx, L8: no behaviour change). */
 export default function Workspace(){
   const coarse=useCoarsePointer();
+  const hinted=useAuthHint();
   const w=useWorkspace();const {confirmDialog,shortcutsOn,setShortcutsOn,cards,actionError,active,activeOv,busy,changed,deleteText,draft,error,goHome,importDraft,importError,importOpen,importText,isSample,keysOpen,linkAction,loading,manageLink,newScope,next,nextActions,notice,opening,preview,projectAction,runProjectAction,setDeleteText,setImportOpen,setImportText,setKeysOpen,setLinkAction,setNotice,setProjectAction,setTab,setTrying,setUndo,shownAction,shownLink,signedIn,stage,steps,tab,tryEditor,trying,undo,undoReplace}=w;
   // Visual re-audit #6: once the deposit/schedule conflict is fixed (Clear deposit), the banner stops naming it.
   const shownError=bannerAfterFix(error,DEPOSIT_SCHEDULE_CONFLICT,hasDepositScheduleConflict(draft));
   // H4 (WS-02 semantics, WS-09 copy): a decided version's client keeps a read-only copy after revoke/replace.
   const linkCopy=linkDialogCopy(shownLink,decidedStatus(active?.status));
  return <><Header/><main className="shell" id="content" tabIndex={-1}>
-  {!signedIn&&!trying?<>{loading&&<div className="boot-skeleton" aria-hidden="true"><Skeleton cards={2} lines={2}/></div>}<div className={loading?'boot-guard':undefined}><Landing onTry={tryEditor}/></div></>:<>
+  {!signedIn&&!trying&&(!loading||!hinted)?<>{loading&&<div className="boot-skeleton" aria-hidden="true"><Skeleton cards={2} lines={2}/></div>}<div className={loading?'boot-guard':undefined}><Landing onTry={tryEditor}/></div></>:<>
   {!signedIn&&!loading&&<div className="try-banner" role="note"><p><b>Trying Scopeflow without an account.</b> Your draft stays in this tab only. Create an account to save it and send it for approval.</p><div className="actions"><Link className="primary" href="/auth/sign-up?return_to=%2F">Create an account<ArrowUpRight size={16}/></Link><Link className="secondary" href="/auth/sign-in?return_to=%2F">Sign in</Link><button className="help-link" onClick={()=>{setTrying(false);window.scrollTo({top:0});}}>Back to the overview</button></div></div>}
   <div className="page-heading compact hero-in"><div><p className="eyebrow">Your workspace</p><h1>Scopes &amp; <em>agreements</em></h1></div><div className="actions"><button className="secondary" onClick={()=>setKeysOpen(true)} aria-label="Keyboard shortcuts" title={shortcutsOn?'Keyboard shortcuts (?)':'Keyboard shortcuts'} aria-keyshortcuts={shortcutsOn?'?':undefined}><Keyboard size={16}/></button><button className="primary" onClick={()=>void newScope()} aria-keyshortcuts={shortcutsOn?'N':undefined}><Plus size={16}/>New scope</button></div></div>
   <Tabs value={tab} onValueChange={v=>v==='home'?goHome():setTab('project')} className="ws-tabs">

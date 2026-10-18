@@ -5,7 +5,7 @@ import {loadLedger} from './ledger-server';
 import {loadBrand} from './brand-server';
 import {totals} from './money';
 import {formatMoney, type Scope} from './scope';
-import {accountClosedEmail, brandEmail, changeOrderEmail, contactChangedEmail, cosignInviteEmail, invoiceIssuedEmail, invoiceReminderEmail, ownerAlertEmail, unsubscribeHeaders, type SignatureEmail} from './mail';
+import {accountClosedEmail, brandEmail, changeOrderEmail, contactChangedEmail, cosignInviteEmail, invoiceIssuedEmail, invoiceReminderEmail, ownerAlertEmail, ownerDecisionEmail, unsubscribeHeaders, type SignatureEmail} from './mail';
 import {MailCapError, retryDue, sendViaOutbox} from './mail-outbox';
 import type {MailClass} from './mail-router';
 import {shareMessage, waLink, type ShareKind} from './whatsapp-share';
@@ -28,9 +28,9 @@ import {NOTIFY_EVENTS, OPTIONAL_CLIENT_EVENTS, type NotifyOutcome} from './notif
 
 const CLASS: Record<NotifyEvent, MailClass> = {
   co_proposed: 'transactional', invoice_issued: 'transactional', payment_reminder: 'bulk', contact_changed_old_address: 'auth',
-  cosign_invite: 'transactional', payment_claim: 'transactional', payment_alert: 'transactional', account_closed_client_notice: 'transactional',
+  cosign_invite: 'transactional', payment_claim: 'transactional', payment_alert: 'transactional', client_decision: 'transactional', account_closed_client_notice: 'transactional',
 };
-const OWNER_EVENTS: readonly NotifyEvent[] = ['payment_claim', 'payment_alert'];
+const OWNER_EVENTS: readonly NotifyEvent[] = ['payment_claim', 'payment_alert', 'client_decision'];
 
 
 type ProjectRow = {id: string; owner: string; latest: number; client_email: string | null; client_phone: string | null; notify_client: boolean; content: string; token: string; status: string};
@@ -104,6 +104,13 @@ async function render(event: NotifyEvent, payload: NotifyPayload, project: Proje
   if (event === 'account_closed_client_notice') {
     if (!project || !content || !clientTo) return {skip: 'no_client_email'};
     return {to: clientTo, ref: 'closed', message: accountClosedEmail({title: content.title, client: content.client, seller: sender.seller, reviewUrl})};
+  }
+  if (event === 'client_decision') {
+    const to = payload.to ?? sender.ownerEmail;
+    if (!to) return {skip: 'no_owner_email'};
+    const decision = data.decision === 'changes_requested' ? 'changes_requested' : 'approved';
+    const version = Number(data.version) || project?.latest || 1;
+    return {to, ref: `${version}:${decision}`, message: ownerDecisionEmail({decision, title: content?.title || str(data.title, 160) || 'your project', signer: str(data.signer, 120), version, comment: str(data.comment, 400), workspaceUrl: `${origin()}/`})};
   }
   // payment_claim, payment_alert: to the owner.
   const to = payload.to ?? sender.ownerEmail;
