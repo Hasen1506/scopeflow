@@ -101,7 +101,7 @@ Walked in a browser at 1280 and 390, plus the route and schema review.
 | `npm audit` | 0 critical, 5 high, 4 moderate, all dev dependencies (see Needs owner) |
 | Email and PDF goldens | unchanged in meaning. The browser golden flow's deliverable ids moved because the seeded id sequence now starts later; titles, prices and the approval record match. `tests/e2e/__golden__/` was refreshed and the flow passed again without rewriting. |
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, `test:props`, the coverage gate, the capped build, Playwright, `test:visual`, `test:local` and `test:live`. `test:visual` only compares the committed pngs, inside `mcr.microsoft.com/playwright:v1.56.1-noble`. It does not rewrite them. `npm run test:visual:update` is the local command that regenerates them in that same image. On `da3a86c` that comparison passed, and the later local suite then could not write `test-results` because the image had created it as root. The visual script now returns those files to the user who invoked it. The run for this commit is the one to treat as the status.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, `test:props`, the coverage gate, the capped build, Playwright, `test:visual`, `test:local` and `test:live`. `test:visual` only compares the committed pngs, inside `mcr.microsoft.com/playwright:v1.56.1-noble`. It does not rewrite them. `npm run test:visual:update` is the local command that regenerates them in that same image. The run on `a887796` is green: [39153005341](https://github.com/Hasen1506/scopeflow/actions/runs/39153005341). The visual comparison, the Playwright suite, `test:local` and `test:live` all passed.
 
 ## Not verified here
 
