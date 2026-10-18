@@ -58,7 +58,7 @@ Not built.
 
 Walked in a browser at 1280 and 390, plus the route and schema review.
 
-**Journeys.** Sign-up, sign-in, the try-editor, templates, plans, connect, verify, privacy, terms, support and the account gate all render. The golden Playwright flow already covers compose → private link → approve → change order. A new spec covers request-changes → new version → re-approve, and checks both versions in Decision history. It runs in CI with Postgres; this environment has no database, so it was not executed here. ChatGPT MCP is `app/mcp/route.ts`. Agents are not given client review links (`review_path` is null for API tokens).
+**Journeys.** Sign-up, sign-in, the try-editor, templates, plans, connect, verify, privacy, terms, support and the account gate all render. The golden Playwright flow already covers compose → private link → approve → change order. A new spec covers request-changes → new version → re-approve, and checks both versions in Decision history. It passed against local Postgres and again in CI on a fresh database. ChatGPT MCP is `app/mcp/route.ts`. `tests/integration.mjs` calls that route with an API token: a missing token is rejected, list and create succeed, and `review_path` stays null.
 
 **Empty, loading, error.** Signed-out account and payments pages explain that sign-in is required. A missing review link and a missing countersign link render an error instead of a blank page. `/api/health` on this machine returned 503 `auth_not_configured` because Neon Auth is not in the local env. That is the right failure.
 
@@ -101,10 +101,10 @@ Walked in a browser at 1280 and 390, plus the route and schema review.
 | `npm audit` | 0 critical, 5 high, 4 moderate, all dev dependencies (see Needs owner) |
 | Email and PDF goldens | unchanged in meaning. The browser golden flow's deliverable ids moved because the seeded id sequence now starts later; titles, prices and the approval record match. `tests/e2e/__golden__/` was refreshed and the flow passed again without rewriting. |
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, `test:props`, the coverage gate, the capped build, Playwright, `test:visual`, `test:local` and `test:live`. `test:visual` only compares the committed pngs, inside `mcr.microsoft.com/playwright:v1.56.1-noble`. It does not rewrite them. `npm run test:visual:update` is the local command that regenerates them in that same image. The run on `a887796` is green: [39153005341](https://github.com/Hasen1506/scopeflow/actions/runs/39153005341). The visual comparison, the Playwright suite, `test:local` and `test:live` all passed.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, `test:props`, the coverage gate, the capped build, Playwright, `test:visual`, `test:local` and `test:live` on `ubuntu-24.04`. `ubuntu-latest` moves to Ubuntu 26 on 19 Oct 2026, and Playwright 1.56.1 installs its browser dependencies for 24.04, so the runner image stays pinned. `actions/checkout` and `actions/setup-node` are v5 (Node 24). `test:visual` only compares the committed pngs, inside `mcr.microsoft.com/playwright:v1.56.1-noble`. It does not rewrite them. `npm run test:visual:update` is the local command that regenerates them in that same image. The green run for this commit is recorded here once Actions finishes.
 
 ## Not verified here
 
 - Live DNS for `scope-flow.tech` (no mailbox credentials).
 - A real client approval against Neon. `/api/health` is 503 until `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET` are set.
-- The re-approval Playwright spec was run here against local Postgres and passed. CI runs it again on a fresh database.
+- The re-approval Playwright spec passed here against local Postgres and again in the green CI run on a fresh database.

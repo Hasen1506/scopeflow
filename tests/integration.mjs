@@ -45,6 +45,19 @@ const invalid=await rpc('tools/call',{name:'create_scope',arguments:{content:s,r
 const requestId=randomUUID();const created=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:requestId,user_confirmed:true}});status(created,200);
 // SF-02/SF-07: no review link for agents; the workspace URL uses the public origin, never 0.0.0.0.
 assert.equal(created.value.result.structuredContent.review_url,undefined);assert.ok(!JSON.stringify(created.value.result).includes('/review/'));assert.equal(new URL(created.value.result.structuredContent.workspace_url).origin,base);passed++;
+// API tokens on /mcp (ChatGPT connector): reject a missing credential, then list and create a draft.
+// review_path stays null, and the JSON never contains a client review link.
+const minted=await call('/api/key','POST',{},true,{Origin:base});status(minted,200);
+const apiHeaders={Authorization:'Bearer '+minted.value.token};
+status(await rpc('tools/call',{name:'list_scopes',arguments:{}},false),401);
+const apiListed=await rpc('tools/call',{name:'list_scopes',arguments:{}},false,apiHeaders);status(apiListed,200);
+assert.ok(apiListed.value.result.structuredContent.scopes.every(x=>(x.review_path??null)===null&&!('token' in x)));passed++;
+const apiCreated=await rpc('tools/call',{name:'create_scope',arguments:{content:{...s,title:s.title+' via API token'},request_id:randomUUID(),user_confirmed:true}},false,apiHeaders);
+status(apiCreated,200);
+const apiBody=apiCreated.value.result.structuredContent;
+eq(apiBody.review_path??null,null);eq(apiBody.scope.review_path??null,null);
+assert.equal(apiBody.review_url,undefined);assert.ok(typeof apiBody.review_link==='string'&&!apiBody.review_link.includes('/review/'));
+assert.ok(!JSON.stringify(apiCreated.value.result).includes('/review/'));passed++;
 const retry=await rpc('tools/call',{name:'create_scope',arguments:{content:s,request_id:requestId,user_confirmed:true}});eq(retry.value.result.structuredContent.replayed,true);
 const project=created.value.result.structuredContent.scope.project_id;
 const revised=await rpc('tools/call',{name:'revise_scope',arguments:{project_id:project,expected_version:1,content:{...s,fee:150},user_confirmed:true}});eq(revised.value.result.structuredContent.scope.version,2);

@@ -7,7 +7,10 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # ubuntu-latest moves to Ubuntu 26 starting 19 Oct 2026. Playwright 1.56.1
+    # installs Chromium dependencies for 24.04; stay on that image so the
+    # browser install and the visual comparison do not move with the runner.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:17
@@ -54,8 +57,8 @@ jobs:
       # WS-10 (H3): behind one trusted proxy, like Render; the client is the right-most X-Forwarded-For hop.
       SCOPEFLOW_TRUSTED_HOPS: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .node-version
           cache: npm
