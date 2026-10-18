@@ -88,7 +88,7 @@ test('R3-06/R3-07/R3-08/R3-13/R3-15/R3-17: notify rule, connect wording, idle sa
   // Templates stays in the main nav only, so it cannot also be the current Account item.
   assert.match(ui, /<Link href="\/templates"/);
   assert.ok(!/href:'\/templates'/.test(ui));
-  assert.match(ui, /aria-current=\{path==='\/'&&session\?\.user\?'page':undefined\}/);
+  assert.match(ui, /aria-current=\{path==='\/'&&user\?'page':undefined\}/);
   assert.match(read('app/onboarding/page.tsx'), /<fieldset className="section-gap"><legend>Workspace mode/);
 });
 
@@ -107,7 +107,7 @@ test('visual #11/#20/#29, C11/C13: small layout and hierarchy fixes', () => {
   assert.match(read('app/components/slots/cosigner-editor.tsx'), /disabled=\{busy \|\| !dirty/);
   assert.ok(!read('app/components/slots/contact-change.tsx').includes("Current: {current || 'none'}"));
   assert.match(read('app/review/[token]/client.module.css'), /\.header \.picker\{order:2\}/);
-  assert.match(read('app/workspace/shell.tsx'), /!active&&!coarse&&/);
+  assert.match(read('app/workspace/project-body.tsx'), /!active\s*&&\s*!coarse\s*&&/);
   const ins = read('app/insights-panel.tsx');
   assert.ok(!/<h2/.test(ins), 'insights sit under the dashboard heading');
   assert.match(read('app/review/[token]/review.tsx'), /<Link className="help-link" href="\/">\{t\('actions\.create'\)\}<\/Link>/);

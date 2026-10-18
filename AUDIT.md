@@ -85,23 +85,26 @@ Walked in a browser at 1280 and 390, plus the route and schema review.
 | Check | Result |
 | --- | --- |
 | `tsc --noEmit` | pass |
-| `next build` | pass |
-| Property tests added here | pass (approval body, tokens, diff base, totals, API auth inventory, cron bearer compare, owner decision email, theme, mounts) |
-| `npm run test:props` | 543 tests. 539 passed in this environment. The other 4 call `pdfimages`, `pdftotext` or `pdfsig` (Poppler), which CI installs and this machine does not. Coverage gate 126/126. |
-| Playwright landing flash | pass on the dev server and on `next start` |
-| Playwright theme-rail screenshots | 6 baselines committed (Light, Dark, Etched × 1280 and 390), generated against `next start` |
-| axe | 25 public routes, one moderate finding, fixed |
-| Lighthouse home, `next dev` | performance 68, accessibility 100, best-practices 96, SEO 100. LCP 5.6s, 1,614 KiB, unminified dev bundles |
-| Lighthouse home, `next start` | performance 89, accessibility 100, best-practices 93, SEO 100. LCP 3.6s, 668 KiB, unused JS about 209 KiB |
-| Lighthouse sign-in, `next dev` → `next start` | performance 74 → 83, accessibility 100, SEO 66 (the auth page is thin on indexable content) |
+| `next build` (capped heap, same as CI) | pass. `npm start` is the loopback Next server plus the HTML rewrite in `scripts/start.mjs`. CI starts that too. |
+| `npm run test:props` | 552 tests. 548 passed here. The other 4 call `pdfimages`, `pdftotext` or `pdfsig` (Poppler), which CI installs and this machine does not. Coverage gate 126/126. |
+| Property tests added for this pass | link expiry, calendar dates, time zones, scope and settings bounds, decision-mail escaping (`tests/property/dates-validation.test.mjs`); the script-defer rewrite (`tests/property/defer-scripts.test.mjs`) |
+| Playwright, this production server | landing flash, accounts (including sign-out), owner settings → new draft, link expiry and revoke, owner decision email queued, reapproval against Postgres, golden flow. All passed. |
+| Screenshot baselines | 36 page shots (landing, editor, account, templates, review, approved × Light, Dark, Etched × 1280 and 390) plus 6 theme-rail shots. Dates and tokens are masked. Re-run after generation passed with no pixel diff. |
+| axe | 25 public routes, one moderate finding, fixed (unchanged this pass) |
+| Lighthouse home, before (`next start` on the previous commit) | performance 89, accessibility 100, best-practices 93, SEO 100. LCP 3.6s, 668 KiB, unused JS about 209 KiB |
+| Lighthouse home, after (mobile, simulated) | performance 100. LCP 1.3s, FCP 1.2s, TBT 10ms, CLS 0. Unused JS 77 KiB. Transfer 385 KiB |
+| Lighthouse client review, before the dynamic-page script hold | performance 97. LCP 2.5s, unused JS about 51 KiB, transfer 440 KiB |
+| Lighthouse client review, after (mobile, simulated) | performance 99. LCP 1.3s, FCP 1.1s, TBT 90ms, CLS 0. Unused JS 53 KiB. Transfer 480 KiB |
+| Lighthouse signed-in workspace, before the editor was split out | performance 58. LCP 4.8s, unused JS about 89 KiB, transfer 647 KiB |
+| Lighthouse signed-in workspace, after (mobile, simulated, session hint set) | performance 100. LCP 1.4s, FCP 1.2s, TBT 0, CLS 0. Unused JS 31 KiB. Transfer 291 KiB |
+| Layout at 390, 768 and 1280 | no horizontal overflow on landing, workspace, editor, account, templates, connect, onboarding, plans or the client review page. The 44px colour swatch and the short stage/currency selects are intentional controls, not text fields. |
 | `npm audit` | 0 critical, 5 high, 4 moderate, all dev dependencies (see Needs owner) |
-| Request-changes → re-approve Playwright spec | added; runs in the existing CI Playwright job. Not executed in this environment (no Postgres) |
-| Email and PDF goldens | already in `tests/golden/` and `tests/property/mail.test.mjs`. The new owner-decision template is locked by `tests/property/owner-decision-mail.test.mjs` |
+| Email and PDF goldens | unchanged in meaning. The browser golden flow's deliverable ids moved because the seeded id sequence now starts later; titles, prices and the approval record match. `tests/e2e/__golden__/` was refreshed and the flow passed again without rewriting. |
 
-CI (`.github/workflows/ci.yml`) already runs typecheck, lint, `test:props` (every `tests/property/*.test.mjs`), the Playwright project, `test:local` and `test:live` on pull requests. The new files sit in those globs. No new workflow was required.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, `test:props`, the coverage gate, the capped build, Playwright, `test:local` and `test:live`. The previous run on `7276462` failed two Playwright specs (sign-out returned to the landing page; reapproval matched two "Version 2 · Approved" lines). Both pass locally on this commit. The run for this commit is the one to treat as the status.
 
 ## Not verified here
 
 - Live DNS for `scope-flow.tech` (no mailbox credentials).
 - A real client approval against Neon. `/api/health` is 503 until `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET` are set.
-- The re-approval Playwright spec against Postgres. CI is the run that executes it.
+- The re-approval Playwright spec was run here against local Postgres and passed. CI runs it again on a fresh database.

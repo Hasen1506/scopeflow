@@ -24,9 +24,10 @@ export async function GET(request: Request, ctx: Ctx) {
     const project = await db().prepare('SELECT p.notify_client,p.client_email,p.client_phone,v.token,v.content FROM projects p JOIN versions v ON v.project_id=p.id AND v.version=p.latest WHERE p.id=? AND p.owner=?').bind(id, auth.user).first<{notify_client: boolean; client_email: string | null; client_phone: string | null; token: string; content: string}>();
     if (!project) return json({error: 'Project not found.'}, 404);
     await drainNotifyEvents({projectId: id});
-    const [ledger, rows, invoices, pending] = await Promise.all([
+    const [ledger, rows, ownerMail, invoices, pending] = await Promise.all([
       loadLedger(id),
       db().prepare("SELECT event,dedupe_key,status,sent,created FROM scopeflow.mail_outbox WHERE project_id=? AND event IN ('co_proposed','invoice_issued','payment_reminder') ORDER BY created").bind(id).all<Outbox>(),
+      db().prepare("SELECT status,subject,created FROM scopeflow.mail_outbox WHERE project_id=? AND event='client_decision' ORDER BY created").bind(id).all<{status: string; subject: string | null; created: string}>(),
       db().prepare('SELECT seq,number,amount,currency,content FROM invoices WHERE project_id=? ORDER BY seq').bind(id).all<{seq: number; number: string; amount: number; currency: string; content: string}>(),
       db().prepare("SELECT event,ref,status FROM scopeflow.notify_events WHERE project_id=?").bind(id).all<{event: string; ref: string; status: string}>(),
     ]);
@@ -44,6 +45,7 @@ export async function GET(request: Request, ctx: Ctx) {
       share: browser ? {phone: project.client_phone, lang: content.language ?? null, client: content.client, title: content.title, link: publicUrl(request, '/review/' + project.token)} : null,
       change_orders: (ledger.agreement?.change_orders ?? []).map(c => ({seq: c.seq, title: c.title, status: c.status, amount: base ? formatMoney(totals(base, c.fee_delta).total, ledger.agreement!.currency) : null, email: emailFor('co_proposed', String(c.seq))})),
       invoices: invoices.results.map(i => ({seq: i.seq, number: i.number, amount: formatMoney(Number(i.amount), i.currency), due: (JSON.parse(i.content) as {due?: string}).due ?? null, email: emailFor('invoice_issued', String(i.seq))})),
+      owner_mail: ownerMail.results.map(r => ({status: r.status, subject: r.subject, created: r.created})),
     });
   } catch (e) { return failure(e); }
 }

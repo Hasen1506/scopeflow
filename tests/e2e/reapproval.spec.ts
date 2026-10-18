@@ -50,10 +50,10 @@ test('request changes, revise, and re-approve; both versions stay in history', a
   const ownerPage = await o.context.newPage();
   await ownerPage.goto('/');
   await ownerPage.getByRole('button', {name: 'Reapproval website revised'}).click();
-  await expect(ownerPage.getByRole('heading', {name: 'Decision history'})).toBeVisible();
-  await expect(ownerPage.getByText('Version 2 · Approved')).toBeVisible();
-  await expect(ownerPage.getByText('Version 1 · Changes requested')).toBeVisible();
-  await expect(ownerPage.getByText('Please drop printing.')).toBeVisible();
+  const history = ownerPage.locator('.section-gap', {has: ownerPage.getByRole('heading', {name: 'Decision history'})});
+  await expect(history.getByText('Version 2 · Approved')).toBeVisible();
+  await expect(history.getByText('Version 1 · Changes requested')).toBeVisible();
+  await expect(history.getByText('Please drop printing.')).toBeVisible();
   await client.close();
   await o.context.close();
 });

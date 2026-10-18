@@ -81,7 +81,7 @@ jobs:
         run: |
           node tests/support/tsa-service.mjs > tsa.log 2>&1 &
           node tests/support/auth-service.mjs > auth.log 2>&1 &
-          npx next start --hostname localhost --port 5173 > next.log 2>&1 &
+          node scripts/start.mjs > next.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:5173/api/health && break; sleep 1; done
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:55433/ok && break; sleep 1; done
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:55434/ && break; sleep 1; done

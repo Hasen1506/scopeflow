@@ -41,11 +41,11 @@ export function SiteFooter() {
           </div>
           <nav className="footer-col" aria-label="Product">
             <h2>Product</h2>
-            <ul><li><Link href="/">Workspace</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li><li><Link href="/account">Settings</Link></li></ul>
+            <ul><li><Link prefetch={false} href="/">Workspace</Link></li><li><Link prefetch={false} href="/connect">Connect an agent</Link></li><li><Link prefetch={false} href="/plans">Plans</Link></li><li><Link prefetch={false} href="/account">Settings</Link></li></ul>
           </nav>
           <nav className="footer-col" aria-label="Help">
             <h2>Help</h2>
-            <ul><li><Link href="/support">Support</Link></li><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><a href="/api/openapi">OpenAPI</a></li></ul>
+            <ul><li><Link prefetch={false} href="/support">Support</Link></li><li><Link prefetch={false} href="/reviewer-guide">Reviewer guide</Link></li><li><a href="/api/openapi">OpenAPI</a></li></ul>
           </nav>
           <div className="footer-col">
             <h2>Check a receipt</h2>
@@ -55,7 +55,7 @@ export function SiteFooter() {
         </div>
         <div className="footer-legal">
           <span>Scopeflow · Early beta</span>
-          <nav aria-label="Legal"><Link href="/about">About</Link><Link href="/contact">Contact</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/refund">Refunds</Link></nav>
+          <nav aria-label="Legal"><Link prefetch={false} href="/about">About</Link><Link prefetch={false} href="/contact">Contact</Link><Link prefetch={false} href="/privacy">Privacy</Link><Link prefetch={false} href="/terms">Terms</Link><Link prefetch={false} href="/refund">Refunds</Link></nav>
         </div>
       </div>
       <img className="footer-art" src="/art/survey-valley-1600.webp" srcSet="/art/survey-valley-800.webp 800w, /art/survey-valley-1600.webp 1600w" sizes="100vw" alt="" width={1600} height={522} loading="lazy" decoding="async" />

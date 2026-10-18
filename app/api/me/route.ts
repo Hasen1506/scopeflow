@@ -6,6 +6,7 @@ import {otpAvailable,otpChannels} from '@/lib/otp';
 import {isMode} from '@/lib/mode';
 import {validTimeZone} from '@/lib/time';
 import {planStateFor} from '@/lib/billing';
+import {recordOwnerContact} from '@/lib/owner-contact';
 // `account`: an opaque per-account key (not the user id) so the browser keeps each account's unsaved
 // draft separately and never restores one account's draft for another.
 // `otp`: whether a one-time email code can be required before signing (PR B).
@@ -17,4 +18,4 @@ async function defaults(owner:string){
  const plan=await planStateFor(owner);
  return {mode:isMode(r?.mode)?r.mode:'freelancer',currency:r?.default_currency||'USD',currency_set:!!r?.default_currency,timezone:validTimeZone(r?.timezone)?r!.timezone:null,country:r?.country??null,onboarded:!!r?.onboarded,plan:{id:plan.plan.id,name:plan.plan.name,status:plan.status}};
 }
-export async function GET(){const user=await getUser();return json({signedIn:!!user,...(user?{account:await accountKey(user.userId),mail:mailConfigured(),ai:llmStatus(),otp:otpAvailable(),otp_channels:otpChannels(),defaults:await defaults(user.userId).catch(()=>null)}:{})});}
+export async function GET(){const user=await getUser();if(user)await recordOwnerContact(user.userId,user.email).catch(()=>null);return json({signedIn:!!user,...(user?{account:await accountKey(user.userId),mail:mailConfigured(),ai:llmStatus(),otp:otpAvailable(),otp_channels:otpChannels(),defaults:await defaults(user.userId).catch(()=>null)}:{})});}

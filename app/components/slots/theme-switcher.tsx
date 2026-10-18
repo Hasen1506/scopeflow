@@ -24,7 +24,13 @@ export async function saveChoice(choice: ThemeChoice) {
 /** Keeps <html> in step with the saved appearance, including after a refresh resets attributes. */
 export function ThemeProvider({children}: {children?: ReactNode}) {
   const pathname = usePathname();
-  useLayoutEffect(() => { applyBoot(); syncThemeColor(); }, [pathname]);
+  useLayoutEffect(() => {
+    // Forms in the HTML can be submitted before hydration. Mark the document once React is
+    // attached so those controls start accepting input (see html:not(.hydrated) in globals.css).
+    document.documentElement.classList.add('hydrated');
+    applyBoot();
+    syncThemeColor();
+  }, [pathname]);
   useEffect(() => {
     if (isClientPath(location.pathname)) return;
     let cancelled = false;

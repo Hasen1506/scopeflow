@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {Header, Paper, Skeleton, api, post} from '@/app/ui';
+import {Header, Skeleton, api, post} from '@/app/ui';
+import {Paper} from '@/app/paper';
 import type {Scope} from '@/lib/scope';
 
 /** A template someone shared by link: preview it and add a copy to your own library. */

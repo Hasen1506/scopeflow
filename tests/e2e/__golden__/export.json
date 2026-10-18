@@ -14,7 +14,7 @@
         "deliverables": "Logo suite\nSocial launch templates\nBrand guidelines (12 pages)",
         "items": [
           {
-            "id": "i_64ebc901",
+            "id": "i_9442c092",
             "title": "Logo suite",
             "qty": 1,
             "unit": "",
@@ -22,7 +22,7 @@
             "acceptance": "SVG, PNG and PDF in colour and mono"
           },
           {
-            "id": "i_2a364a68",
+            "id": "i_dd19b273",
             "title": "Social launch templates",
             "qty": 1,
             "unit": "",
@@ -30,7 +30,7 @@
             "acceptance": ""
           },
           {
-            "id": "i_d19b2738",
+            "id": "i_c64ebc90",
             "title": "Brand guidelines",
             "qty": 12,
             "unit": "pages",
@@ -59,7 +59,7 @@
         "owner_session": false,
         "via_api": false,
         "acknowledged": true,
-        "content_sha256": "c698fe9bb92dabad7163423afb762585d0f622a09b954d91a20828ac9522acf3"
+        "content_sha256": "39a058986e38782554854c1de92a3d64d0a585b82eca5c16bad5bfdc8929e88d"
       },
       "token": "<review-token>"
     }
@@ -78,7 +78,7 @@
         "request_quote": "Could you also design 6 Instagram templates?",
         "add_items": [
           {
-            "id": "i_b19326d8",
+            "id": "i_c787e6e3",
             "title": "Instagram templates",
             "qty": 6,
             "unit": "",
@@ -111,7 +111,7 @@
         "signer": "Ada Client",
         "comment": "",
         "acknowledged": true,
-        "co_sha256": "620e70e0dd39d613bb4b09c55cb2eade3d23f5f89e9c6964322ad6f5a891fd44",
+        "co_sha256": "fbfe97fef723403de2a3deed8869f43413b7ca742bc507b137d14758b6b64b8a",
         "total_incl_tax_minor": 40000
       },
       "ref": "settle:1",

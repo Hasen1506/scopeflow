@@ -1,6 +1,7 @@
 'use client';
 import {useCallback, useEffect, useState} from 'react';
-import {Header, Paper, api} from '@/app/ui';
+import {Header, api} from '@/app/ui';
+import {Paper} from '@/app/paper';
 import type {Scope} from '@/lib/scope';
 import {formatInZone} from '@/lib/time';
 import {CosignForm} from '@/app/review/[token]/countersign';

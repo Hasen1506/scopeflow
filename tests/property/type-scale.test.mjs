@@ -34,8 +34,9 @@ test('token blocks: six sizes, six line heights, three weights, two families', (
   }
   assert.doesNotMatch(base, /--fs-7|--lh-7|--fw-4/, 'no extra steps');
   for (const n of [1, 2, 3]) assert.match(base, new RegExp(`--fw-${n}:`));
-  const fams = new Set([...theme.matchAll(/--font-(display|ui):\s*var\((--font-[a-z]+)\)/g)].map(m => m[2]));
-  assert.deepEqual([...fams].sort(), ['--font-fraunces', '--font-instrument'], 'Fraunces display + Instrument Sans UI');
+  // First paint uses the metric-matched fallback. After paint, .fonts-ready points both roles at the two real families.
+  assert.match(css, /html\.fonts-ready\{[^}]*--font-display:var\(--font-fraunces\)/, 'Fraunces is the display family');
+  assert.match(css, /html\.fonts-ready\{[^}]*--font-ui:var\(--font-instrument\)/, 'Instrument Sans is the UI family');
   assert.match(theme, /--fw-ui:/, 'sets the UI weight role');
 });
 

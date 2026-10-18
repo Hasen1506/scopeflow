@@ -3,7 +3,7 @@
   "version": 1,
   "signer": "Ada Client",
   "decided": "<timestamp>",
-  "content_sha256": "c698fe9bb92dabad7163423afb762585d0f622a09b954d91a20828ac9522acf3",
+  "content_sha256": "39a058986e38782554854c1de92a3d64d0a585b82eca5c16bad5bfdc8929e88d",
   "anchor": "<chain-hash>",
   "signature": "<ed25519-signature>",
   "key": {

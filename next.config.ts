@@ -52,8 +52,10 @@ const nextConfig: NextConfig = {
     // this size (default 10 MB). No route needs more than 1 MB except the eSign callback (a signed
     // PDF), which proxy.ts's matcher skips and which reads its own body within BODY_LIMITS.esign.
     proxyClientMaxBodySize: "1mb",
-    // Tree-shake icon, date and chart packages out of the client bundle.
-    optimizePackageImports: ["lucide-react", "date-fns", "recharts"],
+    // Tree-shake icon, date, chart and menu packages out of the client bundle.
+    optimizePackageImports: ["lucide-react", "date-fns", "recharts", "radix-ui"],
+    // App Router inlines route CSS into the HTML so the first paint does not wait on a stylesheet round trip.
+    inlineCss: true,
   },
   // L10: Next's in-build type check alone needs more than the 460 MB heap of a 512 MB instance.
   // `npm run build:capped` skips it; `npm run typecheck` (tsc) gates CI before every build, and
