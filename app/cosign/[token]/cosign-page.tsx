@@ -1,6 +1,7 @@
 'use client';
 import {useCallback, useEffect, useState} from 'react';
-import {Header, Paper, api} from '@/app/ui';
+import {Header, api} from '@/app/ui';
+import {Paper} from '@/app/paper';
 import type {Scope} from '@/lib/scope';
 import {formatInZone} from '@/lib/time';
 import {CosignForm} from '@/app/review/[token]/countersign';
@@ -21,6 +22,7 @@ export function CosignPage({token}: {token: string}) {
   useEffect(() => { let live = true; api('/api/cosign/' + token).then(d => { if (live) setData(d); }, e => { if (live) setError((e as Error).message); }); return () => { live = false; }; }, [token]);
   const tz = data?.time_zone ?? 'UTC';
   return <><Header /><main id="content" tabIndex={-1} className="review-shell">
+    <h1 className={data ? 'sr-only' : undefined}>{error ? 'This countersign link is not available' : 'Countersign'}</h1>
     {error && <div className="error" role="alert">{error}</div>}
     {data && <>
       <p className="eyebrow">COUNTERSIGN · {data.role.role.toUpperCase()} · VERSION {data.scope.version}</p>

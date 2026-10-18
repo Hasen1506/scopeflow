@@ -1,3 +1,5 @@
+import {z} from 'zod';
+
 // What a ScopeFlow record proves, in words (owner: WS-02). Pure and client-safe: the review page,
 // the verify page, the PDF receipt and the JSON receipt all use these, so they never disagree.
 //
@@ -10,6 +12,25 @@ export type DocumentSeal = {pades?: boolean; esign?: {provider: string} | null};
 
 /** The canonical form of scope content whose SHA-256 is `content_sha256` (L1). Unchanged since SF-15: the stored key order. */
 export function canonical(content: unknown): string { return JSON.stringify(content); }
+
+/** POST /api/review/:token body. Strict: a forwarded or partial payload is refused. */
+export const decisionBody = z.object({
+  decision: z.enum(['approved', 'changes_requested']),
+  signer: z.string().trim().min(2).max(120),
+  comment: z.string().trim().max(3000),
+  version: z.number().int(),
+  acknowledged: z.literal(true),
+  content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  otp_session: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict();
+
+/** Null when a decision body can be recorded. These sentences are the API's 400 copy. */
+export function decisionProblem(raw: unknown): string | null {
+  const input = decisionBody.safeParse(raw);
+  if (!input.success) return 'Enter your name, confirm you reviewed this version, and choose a decision.';
+  if (input.data.decision === 'changes_requested' && !input.data.comment) return 'Please describe the changes you need.';
+  return null;
+}
 
 /** SHA-256 hex of canonical(content), with WebCrypto (browser and Node). */
 export async function contentFingerprint(content: unknown): Promise<string> {

@@ -127,7 +127,8 @@ test('notify.ts lists the events and refuses unknown ones without sending; mode.
     assert.deepEqual(await notify('not_an_event', {project_id: 'p1', to: 'client@example.test'}), {event: 'not_an_event', delivered: false, channel: 'log', status: 'skipped', reason: 'unknown_event'});
     assert.equal(fetchSpy.mock.callCount(), 0);
   } finally { fetchSpy.mock.restore(); }
-  assert.equal(NOTIFY_EVENTS.length, 8);
+  assert.equal(NOTIFY_EVENTS.length, 9);
+  assert.ok(NOTIFY_EVENTS.includes('client_decision'));
   assert.equal(await currentMode('any-owner'), 'freelancer');
   assert.deepEqual([...MODES], ['freelancer', 'agency', 'consumer', 'enterprise']);
   for (const m of MODES) assert.equal(modeDefaults(m).mode, m);

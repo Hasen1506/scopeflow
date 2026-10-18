@@ -9,6 +9,7 @@ export type NotifyEvent =
   | 'cosign_invite'
   | 'payment_claim'
   | 'payment_alert'
+  | 'client_decision'
   | 'account_closed_client_notice';
 
 /** What every notification carries. `to` is a raw address; delivery code masks it in logs. */

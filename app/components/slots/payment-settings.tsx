@@ -81,6 +81,7 @@ export default function PaymentSettings({showInbox = true}: PaymentSettingsProps
     </section>
     <section className={styles.card} aria-labelledby="rz-h">
       <h3 id="rz-h">Your Razorpay account</h3>
+      {/* eslint-disable-next-line @next/next/no-location-assign-relative-destination -- OAuth starts at this API route and redirects off-site; a client navigation would drop that redirect */}
       {data.razorpay_oauth && <p><button type="button" className="primary" onClick={() => location.assign('/api/payment-accounts/razorpay/connect')}>Connect with Razorpay</button></p>}
       <form className={styles.row} onSubmit={e => { e.preventDefault(); void act(() => call('/api/payment-accounts', send('POST', {kind: 'razorpay_keys', key_id: rz.key_id, key_secret: rz.key_secret, ...(rz.webhook_secret ? {webhook_secret: rz.webhook_secret} : {})})), 'Razorpay connected. Add the webhook URL shown above in your Razorpay dashboard.'); }}>
         <label>Key ID<input name="key_id" value={rz.key_id} onChange={e => setRz({...rz, key_id: e.target.value})} placeholder="rzp_live_…" autoComplete="off" required/></label>

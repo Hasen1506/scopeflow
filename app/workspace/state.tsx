@@ -29,7 +29,7 @@ export {STALE_DAYS,EMAIL,moneyMap,type OvProject,type Overview,type Tpl,type Cos
 
 
 /** All workspace state and actions (moved verbatim from the Workspace component, L8). */
-export function useWorkspace(){
+export function useWorkspace(initialTrying = false){
  const [query,setQuery]=useState(''),[statusFilter,setStatusFilter]=useState('all'),[linkAction,setLinkAction]=useState<'revoke'|'rotate'|null>(null),[shownLink,setShownLink]=useState<'revoke'|'rotate'>('rotate');
  const [draft,setDraft]=useState<Scope>(sample),[scopes,setScopes]=useState<Version[]>([]),[history,setHistory]=useState<Version[]>([]),[active,setActive]=useState<Version|null>(null),[signedIn,setSignedIn]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[tab,setTabState]=useState<'home'|'project'>('project'),[link,setLink]=useState(''),[importOpen,setImportOpen]=useState(false),[importText,setImportText]=useState(''),[importError,setImportError]=useState(''),[isSample,setIsSample]=useState(true),[undo,setUndo]=useState<{draft:Scope;isSample:boolean}|null>(null),[supersede,setSupersede]=useState<{count:number}|null>(null);
  // The owner's navigations and edits: the first load lands on Projects only if the owner did neither meanwhile.
@@ -55,7 +55,7 @@ export function useWorkspace(){
  // Whose browser draft this page shows: undefined until /api/me answers, null when signed out (the
  // draft then lives only in this tab), otherwise the account's opaque key. A draft is only ever restored
  // for the account that typed it.
- const [account,setAccount]=useState<string|null|undefined>(undefined),[trying,setTrying]=useState(false);
+ const [account,setAccount]=useState<string|null|undefined>(undefined),[trying,setTrying]=useState(initialTrying);
  const accountRef=useRef<string|null|undefined>(undefined);
  // Signed in, the unsaved draft is kept with the account (/api/unsaved-draft): autosaved a moment after each
  // edit, restored on any device, kept when signing out. `synced` is the draft text the server holds

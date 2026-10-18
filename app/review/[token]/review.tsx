@@ -1,28 +1,33 @@
 'use client';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {brandNameInk, readableOn, serverThemeSnapshot, subscribeTheme, themeSnapshot} from '@/lib/theme';
 import {sha256, paymentsOf, computeAgreement} from '@/lib/ledger';
 import {Scope, Version, formatMoney} from '@/lib/scope';
 import {api, post, Skeleton, type ApiError} from '@/app/ui';
 import {Checkbox} from '@/components/ui/checkbox';
-import {ScopeDiff} from '@/app/scope-diff';
 import {formatDay, formatInZone} from '@/lib/time';
 import {afterConsent} from '@/lib/a11y';
 import {LANG_STORAGE_KEY, isLang, pickLang, translator, type Lang} from '@/lib/i18n';
-import PayBlock from '@/app/components/slots/pay-block';
 import DataNotice from '@/app/components/slots/data-notice';
-import {AgreementView, type ClientLedger} from './agreement';
+import type {ClientLedger} from './agreement';
 import {OtpGate} from './otp-gate';
-import {Countersign, type CosignState} from './countersign';
+import type {CosignState} from './countersign';
 import {ClientHeader} from './client-header';
 import {ScopeDocument} from './scope-document';
 import {ClosedBanner, NewerBanner, readonlyOf, type ReadonlyInfo} from './closed';
 import {LinkProblem, problemOf, type LinkProblemState} from './link-problem';
 import {SlotOr} from './slot';
 import {DECISION_COOLDOWN_S, decisionUnavailable, tellSenderHref} from './states';
-import {EvidenceBlock, type RecordEvidence} from './evidence';
+import type {RecordEvidence} from './evidence';
 import styles from './client.module.css';
+
+const ScopeDiff = dynamic(() => import('@/app/scope-diff').then(m => m.ScopeDiff));
+const PayBlock = dynamic(() => import('@/app/components/slots/pay-block'));
+const AgreementView = dynamic(() => import('./agreement').then(m => m.AgreementView));
+const Countersign = dynamic(() => import('./countersign').then(m => m.Countersign));
+const EvidenceBlock = dynamic(() => import('./evidence').then(m => m.EvidenceBlock));
 
 /** WS-04 may attach TDS figures to an invoice; the net is shown when present. */
 type InvoiceShown = NonNullable<ClientLedger['invoices']>[number] & {tds?: {net_receivable?: number}};
@@ -42,6 +47,8 @@ type ReviewData = {
   link_expires_text?: string | null;
   /** WS-02: how the decision was evidenced. */
   evidence?: RecordEvidence | null;
+  /** Who handed out the link, when the account has a business name or reply-to address. */
+  sender?: {name: string | null; email: string | null} | null;
   /** WS-08: a server-written data notice line, when present. */
   data_notice?: string | null;
 };
@@ -180,7 +187,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
           </> : scope.status !== 'pending' ? <>
             {scope.status === 'approved' ? <div className={styles.success} data-testid="approval-success">
               <h2 ref={outcome} tabIndex={-1}>{justApproved ? t('success.title') : t('status.approved')}</h2>
-              <p>{t('decided.recordedFor', {signer: scope.signer ?? '', date: formatInZone(scope.decided, timeZone)})}</p>
+              <p className="volatile">{t('decided.recordedFor', {signer: scope.signer ?? '', date: formatInZone(scope.decided, timeZone)})}</p>
               {justApproved && <p>{t('success.body', {version: scope.version})}</p>}
               {!ro.readonly && <div className={styles.next} data-testid="next-step">
                 <strong>{t('success.next')}</strong>
@@ -190,16 +197,17 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
               </div>}
             </div> : <>
               <h2 ref={outcome} tabIndex={-1}>{t('changes.title')}</h2>
-              <p className="section-gap">{t('decided.recordedFor', {signer: scope.signer ?? '', date: formatInZone(scope.decided, timeZone)})}</p>
+              <p className="section-gap volatile">{t('decided.recordedFor', {signer: scope.signer ?? '', date: formatInZone(scope.decided, timeZone)})}</p>
               <p className="quiet">{t('changes.body')}</p>
             </>}
             {evidence && <EvidenceBlock evidence={evidence} t={t} sealShown={!!ledger} />}
             {scope.comment && <p className="line-list section-gap" data-testid="decision-comment-shown">{scope.comment}</p>}
-            {receipt && <div className="muted-box"><strong>{t('receipt.title')}</strong><p className="fine">{t('receipt.body')}</p><p className="mono fine">{t('receipt.version', {version: String(receipt.version), date: `${formatInZone(String(receipt.decided), timeZone)} (${String(receipt.decided)})`})}<br />{t('receipt.code', {code: String(receipt.anchor)})}<br />{t('receipt.seal', {seal: receipt.signature ? String(receipt.signature) : t('receipt.notSealed')})}</p></div>}
+            {receipt && <div className="muted-box"><strong>{t('receipt.title')}</strong><p className="fine">{t('receipt.body')}</p><p className="mono fine volatile">{t('receipt.version', {version: String(receipt.version), date: `${formatInZone(String(receipt.decided), timeZone)} (${String(receipt.decided)})`})}<br />{t('receipt.code', {code: String(receipt.anchor)})}<br />{t('receipt.seal', {seal: receipt.signature ? String(receipt.signature) : t('receipt.notSealed')})}</p></div>}
             <p className="fine">{t('decided.baselineNote', {version: scope.version})}</p>
           </> : ro.readonly ? <p className="fine" role="note">{t('closed.noActions')}</p> : <>
+            {data?.sender?.name && <p className="fine no-print" data-testid="sent-by">From {data.sender.name}. Approving records your decision on version {scope.version}. Requesting changes sends your comment back to them.</p>}
             <h2>{t('decide.heading')} <em>{t('decide.headingEm')}</em></h2>
-            {(linkExpiresText || linkExpires) && <p className="fine" role="note">{t('decide.linkOpenUntil', {date: linkExpiresText ?? formatInZone(linkExpires!, timeZone)})}</p>}
+            {(linkExpiresText || linkExpires) && <p className="fine volatile" role="note">{t('decide.linkOpenUntil', {date: linkExpiresText ?? formatInZone(linkExpires!, timeZone)})}</p>}
             <p className="quiet section-gap">{t('decide.intro')}</p>
             {identity && <OtpGate token={token} to={identity.to} channel={identity.channel} session={otpSession} onVerified={setOtpSession} />}
             <label>{t('decide.name')}<input id="signer-name" autoComplete="name" aria-required="true" maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>

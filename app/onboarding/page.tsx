@@ -78,6 +78,7 @@ export default function Onboarding() {
       <label htmlFor="ob-vpa">UPI ID <span className="quiet">· clients can pay you directly</span></label>
       <input id="ob-vpa" maxLength={320} value={vpa} onChange={e => setVpa(e.target.value.trim())} aria-invalid={vpa && !link ? true : undefined} aria-describedby="ob-vpa-hint" placeholder="yourname@okbank"/>
       <span id="ob-vpa-hint" className={vpa && !link ? 'error block' : 'fine block'}>{vpa && !link ? VPA_MESSAGE : 'Optional. Shown to clients as a UPI QR code.'}</span>
+      {/* eslint-disable-next-line @next/next/no-img-element -- generated UPI QR (data URL); next/image does not optimize a one-off preview */}
       {qr && <img src={qr} width={148} height={148} alt={`UPI QR code to pay ${vpa}`}/>}
       <label>Payment terms for new scopes<input maxLength={500} value={shownTerms} onChange={e => { setTerms(e.target.value); setTermsTouched(true); }}/></label>
     </div>}

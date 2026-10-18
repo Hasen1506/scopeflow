@@ -156,7 +156,7 @@ test('visual #9: a price shows the line total; a unit price says "each"; a legac
     const cat = JSON.parse(src(`messages/${lang}.json`));
     assert.ok(cat['doc.priceEach'].includes('{amount}') && cat['doc.priceForAll'].includes('{qty}'), lang);
   }
-  for (const f of ['app/ui.tsx', 'app/review/[token]/scope-document.tsx']) assert.ok(src(f).includes('itemPriceView(i'), f);
+  for (const f of ['app/paper.tsx', 'app/review/[token]/scope-document.tsx']) assert.ok(src(f).includes('itemPriceView(i'), f);
 });
 
 test('visual #16: the approval card shows the current review link (Open, Copy) whenever the version has a live link', () => {

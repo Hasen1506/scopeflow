@@ -165,7 +165,7 @@ test('R5-04: the reaudit probe: 1e400 / 1e20 prices and a 10,000 × 1e14 unit pr
   assert.equal(E.amountProblem(Infinity, 'INR', 'Price each'), `Max ${E.maxAmountLabel('INR')}`);
   assert.equal(E.amountProblem(1e20, 'INR', 'Price each'), `Max ${E.maxAmountLabel('INR')}`);
   // The preview and the milestones editor render the computable copy; the price field keeps what was typed.
-  assert.match(read('app/workspace/shell.tsx'), /<Paper scope=\{computable\(preview\)\}/);
+  assert.match(read('app/workspace/project-body.tsx'), /<Paper scope=\{computable\(preview\)\}/);
   assert.match(read('app/terms-editor.tsx'), /totals\(computable\(scope\)\)/);
   assert.match(read('app/items-editor.tsx'), /value=\{raw\}/);
 });

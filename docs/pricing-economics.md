@@ -1,6 +1,6 @@
 # Scopeflow pricing and economics
 
-Prepared 1 October 2026. Recommended experiment: free first project, Solo $4/month or $36/year. These are proposed prices, not active subscriptions. No billing is implemented. Infrastructure, support, conversion and retention figures below are scenarios, not measured results.
+Prepared 1 October 2026. Recommended experiment: free first project, Solo $4/month or $36/year. These are proposed prices, not the live plan. Checkout code exists and stays off until the Plans page offers it. Infrastructure, support, conversion and retention figures below are scenarios, not measured results.
 
 ## Does $1 make sense?
 
@@ -27,11 +27,11 @@ An India-based merchant must use local rates. [Stripe India](https://stripe.com/
 
 ## Technical costs
 
-Scopeflow currently stores small structured text in D1 and serves web/API/MCP requests through Sites. It has no uploaded files, background model calls, outbound email service or enabled payment processor. ChatGPT/Muse prepares scopes using the user's agent; Scopeflow does not currently purchase an extra model call for each scope. Adding hosted AI, email, attachments or background jobs would change costs.
+Scopeflow stores project rows in Neon Postgres and runs on Render. Outbound email (Resend, Postmark or SES), payments (Razorpay or Stripe) and in-app drafting (OpenAI or Anthropic) run only when those provider keys are set. Muse is a prompt the owner pastes, then imports as JSON. ChatGPT can connect through the MCP endpoint. Adding always-on model calls, attachments or a second region would change costs.
 
 [Cloudflare Workers direct pricing](https://developers.cloudflare.com/workers/platform/pricing/) starts at $5/month on Paid, with 10 million requests and 30 million CPU milliseconds included. Above that, requests cost $0.30/million and CPU $0.02/million ms. These are underlying provider references, not confirmed charges or quotas for our managed Sites deployment.
 
-[D1 direct pricing](https://developers.cloudflare.com/d1/platform/pricing/) includes 25 billion rows read, 50 million rows written and 5 GB storage on Paid, then $0.001/million reads, $1/million writes and $0.75/GB-month. Queries can scan more rows than they return, and indexes add writes. Cheap request rates do not prove database capacity or sufficient operational reliability.
+Database cost follows Neon’s published compute and storage prices, not Cloudflare D1. Queries can scan more rows than they return, and indexes add writes. Cheap request rates do not prove database capacity or sufficient operational reliability.
 
 Illustrative small beta: 100 payers at 1,000 dynamic requests each/month produce 100,000 requests/month. At an assumed 10ms CPU average that is one million CPU ms. Ten projects with five 4KB versions each per payer are about 20MB of content for 100 payers. Indexes, metadata, rate-limit writes, unpaid users, abuse and growth add usage. These inputs are unmeasured; instrument real usage and verify Sites commercial terms before relying on the provider's included allocations. A million users still require capacity and architecture work.
 

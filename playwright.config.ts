@@ -9,6 +9,10 @@ import {defineConfig, devices} from '@playwright/test';
 // run the *mobile*.spec.ts specs.
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
 const mobile = /.*mobile.*\.spec\.ts$/;
+// Page and theme-rail screenshots run only inside the pinned Playwright image
+// (npm run test:visual). The host browser draws the same webfonts differently,
+// so those specs are not part of the ordinary suite.
+const visual = /visual-.*\.spec\.ts$/;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -31,7 +35,7 @@ export default defineConfig({
     acceptDownloads: true,
   },
   projects: [
-    {name: 'chromium', testIgnore: mobile, use: {...devices['Desktop Chrome'], launchOptions: {executablePath}}},
+    {name: 'chromium', testIgnore: process.env.SCOPEFLOW_VISUAL_DOCKER ? mobile : [mobile, visual], use: {...devices['Desktop Chrome'], launchOptions: {executablePath}}},
     {name: 'pixel-7', testMatch: mobile, use: {...devices['Pixel 7'], launchOptions: {executablePath}}},
     {name: 'iphone-13', testMatch: mobile, use: {...devices['iPhone 13'], browserName: 'chromium', defaultBrowserType: 'chromium', launchOptions: {executablePath}}},
   ],

@@ -5,7 +5,7 @@ import {fxLine, itemPriceView, schedule, totals} from '@/lib/money';
 import {formatDay} from '@/lib/time';
 import type {Translate} from '@/lib/i18n';
 
-// The scope as the client approves it (owner: WS-07). Same markup and classes as app/ui.tsx Paper
+// The scope as the client approves it (owner: WS-07). Same markup and classes as app/paper.tsx Paper
 // (WS-09), with the page chrome translated (SF-09). Everything the creator wrote (title, client,
 // deliverables, acceptance, terms, notes, exclusions) and every amount is shown exactly as written.
 // In English the text is identical to Paper's. `firstApproved` relabels the fee once change orders

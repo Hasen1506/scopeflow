@@ -21,10 +21,12 @@ async function adoptBrowserZone() {
 
 
 
-export default function AuthForm({ mode, returnTo, token, configured, explicitReturn = true }: {
+export default function AuthForm({ mode, returnTo, token, configured, explicitReturn = true, signedOut = false }: {
   mode: string; returnTo: string; token?: string; configured: boolean;
   /** False when no return_to was given: a new account then goes to first-run onboarding (LT-04). */
   explicitReturn?: boolean;
+  /** Set after a full-page sign-out, which cannot keep an in-memory toast. */
+  signedOut?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -79,7 +81,7 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
         const session = await authClient.getSession();
         // LT-04/SF-11: a new account without a specific destination starts with onboarding.
         const next = mode === 'sign-up' && !explicitReturn ? '/onboarding' : destination;
-        if (session.data?.user) { await adoptBrowserZone(); router.push(next); router.refresh(); }
+        if (session.data?.user) { rememberSession(true); await adoptBrowserZone(); router.push(next); router.refresh(); }
         else setMessage('Check your email to verify your account, then sign in.');
       }
     } catch (error) {
@@ -93,6 +95,7 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
   const busyLabel = mode === 'sign-up' ? 'Creating account…' : mode === 'forgot-password' ? 'Sending link…' : mode === 'reset-password' ? 'Updating password…' : 'Signing in…';
   return <>
     <p className="eyebrow">YOUR SCOPEFLOW ACCOUNT</p><h1>{title}</h1>
+    {signedOut && <p className="muted-box" role="status">Signed out.</p>}
     {configured && currentEmail && (mode === 'sign-in' || mode === 'sign-up') && <p className="muted-box auth-current" role="status">You are signed in as <b>{currentEmail}</b>. {mode === 'sign-in' ? 'Signing in with another email signs that account out first.' : 'Creating a new account signs that account out first.'} <Link className="help-link" href={safeReturnPath(returnTo)}>Stay signed in</Link></p>}
     {!configured ? <p className="error" role="alert">Sign-in is temporarily unavailable. Please contact support or try again later.</p> :
       <form onSubmit={submit} className="section-gap" noValidate data-attempted={attempted ? '' : undefined} aria-busy={busy}>

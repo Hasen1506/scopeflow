@@ -122,12 +122,4 @@ export async function readiness(env: Env = process.env) {
   return {status: overall, checked: new Date().toISOString(), checks: Object.fromEntries(Object.keys(READINESS_CHECKS).map(k => [k, results[k]]))};
 }
 
-/** Constant-time check of the operator token (SCOPEFLOW_ADMIN_TOKEN, else SCOPEFLOW_CRON_SECRET). */
-export function adminAuthorized(request: Request, env: Env = process.env) {
-  const expected = (env.SCOPEFLOW_ADMIN_TOKEN?.trim() || env.SCOPEFLOW_CRON_SECRET?.trim()) ?? '';
-  const got = /^bearer\s+(.+)$/i.exec(request.headers.get('authorization') ?? '')?.[1]?.trim() ?? '';
-  if (expected.length < 16 || got.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ expected.charCodeAt(i);
-  return diff === 0;
-}
+export {adminAuthorized} from './admin-auth';
