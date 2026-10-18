@@ -3,7 +3,7 @@
 // without --update-snapshots, so a wrong pixel fails the job. Regenerating is
 // `npm run test:visual:update`, which is the same image and the same command.
 import {spawnSync} from 'node:child_process';
-import {readFileSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -35,9 +35,18 @@ const args = [
   ...(update ? ['--update-snapshots'] : []),
 ];
 const run = spawnSync(docker, args, {stdio: 'inherit'});
-if (update && typeof process.getuid === 'function' && process.getuid() !== 0) {
-  spawnSync('sudo', ['chown', '-R', `${process.getuid()}:${process.getgid()}`,
+// The image runs as root, so files it writes into the mount (test-results, and
+// snapshots when updating) would block the later CI steps. Give them back.
+if (typeof process.getuid === 'function' && process.getuid() !== 0) {
+  const owned = [
+    'test-results',
     'tests/e2e/visual-pages.spec.ts-snapshots',
-    'tests/e2e/visual-themes.spec.ts-snapshots'], {cwd: root, stdio: 'inherit'});
+    'tests/e2e/visual-themes.spec.ts-snapshots',
+  ].filter((p) => existsSync(resolve(root, p)));
+  if (owned.length) {
+    const who = `${process.getuid()}:${process.getgid()}`;
+    const chown = spawnSync('sudo', ['-n', 'chown', '-R', who, ...owned], {cwd: root, stdio: 'inherit'});
+    if (chown.status !== 0) spawnSync('chown', ['-R', who, ...owned], {cwd: root, stdio: 'inherit'});
+  }
 }
 process.exit(run.status ?? 1);
