@@ -1,10 +1,5 @@
-import {test, expect, type Page} from '@playwright/test';
-
-async function settle(page: Page) {
-  await page.waitForFunction(() => document.documentElement.classList.contains('fonts-ready'));
-  await page.evaluate(async () => { await document.fonts.ready; });
-  await page.waitForTimeout(150);
-}
+import {test, expect} from '@playwright/test';
+import {prepare, settle} from './visual-shot';
 
 // Appearance rail in the three themes, at a desktop width and a phone width.
 // Baselines are the rail itself (stable) rather than a full marketing page.
@@ -16,6 +11,7 @@ const themes = [
 ] as const;
 
 test('theme rail matches the Light, Dark and Etched baselines', async ({page}) => {
+  await prepare(page);
   await page.goto('/');
   for (const width of [1280, 390]) {
     await page.setViewportSize({width, height: width === 390 ? 844 : 900});

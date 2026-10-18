@@ -1,5 +1,6 @@
 import {test, expect, type Page} from '@playwright/test';
 import {createHash} from 'node:crypto';
+import {prepare, shot} from './visual-shot';
 
 test.use({timezoneId: 'UTC'});
 
@@ -21,39 +22,16 @@ const scope = {
 
 async function appearance(page: Page, name: string, theme: string, scheme: string) {
   // Review links follow the visitor's colour scheme. The owner pages follow the button.
-  if (page.url().includes('/review/')) await page.emulateMedia({colorScheme: scheme === 'dark' ? 'dark' : 'light'});
+  if (page.url().includes('/review/')) await page.emulateMedia({colorScheme: scheme === 'dark' ? 'dark' : 'light', reducedMotion: 'reduce'});
   await page.getByRole('button', {name}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
   await expect(page.locator('html')).toHaveAttribute('data-scheme', scheme);
 }
 
-// Fonts swap in after first paint. Wait until that reflow has stopped so the
-// screenshot is one height, on this machine and on CI.
-async function settle(page: Page) {
-  await page.waitForFunction(() => document.documentElement.classList.contains('fonts-ready'));
-  await page.evaluate(async () => { await document.fonts.ready; });
-  let last = -1;
-  let stable = 0;
-  for (let i = 0; i < 25; i++) {
-    const h = await page.locator('main').first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
-    stable = h === last ? stable + 1 : 0;
-    last = h;
-    if (stable >= 2) return;
-    await page.waitForTimeout(80);
-  }
-}
-
-function shot(page: Page, file: string) {
-  return settle(page).then(() => expect(page.locator('main').first()).toHaveScreenshot(file, {
-    animations: 'disabled',
-    caret: 'hide',
-    mask: [page.locator('.volatile'), page.locator('[data-testid=record-evidence]'), page.locator('[data-testid=evidence-fingerprint]')],
-  }));
-}
-
 test('landing, editor, account, templates, review and approved', async ({page, browser, baseURL}) => {
   test.setTimeout(240_000);
   const widths = [1280, 390] as const;
+  await prepare(page);
   await page.goto('/');
   await expect(page.getByRole('heading', {name: /clear agreement/i})).toBeVisible();
   await expect(page.getByRole('heading', {name: /Everything a scope needs/i})).toBeVisible();
@@ -92,6 +70,7 @@ test('landing, editor, account, templates, review and approved', async ({page, b
   const email = `visual-${Date.now()}@example.test`;
   expect((await request.post('/api/auth/sign-up/email', {headers: H, data: {name: 'Visual Owner', email, password: 'Fictional-password-123'}})).ok()).toBe(true);
   const account = await context.newPage();
+  await prepare(account);
   await account.goto('/account');
   await expect(account.getByRole('heading', {name: /your work/i})).toBeVisible();
   await expect(account.getByRole('button', {name: 'Save settings'})).toBeVisible();
@@ -108,6 +87,7 @@ test('landing, editor, account, templates, review and approved', async ({page, b
   const v1 = (await created.json()).scope as {token: string; version: number};
   const client = await browser.newContext();
   const review = await client.newPage();
+  await prepare(review);
   await review.goto('/review/' + v1.token);
   await expect(review.getByRole('heading', {name: /Does everything look right/i})).toBeVisible();
   for (const width of widths) {

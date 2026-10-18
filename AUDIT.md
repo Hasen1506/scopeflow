@@ -89,7 +89,7 @@ Walked in a browser at 1280 and 390, plus the route and schema review.
 | `npm run test:props` | 552 tests. 548 passed here. The other 4 call `pdfimages`, `pdftotext` or `pdfsig` (Poppler), which CI installs and this machine does not. Coverage gate 126/126. |
 | Property tests added for this pass | link expiry, calendar dates, time zones, scope and settings bounds, decision-mail escaping (`tests/property/dates-validation.test.mjs`); the script-defer rewrite (`tests/property/defer-scripts.test.mjs`) |
 | Playwright, this production server | landing flash, accounts (including sign-out), owner settings → new draft, link expiry and revoke, owner decision email queued, reapproval against Postgres, golden flow. All passed. |
-| Screenshot baselines | 36 page shots (landing, editor, account, templates, review, approved × Light, Dark, Etched × 1280 and 390) plus 6 theme-rail shots. Dates and tokens are masked. Re-run after generation passed with no pixel diff. |
+| Screenshot baselines | 36 page shots (landing, editor, account, templates, review, approved × Light, Dark, Etched × 1280 and 390) plus 6 theme-rail shots. Dates and tokens are masked. Fraunces and Instrument Sans are the self-hosted next/font files. The specs force `font-display: block`, preload every face, wait for `document.fonts.ready`, and disable animations. Generated with `npm run test:visual:update` in `mcr.microsoft.com/playwright:v1.56.1-noble` (the `@playwright/test` version). Two later comparisons in that same image passed with the default pixel threshold. |
 | axe | 25 public routes, one moderate finding, fixed (unchanged this pass) |
 | Lighthouse home, before (`next start` on the previous commit) | performance 89, accessibility 100, best-practices 93, SEO 100. LCP 3.6s, 668 KiB, unused JS about 209 KiB |
 | Lighthouse home, after (mobile, simulated) | performance 100. LCP 1.3s, FCP 1.2s, TBT 10ms, CLS 0. Unused JS 77 KiB. Transfer 385 KiB |
@@ -101,7 +101,7 @@ Walked in a browser at 1280 and 390, plus the route and schema review.
 | `npm audit` | 0 critical, 5 high, 4 moderate, all dev dependencies (see Needs owner) |
 | Email and PDF goldens | unchanged in meaning. The browser golden flow's deliverable ids moved because the seeded id sequence now starts later; titles, prices and the approval record match. `tests/e2e/__golden__/` was refreshed and the flow passed again without rewriting. |
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, `test:props`, the coverage gate, the capped build, Playwright, `test:local` and `test:live`. The previous run on `7276462` failed two Playwright specs (sign-out returned to the landing page; reapproval matched two "Version 2 · Approved" lines). Both pass locally on this commit. The run for this commit is the one to treat as the status.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, `test:props`, the coverage gate, the capped build, Playwright, `test:visual`, `test:local` and `test:live`. `test:visual` only compares the committed pngs, inside `mcr.microsoft.com/playwright:v1.56.1-noble`. It does not rewrite them. `npm run test:visual:update` is the local command that regenerates them in that same image. The run for this commit is the one to treat as the status.
 
 ## Not verified here
 
