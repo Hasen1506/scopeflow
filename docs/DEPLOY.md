@@ -119,7 +119,8 @@ link opens without that wait. Koyeb's free instance scales to zero after one hou
 ([instances](https://www.koyeb.com/docs/reference/instances),
 [scale to zero](https://www.koyeb.com/docs/run-and-scale/scale-to-zero)), with a documented cold start of
 1–5 seconds to create the VM, so the web service stays on Render. The four cron jobs run on GitHub Actions
-([CRON-ACTIONS.md](CRON-ACTIONS.md)); a public repository does not spend Actions minutes.
+([CRON-ACTIONS.md](CRON-ACTIONS.md)). Once the repository is private, GitHub Free includes 2,000 Actions
+minutes a month. The estimate is in the next section.
 
 ## Deploys and migrations
 
@@ -143,6 +144,31 @@ failing job never skips another and `/api/readiness` shows the last run, stalene
 
 Every job is idempotent. GitHub may start a scheduled run late, runs the schedule only from the default
 branch, and disables it after 60 days without repository activity. `workflow_dispatch` is the manual run.
+Each cron job installs production dependencies from the npm cache and stops after 8 minutes.
+
+## Actions minutes (private repository)
+
+GitHub bills each job in whole minutes, rounded up. GitHub Free for a private repository includes 2,000
+minutes a month on the standard Ubuntu runners.
+
+The four clocks fire **210 times** in a 30-day month: retention 30, reminders 30, reconcile 120 (every 6
+hours), check-models 30. A warm run (cached `npm ci --omit=dev`, then the script) should finish in one
+or two billed minutes, so the crons are about **210–420 minutes**. The 8-minute timeout is the cap on a
+stuck run, not the expected cost. Reconcile is most of the total.
+
+CI, measured from the full green run on 18 October 2026 (about 9 minutes, including Playwright and the
+screenshot comparison):
+
+| Run | What it does | About |
+| --- | --- | --- |
+| Docs only (`docs/**` and markdown) | Typecheck, lint, property tests. No production build and no browser. | 3 minutes |
+| Pull request into any branch other than `main` | That, plus the production build, local tests, and live tests. No Playwright and no screenshots. | 6 minutes |
+| Pull request into `main` | The full suite, including Playwright and the screenshot comparison. Browsers are cached. | 10 minutes |
+
+A new push to the same pull request cancels the run that is already going. A typical month of 4 pull
+requests into `main` and 15 other pull requests is about 130 CI minutes. With the crons, the month is
+about **350–550 minutes**, inside the 2,000. Manual **Run workflow** clicks and a timeout both add to
+that. The number to watch is the every-6-hour reconcile job.
 
 ## Health and readiness
 

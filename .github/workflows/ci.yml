@@ -5,6 +5,10 @@ on:
     branches: [main]
 permissions:
   contents: read
+# A new push to the same branch or pull request cancels the run already in progress.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     # ubuntu-latest moves to Ubuntu 26 starting 19 Oct 2026. Playwright 1.56.1
@@ -58,12 +62,49 @@ jobs:
       SCOPEFLOW_TRUSTED_HOPS: '1'
     steps:
       - uses: actions/checkout@v5
+      - id: scope
+        name: Skip heavy jobs for docs-only changes
+        run: |
+          set -eu
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            range="origin/${{ github.base_ref }}"
+          else
+            before="${{ github.event.before }}"
+            if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              echo "code=true" >> "$GITHUB_OUTPUT"
+              echo "browser=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git fetch --no-tags --depth=1 origin "$before"
+            range="$before"
+          fi
+          files="$(git diff --name-only "$range" HEAD)"
+          code=false
+          if [ -n "$files" ]; then
+            other="$(printf '%s\n' "$files" | grep -Ev '^(docs/|[^/]*\.md$|.*/[^/]*\.md$)' || true)"
+            if [ -n "$other" ]; then code=true; fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "main" ] && [ "$code" = "true" ]; then
+            echo "browser=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "browser=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "code=$code"
       - uses: actions/setup-node@v5
         with:
           node-version-file: .node-version
           cache: npm
       - run: npm ci --include=dev --include=optional
+      - name: Cache Playwright browsers
+        if: steps.scope.outputs.browser == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install Chromium for Playwright
+        if: steps.scope.outputs.browser == 'true'
         run: npx playwright install --with-deps chromium
       - name: Install poppler (pdfsig, pdftotext and pdftoppm verify the signed and Unicode PDFs)
         run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends poppler-utils
@@ -76,11 +117,15 @@ jobs:
         run: node scripts/check-coverage.mjs
       # WS-10 (L10): the production build must fit a 512 MB instance (460 MB heap cap).
       - name: Build under the memory cap
+        if: steps.scope.outputs.code == 'true'
         run: npm run build:capped
-      - run: npm run db:migrate
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run db:migrate
       - name: Throwaway PDF signing certificate
+        if: steps.scope.outputs.code == 'true'
         run: openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/scopeflow-sign.key -out /tmp/scopeflow-sign.crt -days 7 -subj "/CN=Scopeflow CI Signer"
       - name: Start the local auth fixture and the production build
+        if: steps.scope.outputs.code == 'true'
         run: |
           node tests/support/tsa-service.mjs > tsa.log 2>&1 &
           node tests/support/auth-service.mjs > auth.log 2>&1 &
@@ -92,11 +137,15 @@ jobs:
       # Pixel 7 / iPhone 13 mobile projects (playwright.config.ts). Screenshot specs are not in
       # this command; they compare committed baselines inside the pinned Playwright image.
       - name: Golden E2E (Playwright, desktop and mobile)
+        if: steps.scope.outputs.browser == 'true'
         run: npm run test:e2e
       - name: Visual baselines (compare only, mcr.microsoft.com/playwright pinned to @playwright/test)
+        if: steps.scope.outputs.browser == 'true'
         run: npm run test:visual
-      - run: npm run test:local
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run test:local
       - name: Live property and differential tests (API, database triggers)
+        if: steps.scope.outputs.code == 'true'
         run: npm run test:live
       - name: Upload Playwright traces on failure
         if: failure()

@@ -20,7 +20,7 @@ concurrency:
 jobs:
   check-models:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 8
     env:
       APP_URL: https://scope-flow.tech
       DATABASE_URL: ${{ secrets.DATABASE_URL }}

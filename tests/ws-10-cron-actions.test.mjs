@@ -35,6 +35,8 @@ test('four Actions workflows keep the Render clocks, guards, and failure webhook
     assert.match(text, /node-version-file: \.node-version/);
     assert.match(text, /60 days/);
     assert.match(text, /npm ci --omit=dev/);
+    assert.match(text, /cache: npm/);
+    assert.match(text, /timeout-minutes: 8/);
     assert.doesNotMatch(text, /run: node scripts\/cron\.mjs[^\n]*--dry-run/);
     assert.doesNotMatch(text, /postgres:\/\//);
     assert.match(text, /APP_URL: https:\/\/scope-flow\.tech/);
@@ -53,6 +55,13 @@ test('four Actions workflows keep the Render clocks, guards, and failure webhook
   assert.match(doc, /60 days/);
   assert.match(doc, /scopeflow-retention/);
   assert.doesNotMatch(read('.github/workflows/cron.yml'), /schedule:/);
+  const ci = read('.github/workflows/ci.yml');
+  assert.match(ci, /cancel-in-progress: true/);
+  assert.match(ci, /cache: npm/);
+  assert.match(ci, /actions\/cache@v4/);
+  assert.match(ci, /ms-playwright/);
+  assert.match(ci, /github\.base_ref }}\" = \"main\"/);
+  assert.match(ci, /docs\//);
 });
 
 test('cron --dry-run lists the scheduled jobs and does not open a database', () => {

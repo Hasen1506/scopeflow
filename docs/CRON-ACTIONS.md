@@ -23,8 +23,10 @@ Same UTC clocks the Render cron services used. Each runs `node scripts/cron.mjs 
 | `.github/workflows/cron-reconcile.yml` | `0 */6 * * *` | `node scripts/cron.mjs reconcile` | `scopeflow-reconcile` |
 | `.github/workflows/cron-check-models.yml` | `0 22 * * *` | `node scripts/cron.mjs check-models analytics` | `scopeflow-check-models` |
 
-`APP_URL` in each workflow is `https://scope-flow.tech`. A public repository does not spend minutes on
-the standard GitHub-hosted runners.
+`APP_URL` in each workflow is `https://scope-flow.tech`. Each run uses the npm cache, installs
+production dependencies only (`npm ci --omit=dev`), and has an 8-minute timeout. On a private
+repository those 210 runs a month are about 210–420 of the 2,000 GitHub Free minutes
+([DEPLOY.md](DEPLOY.md)).
 
 GitHub runs `schedule` only from the default branch (`main`). It may start a run later than the clock.
 It disables scheduled workflows after 60 days without repository activity
