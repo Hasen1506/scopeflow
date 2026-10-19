@@ -1,0 +1,61 @@
+# 03:30 UTC = 09:00 IST. Same clock as render.yaml scopeflow-reminders.
+# GitHub runs this schedule only after the file is on the default branch, may start
+# it late, and disables it after 60 days without repository activity.
+# https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
+# Catch up with workflow_dispatch. `node scripts/send-reminders.mjs --dry-run` lists
+# mail without sending; the schedule runs the real job.
+name: Cron reminders
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scopeflow-cron-reminders
+  cancel-in-progress: false
+
+jobs:
+  reminders:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      APP_URL: https://scope-flow.tech
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SCOPEFLOW_CRON_SECRET: ${{ secrets.SCOPEFLOW_CRON_SECRET }}
+      SCOPEFLOW_ADMIN_TOKEN: ${{ secrets.SCOPEFLOW_ADMIN_TOKEN }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SCOPEFLOW_MAIL_FROM: ${{ secrets.SCOPEFLOW_MAIL_FROM }}
+      SCOPEFLOW_MAIL_REPLY_TO: ${{ secrets.SCOPEFLOW_MAIL_REPLY_TO }}
+      SCOPEFLOW_MAIL_PROVIDER: ${{ secrets.SCOPEFLOW_MAIL_PROVIDER }}
+      POSTMARK_SERVER_TOKEN: ${{ secrets.POSTMARK_SERVER_TOKEN }}
+      SCOPEFLOW_SES_ACCESS_KEY_ID: ${{ secrets.SCOPEFLOW_SES_ACCESS_KEY_ID }}
+      SCOPEFLOW_SES_SECRET_ACCESS_KEY: ${{ secrets.SCOPEFLOW_SES_SECRET_ACCESS_KEY }}
+      SCOPEFLOW_SES_REGION: ${{ secrets.SCOPEFLOW_SES_REGION }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: gate
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "run=skip" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Cron not enabled::Add repository secret DATABASE_URL (the app role). Until then the Render cron service scopeflow-reminders keeps this clock."
+          else
+            echo "run=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v5
+        if: steps.gate.outputs.run == 'yes'
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - if: steps.gate.outputs.run == 'yes'
+        run: npm ci --omit=dev --ignore-scripts
+      - if: steps.gate.outputs.run == 'yes'
+        run: node scripts/cron.mjs reminders
+      - if: failure()
+        uses: ./.github/actions/cron-failure
+        with:
+          webhook: ${{ secrets.SCOPEFLOW_ERROR_WEBHOOK }}
+          job: reminders

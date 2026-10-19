@@ -1,3 +1,4 @@
+# Render rollback until the cutover in docs/DEPLOY-KOYEB.md. Leave this file in place.
 services:
   - type: web
     name: scopeflow

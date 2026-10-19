@@ -3,6 +3,8 @@
 The base Render and Neon setup is in [render-deployment.md](render-deployment.md) and
 [neon-live-configuration.md](neon-live-configuration.md); this page adds what the features need. Every variable
 below is also listed, with comments, in [`.env.example`](../.env.example), and `render.yaml` declares them.
+The Koyeb move, with the same variables and the four cron clocks on GitHub Actions, is
+[DEPLOY-KOYEB.md](DEPLOY-KOYEB.md). `render.yaml` stays the running Render setup until that cutover.
 
 Put the variables on the Render web service (Environment). None of them may be committed. Everything except
 the first table is optional: a feature without its variables is off, and the UI says so.
@@ -113,7 +115,8 @@ Digio or Leegality) and their API keys; it is not built in.
 ## Plan and cost (founder decision, H15)
 
 Render's free web plan spins down after 15 idle minutes (a cold start of tens of seconds for the next client
-who opens a review link) and has no cron jobs. `render.yaml` therefore puts the web service and the four
+who opens a review link) and has no cron jobs. The move to Koyeb's free instance, which
+sleeps after one hour, is [DEPLOY-KOYEB.md](DEPLOY-KOYEB.md). Until that cutover, `render.yaml` puts the web service and the four
 cron services on **Starter**: about US$7/month for the web service plus a small per-minute charge for each
 cron run (the four daily jobs run for seconds; budget a few US$ a month in total). Check Render's current
 price list before switching; the alternative is to keep the free plan and run `node scripts/cron.mjs <job>`

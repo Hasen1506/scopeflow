@@ -1,5 +1,7 @@
 # Deploy Scopeflow to Render with Neon
 
+The Koyeb cutover is [DEPLOY-KOYEB.md](DEPLOY-KOYEB.md). This page stays the Render setup until that cutover is finished.
+
 Scopeflow now runs as a Node 24 / Next.js web service. Neon PostgreSQL stores
 projects, immutable versions, review links, API tokens, request counters, and
 ledger entries. Neon Auth handles accounts, password hashing, email signup,
