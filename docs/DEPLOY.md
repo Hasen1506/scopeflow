@@ -3,8 +3,7 @@
 The base Render and Neon setup is in [render-deployment.md](render-deployment.md) and
 [neon-live-configuration.md](neon-live-configuration.md); this page adds what the features need. Every variable
 below is also listed, with comments, in [`.env.example`](../.env.example), and `render.yaml` declares them.
-The Koyeb move, with the same variables and the four cron clocks on GitHub Actions, is
-[DEPLOY-KOYEB.md](DEPLOY-KOYEB.md). `render.yaml` stays the running Render setup until that cutover.
+The four cron jobs run on GitHub Actions. The checklist is [CRON-ACTIONS.md](CRON-ACTIONS.md).
 
 Put the variables on the Render web service (Environment). None of them may be committed. Everything except
 the first table is optional: a feature without its variables is off, and the UI says so.
@@ -14,7 +13,7 @@ the first table is optional: a feature without its variables is off, and the UI 
 | Variable | What it does | Notes |
 | --- | --- | --- |
 | `SCOPEFLOW_SIGNING_SECRET` | Seeds the Ed25519 key that signs client decisions, ledger entries and PDF receipts; `/verify` checks receipts against it. | Generate once: `openssl rand -base64 48`. **Never change it casually**: records signed with an old key only keep verifying if the old value is kept in `SCOPEFLOW_SIGNING_SECRET_PREVIOUS` (comma-separated). **A production build no longer signs with `NEON_AUTH_COOKIE_SECRET`**: without this variable new records are unsigned (records signed earlier with the cookie-derived key still verify). `SCOPEFLOW_ALLOW_COOKIE_SIGNING=1` restores the old fallback while you migrate. `/api/health` reports `signing: dedicated | cookie_fallback | off`. |
-| `SCOPEFLOW_CRON_SECRET` | Authorizes the cron jobs' calls to the web service (reconciliation, head digest, housekeeping, analytics export). | `render.yaml` generates it and shares it with the cron services. |
+| `SCOPEFLOW_CRON_SECRET` | Authorizes the cron jobs' calls to the web service (reconciliation, head digest, housekeeping, analytics export). | `render.yaml` generates it. Copy the same value to the Actions secret ([CRON-ACTIONS.md](CRON-ACTIONS.md)). |
 | `SCOPEFLOW_ADMIN_TOKEN` | Operator token for `/api/readiness`, `/api/analytics` and the cron callbacks. | `render.yaml` generates it. |
 | `DATABASE_MIGRATION_URL` | Owner-role connection used only by the pre-deploy migration step. | Set in the dashboard (docs/ws-10.md). |
 
@@ -115,12 +114,12 @@ Digio or Leegality) and their API keys; it is not built in.
 ## Plan and cost (founder decision, H15)
 
 Render's free web plan spins down after 15 idle minutes (a cold start of tens of seconds for the next client
-who opens a review link) and has no cron jobs. The move to Koyeb's free instance, which
-sleeps after one hour, is [DEPLOY-KOYEB.md](DEPLOY-KOYEB.md). Until that cutover, `render.yaml` puts the web service and the four
-cron services on **Starter**: about US$7/month for the web service plus a small per-minute charge for each
-cron run (the four daily jobs run for seconds; budget a few US$ a month in total). Check Render's current
-price list before switching; the alternative is to keep the free plan and run `node scripts/cron.mjs <job>`
-by hand, accepting cold starts and stale reconciliation.
+who opens a review link). `render.yaml` keeps the web service on **Starter** (about US$7/month) so a review
+link opens without that wait. Koyeb's free instance scales to zero after one hour
+([instances](https://www.koyeb.com/docs/reference/instances),
+[scale to zero](https://www.koyeb.com/docs/run-and-scale/scale-to-zero)), with a documented cold start of
+1–5 seconds to create the VM, so the web service stays on Render. The four cron jobs run on GitHub Actions
+([CRON-ACTIONS.md](CRON-ACTIONS.md)); a public repository does not spend Actions minutes.
 
 ## Deploys and migrations
 
@@ -131,18 +130,19 @@ only runs `npm start`. The role split (runtime role `scopeflow_app`, C7) and its
 
 ## The cron jobs
 
-`render.yaml` defines four cron services (Starter). Each runs `node scripts/cron.mjs <job...>`: every job in
-its own process, recorded in `scopeflow.cron_runs`, so one failing job never skips another and
-`/api/readiness` shows the last run, staleness and failures per job.
+GitHub Actions runs the four groups ([CRON-ACTIONS.md](CRON-ACTIONS.md)). Each workflow runs
+`node scripts/cron.mjs <job...>`: every job in its own process, recorded in `scopeflow.cron_runs`, so one
+failing job never skips another and `/api/readiness` shows the last run, staleness and failures per job.
 
-| Service | Schedule (UTC) | Jobs |
+| Workflow | Schedule (UTC) | Jobs |
 | --- | --- | --- |
-| `scopeflow-retention` | `30 20 * * *` (02:00 IST) | `retention` (`scripts/redact-expired.mjs`: redaction, draft expiry, stale unsaved drafts), `heads` (publish yesterday's signed ledger-head digest), `housekeeping` (expired idempotency keys, OAuth codes and tokens, old cron runs) |
-| `scopeflow-reminders` | `30 3 * * *` (09:00 IST) | `reminders` (`scripts/send-reminders.mjs`; needs the email variables, `--dry-run` lists what it would send) |
-| `scopeflow-reconcile` | `0 */6 * * *` | `reconcile` (`scripts/reconcile-payments.mjs`; no mail dependency) |
-| `scopeflow-check-models` | `0 22 * * *` | `check-models`, then `analytics` (PostHog export when `POSTHOG_KEY` is set; purges events older than 400 days) |
+| `cron-retention.yml` | `30 20 * * *` (02:00 IST) | `retention` (`scripts/redact-expired.mjs`: redaction, draft expiry, stale unsaved drafts), `heads` (publish yesterday's signed ledger-head digest), `housekeeping` (expired idempotency keys, OAuth codes and tokens, old cron runs) |
+| `cron-reminders.yml` | `30 3 * * *` (09:00 IST) | `reminders` (`scripts/send-reminders.mjs`; needs the email variables, `--dry-run` lists what it would send) |
+| `cron-reconcile.yml` | `0 */6 * * *` | `reconcile` (`scripts/reconcile-payments.mjs`; no mail dependency) |
+| `cron-check-models.yml` | `0 22 * * *` | `check-models`, then `analytics` (PostHog export when `POSTHOG_KEY` is set; purges events older than 400 days) |
 
-Every job is idempotent. Manual setup: build `npm ci --omit=dev --ignore-scripts`, start command as above.
+Every job is idempotent. GitHub may start a scheduled run late, runs the schedule only from the default
+branch, and disables it after 60 days without repository activity. `workflow_dispatch` is the manual run.
 
 ## Health and readiness
 
@@ -174,7 +174,7 @@ Render and out of shared environment groups.
 5. With Razorpay or Stripe: pay one test-mode deposit and one invoice, refund part of one, and check the
    ledger entries.
 6. With forwarding: create a forwarding address on a test project and forward one email to it.
-7. Run each cron service once by hand and check `/api/readiness` → `checks.cron.jobs`.
+7. Run each GitHub Actions cron workflow once and check `/api/readiness` → `checks.cron.jobs` ([CRON-ACTIONS.md](CRON-ACTIONS.md)).
 8. WS-10: migration 0016 (runtime role, deletion audit, head digests, cron runs, idempotency keys, OAuth
    grants, analytics). Follow the operator steps in [ws-10.md](ws-10.md); check that the onrender host
    answers 308 and `/api/readiness` shows no `fail`.

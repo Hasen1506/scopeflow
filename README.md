@@ -10,8 +10,8 @@ scopes using their private links without creating accounts. Cloudflare and
 OpenAI Sites authentication are no longer runtime requirements.
 
 See [the deployment guide](docs/render-deployment.md) for the Render Blueprint
-(Starter web service, migrations in the pre-deploy step with the owner role, four
-recording cron services), Neon setup, required environment variables, and live
+(Starter web service, migrations in the pre-deploy step with the owner role; the four
+cron jobs run on GitHub Actions), Neon setup, required environment variables, and live
 checks; [DEPLOY.md](docs/DEPLOY.md) for the release checklist and costs; and
 [docs/ws-10.md](docs/ws-10.md) for the platform hardening (trusted-proxy client IPs,
 in-memory read limits, error taxonomy and idempotency keys, database role split,

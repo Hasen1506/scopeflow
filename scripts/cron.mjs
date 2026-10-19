@@ -4,8 +4,8 @@
 // Each job runs in its own child process, so one job throwing (for example reminders when mail is
 // misconfigured) never stops the next one (for example reconcile). Every run is recorded in
 // scopeflow.cron_runs (start, end, status, exit code, the last lines of output), which
-// /api/readiness turns into "last run / stale / failed" per job. Render runs one cron service per
-// job group (render.yaml). GitHub Actions runs the same groups (.github/workflows/cron-*.yml).
+// /api/readiness turns into "last run / stale / failed" per job. GitHub Actions runs one workflow per
+// job group (.github/workflows/cron-*.yml).
 // Every job is idempotent, so a retry or an overlap is harmless.
 // `--dry-run` prints each job and exits without a database connection.
 // Exits non-zero when any job failed, after all of them ran.
