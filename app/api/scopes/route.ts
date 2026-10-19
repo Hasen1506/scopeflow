@@ -1,6 +1,7 @@
 import { scopeSchema } from '@/lib/scope';
-import {projectCapMessage} from '@/lib/plans';
-import {limitsFor} from '@/lib/billing';
+import {allows, clientCapError, featureDenied, projectCapMessage} from '@/lib/plans';
+import {limitsFor, planStateFor} from '@/lib/billing';
+import {teamPowers, workspaceUser} from '@/lib/team';
 import {currentMode, modeDefaults} from '@/lib/mode';
 import {otpAvailable} from '@/lib/otp';
 import {serverProjectZone,validTimeZone} from '@/lib/time';
@@ -10,12 +11,14 @@ const LINK_HINT='Review links are shown only in the signed-in Scopeflow workspac
 // M26b (WS-08): listing projects never writes. Retention redaction runs only in the daily job
 // (scripts/redact-expired.mjs) and when the owner saves a new retention period.
 // H10: projects of a closed account (owner_deleted) are not listed.
-export async function GET(request:Request){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in or provide a valid API token.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const r=await db().prepare('SELECT v.*,p.archived,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=? AND p.owner_deleted IS NULL AND p.latest=v.version ORDER BY p.created DESC LIMIT 100').bind(auth.user).all();return json({scopes:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'}))});}catch(e){return failure(e);}}
+export async function GET(request:Request){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in or provide a valid API token.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const ws=await workspaceUser(request,auth);const r=await db().prepare('SELECT v.*,p.archived,p.client_email FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=? AND p.owner_deleted IS NULL AND p.latest=v.version ORDER BY p.created DESC LIMIT 100').bind(ws.user).all();return json({scopes:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'&&teamPowers(ws.role).issueLinks}))});}catch(e){return failure(e);}}
 type OwnerNewProject={default_currency:string|null;timezone:string|null};
 export async function POST(request:Request){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);
  const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in or provide a valid API token.'},401);
- const user=auth.user,session=auth.via==='session';
+ const ws=await workspaceUser(request,auth);
+ if(ws.studio&&!teamPowers(ws.role).editScope)return json({error:'Your role cannot create projects in this studio.',code:'role'},403);
+ const user=ws.user,session=auth.via==='session'&&teamPowers(ws.role).issueLinks;
  if(!await allowWrite('owner:'+user))return json({error:'Write limit reached. Try again in a minute.'},429);
  let raw;try{raw=await body(request);}catch{return json({error:'Provide valid JSON under 24 KB.'},400);}
  // LT-04: a scope sent without a currency starts in the owner's default currency (set at onboarding).
@@ -31,9 +34,14 @@ export async function POST(request:Request){try{
  const reply=(scope:Record<string,unknown>,token:string,revoked:boolean,status:number,extra:Record<string,unknown>={})=>json({scope:session?{...scope,token}:scope,review_path:session&&!revoked?'/review/'+token:null,...(session?{}:{review_link:LINK_HINT}),...extra},status);
  async function existing(){const row=await db().prepare('SELECT v.* FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.id=? AND p.owner=? AND v.version=1').bind(id,user).first<Record<string,unknown>&{token:string;revoked:number}>();if(!row)return null;const v=parseRow(row,{withToken:false});return JSON.stringify(v.content)===JSON.stringify(input.data)?reply(v,row.token,!!row.revoked,200,{replayed:true}):json({error:'That idempotency key was already used with different content.'},409);}
  if(requestKey){const prior=await existing();if(prior)return prior;}
+ if(input.data.engagement==='retainer'){const state=await planStateFor(user);if(!allows(state.plan,'retainers'))return json(featureDenied('retainers'),402);}
  const vid=crypto.randomUUID(),token=secret(),now=new Date().toISOString();
  // M13: the cap is the account's own plan. M12: archived projects and closed-account projects don't count.
- const cap=(await limitsFor(user)).projects;
+ const lim=await limitsFor(user),cap=lim.projects;
+ const clients=await db().prepare(`SELECT COUNT(DISTINCT lower(trim(v.content::jsonb->>'client')))::int AS n, COALESCE(BOOL_OR(lower(trim(v.content::jsonb->>'client')) = lower(trim(?))), false) AS known FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=? AND p.archived IS NULL AND p.owner_deleted IS NULL AND p.latest=v.version`).bind(input.data.client,user).first<{n:number|string;known:boolean|string}>();
+ const known=clients?.known===true||clients?.known==='t'||clients?.known==='true';
+ const clientCap=clientCapError(Number(clients?.n??0),known,lim);
+ if(clientCap)return json({error:clientCap,code:'plan_limit',limit:lim.clients},429);
  // LT-16/#17: new projects start in the zone the request names, else the account's (serverProjectZone). SF-17: the mode's identity default (OTP on in Agency/Consumer, required in Enterprise) when codes can be delivered.
  const timezone=serverProjectZone(requestedZone,own?.timezone);
  const otp=modeDefaults(await currentMode(user)).otp!=='optional'&&otpAvailable();

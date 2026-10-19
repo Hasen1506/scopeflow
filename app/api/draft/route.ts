@@ -1,5 +1,6 @@
 import {z} from 'zod';
-import {limits} from '@/lib/plans';
+import {allows, featureDenied, limits} from '@/lib/plans';
+import {planStateFor} from '@/lib/billing';
 import {json, ownerAuth, body, safeOrigin, allowWrite, failure} from '@/lib/server';
 import {llmConfig, llmStatus, LlmError} from '@/lib/llm';
 import {BRIEF_MAX, BRIEF_MIN, draftFromBrief, modeDefaultCurrency, resolveDraftCurrency} from '@/lib/draft';
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
     if (!safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
     const auth = await ownerAuth(request);
     if (!auth) return json({error: 'Sign in to draft with AI.'}, 401);
+    const plan = await planStateFor(auth.user);
+    if (!allows(plan.plan, 'ai')) return json(featureDenied('ai'), 402);
     const status = llmStatus();
     if (!status.enabled) return json({error: 'AI drafting is turned off on this server. ' + status.reason + ' Start from a template instead.', code: 'ai_disabled'}, 503);
     let raw;

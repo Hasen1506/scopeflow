@@ -115,3 +115,29 @@ test('landing, editor, account, templates, review and approved', async ({page, b
   await client.close();
   await context.close();
 });
+
+test('plans and connect', async ({page}) => {
+  test.setTimeout(120_000);
+  const widths = [1280, 390] as const;
+  await prepare(page);
+  await page.goto('/plans');
+  await expect(page.getByRole('heading', {name: /Start small/i})).toBeVisible();
+  await expect(page.getByTestId('founding-offer')).toBeVisible();
+  for (const width of widths) {
+    await page.setViewportSize({width, height: width === 390 ? 844 : 900});
+    for (const [name, theme, scheme] of themes) {
+      await appearance(page, name, theme, scheme);
+      await shot(page, `plans-${name.toLowerCase()}-${width}.png`);
+    }
+  }
+  await page.goto('/connect');
+  await expect(page.getByRole('heading', {name: /Connect your AI assistant/i})).toBeVisible();
+  await expect(page.getByTestId('mcp-endpoint')).toBeVisible();
+  for (const width of widths) {
+    await page.setViewportSize({width, height: width === 390 ? 844 : 900});
+    for (const [name, theme, scheme] of themes) {
+      await appearance(page, name, theme, scheme);
+      await shot(page, `connect-${name.toLowerCase()}-${width}.png`);
+    }
+  }
+});

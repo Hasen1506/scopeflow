@@ -3,106 +3,146 @@
   {
    "id": "free",
    "name": "Free",
-   "blurb": "For your first client scope.",
+   "blurb": "A working freelance practice: a few live jobs, client review, invoices and a certificate.",
    "purchasable": false,
    "seats": 1,
    "price": "₹0",
    "per": null,
    "yearly": null,
+   "founding": null,
+   "foundingYearly": null,
    "lines": [
-    "1 active project (archived ones don’t count)",
-    "25 versions per project",
-    "100 record entries per project"
+    "3 active projects (archived ones don’t count)",
+    "8 clients",
+    "1 seat (just you)",
+    "20 versions per project",
+    "40 record entries per project"
    ],
    "soon": []
   },
   {
    "id": "pro",
-   "name": "Pro",
-   "blurb": "For a working freelancer or studio.",
+   "name": "Freelancer",
+   "blurb": "For one freelancer who drafts with an assistant, reminds clients and runs retainers.",
    "purchasable": true,
    "seats": 1,
-   "price": "₹499",
+   "price": "₹799",
    "per": "month",
-   "yearly": "or ₹4,499 a year",
+   "yearly": "or ₹7,990 a year",
+   "founding": null,
+   "foundingYearly": null,
    "lines": [
-    "1,000 active projects (archived ones don’t count)",
-    "200 versions per project",
-    "1,000 record entries per project"
+    "15 active projects (archived ones don’t count)",
+    "40 clients",
+    "1 seat (just you)",
+    "50 versions per project",
+    "200 record entries per project",
+    "AI drafting from a brief",
+    "API token and AI assistants",
+    "Automatic invoice reminders",
+    "Retainer engagements"
    ],
    "soon": []
   },
   {
    "id": "agency",
-   "name": "Agency",
-   "blurb": "The highest limits, for a busy studio.",
+   "name": "Studio",
+   "blurb": "For a small studio: five people, a shared rate card and a record of who did what.",
    "purchasable": true,
-   "seats": 1,
-   "price": "₹1,499",
+   "seats": 5,
+   "price": "₹2,499",
    "per": "month",
-   "yearly": "or ₹13,499 a year",
+   "yearly": "or ₹24,990 a year",
+   "founding": null,
+   "foundingYearly": null,
    "lines": [
-    "5,000 active projects (archived ones don’t count)",
-    "200 versions per project",
-    "2,000 record entries per project"
+    "40 active projects (archived ones don’t count)",
+    "120 clients",
+    "5 seats (owner, manager, member, finance)",
+    "80 versions per project",
+    "400 record entries per project",
+    "AI drafting from a brief",
+    "API token and AI assistants",
+    "Automatic invoice reminders",
+    "Retainer engagements",
+    "Studio roles for manager, member and finance",
+    "Shared rate card",
+    "Team activity"
    ],
-   "soon": [
-    "Team seats with roles (owner, manager, member, finance)",
-    "Shared rate card and team activity"
-   ]
+   "soon": []
   }
  ],
  "USD": [
   {
    "id": "free",
    "name": "Free",
-   "blurb": "For your first client scope.",
+   "blurb": "A working freelance practice: a few live jobs, client review, invoices and a certificate.",
    "purchasable": false,
    "seats": 1,
    "price": "$0",
    "per": null,
    "yearly": null,
+   "founding": null,
+   "foundingYearly": null,
    "lines": [
-    "1 active project (archived ones don’t count)",
-    "25 versions per project",
-    "100 record entries per project"
+    "3 active projects (archived ones don’t count)",
+    "8 clients",
+    "1 seat (just you)",
+    "20 versions per project",
+    "40 record entries per project"
    ],
    "soon": []
   },
   {
    "id": "pro",
-   "name": "Pro",
-   "blurb": "For a working freelancer or studio.",
+   "name": "Freelancer",
+   "blurb": "For one freelancer who drafts with an assistant, reminds clients and runs retainers.",
    "purchasable": true,
    "seats": 1,
-   "price": "$6",
+   "price": "$9",
    "per": "month",
-   "yearly": "or $54 a year",
+   "yearly": "or $90 a year",
+   "founding": null,
+   "foundingYearly": null,
    "lines": [
-    "1,000 active projects (archived ones don’t count)",
-    "200 versions per project",
-    "1,000 record entries per project"
+    "15 active projects (archived ones don’t count)",
+    "40 clients",
+    "1 seat (just you)",
+    "50 versions per project",
+    "200 record entries per project",
+    "AI drafting from a brief",
+    "API token and AI assistants",
+    "Automatic invoice reminders",
+    "Retainer engagements"
    ],
    "soon": []
   },
   {
    "id": "agency",
-   "name": "Agency",
-   "blurb": "The highest limits, for a busy studio.",
+   "name": "Studio",
+   "blurb": "For a small studio: five people, a shared rate card and a record of who did what.",
    "purchasable": true,
-   "seats": 1,
-   "price": "$18",
+   "seats": 5,
+   "price": "$29",
    "per": "month",
-   "yearly": "or $162 a year",
+   "yearly": "or $290 a year",
+   "founding": null,
+   "foundingYearly": null,
    "lines": [
-    "5,000 active projects (archived ones don’t count)",
-    "200 versions per project",
-    "2,000 record entries per project"
+    "40 active projects (archived ones don’t count)",
+    "120 clients",
+    "5 seats (owner, manager, member, finance)",
+    "80 versions per project",
+    "400 record entries per project",
+    "AI drafting from a brief",
+    "API token and AI assistants",
+    "Automatic invoice reminders",
+    "Retainer engagements",
+    "Studio roles for manager, member and finance",
+    "Shared rate card",
+    "Team activity"
    ],
-   "soon": [
-    "Team seats with roles (owner, manager, member, finance)",
-    "Shared rate card and team activity"
-   ]
+   "soon": []
   }
  ]
 }

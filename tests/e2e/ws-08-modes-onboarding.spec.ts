@@ -106,17 +106,17 @@ test('ws-08: switching modes reorders but never hides; every feature stays in Al
 });
 
 // @covers M13
-test('ws-08: upgrade from /plans through checkout; the plan badge turns Pro', async ({page}) => {
+test('ws-08: upgrade from /plans through checkout; the plan badge turns Freelancer', async ({page}) => {
   await signUp(page, who('upgrade'));
   await expect(page.getByRole('button', {name: 'Sign out'})).toBeVisible();
   await page.goto('/plans');
   await expect(page.getByTestId('plan-badge')).toHaveText('Early beta');
-  await expect(page.locator('[data-plan="pro"]')).toContainText('₹499');
-  await page.getByRole('button', {name: 'Upgrade to Pro'}).click();
+  await expect(page.locator('[data-plan="pro"]')).toContainText('₹799');
+  await page.getByRole('button', {name: 'Upgrade to Freelancer'}).click();
   await expect(page).toHaveURL(/\/plans\/checkout\?subscription=sub_local_/);
   await page.getByRole('button', {name: 'Pay (test)'}).click();
   await expect(page).toHaveURL(/\/plans\?checkout=done/);
-  await expect(page.getByTestId('plan-badge')).toHaveText('Pro');
+  await expect(page.getByTestId('plan-badge')).toHaveText('Freelancer');
   await expect(page.getByRole('link', {name: /^SF-\d{4}-\d{5}$/})).toBeVisible();
 });
 

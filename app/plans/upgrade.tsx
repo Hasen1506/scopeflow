@@ -43,6 +43,7 @@ export default function Upgrade({currency, enabled, localDouble, cards, chosen, 
         {c.id === RECOMMENDED && <span className="plan-flag">Recommended</span>}
         <p className="eyebrow" id={'plan-' + c.id}>{c.name.toUpperCase()}</p>
         <p className="price">{c.price}{c.per && <small> / {c.per}</small>}</p>{c.yearly && <p className="quiet">{c.yearly}</p>}
+        {c.founding && <p className="quiet" data-testid={'founding-price-' + c.id}>Founding price {c.founding}{c.per ? ` / ${c.per}` : ''}{c.foundingYearly ? ` · ${c.foundingYearly}` : ''}</p>}
         <p className="quiet section-gap">{c.blurb}</p>
         <ul className="bullets">{c.lines.map(l => <li key={l}>{l}</li>)}</ul>
         {c.soon.length > 0 && <div className="plan-soon" data-testid={'plan-soon-' + c.id}><p className="eyebrow section-gap" id={'soon-list-' + c.id}>Coming soon · not included yet</p><ul className="bullets quiet" style={{flex: 'none', marginTop: 0}} aria-labelledby={'soon-list-' + c.id}>{c.soon.map(l => <li key={l}>{l}</li>)}</ul></div>}

@@ -63,14 +63,18 @@ export function winAnsi(text: string): number[] {
   return out;
 }
 
-/** Width of `text` in points at `size`. Bold is approximated conservatively for wrapping. */
-export function textWidth(text: string, size: number, font: Font = 'regular'): number {
-  if (shaper && [...text].some(ch => !encodable(ch))) {
-    return runs(text).reduce((w, r) => w + (r.font < 0 ? textWidth(r.text, size, font) : shaper!.shape(r.text, r.font).reduce((s, g) => s + g.adv, 0) / 1000 * size * (font === 'bold' ? 1.03 : 1)), 0);
-  }
+/** WinAnsi width. Unknown characters count as "?" and never re-enter the shaper. */
+function measureWinAnsi(text: string, size: number, font: Font): number {
   if (font === 'mono') return winAnsi(text).length * 0.6 * size;
   const units = winAnsi(text).reduce((sum, b) => sum + (b >= 32 && b <= 126 ? HELVETICA[b - 32] : 556), 0);
   return (units / 1000) * size * (font === 'bold' ? 1.08 : 1);
+}
+/** Width of `text` in points at `size`. Bold is approximated conservatively for wrapping. */
+export function textWidth(text: string, size: number, font: Font = 'regular'): number {
+  if (shaper && [...text].some(ch => !encodable(ch))) {
+    return runs(text).reduce((w, r) => w + (r.font < 0 ? measureWinAnsi(r.text, size, font) : shaper!.shape(r.text, r.font).reduce((s, g) => s + g.adv, 0) / 1000 * size * (font === 'bold' ? 1.03 : 1)), 0);
+  }
+  return measureWinAnsi(text, size, font);
 }
 
 /** Greedy word wrap to `width` points; very long tokens (hashes, URLs) are hard-split. */

@@ -124,14 +124,16 @@ const job = () => { const r = spawnSync(process.execPath, ['scripts/redact-expir
 // @covers M13 SF-12 M12
 {
   const a = await fresh('plan-free'), b = await fresh('plan-pro');
-  // Account A is on Free: 1 active project. Archived projects don't count (M12).
+  // Account A is on Free: 3 active projects. Archived projects don't count (M12).
   const firstA = await call('/api/scopes', {method: 'POST', cookie: a, body: scope('Free one')});
   eq(firstA.status, 201);
   const ownerA = await ownerOf(firstA.data.scope.project_id);
   await db.query("INSERT INTO scopeflow.accounts_plans (owner,plan,status,updated) VALUES ($1,'free','active',$2)", [ownerA, new Date().toISOString()]);
-  const capped = await call('/api/scopes', {method: 'POST', cookie: a, body: scope('Free two')});
-  eq([capped.status, capped.data.code, capped.data.limit], [429, 'plan_limit', 1]);
-  ok(/1 active project \(archived ones don’t count\)/.test(capped.data.error), capped.data.error);
+  eq((await call('/api/scopes', {method: 'POST', cookie: a, body: scope('Free two')})).status, 201);
+  eq((await call('/api/scopes', {method: 'POST', cookie: a, body: scope('Free three')})).status, 201);
+  const capped = await call('/api/scopes', {method: 'POST', cookie: a, body: scope('Free four')});
+  eq([capped.status, capped.data.code, capped.data.limit], [429, 'plan_limit', 3]);
+  ok(/3 active projects \(archived ones don’t count\)/.test(capped.data.error), capped.data.error);
   eq((await call('/api/scopes/' + firstA.data.scope.project_id, {method: 'PATCH', cookie: a, body: {archived: true}})).status, 200);
   eq((await call('/api/scopes', {method: 'POST', cookie: a, body: scope('Free after archive')})).status, 201);
   // Account B upgrades to Pro through checkout and the signed subscription webhook.
@@ -157,8 +159,8 @@ const job = () => { const r = spawnSync(process.execPath, ['scripts/redact-expir
   ok(/^SF-\d{4}-\d{5}$/.test(charged.data.invoice), 'ScopeFlow issues its own invoice for the payment');
   // R: A on Free and B on Pro on the same server have different caps.
   const [la, lb] = [(await call('/api/billing', {cookie: a})).data.plan, (await call('/api/billing', {cookie: b})).data.plan];
-  eq([la.id, la.limits.projects, lb.id, lb.limits.projects], ['free', 1, 'pro', 1000]);
-  eq((await call('/api/me', {cookie: b})).data.defaults.plan.name, 'Pro');
+  eq([la.id, la.limits.projects, lb.id, lb.limits.projects], ['free', 3, 'pro', 15]);
+  eq((await call('/api/me', {cookie: b})).data.defaults.plan.name, 'Freelancer');
   const inv = (await call('/api/billing', {cookie: b})).data.invoices[0];
   const invoice = await call('/api/billing/invoices/' + inv.id, {cookie: b});
   eq([invoice.status, invoice.data.invoice?.number ?? invoice.data.number], [200, charged.data.invoice]);
@@ -174,7 +176,7 @@ const job = () => { const r = spawnSync(process.execPath, ['scripts/redact-expir
   eq([lapsed.id, lapsed.source], ['free', 'lapsed']);
   // The Plans page renders the same table the caps come from (L13 copy).
   const plans = await (await fetch(base + '/plans')).text();
-  for (const s of ['₹499', '₹1,499', '1 active project (archived ones don’t count)']) ok(plans.includes(s), 'Plans page shows ' + s);
+  for (const s of ['₹799', '₹2,499', '3 active projects (archived ones don’t count)', 'Founding members']) ok(plans.includes(s), 'Plans page shows ' + s);
 }
 
 // ---- M32: 180-day default retention, redaction only in the daily job -------------------------------

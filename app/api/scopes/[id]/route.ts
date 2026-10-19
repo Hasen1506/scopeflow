@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import {versionCapError} from '@/lib/plans';
-import {limitsFor} from '@/lib/billing';
+import {allows, featureDenied, versionCapError} from '@/lib/plans';
+import {limitsFor, planStateFor} from '@/lib/billing';
+import {teamPowers, workspaceUser} from '@/lib/team';
 import { scopeSchema } from '@/lib/scope';
 import { clientEmailSchema } from '@/lib/mail';
 import { canonicalZone, validTimeZone } from '@/lib/time';
@@ -25,15 +26,15 @@ type ProjectRow={archived:string|null;client_email:string|null;timezone:string|n
 /** Owner-facing project settings. */
 function projectSettings(p:ProjectRow){return {archived:p.archived??null,client_email:p.client_email??'',timezone:p.timezone??null,require_otp:!!p.require_otp,link_expiry_days:p.link_expiry_days??null,link_issued:p.link_issued??null,client_phone:p.client_phone??'',otp_channel:(p.otp_channel??'email') as OtpChannel,cosigners:parseCosigners(p.cosigners),client_gstin:p.client_gstin??'',client_state:p.client_state??'',client_address:p.client_address??'',retention_days:p.retention_days??null,legal_hold:!!p.legal_hold,legal_hold_reason:p.legal_hold_reason??'',legal_hold_set:p.legal_hold_set??null,inbound_address:inboundAddress(p.inbound_token)};}
 const LINK_HINT='Review links are shown only in the signed-in Scopeflow workspace, so an API token or connector can never act as the client.';
-export async function GET(request:Request,ctx:Ctx){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const {id}=await ctx.params;const p=await db().prepare(`SELECT latest,contact_since,${PROJECT_COLUMNS} FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL`).bind(id,auth.user).first<ProjectRow&{latest:number;contact_since:string|null}>();if(!p)return json({error:'Project not found.'},404);const r=await db().prepare('SELECT * FROM versions WHERE project_id=? ORDER BY version DESC').bind(id).all();const latest=r.results[0] as {status:string;created:string}|undefined;const cosigns=await db().prepare('SELECT cosigner_id,role,signer,signed,signature FROM version_cosigns WHERE project_id=? AND version=? ORDER BY signed').bind(id,p.latest).all();
+export async function GET(request:Request,ctx:Ctx){try{const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);if(!await allowRead('owner:'+auth.user))return json({error:'Too many requests. Try again in a minute.'},429);const ws=await workspaceUser(request,auth);const user=ws.user;const {id}=await ctx.params;const p=await db().prepare(`SELECT latest,contact_since,${PROJECT_COLUMNS} FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL`).bind(id,user).first<ProjectRow&{latest:number;contact_since:string|null}>();if(!p)return json({error:'Project not found.'},404);const r=await db().prepare('SELECT * FROM versions WHERE project_id=? ORDER BY version DESC').bind(id).all();const latest=r.results[0] as {status:string;created:string}|undefined;const cosigns=await db().prepare('SELECT cosigner_id,role,signer,signed,signature FROM version_cosigns WHERE project_id=? AND version=? ORDER BY signed').bind(id,p.latest).all();
  // H5: expiry is per version. C5/M17/H1: contact lock, frozen roles and each role's own link (browser sessions only, like review links).
  const link=await db().prepare('SELECT link_issued,first_sent,sent_via FROM scopeflow.version_links WHERE project_id=? AND version=?').bind(id,p.latest).first<{link_issued:string|null;first_sent:string|null;sent_via:string|null}>();
- const frozen=await freezeRoles(id,p.latest);const invites=auth.via==='session'?await invitesFor(id,p.latest):[];
+ const frozen=await freezeRoles(id,p.latest);const showLinks=auth.via==='session'&&teamPowers(ws.role).issueLinks;const invites=showLinks?await invitesFor(id,p.latest):[];
  const history=(await db().prepare('SELECT field,from_masked,to_masked,reason,at,signature FROM scopeflow.contact_history WHERE project_id=? ORDER BY at').bind(id).all()).results;
  const ownerSession=r.results.filter(v=>{try{return JSON.parse(String((v as {decision_context?:string|null}).decision_context??'{}')).owner_session===true;}catch{return false;}}).map(v=>(v as {version:number}).version);
- return json({versions:r.results.map(row=>parseRow(row,{withToken:auth.via==='session'})),project:{...projectSettings(p),link_issued:link?.link_issued??null,link_expires:latest?linkExpires({...latest,link_issued:link?.link_issued??null,link_expiry_days:p.link_expiry_days}):null,contact_locked:await contactLocked(id),contact_since:p.contact_since??null,first_sent:link?.first_sent??null,roles_frozen:frozen!==null,owner_session_versions:ownerSession,otp_spend_today:await otpSpendToday(auth.user)},cosigns:cosigns.results,cosign_links:invites.map(i=>({cosigner_id:i.cosigner_id,role:i.role,name:i.name,to:i.email?maskAddress('email',i.email):i.phone?maskAddress('sms',i.phone):null,cosign_path:'/cosign/'+i.token})),contact_history:history});}catch(e){return failure(e);}}
+ return json({versions:r.results.map(row=>parseRow(row,{withToken:showLinks})),project:{...projectSettings(p),link_issued:link?.link_issued??null,link_expires:latest?linkExpires({...latest,link_issued:link?.link_issued??null,link_expiry_days:p.link_expiry_days}):null,contact_locked:await contactLocked(id),contact_since:p.contact_since??null,first_sent:link?.first_sent??null,roles_frozen:frozen!==null,owner_session_versions:ownerSession,otp_spend_today:await otpSpendToday(auth.user)},cosigns:cosigns.results,cosign_links:invites.map(i=>({cosigner_id:i.cosigner_id,role:i.role,name:i.name,to:i.email?maskAddress('email',i.email):i.phone?maskAddress('sms',i.phone):null,cosign_path:'/cosign/'+i.token})),contact_history:history});}catch(e){return failure(e);}}
 export async function POST(request:Request,ctx:Ctx){try{
- if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);const user=auth.user,session=auth.via==='session';const {id}=await ctx.params;
+ if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);const ws=await workspaceUser(request,auth);if(ws.studio&&!teamPowers(ws.role).editScope)return json({error:'Your role cannot edit scope text in this studio.',code:'role'},403);const user=ws.user,session=auth.via==='session'&&teamPowers(ws.role).issueLinks;const {id}=await ctx.params;
  const p=await db().prepare('SELECT latest,archived FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL').bind(id,user).first<{latest:number;archived:string|null}>();if(!p)return json({error:'Project not found.'},404);
  if(p.archived)return json({error:'This project is archived. Restore it before saving a new version.',code:'archived'},409);
  if(!await allowWrite('owner:'+user))return json({error:'Write limit reached. Try again in a minute.'},429);
@@ -42,6 +43,7 @@ export async function POST(request:Request,ctx:Ctx){try{
  if(raw.expected_version!==p.latest)return json({error:'A newer version exists. Refresh the project before revising.'},409);
  if(raw.supersede_agreement!==undefined&&typeof raw.supersede_agreement!=='boolean')return json({error:'supersede_agreement must be true or false.'},400);
  const input=scopeSchema.safeParse(raw.content);if(!input.success)return json({error:input.error.issues.map(i=>`${i.path.join('.')}: ${i.message}`).join('; ')},400);
+ if(input.data.engagement==='retainer'){const state=await planStateFor(user);if(!allows(state.plan,'retainers'))return json(featureDenied('retainers'),402);}
  // R4-01: the version cap is the owner's own plan (limitsFor), like the project cap, not the server default.
  {const lim=await limitsFor(user),capped=versionCapError(p.latest,lim);if(capped)return json({error:capped,code:'plan_limit',limit:lim.versions},429);}
  // SF-06: a new version replaces the approved agreement, including approved change
@@ -63,6 +65,7 @@ const patchSchema=z.object({archived:z.boolean().optional(),client_email:clientE
 export async function PATCH(request:Request,ctx:Ctx){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);
  const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in required.'},401);
+ const ws=await workspaceUser(request,auth);if(ws.studio&&ws.role!=='owner')return json({error:'Only the studio owner changes project settings.',code:'role'},403);
  if(!auth.scopes.includes('scopes:write'))return json({error:'This credential cannot change projects.'},403);
  const {id}=await ctx.params;
  if(!await allowWrite('owner:'+auth.user))return json({error:'Write limit reached. Try again in a minute.'},429);

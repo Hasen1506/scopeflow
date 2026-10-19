@@ -1,5 +1,5 @@
 import {createHash, createHmac, randomUUID, timingSafeEqual} from 'node:crypto';
-import {GRACE_DAYS, PLANS, isPlanId, resolvePlan, type Limits, type PlanId, type PlanRow, type PlanState} from './plans';
+import {GRACE_DAYS, PLANS, chargeMinor, foundingOpen, foundingUntil, isPlanId, resolvePlan, type Limits, type PlanId, type PlanRow, type PlanState} from './plans';
 import {checkGstin} from './gstin';
 
 // ScopeFlow's own subscription billing (M13/SF-12, WS-08). ScopeFlow sells its own service, so
@@ -25,13 +25,13 @@ export function razorpayBilling(env: Env = process.env) {
   const keyId = str(env.RAZORPAY_BILLING_KEY_ID), keySecret = str(env.RAZORPAY_BILLING_KEY_SECRET);
   if (!keyId || !keySecret) return null;
   return {keyId, keySecret, webhookSecret: str(env.RAZORPAY_BILLING_WEBHOOK_SECRET), api: (str(env.RAZORPAY_BILLING_API_URL) ?? 'https://api.razorpay.com').replace(/\/$/, ''),
-    planId: (plan: PlanId, interval: Interval) => str(env[`RAZORPAY_BILLING_PLAN_${plan.toUpperCase()}_${interval.toUpperCase()}`])};
+    planId: (plan: PlanId, interval: Interval, founding = false) => str(env[`RAZORPAY_BILLING_PLAN_${plan.toUpperCase()}_${interval.toUpperCase()}${founding ? '_FOUNDING' : ''}`])};
 }
 export function stripeBilling(env: Env = process.env) {
   const key = str(env.STRIPE_BILLING_SECRET_KEY);
   if (!key) return null;
   return {key, webhookSecret: str(env.STRIPE_BILLING_WEBHOOK_SECRET), api: (str(env.STRIPE_BILLING_API_URL) ?? 'https://api.stripe.com').replace(/\/$/, ''),
-    priceId: (plan: PlanId, interval: Interval) => str(env[`STRIPE_BILLING_PRICE_${plan.toUpperCase()}_${interval.toUpperCase()}`])};
+    priceId: (plan: PlanId, interval: Interval, founding = false) => str(env[`STRIPE_BILLING_PRICE_${plan.toUpperCase()}_${interval.toUpperCase()}${founding ? '_FOUNDING' : ''}`])};
 }
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 /** The local test checkout: localhost APP_URL, not on Render, no billing provider configured. */
@@ -84,6 +84,8 @@ export type PlanUpdate = {
   status: 'active' | 'halted' | 'cancelled' | 'expired' | 'pending' | null;
   period_end?: string | null;
   payment?: {id: string; amount_minor: number; currency: string; period_start?: string | null; period_end?: string | null} | null;
+  /** True when the provider notes say this checkout is a founding-price subscription. */
+  founding?: boolean;
 };
 const unixIso = (s: unknown) => (typeof s === 'number' && s > 0 ? new Date(s * 1000).toISOString() : null);
 const asInterval = (v: unknown): Interval | null => (v === 'month' || v === 'year' ? v : null);
@@ -95,7 +97,8 @@ export function razorpayEventToUpdate(event: unknown): PlanUpdate | null {
   const e = obj(event), name = String(e.event ?? ''), sub = obj(obj(obj(e.payload).subscription).entity), pay = obj(obj(obj(e.payload).payment).entity);
   if (!name.startsWith('subscription.') || typeof sub.id !== 'string') return null;
   const notes = obj(sub.notes), plan = isPlanId(notes.plan) ? notes.plan : null;
-  const base = {owner: typeof notes.owner === 'string' ? notes.owner : null, subscription: sub.id, customer: typeof sub.customer_id === 'string' ? sub.customer_id : null, plan, interval: asInterval(notes.interval), period_end: unixIso(sub.current_end)};
+  const founding = notes.founding === '1' || notes.founding === true || notes.founding === 1;
+  const base = {owner: typeof notes.owner === 'string' ? notes.owner : null, subscription: sub.id, customer: typeof sub.customer_id === 'string' ? sub.customer_id : null, plan, interval: asInterval(notes.interval), period_end: unixIso(sub.current_end), founding};
   switch (name) {
     case 'subscription.authenticated': return {...base, status: 'pending'};
     case 'subscription.activated': case 'subscription.resumed': return {...base, status: 'active'};
@@ -111,19 +114,20 @@ export function razorpayEventToUpdate(event: unknown): PlanUpdate | null {
 export function stripeEventToUpdate(event: unknown): PlanUpdate | null {
   const e = obj(event), type = String(e.type ?? ''), o = obj(obj(e.data).object), meta = obj(o.metadata);
   const plan = isPlanId(meta.plan) ? meta.plan : null, owner = typeof meta.owner === 'string' ? meta.owner : typeof o.client_reference_id === 'string' ? o.client_reference_id : null;
+  const founding = meta.founding === '1' || meta.founding === true;
   if (type === 'checkout.session.completed') {
     if (o.mode !== 'subscription' || typeof o.subscription !== 'string') return null;
-    return {owner, subscription: o.subscription, customer: typeof o.customer === 'string' ? o.customer : null, plan, interval: asInterval(meta.interval), status: 'active'};
+    return {owner, subscription: o.subscription, customer: typeof o.customer === 'string' ? o.customer : null, plan, interval: asInterval(meta.interval), status: 'active', founding};
   }
   if (type === 'customer.subscription.created' || type === 'customer.subscription.updated' || type === 'customer.subscription.deleted') {
     if (typeof o.id !== 'string') return null;
     const s = String(o.status ?? ''), status = type.endsWith('deleted') ? 'expired' : s === 'active' || s === 'trialing' ? 'active' : s === 'past_due' || s === 'unpaid' ? 'halted' : s === 'canceled' ? 'cancelled' : s === 'incomplete' ? 'pending' : s === 'incomplete_expired' ? 'expired' : null;
-    return {owner, subscription: o.id, customer: typeof o.customer === 'string' ? o.customer : null, plan, interval: asInterval(meta.interval), status, period_end: unixIso(o.current_period_end) ?? unixIso(o.cancel_at)};
+    return {owner, subscription: o.id, customer: typeof o.customer === 'string' ? o.customer : null, plan, interval: asInterval(meta.interval), status, period_end: unixIso(o.current_period_end) ?? unixIso(o.cancel_at), founding};
   }
   if (type === 'invoice.paid') {
     if (typeof o.subscription !== 'string' || typeof o.id !== 'string' || typeof o.amount_paid !== 'number' || o.amount_paid <= 0) return null;
     const line = obj((obj(o.lines).data as unknown[] | undefined)?.[0]), period = obj(line.period);
-    return {owner, subscription: o.subscription, plan, status: 'active', payment: {id: o.id, amount_minor: o.amount_paid, currency: String(o.currency ?? '').toUpperCase(), period_start: unixIso(period.start), period_end: unixIso(period.end)}, period_end: unixIso(period.end)};
+    return {owner, subscription: o.subscription, plan, status: 'active', founding, payment: {id: o.id, amount_minor: o.amount_paid, currency: String(o.currency ?? '').toUpperCase(), period_start: unixIso(period.start), period_end: unixIso(period.end)}, period_end: unixIso(period.end)};
   }
   return null;
 }
@@ -169,7 +173,17 @@ export function billingInvoiceContent(p: {number: string; issued: string; seller
 
 // ---- Database ---------------------------------------------------------------------------------
 async function database() { return (await import('./server')).db(); }
-export type AccountPlanRow = PlanRow & {owner: string; provider: string | null; provider_subscription: string | null; provider_customer: string | null; interval: string | null; updated: string};
+export type AccountPlanRow = PlanRow & {owner: string; provider: string | null; provider_subscription: string | null; provider_customer: string | null; interval: string | null; updated: string; founding?: boolean | null; founding_until?: string | null};
+/** Founding seats already reserved (pending checkout, active, or halted inside grace). */
+export async function foundingSeatsTaken() {
+  const row = await (await database()).prepare(`SELECT COUNT(*)::int AS n FROM scopeflow.accounts_plans WHERE founding = true AND status IN ('pending','active','halted')`).first<{n: number | string}>();
+  return Number(row?.n ?? 0);
+}
+/** Whether the Plans page should show the founding price. Missing columns count as still open. */
+export async function foundingOfferOpen(now = Date.now()) {
+  try { return foundingOpen(await foundingSeatsTaken(), now); } catch { return true; }
+}
+function asFounding(v: unknown) { return v === true || v === 't' || v === 'true' || v === 1; }
 export async function planRowFor(owner: string) {
   return (await database()).prepare('SELECT * FROM scopeflow.accounts_plans WHERE owner=?').bind(owner).first<AccountPlanRow>();
 }
@@ -205,23 +219,25 @@ export async function startCheckout(owner: string, plan: PlanId, interval: Inter
   const db = await database(), now = new Date().toISOString();
   const current = await planRowFor(owner);
   if (current && current.plan === plan && current.status === 'active') throw new BillingError(`You are already on ${PLANS[plan].name}.`, 409, 'already_subscribed');
+  const founding = !!PLANS[plan].founding && foundingOpen(await foundingSeatsTaken(), Date.now());
+  const note = founding ? '1' : '0';
   let subscription: string, url: string, customer: string | null = null;
   if (localDouble(env)) {
     subscription = 'sub_local_' + randomUUID().replaceAll('-', '').slice(0, 14);
     url = `/plans/checkout?subscription=${subscription}`;
   } else if (provider === 'razorpay') {
-    const r = razorpayBilling(env)!, planId = r.planId(plan, interval);
-    if (!planId) billingUnavailable(`Set RAZORPAY_BILLING_PLAN_${plan.toUpperCase()}_${interval.toUpperCase()} to sell this plan.`);
+    const r = razorpayBilling(env)!, planId = r.planId(plan, interval, founding);
+    if (!planId) billingUnavailable(`Set RAZORPAY_BILLING_PLAN_${plan.toUpperCase()}_${interval.toUpperCase()}${founding ? '_FOUNDING' : ''} to the Razorpay plan id for this price.`);
     const res = await fetch(r.api + '/v1/subscriptions', {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(r.keyId + ':' + r.keySecret).toString('base64')},
-      body: JSON.stringify({plan_id: planId, total_count: interval === 'year' ? 10 : 120, customer_notify: 1, notes: {owner, plan, interval}})});
+      body: JSON.stringify({plan_id: planId, total_count: interval === 'year' ? 10 : 120, customer_notify: 1, notes: {owner, plan, interval, founding: note}})});
     const data = await res.json().catch(() => ({})) as {id?: string; short_url?: string};
     if (!res.ok || !data.id || !data.short_url) throw new BillingError('Razorpay did not start the subscription. Try again in a minute.', 502, 'provider_error');
     subscription = data.id; url = data.short_url;
   } else {
-    const s = stripeBilling(env)!, price = s.priceId(plan, interval);
-    if (!price) billingUnavailable(`Set STRIPE_BILLING_PRICE_${plan.toUpperCase()}_${interval.toUpperCase()} to sell this plan.`);
+    const s = stripeBilling(env)!, price = s.priceId(plan, interval, founding);
+    if (!price) billingUnavailable(`Set STRIPE_BILLING_PRICE_${plan.toUpperCase()}_${interval.toUpperCase()}${founding ? '_FOUNDING' : ''} to the Stripe price id for this price.`);
     const form = new URLSearchParams({mode: 'subscription', 'line_items[0][price]': price, 'line_items[0][quantity]': '1', client_reference_id: owner, success_url: origin + '/plans?checkout=done', cancel_url: origin + '/plans?checkout=cancelled',
-      'metadata[owner]': owner, 'metadata[plan]': plan, 'metadata[interval]': interval, 'subscription_data[metadata][owner]': owner, 'subscription_data[metadata][plan]': plan, 'subscription_data[metadata][interval]': interval});
+      'metadata[owner]': owner, 'metadata[plan]': plan, 'metadata[interval]': interval, 'metadata[founding]': note, 'subscription_data[metadata][owner]': owner, 'subscription_data[metadata][plan]': plan, 'subscription_data[metadata][interval]': interval, 'subscription_data[metadata][founding]': note});
     const res = await fetch(s.api + '/v1/checkout/sessions', {method: 'POST', headers: {Authorization: 'Bearer ' + s.key, 'Content-Type': 'application/x-www-form-urlencoded'}, body: form});
     const data = await res.json().catch(() => ({})) as {id?: string; url?: string; customer?: string};
     if (!res.ok || !data.id || !data.url) throw new BillingError('Stripe did not start the checkout. Try again in a minute.', 502, 'provider_error');
@@ -229,11 +245,12 @@ export async function startCheckout(owner: string, plan: PlanId, interval: Inter
   }
   // A checkout in progress never changes what the account can do (resolvePlan ignores 'pending').
   if (!current || current.status === 'pending' || current.status === 'expired') {
-    await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,provider,provider_subscription,provider_customer,interval,updated) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,provider=excluded.provider,provider_subscription=excluded.provider_subscription,provider_customer=excluded.provider_customer,interval=excluded.interval,period_end=NULL,grace_until=NULL,updated=excluded.updated')
-      .bind(owner, plan, 'pending', provider, subscription, customer, interval, now).run();
+    const until = founding ? foundingUntil(Date.parse(now)) : null;
+    await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,provider,provider_subscription,provider_customer,interval,founding,founding_until,updated) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,provider=excluded.provider,provider_subscription=excluded.provider_subscription,provider_customer=excluded.provider_customer,interval=excluded.interval,founding=excluded.founding,founding_until=excluded.founding_until,period_end=NULL,grace_until=NULL,updated=excluded.updated')
+      .bind(owner, plan, 'pending', provider, subscription, customer, interval, founding, until, now).run();
   }
-  await auditEvent(owner, 'billing.checkout_started', {plan, interval, provider, currency});
-  return {provider, url, subscription, local_double: localDouble(env)};
+  await auditEvent(owner, 'billing.checkout_started', {plan, interval, provider, currency, founding});
+  return {provider, url, subscription, local_double: localDouble(env), founding};
 }
 
 /**
@@ -248,8 +265,11 @@ export async function applyPlanUpdate(provider: BillingProvider, eventId: string
   const first = await db.prepare('INSERT INTO scopeflow.billing_events (provider,event_id,owner,kind,received) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING RETURNING event_id').bind(provider, eventId, owner, kind, at).first();
   if (!first) return {applied: false, reason: 'duplicate'} as const;
   const next = nextPlanRow(row, u, now);
-  await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,period_end,grace_until,provider,provider_customer,provider_subscription,interval,updated) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,period_end=excluded.period_end,grace_until=excluded.grace_until,provider=excluded.provider,provider_customer=coalesce(excluded.provider_customer,accounts_plans.provider_customer),provider_subscription=excluded.provider_subscription,interval=excluded.interval,updated=excluded.updated')
-    .bind(owner, next.plan, next.status, next.period_end, next.grace_until, provider, u.customer ?? null, u.subscription, next.interval, at).run();
+  const keep = next.status === 'active' || next.status === 'halted' || next.status === 'pending';
+  const founding = keep && (u.founding === true || asFounding(row?.founding));
+  const foundingUntilIso = founding ? (row?.founding_until || foundingUntil(now)) : null;
+  await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,period_end,grace_until,provider,provider_customer,provider_subscription,interval,founding,founding_until,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,period_end=excluded.period_end,grace_until=excluded.grace_until,provider=excluded.provider,provider_customer=coalesce(excluded.provider_customer,accounts_plans.provider_customer),provider_subscription=excluded.provider_subscription,interval=excluded.interval,founding=excluded.founding,founding_until=excluded.founding_until,updated=excluded.updated')
+    .bind(owner, next.plan, next.status, next.period_end, next.grace_until, provider, u.customer ?? null, u.subscription, next.interval, founding, foundingUntilIso, at).run();
   let invoice: string | null = null;
   if (u.payment && isPlanId(next.plan)) invoice = await issueBillingInvoice(owner, provider, next.plan as PlanId, next.interval, u.payment, at);
   await auditEvent(owner, 'billing.' + kind, {plan: next.plan, status: next.status, grace_until: next.grace_until, invoice}, provider);
@@ -296,10 +316,11 @@ export async function cancelSubscription(owner: string, env: Env = process.env) 
 }
 
 /** The local double's events for a test checkout: activated, then charged for one period. */
-export function localDoubleEvents(subscription: string, owner: string, plan: PlanId, interval: Interval, currency: string, now: number) {
+export function localDoubleEvents(subscription: string, owner: string, plan: PlanId, interval: Interval, currency: string, now: number, founding = false) {
   const start = Math.floor(now / 1000), end = start + (interval === 'year' ? 365 : 30) * 86400;
-  const price = PLANS[plan].price, amount = currency === 'INR' ? (interval === 'year' ? price.INR_year : price.INR) * 100 : (interval === 'year' ? price.USD_year : price.USD) * 100;
-  const entity = {id: subscription, entity: 'subscription', status: 'active', current_start: start, current_end: end, notes: {owner, plan, interval}};
+  const money = currency === 'INR' ? 'INR' as const : 'USD' as const;
+  const amount = chargeMinor(plan, interval, money, founding);
+  const entity = {id: subscription, entity: 'subscription', status: 'active', current_start: start, current_end: end, notes: {owner, plan, interval, founding: founding ? '1' : '0'}};
   const pay = {id: 'pay_local_' + createHash('sha256').update(subscription + ':' + start).digest('hex').slice(0, 14), entity: 'payment', amount, currency, status: 'captured'};
   return [
     {entity: 'event', event: 'subscription.activated', payload: {subscription: {entity}}, created_at: start},

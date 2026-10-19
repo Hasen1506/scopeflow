@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {getUser} from '@/lib/auth/server';
 import {db, json, body, safeOrigin, allowWrite, secret, failure} from '@/lib/server';
+import {teamPowers, workspaceUser} from '@/lib/team';
 import {markSent, setLinkIssued} from '@/lib/review-link';
 type Ctx = {params: Promise<{id: string}>};
 
@@ -17,12 +18,14 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!safeOrigin(request)) return json({error: 'Origin not allowed.'}, 403);
     const user = await getUser();
     if (!user) return json({error: 'Sign in to manage review links.'}, 401);
+    const ws = await workspaceUser(request, {user: user.userId, via: 'session', scopes: ['scopes:read', 'scopes:write']});
+    if (!teamPowers(ws.role).issueLinks) return json({error: 'Your role cannot create or change share links.', code: 'role'}, 403);
     const {id} = await ctx.params;
-    const project = await db().prepare('SELECT id FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL').bind(id, user.userId).first();
+    const project = await db().prepare('SELECT id FROM projects WHERE id=? AND owner=? AND owner_deleted IS NULL').bind(id, ws.user).first();
     if (!project) return json({error: 'Project not found.'}, 404);
     const data = z.object({version: z.number().int().min(1), action: z.enum(['revoke', 'rotate', 'shared']), via: z.enum(['copy', 'whatsapp', 'share']).optional()}).strict().safeParse(await body(request));
     if (!data.success) return json({error: 'Choose a version and link action.'}, 400);
-    if (!await allowWrite('owner:' + user.userId)) return json({error: 'Try again in a minute.'}, 429);
+    if (!await allowWrite('owner:' + ws.user)) return json({error: 'Try again in a minute.'}, 429);
     const {version, action} = data.data;
     const v = await db().prepare('SELECT token,status FROM versions WHERE project_id=? AND version=?').bind(id, version).first<{token: string; status: string}>();
     if (!v) return json({error: 'Version not found.'}, 404);

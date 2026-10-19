@@ -180,7 +180,7 @@ let project, reviewToken;
   const page = async path => (await fetch(base + path)).text();
   for (const path of ['/', '/account', '/connect', '/support', '/privacy', '/terms', '/reviewer-guide']) ok(!/hasenhamesh15@gmail\.com/.test(await page(path)), 'no personal inbox on ' + path); // BUG-8 / SF-17
   const connect = await page('/connect');
-  ok(/href="https:\/\/muse\.ai\/platform"[^>]*>Meta’s Muse Connector Platform/.test(connect), 'BUG-11 link label matches Meta Muse Connector Platform');
+  ok(/Connect your AI assistant/.test(connect) && /Claude Desktop/.test(connect) && /href="\/api\/openapi"[^>]*>OpenAPI specification/.test(connect), 'connect page names each assistant and the OpenAPI link label matches its destination');
   ok(/<button class="secondary" disabled=""[^>]*>Revoke token/.test(connect) && /id="token-gate"/.test(connect), 'BUG-12 Revoke disabled with a reason until sign-in is confirmed');
   ok(/id="gate-key"/.test(await page('/account')), 'BUG-9 account controls explain why they are disabled');
   // BUG-13's save-button reason is covered by the saveBlockReason unit test: the signed-out home is now

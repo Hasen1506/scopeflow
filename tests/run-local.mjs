@@ -8,7 +8,7 @@ assert.equal(new URL(base).hostname,'localhost','The suite cannot run against pr
 requireLocalDatabase();
 // Phase 0: workstream suites (tests/ws-*.mjs) are discovered and run after the existing list, in alphabetical order.
 const workstreamSuites=readdirSync('tests').filter(f=>/^ws-.+\.mjs$/.test(f)).sort().map(f=>f.slice(0,-'.mjs'.length));
-for(const suite of ['unit','review-regressions','postgres','auth','core','integration','ledger','account-deletion','fixes','oauth','change-orders','radar','templates','payments','retention','money','receipt','otp','billing','trust','invoicing','operations','drafts',...workstreamSuites]){
+for(const suite of ['unit','review-regressions','postgres','auth','core','integration','ledger','account-deletion','fixes','oauth','change-orders','radar','templates','payments','retention','money','receipt','otp','billing','trust','invoicing','operations','mcp-http','team','certificate','drafts',...workstreamSuites]){
  localSql('DELETE FROM rate_limits');
  // changed by WS-10 (M26): read limits live in the server's memory now; clear them too (test servers only).
  const operator=process.env.SCOPEFLOW_ADMIN_TOKEN||process.env.SCOPEFLOW_CRON_SECRET;

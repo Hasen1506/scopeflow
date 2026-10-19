@@ -6,11 +6,18 @@ import {InboundPanel} from '../inbound-panel';
 import ContactChange from '../components/slots/contact-change';
 import CosignerEditor from '../components/slots/cosigner-editor';
 import {NotifyToggle} from './client-notices';
+import {api, post} from '../ui';
 import type {Ws} from './state';
 
 export function settingsStep(w:Ws){const {accountZone,cosignLinks,reloadProject,savedEmail,active,archived,busy,duplicateDraft,exportProject,history,saveTimeZone,setActionError,setDeleteText,setProjectAction,setTrust,timeZone,trust}=w;
   return (active&&<section id="project-settings" className="editor flow-step" aria-labelledby="h-settings">
       <div className="step-head"><h3 id="h-settings">Project settings</h3></div>
+      <label className="check-row section-gap">
+        <input id="project-otp" type="checkbox" checked={!!trust?.require_otp} disabled={busy || !trust} onChange={e => { const on = e.target.checked; void api(`/api/scopes/${active.project_id}`, {...post({require_otp: on}), method: 'PATCH'}).then(r => setTrust(t => t && ({...t, require_otp: !!r.project?.require_otp}))).catch(err => setActionError((err as Error).message)); }} />
+        <span>One-time code before the client decides
+          <span className="fine block">Off unless you turn it on. The client confirms a 6-digit code, and that check is written on the approval certificate. The same switch is under Approval.</span>
+        </span>
+      </label>
      <div className="section-gap"><TimezoneSelect id="project-tz" label="Project time zone" value={timeZone??'UTC'} accountZone={accountZone} disabled={busy} onChange={z=>{if(z!==timeZone)void saveTimeZone(z);}}/><p className="fine">Every time is shown in this zone, for you and your client.</p></div>
      {/* WS-09 mounts (WS-02 / WS-06 slots): locked contact change with notice, countersigner roles, client notifications. They render nothing until those workstreams land. */}
      {trust&&<ContactChange projectId={active.project_id} clientEmail={trust.client_email||savedEmail} clientPhone={trust.client_phone??''} locked={!!(trust as {contact_locked?:boolean}).contact_locked} onChanged={reloadProject}/>}

@@ -59,7 +59,7 @@ export function challenge(request: Request, error?: {code: string; description: 
   return 'Bearer ' + parts.join(', ');
 }
 
-export const corsHeaders = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, MCP-Protocol-Version', 'Access-Control-Max-Age': '600'};
+export const corsHeaders = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, MCP-Protocol-Version, Mcp-Session-Id', 'Access-Control-Expose-Headers': 'Mcp-Session-Id, WWW-Authenticate', 'Access-Control-Max-Age': '600'};
 export function oauthJson(data: unknown, status = 200, headers: Record<string, string> = {}) {
   return Response.json(data, {status, headers: {'Cache-Control': 'no-store', Pragma: 'no-cache', 'X-Content-Type-Options': 'nosniff', ...corsHeaders, ...headers}});
 }

@@ -16,24 +16,24 @@ const active = plan => ({plan, status: 'active', period_end: '2026-11-13T00:00:0
 // The limits the server enforces for an owner: what limitsFor(owner) returns (lib/billing.ts), minus the DB read.
 const enforced = (row, env = {}) => P.resolvePlan(row, NOW, env).plan.limits;
 
-test('R4-01: Pro and Agency owners get their own version and record-entry caps, above the beta default', () => {
+test('R4-01: Freelancer and Studio owners get their own version and record-entry caps', () => {
   const beta = enforced(null), pro = enforced(active('pro')), agency = enforced(active('agency'));
   assert.deepEqual([beta.versions, beta.ledger_entries], [100, 200], 'beta default unchanged');
-  assert.deepEqual([pro.versions, pro.ledger_entries], [200, 1000]);
-  assert.deepEqual([agency.versions, agency.ledger_entries], [200, 2000]);
-  // A Pro project at 150 versions / 500 entries may grow; the beta default refuses it.
-  assert.equal(P.versionCapError(150, pro), null);
-  assert.equal(P.ledgerCapError(500, pro), null);
-  assert.equal(P.ledgerCapError(1500, agency), null);
-  assert.match(P.versionCapError(150, beta), /up to 100 versions per project/);
-  assert.match(P.ledgerCapError(500, beta), /200 ledger entries per project/);
-  assert.match(P.ledgerCapError(1000, pro), /1000 ledger entries per project/);
+  assert.deepEqual([pro.versions, pro.ledger_entries], [50, 200]);
+  assert.deepEqual([agency.versions, agency.ledger_entries], [80, 400]);
+  // Early beta is the temporary server default and stays wider than a paid Freelancer seat.
+  assert.equal(P.versionCapError(49, pro), null);
+  assert.match(P.versionCapError(50, pro), /up to 50 versions per project/);
+  assert.equal(P.versionCapError(50, beta), null);
+  assert.match(P.ledgerCapError(200, pro), /200 ledger entries per project/);
+  assert.equal(P.ledgerCapError(399, agency), null);
+  assert.match(P.ledgerCapError(400, agency), /400 ledger entries per project/);
   // Lapsed subscriptions drop to Free; a pending checkout keeps the default.
   assert.equal(enforced({...active('pro'), status: 'expired'}).ledger_entries, P.PLANS.free.limits.ledger_entries);
   assert.equal(enforced({...active('pro'), status: 'pending'}).versions, 100);
   // The env overrides still shape only the default plan.
   assert.equal(enforced(null, {SCOPEFLOW_LIMIT_LEDGER_ENTRIES: '50'}).ledger_entries, 50);
-  assert.equal(enforced(active('pro'), {SCOPEFLOW_LIMIT_LEDGER_ENTRIES: '50'}).ledger_entries, 1000);
+  assert.equal(enforced(active('pro'), {SCOPEFLOW_LIMIT_LEDGER_ENTRIES: '50'}).ledger_entries, 200);
 });
 
 test('R4-01: every number on a plan card is the cap the server enforces for that plan', () => {

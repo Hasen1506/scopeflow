@@ -20,7 +20,7 @@ const FEATURES: {icon: typeof Radar; title: string; body: string}[] = [
   {icon: Sparkles, title: 'AI drafting and a clarity check', body: 'Draft a scope from a brief, catch vague wording with one-click rewrites, and see what clients often assume is included.'},
   {icon: Palette, title: 'Your brand on everything', body: 'Your logo, colour and reply-to address on the review page, PDFs and emails your clients receive.'},
   {icon: LibraryBig, title: 'Templates you keep improving', body: 'Save scopes as templates with tags and revision history, and share a template with a link.'},
-  {icon: Plug, title: 'Works with ChatGPT and your tools', body: 'Connect ChatGPT through MCP, use API keys, or import drafts from Muse.'},
+  {icon: Plug, title: 'Works with your AI assistant', body: 'Connect Claude, ChatGPT, Cursor or Grok through MCP, use an API token, or import a JSON draft.'},
   {icon: Scale, title: 'Your data, your rules', body: 'Retention periods per project, legal holds, full export and account deletion.'},
 ];
 
