@@ -7,6 +7,8 @@
 import {z} from 'zod';
 import {GET as listInvoicesRoute, POST as issueInvoiceRoute} from '@/app/api/scopes/[id]/invoices/route';
 import {POST as postLedger} from '@/app/api/scopes/[id]/ledger/route';
+import {POST as postPeriods} from '@/app/api/scopes/[id]/periods/route';
+import {zoneOrUtc} from '@/lib/time';
 import {asInternal, db, type Auth} from '@/lib/server';
 import {withIdempotency} from '@/lib/idempotency';
 
@@ -61,6 +63,11 @@ async function rateCard(owner: string) {
 }
 
 type Args = Record<string, unknown> & {project_id?: string; request_id?: string};
+/** N6: today's date (YYYY-MM-DD) in the project's time zone (UTC when the project has none or is not the owner's). */
+async function projectToday(projectId: string, owner: string, now = new Date()) {
+  const p = await db().prepare('SELECT timezone FROM projects WHERE id=? AND owner=?').bind(projectId, owner).first<{timezone: string | null}>().catch(() => null);
+  return new Intl.DateTimeFormat('en-CA', {timeZone: zoneOrUtc(p?.timezone), year: 'numeric', month: '2-digit', day: '2-digit'}).format(now);
+}
 export async function runMoneyTool(name: string, args: Args, _request: Request, auth: Auth) {
   if (name === 'list_rate_card') return ok(await rateCard(auth.user));
   const pid = args.project_id!;
@@ -79,21 +86,31 @@ export async function runMoneyTool(name: string, args: Args, _request: Request, 
     if (name === 'issue_invoice') {
       const payload = {...(args.amount !== undefined ? {amount: args.amount} : {}), ...(args.milestone_id ? {milestone_id: args.milestone_id} : {}), ...(args.description !== undefined ? {description: args.description} : {}), ...(args.due_days !== undefined ? {due_days: args.due_days} : {}), request_id: args.request_id};
       r = await issueInvoiceRoute(asInternal(new Request(base('invoices'), {method: 'POST', headers, body: JSON.stringify(payload)}), auth), context);
+    } else if (name === 'propose_retainer_usage') {
+      // N6: the ledger route does not accept `usage` (its owner kinds exclude it); retainer usage goes
+      // through the periods route, which needs the date and derives the period (and opens it) from it.
+      // The date is today in the project's time zone, so usage lands in the current period.
+      const payload = {action: 'usage', baseline_version: args.baseline_version, item_id: args.item_id, qty: args.qty, date: await projectToday(pid, auth.user), note: args.note ?? '', request_id: args.request_id};
+      r = await postPeriods(asInternal(new Request(base('periods'), {method: 'POST', headers, body: JSON.stringify(payload)}), auth), context);
     } else {
-      const entry = name === 'record_payment_received'
-        ? {kind: 'payment_received', payload: {amount: args.amount, method: args.method, received: args.received, reference: args.reference ?? '', note: args.note ?? ''}}
-        : {kind: 'usage', payload: {item_id: args.item_id, qty: args.qty, note: args.note ?? ''}};
+      const entry = {kind: 'payment_received', payload: {amount: args.amount, method: args.method, received: args.received, reference: args.reference ?? '', note: args.note ?? ''}};
       r = await postLedger(asInternal(new Request(base('ledger'), {method: 'POST', headers, body: JSON.stringify({...entry, baseline_version: args.baseline_version, request_id: args.request_id})}), auth), context);
     }
     const text = await r.text();
     return new Response(text, {status: r.status, headers: {'Content-Type': 'application/json'}});
   });
-  const value = await reply.json() as Record<string, unknown> & {error?: string; code?: string; seq?: number; invoice?: unknown; replayed?: boolean};
+  const value = await reply.json() as Record<string, unknown> & {error?: string; code?: string; seq?: number; invoice?: unknown; replayed?: boolean; entries?: {seq: number; kind: string}[]; overage?: unknown; retainer?: unknown};
   const replayed = reply.headers.get('Idempotency-Replayed') === 'true' || !!value.replayed;
   if (!reply.ok) {
-    if (name === 'propose_retainer_usage' && reply.status === 400) return fail(400, value.error || 'Retainer usage is not enabled on this server yet.', 'retainer_unavailable');
+    if (name === 'propose_retainer_usage' && !value.error) return fail(reply.status, 'Retainer usage is not enabled on this server yet.', 'retainer_unavailable');
     return fail(reply.status, value.error || 'Unable to complete the action.', value.code);
   }
   if (name === 'issue_invoice') return ok({invoice: value.invoice, replayed, note: 'Issued. The invoice is in the Scopeflow workspace; nothing was sent to the client.'});
-  return ok({seq: value.seq, replayed, recorded: name === 'record_payment_received' ? 'payment_received' : 'usage', note: name === 'record_payment_received' ? 'Recorded on the ledger. No money moved.' : 'Usage recorded for the current period.'});
+  if (name === 'propose_retainer_usage') {
+    // The periods route answers {entries, overage, retainer} (or {replayed, seq, retainer} on a retry).
+    const seq = value.seq ?? value.entries?.find(e => e.kind === 'usage')?.seq;
+    const overageCo = value.entries?.find(e => e.kind === 'change_order')?.seq ?? null;
+    return ok({seq, replayed, recorded: 'usage', overage: value.overage ?? null, overage_change_order: overageCo, retainer: value.retainer ?? null, note: overageCo ? `Usage recorded; it is past the quota, so CO-${overageCo} was proposed for the client to approve. Nothing was charged.` : 'Usage recorded for the current period.'});
+  }
+  return ok({seq: value.seq, replayed, recorded: 'payment_received', note: 'Recorded on the ledger. No money moved.'});
 }
