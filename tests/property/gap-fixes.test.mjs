@@ -140,3 +140,22 @@ test('R6: an overflowing number ("1e400", bad input) shows Max in the fee and pr
   assert.match(read('app/workspace/editor.tsx'), /field\('fee',badNumber\(e\.target\)\?Infinity:e\.target\.valueAsNumber\)/);
   assert.match(read('app/account/page.tsx'), /<label htmlFor="tax-id" className="label-for">/);
 });
+
+// ---- Review D1–D12 (fix/cron-ci-routes) ---------------------------------------------------------------------
+test('D2/D8: scope reminders honour notify_client; the per-recipient cap is a rolling 24 hours', () => {
+  const s = read('scripts/send-reminders.mjs');
+  assert.match(s, /p\.client_email IS NOT NULL\$\{live\}\$\{noticesOn\}`\)/);
+  assert.match(s, /const since = new Date\(Date\.now\(\) - 86400_000\)\.toISOString\(\)/);
+});
+
+test('D4/D5/D9/D10: write scope on POSTs, no anonymous head previews, ledger failures logged, project-zone today', () => {
+  assert.match(read('app/api/scopes/route.ts'), /export async function POST[\s\S]*?ownerAuth\(request\)[\s\S]*?auth\.scopes\.includes\('scopes:write'\)[\s\S]*?allowWrite/);
+  assert.match(read('app/api/scopes/[id]/route.ts'), /export async function POST[\s\S]*?ownerAuth\(request\);if\(!auth\)[^\n]*auth\.scopes\.includes\('scopes:write'\)/);
+  const heads = read('app/api/heads/[date]/route.ts');
+  assert.match(heads, /if \(!stored && !adminAuthorized\(request\)\) return json\([^\n]*404\)/);
+  const acc = read('app/api/scopes/[id]/acceptance/route.ts');
+  assert.doesNotMatch(acc, /\.catch\(\(\) => null\)/);
+  assert.match(acc, /console\.error\('Scopeflow delivery_accepted ledger write failed'/);
+  assert.match(acc, /timeZone: zoneOrUtc\(p\.row\.timezone\)/);
+  assert.doesNotMatch(acc, /Date\.now\(\) \+ 86400_000/);
+});
