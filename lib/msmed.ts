@@ -135,9 +135,12 @@ export const msmedApplies = (profile: MsmeProfile | null) => !!profile && profil
 
 /** The payment clause inserted into the terms for a micro or small supplier. */
 export function msmedClause(profile: MsmeProfile, agreed_days?: number | null) {
-  const days = agreed_days ? Math.min(45, agreed_days) : null;
+  // M9: like msmedDueDates, an agreed term of 0 days is a written term (payment on acceptance), not "none agreed".
+  const days = agreed_days != null ? Math.max(0, Math.min(45, agreed_days)) : null;
   return `The supplier is a ${profile.category} enterprise registered under the MSMED Act, 2006 (Udyam ${profile.udyam_number}). ` +
-    (days ? `Payment is due within ${days} days of the day of acceptance (or deemed acceptance) of the work.` : 'Payment is due within 15 days of the day of acceptance (or deemed acceptance) of the work.') +
+    (days === 0 ? 'Payment is due on the day of acceptance (or deemed acceptance) of the work (payment on acceptance).'
+      : days !== null ? `Payment is due within ${days} days of the day of acceptance (or deemed acceptance) of the work.`
+      : 'Payment is due within 15 days of the day of acceptance (or deemed acceptance) of the work.') +
     ' If payment is late, the buyer is liable under section 16 of the Act to pay compound interest with monthly rests at three times the Bank Rate notified by the Reserve Bank of India.';
 }
 export const MSMED_DISCLAIMER = 'Estimate — confirm with your CA.';

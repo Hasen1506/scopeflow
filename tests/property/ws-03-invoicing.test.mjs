@@ -46,7 +46,9 @@ function credit(p, seq, amount = null) {
   const inv = p.docs.invoices.find(i => i.row.seq === seq);
   const live = inv.total - inv.credited, liveTaxable = Math.max(0, inv.gross_taxable - (inv.content.advance?.taxable ?? 0) - inv.credited_taxable);
   const n = p.docs.credits.length + 1;
-  const content = CN.creditNoteContent({seq: n, issued: '2026-10-10', reason: 'Cancelled by agreement', invoice_seq: seq, invoice: inv.content, live, live_taxable: liveTaxable, amount});
+  // M5: as the route does, pass the invoice heads less those of earlier credit notes on it.
+  const liveHeads = CN.liveHeadsOf(inv.content, p.docs.credits.filter(c => c.invoice_seq === seq));
+  const content = CN.creditNoteContent({seq: n, issued: '2026-10-10', reason: 'Cancelled by agreement', invoice_seq: seq, invoice: inv.content, live, live_taxable: liveTaxable, amount, ...(liveHeads ? {live_heads: liveHeads} : {})});
   p.docs.credits.push({seq: n, number: content.number, invoice_seq: seq, amount: content.breakdown.total, taxable: content.breakdown.taxable, issued: '2026-10-10', content});
   inv.credited += content.breakdown.total; inv.credited_taxable += content.breakdown.taxable;
   if (content.full) inv.cancelled_by.push(content.number);
@@ -155,6 +157,13 @@ test('H12: a partial credit note splits at the invoice rate; GST invoices cancel
   assert.equal(rest.full, true);
   assert.equal(part.breakdown.total + rest.breakdown.total, 3835060);
   assert.equal(part.breakdown.taxable + rest.breakdown.taxable, 3250050);
+  // M5: the full credit after a partial one reverses the remaining heads exactly, per head.
+  assert.deepEqual(rest.breakdown.heads.map(h => [h.name, h.amount]), [['CGST', 202505], ['SGST', 202505]]);
+  assert.deepEqual(r.content.breakdown.heads.map((h, i) => h.amount - part.breakdown.heads[i].amount - rest.breakdown.heads[i].amount), [0, 0]);
+  assert.equal(rest.breakdown.round_off, 0);
+  // liveHeadsOf: null for a pre-WS-03 snapshot or a credit head the invoice does not carry.
+  assert.equal(CN.liveHeadsOf({...r.content, breakdown: undefined}, []), null);
+  assert.equal(CN.liveHeadsOf(r.content, [{content: {breakdown: {taxable: 1, heads: [{name: 'IGST', rate: 18, amount: 1}], round_off: 0, total: 2}}}]), null);
   assert.equal(C.computeInvoiceable(p.agreement, p.docs).total, 3835060);
 });
 
@@ -280,6 +289,11 @@ test('SF-07: acceptance, 15/45-day due dates, warnings', () => {
   assert.equal(MS.msmeProfileSchema.safeParse({...micro, udyam_number: 'UDYAM-TN-2-1'}).success, false);
   assert.match(MS.msmedClause(micro), /within 15 days of the day of acceptance/);
   assert.match(MS.msmedClause(micro, 30), /within 30 days/);
+  // M9: 0 agreed days is "payment on acceptance", consistent with msmedDueDates; null keeps the 15-day wording.
+  assert.match(MS.msmedClause(micro, 0), /due on the day of acceptance .*\(payment on acceptance\)/);
+  assert.doesNotMatch(MS.msmedClause(micro, 0), /15 days/);
+  assert.match(MS.msmedClause(micro, null), /within 15 days of the day of acceptance/);
+  assert.match(MS.msmedClause(micro, 60), /within 45 days/);
   // The Bank Rate is read from the dated table, never hard-coded.
   assert.deepEqual([MS.bankRateOn('2025-12-04')?.rate, MS.bankRateOn('2025-12-05')?.rate, MS.bankRateOn('2026-10-06')?.rate, MS.bankRateOn('2026-10-07')?.rate, MS.bankRateOn('2024-01-01')], [5.75, 5.5, 5.5, 5.75, null]);
 });

@@ -68,6 +68,27 @@ export function creditNoteContent(input: {seq: number; issued: string; reason: s
   };
 }
 
+/**
+ * M5: the tax heads still live on an invoice: its snapshot heads less the heads of the credit notes
+ * already issued against it (matched by head name and rate). Passed as `live_heads` so a full credit
+ * after partial ones reverses exactly what is left. Null when the invoice has no minor-unit breakdown
+ * (issued before WS-03) or an earlier credit carries a head the invoice does not, or would take a head
+ * below zero; creditNoteContent then falls back to recomputing. Pure.
+ */
+export function liveHeadsOf(invoice: InvoiceContent, credits: {content: {breakdown: GstBreakdown}}[]): GstHead[] | null {
+  if (!invoice.breakdown) return null;
+  const heads = invoice.breakdown.heads.map(h => ({...h}));
+  for (const cn of credits) {
+    for (const h of cn.content.breakdown?.heads ?? []) {
+      const live = heads.find(x => x.name === h.name && x.rate === h.rate);
+      if (!live) return null;
+      live.amount -= h.amount;
+      if (live.amount < 0) return null;
+    }
+  }
+  return heads;
+}
+
 const MARGIN = 48;
 export function renderCreditNotePdf(c: CreditNoteContent): Uint8Array {
   const doc = new PdfDocument({info: {Title: `Credit note ${c.number}`, Producer: 'Scopeflow'}});

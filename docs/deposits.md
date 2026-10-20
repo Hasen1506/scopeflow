@@ -32,4 +32,5 @@
   `tests/property/payment-copy.test.mjs` fails if Route transfers or Connect accounts appear without the copy
   being updated. Paying each freelancer directly (Razorpay Route, Stripe Connect) needs a KYC'd account per
   freelancer and is not done.
-- Amount: `depositAmount()` is `totals(content).deposit`, the figure printed on the signed scope paper.
+- Amount: the deposit is `agreementTotals(...).deposit` (`lib/agreement-totals.ts`), in the agreement's
+  currency, the figure printed on the signed scope paper.

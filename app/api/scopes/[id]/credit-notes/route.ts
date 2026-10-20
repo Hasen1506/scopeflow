@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {db, json, body, safeOrigin, allowWrite, allowRead, failure} from '@/lib/server';
 import {projectFor} from '@/lib/invoice-api';
 import {cancelled, loadDocs, lockOwnerSeries, readSql, withProjectLock} from '@/lib/invoice-server';
-import {creditNoteContent, creditNoteRequestSchema} from '@/lib/credit-note';
+import {creditNoteContent, creditNoteRequestSchema, liveHeadsOf} from '@/lib/credit-note';
 import {fromMinorOf, toMinorOf, amountProblem} from '@/lib/invoice';
 import {zoneOrUtc} from '@/lib/time';
 type Ctx = {params: Promise<{id: string}>};
@@ -55,7 +55,9 @@ export async function POST(request: Request, ctx: Ctx) {
       const [n] = await tx.unsafe('SELECT coalesce(max(seq),0)+1 AS seq FROM scopeflow.credit_notes WHERE owner=$1', [owner]);
       const seq = Number(n.seq);
       const issued = new Intl.DateTimeFormat('en-CA', {timeZone: zoneOrUtc(p.row.timezone), year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
-      const content = creditNoteContent({seq, issued, reason: req.reason, invoice_seq: inv.row.seq, invoice: inv.content, live, live_taxable: liveTaxable, amount});
+      // M5: the invoice's heads less those of earlier credit notes on it, so a full credit after partial ones reverses exactly what is left.
+      const liveHeads = liveHeadsOf(inv.content, docs.credits.filter(c => c.invoice_seq === inv.row.seq));
+      const content = creditNoteContent({seq, issued, reason: req.reason, invoice_seq: inv.row.seq, invoice: inv.content, live, live_taxable: liveTaxable, amount, ...(liveHeads ? {live_heads: liveHeads} : {})});
       await tx.unsafe('INSERT INTO scopeflow.credit_notes (id,owner,project_id,seq,number,invoice_seq,amount_minor,taxable_minor,currency,reason,issued,request_id,content) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)',
         [randomUUID(), owner, id, seq, content.number, inv.row.seq, content.breakdown.total, content.breakdown.taxable, inv.row.currency, req.reason, new Date().toISOString(), req.request_id ?? null, JSON.stringify(content)]);
       return json({credit_note: {seq, number: content.number, invoice_seq: inv.row.seq, invoice_number: inv.row.number, amount: fromMinorOf(content.breakdown.total, inv.row.currency), full: content.full}}, 201);

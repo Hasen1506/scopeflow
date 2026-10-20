@@ -11,7 +11,7 @@ const PR = await import('../../lib/payment-record.ts');
 const MS = await import('../../lib/msmed.ts');
 const G = await import('../../lib/gst.ts');
 const IG = await import('../../lib/invoice-gst.ts');
-const {paymentSchema} = await import('../../lib/ledger.ts');
+const {paymentSchema, paymentsOf, describeEntry} = await import('../../lib/ledger.ts');
 
 const entry = (seq, kind, payload) => ({seq, kind, payload, baseline_version: 1, created: '2026-10-07T09:00:00.000Z'});
 const pay = (seq, amount, currency, purpose = 'deposit') => entry(seq, 'payment', {provider: 'stripe', purpose, order_id: 'o' + seq, payment_id: 'p' + seq, amount, currency});
@@ -54,6 +54,14 @@ test("M6: the payment schema accepts purpose 'balance' (older 'deposit'/'invoice
   const base = {provider: 'razorpay', order_id: 'order_1', payment_id: 'pay_1', amount: 10, currency: 'INR'};
   for (const purpose of ['deposit', 'invoice', 'balance']) assert.equal(paymentSchema.safeParse({...base, purpose}).success, true);
   assert.equal(paymentSchema.safeParse({...base, purpose: 'other'}).success, false);
+});
+
+test("M6: payments with purpose 'balance' are labelled \"Balance payment\", never \"Deposit\"", () => {
+  const entries = [pay(2, 100, 'INR', 'deposit'), pay(3, 200, 'INR', 'balance'), {...pay(4, 300, 'INR', 'invoice'), payload: {...pay(4, 300, 'INR', 'invoice').payload, invoice_number: 'INV-0001'}}];
+  assert.deepEqual(paymentsOf(entries).lines.map(l => l.note), ['Deposit', 'Balance payment', 'Invoice INV-0001']);
+  assert.match(describeEntry(entries[0], 'INR'), /^Deposit received:/);
+  assert.match(describeEntry(entries[1], 'INR'), /^Balance payment received:/);
+  assert.match(describeEntry(entries[2], 'INR'), /^Payment for invoice INV-0001 received:/);
 });
 
 test('M8: the MSMED worksheet uses each currency\'s own decimals', () => {
