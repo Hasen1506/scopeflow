@@ -13,6 +13,7 @@ freezeClock();
 const {scopeSchema, itemLine} = await import('../../lib/scope.ts');
 const now = await import('../../lib/ledger.ts');
 const old = await import('../fixtures/ws-05-pre/ledger.ts');
+const minor = await import('../../lib/minor.ts');
 const baselineArb = scopeArb.filter(s => scopeSchema.safeParse(s).success).map(s => scopeSchema.parse(s));
 
 // @covers H6 H17 LT-08
@@ -32,8 +33,13 @@ test('the agreement fold and checkEntry agree with 5e59e44 on pre-WS-05 ledgers 
     const b = await approve(content);
     const entries = await buildLedger(b, ops);
     const a = now.computeAgreement(content, 1, entries), o = old.computeAgreement(content, 1, entries);
-    const {deliverables, ...rest} = a;
-    assert.deepEqual(rest, o);
+    const {deliverables, goodwill_value, goodwill_hours, ...rest} = a;
+    // N1 (PR #59): goodwill totals are now rounded (value to the currency's decimals, hours to 2 dp)
+    // instead of the raw float sum; that rounding is the only documented difference.
+    const {goodwill_value: oldValue, goodwill_hours: oldHours, ...oldRest} = o;
+    assert.deepEqual(rest, oldRest);
+    assert.equal(goodwill_value, minor.roundMajor(oldValue, content.currency));
+    assert.equal(goodwill_hours, Math.round(oldHours * 100) / 100);
     assert.equal(deliverables, a.items.map(i => itemLine(i) + (i.source === 'baseline' ? '' : ` [CO-${i.source}]`)).join('\n'));
     assert.equal('retainer' in a, false);
     // Validation of the next entry (no date context, as before) is identical.
