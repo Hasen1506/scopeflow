@@ -32,13 +32,35 @@ const minorOf = (payload: unknown, currency: string) => {
   return p && Number.isInteger(p.amount_minor) ? Number(p.amount_minor) : toMinor(amountOf(payload), currency);
 };
 
+/**
+ * M2: a money entry carrying a currency other than the agreement's (an online `payment`, an
+ * `excess_payment` flag) cannot be counted at face value. Returns the seqs of such payments, so
+ * refunds of them are left out too.
+ */
+export function foreignPaymentSeqs(entries: readonly {seq: number; kind: string; payload: unknown}[], currency: string): Set<number> {
+  const out = new Set<number>();
+  for (const e of entries) if (e.kind === 'payment' && isForeign(e.payload, currency)) out.add(e.seq);
+  return out;
+}
+const isForeign = (payload: unknown, currency: string) => {
+  const c = (payload as {currency?: unknown} | null)?.currency;
+  return typeof c === 'string' && c !== '' && c !== currency;
+};
+const refundOf = (payload: unknown) => Number((payload as {refund_of?: unknown} | null)?.refund_of);
+
 export function moneyState(entries: LedgerEntry[], agreement: MoneyAgreement): MoneyState {
+  const foreign = foreignPaymentSeqs(entries, agreement.currency);
   const by_purpose: Partial<Record<MoneyPurpose, number>> = {};
   const add = (k: MoneyPurpose, v: number) => { by_purpose[k] = (by_purpose[k] ?? 0) + v; };
   let received = 0, refunded = 0, tds = 0;
   for (const e of entries) {
     if (!e.payload || !isMoney(e.kind)) continue;
     const amount = minorOf(e.payload, agreement.currency);
+    // M2: a payment in another currency is not money toward this agreement: it is all excess (in its
+    // own currency the owner refunds it). Its excess_payment flag and any refund of it are skipped.
+    if (e.kind === 'payment' && foreign.has(e.seq)) { add('excess', amount); continue; }
+    if (e.kind === 'excess_payment' && isForeign(e.payload, agreement.currency)) continue;
+    if (e.kind === 'refund' && foreign.has(refundOf(e.payload))) continue;
     if (e.kind === 'payment') { received += amount; add((e.payload as Payment).purpose === 'invoice' ? 'invoice' : 'deposit', amount); }
     else if (e.kind === 'payment_received' || e.kind === 'payment_claim_confirmed') { received += amount; add('recorded', amount); }
     else if (e.kind === 'refund') { refunded += amount; add('refund', amount); }
@@ -105,8 +127,11 @@ export function classifyCapture({open_minor, order_minor, captured_minor}: {open
  */
 export function carryForwardOk(entries: LedgerEntry[], currency: string): boolean {
   let net = 0;
+  const foreign = foreignPaymentSeqs(entries, currency);
   for (const e of [...entries].sort((a, b) => a.seq - b.seq)) {
     if (!e.payload) continue;
+    // M2: money in another currency was never counted toward the agreement.
+    if (foreign.has(e.seq) || (e.kind === 'refund' && foreign.has(refundOf(e.payload)))) continue;
     if (e.kind === 'baseline_superseded') {
       const paid = Number((e.payload as {paid_minor?: unknown}).paid_minor);
       if (Number.isFinite(paid) && paid !== net) return false;

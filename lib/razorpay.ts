@@ -1,5 +1,4 @@
 import {createHmac, timingSafeEqual} from 'node:crypto';
-import {totals} from './money';
 import {fromMinor, toMinor} from './minor';
 import {chooseRoute, type PaymentRoute} from './payment-accounts';
 
@@ -55,14 +54,6 @@ export function paymentsStatus(env: Env = process.env, currency?: string) {
 export function toMinorUnits(amount: number, currency: string) { return toMinor(amount, currency); }
 export function fromMinorUnits(minor: number, currency: string) { return fromMinor(minor, currency); }
 
-/**
- * Deposit due on signature: deposit_pct of the approved fee (plus tax when the scope carries one).
- * One source of truth: the same `totals()` figure the signed scope paper shows the client.
- */
-export function depositAmount(content: {fee: number; deposit_pct?: number; tax_pct?: number}) {
-  if (!((content.deposit_pct ?? 0) > 0)) return 0;
-  return totals(content).deposit;
-}
 
 export class RazorpayError extends Error {
   /** HTTP status Razorpay answered with (0 when it could not be reached). */

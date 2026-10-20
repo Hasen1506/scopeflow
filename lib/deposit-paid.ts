@@ -17,6 +17,10 @@ export function depositPaidWhen(e: {kind: string; payload: unknown; created: str
   return {paid_at: e.created ?? null, paid_on: null};
 }
 
+const isForeign = (payload: unknown, currency: string) => {
+  const c = (payload as {currency?: unknown} | null)?.currency;
+  return typeof c === 'string' && c !== '' && c !== currency;
+};
 const minorOf = (payload: unknown, currency: string) => {
   const p = payload as {amount_minor?: unknown; amount?: unknown} | null;
   return p && Number.isInteger(p.amount_minor) ? Number(p.amount_minor) : toMinor(Number(p?.amount) || 0, currency);
@@ -32,8 +36,11 @@ const minorOf = (payload: unknown, currency: string) => {
 export function depositCoveredBy(entries: readonly MoneyEntry[], currency: string, deposit_minor: number): {src: MoneyEntry | undefined; online: MoneyEntry | undefined} {
   let settled = 0, src: MoneyEntry | undefined, online: MoneyEntry | undefined, lastCash: MoneyEntry | undefined, lastOnline: MoneyEntry | undefined;
   if (!(deposit_minor > 0)) return {src: undefined, online: undefined};
+  // M2: an online payment in another currency (and a refund of it) never counts toward the deposit, as in moneyState.
+  const foreign = new Set(entries.filter(e => e.kind === 'payment' && isForeign(e.payload, currency)).map(e => e.seq));
   for (const e of [...entries].sort((a, b) => a.seq - b.seq)) {
     if (!e.payload) continue;
+    if (foreign.has(e.seq) || (e.kind === 'refund' && foreign.has(Number((e.payload as {refund_of?: unknown}).refund_of)))) continue;
     const amount = minorOf(e.payload, currency), before = settled;
     if (CASH_IN.includes(e.kind)) { settled += amount; lastCash = e; if (e.kind === 'payment') lastOnline = e; }
     else if (e.kind === 'refund') settled -= amount;
