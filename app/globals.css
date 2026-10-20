@@ -1098,3 +1098,8 @@ main#content:focus{outline:none}
 @keyframes sf-spin{to{transform:rotate(360deg)}}
 .spin{animation:sf-spin .9s linear infinite}
 @media (prefers-reduced-motion:reduce){.spin{animation:none;opacity:.6}}
+/* X1/P3: horizontal rows that wrap by available width (the editor column is narrow on wide screens), stacking on phones */
+.identity-row,.start-strip{grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));align-items:start}
+.start-options .start-strip{margin-top:var(--s3)}
+.money-cols{align-items:start}
+.money-cols>.editor{margin-top:0;min-width:0}
