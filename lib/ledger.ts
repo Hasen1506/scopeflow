@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {dateString, itemSchema, itemsOf, itemLine, formatMoney, type Item, type Scope} from './scope';
 import {formatDay} from './time';
-import {toMinor, fromMinor, exponentOf} from './minor';
+import {toMinor, fromMinor, exponentOf, roundMajor} from './minor';
 import {pctOfMinor} from './ledger-math';
 import {retainerState, type RetainerView} from './retainer';
 
@@ -387,7 +387,8 @@ export function computeAgreement(baseline: Scope, baselineVersion: number, entri
     due_base: baseline.due, due: addDays(baseline.due, days), days_shift: days,
     revisions_allowed: Math.max(0, revisions), revisions_used: used, rounds_over: Math.max(0, used - Math.max(0, revisions)),
     change_orders, pending: change_orders.filter(c => c.status === 'proposed').length,
-    goodwill, goodwill_value: goodwill.reduce((s, g) => s + g.value, 0), goodwill_hours: goodwill.reduce((s, g) => s + g.hours, 0),
+    // N1: float sums (0.1 + 0.2) are rounded to the currency's decimals (value) and to 2 dp (hours) for display.
+    goodwill, goodwill_value: roundMajor(goodwill.reduce((s, g) => s + g.value, 0), baseline.currency), goodwill_hours: r2(goodwill.reduce((s, g) => s + g.hours, 0)),
     delays,
     deliverables: items.map(i => itemLine(i) + (i.source === 'baseline' ? '' : ` [CO-${i.source}]`)).join('\n'),
   };

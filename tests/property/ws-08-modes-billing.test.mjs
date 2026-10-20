@@ -278,3 +278,11 @@ test('billing: an old subscription\'s non-activating event never downgrades the 
   assert.equal(B.isStaleSubscriptionEvent({status: 'pending', provider_subscription: 'cs:abc'}, {subscription: 'sub_1', status: 'pending'}), false);
   assert.equal(B.isStaleSubscriptionEvent(null, {subscription: 'sub_1', status: 'cancelled'}), false);
 });
+
+// N2: the SF-YYYY-nnnnn year is the IST year of the issue date.
+test('billingInvoiceYear: the invoice-number year is the issue date in India (Asia/Kolkata)', () => {
+  assert.equal(B.billingInvoiceYear('2026-12-31T18:29:59.000Z'), '2026'); // 23:59:59 IST, 31 Dec
+  assert.equal(B.billingInvoiceYear('2026-12-31T18:30:00.000Z'), '2027'); // 00:00 IST, 1 Jan
+  assert.equal(B.billingInvoiceYear('2027-01-01T03:00:00.000Z'), '2027');
+  assert.equal(B.billingInvoiceYear('2026-06-15T09:00:00.000Z'), '2026');
+});

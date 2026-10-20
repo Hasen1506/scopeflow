@@ -270,6 +270,17 @@ export async function applyPlanUpdate(provider: BillingProvider, eventId: string
   return {applied: true, owner, plan: next.plan, status: next.status, grace_until: next.grace_until, invoice} as const;
 }
 
+/**
+ * N2: the year in ScopeFlow's `SF-YYYY-nnnnn` invoice number is the year of the issue date in India
+ * (Asia/Kolkata), where ScopeFlow is registered, not the UTC year: an invoice issued 00:00-05:30 IST
+ * on 1 January carries the new year. Format and sequence are unchanged. Pure.
+ */
+export function billingInvoiceYear(issued: string): string {
+  const d = new Date(issued);
+  if (Number.isNaN(d.getTime())) return issued.slice(0, 4);
+  return new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Kolkata', year: 'numeric'}).format(d);
+}
+
 async function issueBillingInvoice(owner: string, provider: BillingProvider, plan: PlanId, interval: string | null, payment: NonNullable<PlanUpdate['payment']>, issued: string) {
   const db = await database();
   const profile = await db.prepare('SELECT business_name,business_address,tax_id,gst_state FROM business_profiles WHERE owner=?').bind(owner).first<{business_name: string | null; business_address: string | null; tax_id: string | null; gst_state: string | null}>();

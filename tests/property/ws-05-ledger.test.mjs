@@ -249,3 +249,14 @@ test('carry-over (cap): unused quota carries into the next period up to one quot
   const none = scopeSchema.parse({...posts, retainer: {...posts.retainer, carry_over: 'none'}});
   assert.deepEqual(R.openingQuotas(none, a.retainer, '2026-11').map(x => x.carried), [0, 0]);
 });
+
+// --------------------------------------------------------------------------- N1 goodwill totals
+
+test('U: goodwill totals are rounded to the currency decimals (value) and 2 dp (hours)', async () => {
+  const goodwill = (value, hours, seq) => ({seq, kind: 'goodwill', baseline_version: 1, actor: 'owner', created: tick(seq), payload: {title: 'Goodwill', value, hours, note: '', visible: true}, payload_hash: '', prev_hash: '', hash: ''});
+  const a = L.computeAgreement(inr, 1, [goodwill(0.1, 0.1, 1), goodwill(0.2, 0.2, 2)]);
+  assert.equal(a.goodwill_value, 0.3); // not 0.30000000000000004
+  assert.equal(a.goodwill_hours, 0.3);
+  const jpy = scopeSchema.parse({...inr, currency: 'JPY'});
+  assert.equal(L.computeAgreement(jpy, 1, [goodwill(100.4, 0, 1), goodwill(0.2, 0, 2)]).goodwill_value, 101);
+});
