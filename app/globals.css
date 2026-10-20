@@ -1093,3 +1093,8 @@ main#content:focus{outline:none}
 .ai-draft>summary:has(>.quiet)::after,.disclosure>summary:has(>.quiet)::after,.scope-check>summary:has(>.quiet)::after{position:absolute;right:16px;top:50%;margin:-6px 0 0}
 /* visual #29: no keyboard-shortcut hint on touch-first devices. */
 @media (pointer:coarse){.kbd-hint{display:none}}
+
+/* P4: busy icon (ledger refresh); still under reduced motion */
+@keyframes sf-spin{to{transform:rotate(360deg)}}
+.spin{animation:sf-spin .9s linear infinite}
+@media (prefers-reduced-motion:reduce){.spin{animation:none;opacity:.6}}

@@ -1,5 +1,6 @@
 'use client';
 import {useRef, useState} from 'react';
+import {toast} from 'sonner';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
 import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
 import {amountProblem, parseQty, QTY_MAX, toLineTotal, toPerUnit, withLinePrice, withUnitPrice} from '@/lib/editor';
@@ -33,9 +34,13 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
     requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-move="${item.id}:${target}"]`)?.focus());
   };
   // A3: removing a row keeps keyboard focus in the list: on the next row's title, else the previous one, else "Add deliverable".
+  // X3: the latest list, so Undo puts the row back into what is there now (not a stale copy).
+  const latest = useRef(items); latest.current = items;
   const remove = (index: number) => {
+    const removed = items[index];
     const next = items.filter((_, i) => i !== index);
     onChange(next);
+    toast(`Removed ${removed.title.trim() ? `“${removed.title.trim()}”` : 'an untitled deliverable'}.`, {action: {label: 'Undo', onClick: () => { const cur = latest.current; if (cur.some(x => x.id === removed.id)) return; const back = [...cur]; back.splice(Math.min(index, back.length), 0, removed); onChange(back); requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-item-title="${removed.id}"]`)?.focus()); }}});
     const target = next[index] ?? next[index - 1];
     requestAnimationFrame(() => (target ? root.current?.querySelector<HTMLElement>(`[data-item-title="${target.id}"]`) : root.current?.querySelector<HTMLElement>('[data-add-item]'))?.focus());
   };

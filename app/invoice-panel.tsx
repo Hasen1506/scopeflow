@@ -7,6 +7,7 @@ import {api, post, Skeleton, type ApiError} from './ui';
 import {formatMoney} from '@/lib/scope';
 import {formatDay} from '@/lib/time';
 import {gstinState, stateCodes, stateName} from '@/lib/gst';
+import {checkGstin} from '@/lib/gstin';
 import TdsField, {type TdsValue} from './components/slots/tds-field';
 import MsmedTerms from './components/slots/msmed-terms';
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog';
@@ -20,7 +21,7 @@ type CoView = {seq: number; title: string; fee_delta: number; display: string; t
 type Voucher = {seq: number; number: string; kind: string; amount: number; received: string; adjusted: boolean};
 type Credit = {seq: number; number: string; invoice_number: string; amount: number; full: boolean; reason: string};
 type Billing = {client_gstin: string; client_state: string; client_address: string};
-type Invoicing = {invoices: InvoiceView[]; schedule: ScheduleView[]; change_orders: CoView[]; net_days: number | null; invoiceable: {total: number; gross_total: number; advances: number; agreement_total: number} | null; receipt_vouchers: Voucher[]; credit_notes: Credit[]; tds: {terms: TdsValue}; msmed: {invoices: {seq: number; text: string}[]}};
+type Invoicing = {invoices: InvoiceView[]; schedule: ScheduleView[]; change_orders: CoView[]; net_days: number | null; invoiceable: {total: number; gross_total: number; advances: number; agreement_total: number} | null; receipt_vouchers: Voucher[]; credit_notes: Credit[]; tds: {terms: TdsValue}; msmed: {invoices: {seq: number; text: string}[]}; tax?: {rate: number; label: string; kind?: string} | null};
 
 const statusText = (i: InvoiceView) => i.status === 'cancelled' ? `Cancelled by ${i.cancelled_by.join(', ')}` : i.status === 'paid' ? 'Paid' : i.status === 'paid_net_of_tds' ? 'Paid net of TDS (certificate pending)' : i.status === 'tds_credited' ? 'Paid (TDS credited)' : i.overdue ? `Overdue ${i.days_overdue} day${i.days_overdue === 1 ? '' : 's'}` : i.status === 'part' ? `${formatMoney(i.open, i.currency)} open` : 'Open';
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -100,6 +101,11 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
     } catch (err) { setBillingError((err as Error).message); } finally { setBusy(false); }
   }
   const pos = billing ? (gstinState(billing.client_gstin) || billing.client_state) : '';
+  // X5: the scope's own tax name (GST, VAT…), never a hard-coded GST.
+  const taxName = data?.tax?.label?.trim() || 'tax';
+  // X4: the client GSTIN is checked here the same way onboarding checks the owner's.
+  const clientGstin = billing?.client_gstin.trim() ? checkGstin(billing.client_gstin.trim()) : null;
+  const gstinBad = !!clientGstin && !clientGstin.ok;
   const interest = new Map((data?.msmed.invoices ?? []).map(x => [x.seq, x.text]));
   return (
     <div className="section-gap">
@@ -115,7 +121,7 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
           {plan.length > 0 && <label>Milestone<select value={milestone} onChange={e => pick(e.target.value)}><option value="">No milestone (any amount)</option>{plan.map(m => <option key={m.id} value={m.id} disabled={openOf(m) <= 0}>{m.title} · {formatMoney(openOf(m), currency)} to invoice</option>)}</select></label>}
           {cos.length > 0 && <label>Change order<select value={co} onChange={e => pickCo(e.target.value)}><option value="">None</option>{cos.map(c => <option key={c.seq} value={c.seq} disabled={openOf(c) <= 0}>{c.title} · {formatMoney(openOf(c), currency)} to invoice</option>)}</select></label>}
           <div className="two-col"><label>{includesTax ? `Amount, including tax (${currency})` : `Amount before tax, the taxable value (${currency})`}<input type="number" min={0.01} max={leftGross > 0 ? leftGross : undefined} step="0.01" inputMode="decimal" required value={amount} aria-invalid={overCap || undefined} aria-describedby={overCap ? 'invoice-amount-err' : undefined} onChange={e => setAmount(e.target.value)} />{overCap ? <span id="invoice-amount-err" className="error-text">At most {formatMoney(leftGross, currency)} is left to invoice on this agreement.</span> : <span className="fine block">Up to {formatMoney(left, currency)} with tax still to invoice.</span>}</label><label>Due in (days)<input type="number" min={0} max={120} step={1} required value={dueDays} onChange={e => setDueDays(e.target.value)} />{data?.net_days != null && <span className="fine block">Net {data.net_days} from the payment terms.</span>}</label></div>
-          <label className="consent"><input type="checkbox" checked={includesTax} onChange={e => setIncludesTax(e.target.checked)} /> The amount includes GST</label>
+          <label className="consent"><input type="checkbox" checked={includesTax} onChange={e => setIncludesTax(e.target.checked)} /> The amount includes {taxName}</label>
           <label>Description <span className="quiet">· optional</span><input maxLength={200} placeholder={milestone ? 'Milestone payment for the approved scope' : 'Balance for the approved scope'} value={description} onChange={e => setDescription(e.target.value)} /></label>
           <TdsField value={tds} onChange={setTds} label="TDS on this invoice" />
           <p className="consequence">Invoices are numbered in order and cannot be edited or deleted once issued; cancel one with a credit note. Your business details from Settings are printed as the seller{pos ? `; place of supply ${stateName(pos)}` : ''}.</p>
@@ -134,13 +140,13 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
           <summary>Client billing details <span className="quiet">· {billing.client_gstin || (billing.client_state ? stateName(billing.client_state) : 'for tax invoices, optional')}</span></summary>
           <form className="ledger-form" aria-label="Client billing details" onSubmit={saveBilling}>
             <div className="two-col">
-              <label>Client GSTIN <span className="quiet">· if registered</span><input maxLength={15} autoComplete="off" value={billing.client_gstin} onChange={e => setBilling({...billing, client_gstin: e.target.value.toUpperCase()})} /></label>
+              <label>Client GSTIN <span className="quiet">· if registered</span><input maxLength={15} autoComplete="off" value={billing.client_gstin} aria-invalid={gstinBad || undefined} aria-describedby="client-gstin-hint" onChange={e => setBilling({...billing, client_gstin: e.target.value.toUpperCase().trim()})} /><span id="client-gstin-hint" className={gstinBad ? 'error-text' : 'fine block'}>{clientGstin ? (clientGstin.ok ? `Valid · registered in state ${clientGstin.state}` : clientGstin.message) : 'Leave empty if the client is not GST-registered.'}</span></label>
               <label>Client state<select value={billing.client_state} onChange={e => setBilling({...billing, client_state: e.target.value})}><option value="">{gstinState(billing.client_gstin) ? `From the GSTIN (${stateName(gstinState(billing.client_gstin))})` : 'Not set'}</option>{stateCodes.map(c => <option key={c} value={c}>{c === '96' ? stateName(c) : `${c} · ${stateName(c)}`}</option>)}</select></label>
             </div>
             <label>Billing address<textarea rows={2} maxLength={500} value={billing.client_address} onChange={e => setBilling({...billing, client_address: e.target.value})} /></label>
             <p className="fine">Printed on new invoices. The place of supply is the client’s GSTIN state, else the state above; with neither, an Indian client is billed from your own state and a client billed in another currency is treated as an export.</p>
             {billingError && <p className="error" role="alert">{billingError}</p>}
-            <div className="actions"><button type="submit" className="secondary" disabled={busy}>Save billing details</button></div>
+            <div className="actions"><button type="submit" className="secondary" disabled={busy || gstinBad}>Save billing details</button></div>
           </form>
         </details>
       )}

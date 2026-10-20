@@ -31,6 +31,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  // P4: the refresh button shows that it is working.
+  const [refreshing, setRefreshing] = useState(false);
   const [roundNote, setRoundNote] = useState('');
   const pendingWrite = useRef<{signature:string;id:string}|null>(null);
   // LT-08: withdrawals in flight (optimistic: the CO shows as withdrawn at once; a second click is ignored).
@@ -129,7 +131,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
           {view.chain.intact
             ? <span className="chain ok" title={`Chain head ${view.chain.head}`}><ShieldCheck size={14} />{view.chain.count} {view.chain.count === 1 ? 'entry' : 'entries'} · {view.chain.head.slice(0, 8)}</span>
             : <span className="chain bad"><ShieldAlert size={14} />Record check failed at entry {view.chain.at}</span>}
-          <button className="icon" aria-label="Refresh ledger" onClick={load}><RefreshCw size={14} /></button>
+          <button className="icon" aria-label="Refresh ledger" disabled={refreshing} aria-busy={refreshing || undefined} onClick={async () => { setRefreshing(true); try { await load(); } finally { setRefreshing(false); } }}><RefreshCw size={14} className={refreshing ? 'spin' : undefined} /></button>
         </span>}
       </div>
       {!view.open && <p className="muted-box">{view.reason}</p>}
