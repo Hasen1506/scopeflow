@@ -12,7 +12,9 @@ import type {Scope} from './scope';
 
 // Recording money exactly once (H6, H8, H14, M20, M21).
 
-export type RecordResult = {recorded: boolean; ledger: boolean; seq?: number; duplicate?: boolean; ignored?: string; note?: string; outcome?: 'excess' | 'short'; excess_minor?: number; short_minor?: number};
+// The pure helpers live in ./payment-record-pure (loadable by the property tests); re-exported here so callers do not change.
+import {notOnLedger, type RecordResult} from './payment-record-pure';
+export {notOnLedger, type RecordResult};
 type OrderRow = {id: string; project_id: string; version: number; amount_minor: number | string; currency: string; status: string; purpose: string | null; invoice_seq: number | null; account_id: string | null; superseded_at: string | null; received_minor: number | string | null; outcome: string | null; excess_minor: number | string | null; payment_id: string | null};
 export type PaymentChannel = 'razorpay_webhook' | 'razorpay_reconcile' | 'razorpay_checkout' | 'stripe_webhook' | 'stripe_reconcile' | 'stripe_return' | 'inbox';
 
@@ -195,8 +197,6 @@ export async function handleVerifiedEvent(e: InboxEvent, accept?: OrderFilter): 
     return json({error: 'The payment was received but could not be recorded yet. It is stored and will be retried.', code: 'record_failed'}, 500);
   }
 }
-/** M1: a known order whose payment did not reach the ledger (never stamp its event processed). */
-export const notOnLedger = (r: RecordResult | null) => !!r && !r.ignored && r.ledger === false;
 async function processEvent(e: InboxEvent, accept?: OrderFilter, ensureLedger = true) {
   if (!e.paid) return null;
   return recordPaidPayment(e.paid, e.provider === 'stripe' ? 'stripe_webhook' : 'razorpay_webhook', {provider: e.provider, accept, ensureLedger});

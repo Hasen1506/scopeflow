@@ -7,7 +7,8 @@ import {fc} from '../support/property.mjs';
 const M = await import('../../lib/money-ledger.ts');
 const D = await import('../../lib/deposit-paid.ts');
 const S = await import('../../lib/stripe.ts');
-const PR = await import('../../lib/payment-record.ts');
+// lib/payment-record.ts pulls lib/server.ts ('@/db'); its pure helpers live in payment-record-pure.ts.
+const PR = await import('../../lib/payment-record-pure.ts');
 const MS = await import('../../lib/msmed.ts');
 const G = await import('../../lib/gst.ts');
 const IG = await import('../../lib/invoice-gst.ts');
