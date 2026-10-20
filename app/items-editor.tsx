@@ -1,5 +1,5 @@
 'use client';
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {toast} from 'sonner';
 import {ArrowDown, ArrowUp, Plus, X} from 'lucide-react';
 import {formatMoney, newId, type ClientInput, type Item} from '@/lib/scope';
@@ -35,7 +35,9 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
   };
   // A3: removing a row keeps keyboard focus in the list: on the next row's title, else the previous one, else "Add deliverable".
   // X3: the latest list, so Undo puts the row back into what is there now (not a stale copy).
-  const latest = useRef(items); latest.current = items;
+  // Updated after render (react-hooks/refs forbids writing a ref during render).
+  const latest = useRef(items);
+  useEffect(() => { latest.current = items; }, [items]);
   const remove = (index: number) => {
     const removed = items[index];
     const next = items.filter((_, i) => i !== index);
