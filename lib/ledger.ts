@@ -78,7 +78,8 @@ export const paymentProviders = ['razorpay', 'stripe'] as const;
 export const PROVIDER_LABEL: Record<(typeof paymentProviders)[number], string> = {razorpay: 'Razorpay', stripe: 'Stripe'};
 export const paymentSchema = z.object({
   provider: z.enum(paymentProviders),
-  purpose: z.enum(['deposit', 'invoice']),
+  /** M6: 'balance' = a legacy order (no purpose) or one on an agreement without a deposit; older entries keep 'deposit'. */
+  purpose: z.enum(['deposit', 'invoice', 'balance']),
   order_id: z.string().min(1).max(255),
   payment_id: z.string().min(1).max(255),
   amount: z.number().finite().min(0),

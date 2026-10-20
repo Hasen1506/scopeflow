@@ -42,9 +42,10 @@ const isRetryable = (e: unknown) => e instanceof LedgerConflict || (isMoneyEntry
  *  - less than the order: the payment carries `expected_minor` and the owner is alerted.
  * Nothing is ever dropped as "ignored" once the order is known. Any failure to record raises an
  * alert and throws PaymentRecordError (webhooks answer 500; reconcile retries).
- * `ensureLedger` also appends the entry for an order already marked paid whose entry is missing.
+ * `ensureLedger` (default on, M1) also appends the entry for an order already marked paid whose entry
+ * is missing: a retry after a failed ledger write must still reach the ledger (appendPayment is idempotent).
  */
-export async function recordPaidPayment(event: PaidEvent, channel: PaymentChannel, {ensureLedger = false, provider = 'razorpay', accept}: {ensureLedger?: boolean; provider?: OnlineProvider; accept?: OrderFilter} = {}): Promise<RecordResult> {
+export async function recordPaidPayment(event: PaidEvent, channel: PaymentChannel, {ensureLedger = true, provider = 'razorpay', accept}: {ensureLedger?: boolean; provider?: OnlineProvider; accept?: OrderFilter} = {}): Promise<RecordResult> {
   const database = db();
   const order = await database.prepare(`SELECT ${ORDER_COLUMNS} FROM payments WHERE provider=? AND order_id=?`).bind(provider, event.order_id).first<OrderRow>();
   if (!order) return {recorded: false, ledger: false, ignored: 'unknown_order'};
@@ -84,13 +85,16 @@ async function appendPayment(order: OrderRow, event: PaidEvent, channel: Payment
     if (order.purpose === 'invoice') {
       const tz = (await database.prepare('SELECT timezone FROM projects WHERE id=?').bind(order.project_id).first<{timezone: string | null}>())?.timezone ?? null;
       const inv = (await clientInvoices(order.project_id, ledger.baseline.version, ledger.entries, tz)).find(i => i.seq === order.invoice_seq);
-      open = inv ? toMinor(inv.open, content.currency) : event.amount_minor;
+      // M4: a missing (or no longer listed) invoice has nothing open, so the capture is flagged as excess.
+      open = inv ? toMinor(inv.open, content.currency) : 0;
     // A deposit order counts toward the deposit. A legacy order (purpose unset, created before
     // checkout stored it) or one on an agreement without a deposit counts toward the balance.
     } else open = order.purpose === 'deposit' && t.deposit > 0 ? depositOpen(state) : balanceOpen(state, t.total);
     // A capture in another currency than its order cannot be applied: all of it is flagged.
     const cls = order.currency !== event.currency ? {apply_minor: 0, excess_minor: event.amount_minor, short_minor: 0} : classifyCapture({open_minor: open, order_minor: orderMinor, captured_minor: event.amount_minor});
-    const payload = {provider, purpose: order.purpose === 'invoice' ? 'invoice' : 'deposit', order_id: event.order_id, payment_id: event.payment_id, amount: fromMinor(event.amount_minor, event.currency), currency: event.currency,
+    // M6: sign what the money was applied to (a legacy order or one on an agreement without a deposit is the balance).
+    const purpose = order.purpose === 'invoice' ? 'invoice' as const : order.purpose === 'deposit' && t.deposit > 0 ? 'deposit' as const : 'balance' as const;
+    const payload = {provider, purpose, order_id: event.order_id, payment_id: event.payment_id, amount: fromMinor(event.amount_minor, event.currency), currency: event.currency,
       ...(invoice ? {invoice_number: invoice.number} : {})};
     let seq: number;
     try {
@@ -176,6 +180,11 @@ export async function handleVerifiedEvent(e: InboxEvent, accept?: OrderFilter): 
   if (stored.processed_at) return json({recorded: false, duplicate: true});
   try {
     const result = await processEvent(e, accept);
+    // M1: an event whose payment is not on the ledger yet stays unprocessed, so reconcile retries it.
+    if (notOnLedger(result)) {
+      await database.prepare('UPDATE scopeflow.payment_events SET attempts=attempts+1,last_error=? WHERE id=?').bind('payment not on the ledger yet', stored.id).run();
+      return json({error: 'The payment was received but could not be recorded yet. It is stored and will be retried.', code: 'record_failed'}, 500);
+    }
     await database.prepare('UPDATE scopeflow.payment_events SET processed_at=?,attempts=attempts+1,last_error=NULL WHERE id=?').bind(new Date().toISOString(), stored.id).run();
     if (!result) return json({ignored: 'event'});
     if (result.ignored) return json({ignored: result.ignored});
@@ -186,7 +195,9 @@ export async function handleVerifiedEvent(e: InboxEvent, accept?: OrderFilter): 
     return json({error: 'The payment was received but could not be recorded yet. It is stored and will be retried.', code: 'record_failed'}, 500);
   }
 }
-async function processEvent(e: InboxEvent, accept?: OrderFilter, ensureLedger = false) {
+/** M1: a known order whose payment did not reach the ledger (never stamp its event processed). */
+export const notOnLedger = (r: RecordResult | null) => !!r && !r.ignored && r.ledger === false;
+async function processEvent(e: InboxEvent, accept?: OrderFilter, ensureLedger = true) {
   if (!e.paid) return null;
   return recordPaidPayment(e.paid, e.provider === 'stripe' ? 'stripe_webhook' : 'razorpay_webhook', {provider: e.provider, accept, ensureLedger});
 }
@@ -199,6 +210,7 @@ export async function drainInbox(limit = 100) {
     const p = JSON.parse(r.payload) as {type: string; paid: PaidEvent | null};
     try {
       const result = await processEvent({provider: r.provider, event_id: r.event_id, account_id: r.account_id, type: p.type, paid: p.paid}, r.account_id ? (o => o.account_id === r.account_id) : undefined, true);
+      if (notOnLedger(result)) throw new Error('payment not on the ledger yet');
       await database.prepare('UPDATE scopeflow.payment_events SET processed_at=?,attempts=attempts+1,last_error=NULL WHERE id=?').bind(new Date().toISOString(), r.id).run();
       out.push({event_id: r.event_id, ok: true, result});
     } catch (err) {
