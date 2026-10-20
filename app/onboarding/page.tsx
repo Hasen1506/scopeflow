@@ -1,9 +1,8 @@
 'use client';
 import Link from 'next/link';
-import {useRouter} from 'next/navigation';
 import {useEffect, useMemo, useState} from 'react';
 import QRCode from 'qrcode';
-import {Header, api} from '../ui';
+import {Header, api, loadDocument} from '../ui';
 import {currencyList} from '@/lib/currency';
 import {COUNTRIES, UDYAM_CATEGORIES, countryDefaults, countryFromLocale, onboardingSuggestions} from '@/lib/profile';
 import {checkGstin} from '@/lib/gstin';
@@ -18,7 +17,6 @@ import TimezoneSelect from '@/app/components/slots/timezone-select';
 // in Account. GST at 18% is only suggested when a GSTIN is given; payment terms cite MSMED s.15
 // for Udyam micro and small units.
 export default function Onboarding() {
-  const router = useRouter();
   const [step, setStep] = useState(1), [busy, setBusy] = useState(false), [error, setError] = useState(''), [signedOut, setSignedOut] = useState(false);
   const [mode, setMode] = useState<Mode>('freelancer');
   const [country, setCountry] = useState('OTHER'), [currency, setCurrency] = useState('USD'), [timezone, setTimezone] = useState('UTC');
@@ -47,14 +45,14 @@ export default function Onboarding() {
         udyam_number: india ? udyam.number : '', udyam_date: india ? udyam.date : '', udyam_category: india ? udyam.category : '',
         tax_label: g?.ok && gst ? 'GST' : '', tax_pct: g?.ok && gst ? 18 : null, payment_terms: shownTerms,
       })});
-      router.push(safeReturnPath(new URLSearchParams(location.search).get('return_to') ?? '/'));
+      window.location.assign(safeReturnPath(new URLSearchParams(location.search).get('return_to') ?? '/'));
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const stepOk = step !== 3 || ((!gstin || !!g?.ok) && (!vpa || !!link));
   return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
     <p className="eyebrow">SET UP YOUR WORKSPACE · STEP {step} OF 3</p>
     <h1>{step === 1 ? <>How will you <em>use ScopeFlow?</em></> : step === 2 ? <>Where do you <em>work?</em></> : <>Your business <em>details.</em></>}</h1>
-    {signedOut && <p className="muted-box" role="status">Sign in first: <Link className="help-link" href="/auth/sign-in?return_to=%2Fonboarding">Sign in</Link></p>}
+    {signedOut && <p className="muted-box" role="status">Sign in first: <Link className="help-link" href="/auth/sign-in?return_to=%2Fonboarding" onClick={loadDocument}>Sign in</Link></p>}
     {step === 1 && <fieldset className="section-gap"><legend>Workspace mode</legend><p className="fine">You can change it any time in Account. Every feature stays available in every mode.</p>
       {MODES.map(m => <label key={m} className="radio-row"><input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)}/> <span><strong>{MODE_LABEL[m]}</strong><span className="quiet block">{MODE_BLURB[m]}</span></span></label>)}</fieldset>}
     {step === 2 && <div>

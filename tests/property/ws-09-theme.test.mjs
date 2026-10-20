@@ -14,11 +14,12 @@ const blocks = [...css.matchAll(/(^|\n)\s*([^{}\n@][^{}]*?)\s*\{([^{}]*)\}/g)].m
 const props = body => Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)].map(m => [m[1], m[2].trim()]));
 const pick = sel => { const b = blocks.filter(x => x.sel === sel); assert.ok(b.length, 'block ' + sel); return Object.assign({}, ...b.map(x => props(x.body))); };
 const BASE = pick(':root');
+const A_LIGHT = ':root[data-theme="a"],:root:not([data-theme])';
 const COMBOS = {
   'B light': [],
   'B dark': [':root[data-scheme="dark"]'],
-  'A light': [':root[data-theme="a"]'],
-  'A dark': [':root[data-theme="a"]', ':root[data-scheme="dark"]', ':root[data-theme="a"][data-scheme="dark"]'],
+  'A light': [A_LIGHT],
+  'A dark': [A_LIGHT, ':root[data-scheme="dark"]', ':root[data-theme="a"][data-scheme="dark"]'],
 };
 const tokensFor = name => Object.assign({}, BASE, ...COMBOS[name].map(pick));
 function color(tokens, name, seen = new Set()) {
@@ -195,8 +196,22 @@ test('theme blocks re-point colour/shape tokens only: no fonts, and the default 
 test('theme preference: strict on write, forgiving on read; client pages follow the system', () => {
   assert.deepEqual(T.validChoice({theme: 'a', mode: 'dark'}), {theme: 'a', mode: 'dark'});
   for (const bad of [null, {}, {theme: 'c', mode: 'dark'}, {theme: 'a', mode: 'dim'}, {theme: 'a'}]) assert.equal(T.validChoice(bad), null);
-  assert.deepEqual(T.parseChoice({theme: 'x', mode: 1}), T.DEFAULT_CHOICE);
+  assert.deepEqual(T.parseChoice({theme: 'x', mode: 1}), {theme: 'b', mode: 'light'});
   assert.deepEqual(T.parseChoice(null), T.DEFAULT_CHOICE);
+  assert.deepEqual(T.DEFAULT_CHOICE, {theme: 'a', mode: 'light'});
+  assert.equal(T.appearanceOf(T.DEFAULT_CHOICE), 'etched');
+  assert.deepEqual(T.resolveAppearance({cookie: null, theme: null, mode: null, prefersDark: true}), {appearance: 'etched', explicit: false});
+  assert.deepEqual(T.resolveAppearance({cookie: null, theme: 'b', mode: 'light', prefersDark: true}), {appearance: 'light', explicit: true});
+  assert.deepEqual(T.resolveAppearance({cookie: null, theme: 'b', mode: 'dark', prefersDark: false}), {appearance: 'dark', explicit: true});
+  assert.deepEqual(T.resolveAppearance({cookie: 'etched', theme: 'b', mode: 'dark', prefersDark: false}), {appearance: 'etched', explicit: true});
+  assert.match(T.themeScript, /sf-appearance/);
+  assert.match(T.themeScript, /appearance='etched'/);
+  assert.ok(T.bootScript.startsWith(T.themeScript), 'the pre-paint script starts with the theme choice');
+  assert.match(T.bootScript, /scopeflow:signed-in/);
+  assert.match(T.bootScript, /\/auth\//);
+  const layout = readFileSync(new URL('../../app/layout.tsx', import.meta.url), 'utf8');
+  assert.match(layout, /dangerouslySetInnerHTML=\{\{__html: bootScript\}\}/);
+  assert.doesNotMatch(layout, /strategy="beforeInteractive"/);
   assert.deepEqual(T.choiceForAppearance('etched'), {theme: 'a', mode: 'light'});
   assert.deepEqual(T.choiceForAppearance('dark'), {theme: 'b', mode: 'dark'});
   assert.deepEqual(T.choiceForAppearance('light'), {theme: 'b', mode: 'light'});
@@ -211,4 +226,39 @@ test('theme preference: strict on write, forgiving on read; client pages follow 
   assert.ok(!T.isClientPath('/templates'));
   assert.match(T.themeScript, /prefers-color-scheme: dark/);
   assert.match(T.themeScript, /\^\\\/review\\\//, 'script forces the system scheme on client pages');
+});
+
+test('theme script paints Etched when nothing is saved and keeps an explicit Light or Dark choice', () => {
+  const run = ({cookie = '', theme = null, mode = null, prefersDark = false, path = '/'} = {}) => {
+    const jar = {value: cookie};
+    const ls = {};
+    if (theme != null) ls['scopeflow:theme'] = theme;
+    if (mode != null) ls['scopeflow:mode'] = mode;
+    const document = {
+      documentElement: {dataset: {}},
+      get cookie() { return jar.value; },
+      set cookie(value) { jar.value = String(value); },
+    };
+    const localStorage = {getItem: key => (key in ls ? ls[key] : null), setItem(key, value) { ls[key] = value; }};
+    new Function('document', 'localStorage', 'location', 'matchMedia', T.themeScript)(
+      document, localStorage, {pathname: path}, () => ({matches: prefersDark}),
+    );
+    return {dataset: document.documentElement.dataset, cookie: jar.value};
+  };
+  const fresh = run();
+  assert.equal(fresh.dataset.theme, 'a');
+  assert.equal(fresh.dataset.mode, 'light');
+  assert.equal(fresh.dataset.scheme, 'light');
+  assert.equal(fresh.cookie, '', 'the default is not stored');
+  const light = run({theme: 'b', mode: 'light', prefersDark: true});
+  assert.equal(light.dataset.theme, 'b');
+  assert.equal(light.dataset.scheme, 'light');
+  assert.match(light.cookie, /^sf-appearance=light/);
+  const dark = run({cookie: 'sf-appearance=dark', theme: 'a', mode: 'light'});
+  assert.equal(dark.dataset.theme, 'b');
+  assert.equal(dark.dataset.scheme, 'dark');
+  const review = run({cookie: 'sf-appearance=etched', path: '/review/' + 'a'.repeat(8), prefersDark: true});
+  assert.equal(review.dataset.theme, 'a');
+  assert.equal(review.dataset.mode, 'system');
+  assert.equal(review.dataset.scheme, 'dark');
 });

@@ -1,12 +1,16 @@
 // Themes. The owner picks one of three appearances. Internally they still map onto the token
 // sets in app/globals.css: "b"+light = Light (cream), "b"+dark = Dark, "a"+light = Etched
 // (cream type on grained cobalt). "system" remains a stored mode so older rows and the review
-// page still parse; the switcher never writes it. The choice lives on
-// <html data-theme data-mode data-scheme>, in this browser, and, when signed in, on the account
-// (GET/PUT /api/theme). Client pages (/review/...) follow the visitor's system scheme.
+// page still parse; the switcher never writes it.
+// One choice: the sf-appearance cookie (light | dark | etched). The pre-paint script and React
+// both read it. localStorage keeps the older theme/mode keys in step. When nothing is saved,
+// the appearance is Etched and it is not written, so a later default can still change.
+// The choice also lives on <html data-theme data-mode data-scheme> and, when signed in, on the
+// account (GET/PUT /api/theme). Client pages (/review/...) follow the visitor's system scheme.
 // Pure module (no React import), so the root layout can import the constants.
 export const THEME_KEY = 'scopeflow:theme';
 export const MODE_KEY = 'scopeflow:mode';
+export const APPEARANCE_COOKIE = 'sf-appearance';
 export type ThemeId = 'a' | 'b';
 export type ModeId = 'light' | 'dark' | 'system';
 export type Scheme = 'light' | 'dark';
@@ -17,7 +21,8 @@ export const APPEARANCES: {id: Appearance; name: string}[] = [
   {id: 'dark', name: 'Dark'},
   {id: 'etched', name: 'Etched'},
 ];
-export const DEFAULT_CHOICE: ThemeChoice = {theme: 'b', mode: 'light'};
+export const DEFAULT_APPEARANCE: Appearance = 'etched';
+export const DEFAULT_CHOICE: ThemeChoice = {theme: 'a', mode: 'light'};
 export const normalizeTheme = (value: unknown): ThemeId => (value === 'a' ? 'a' : 'b');
 export const normalizeMode = (value: unknown): ModeId => (value === 'dark' || value === 'system' ? value : 'light');
 export const resolveScheme = (mode: ModeId, prefersDark: boolean): Scheme => (mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode === 'dark' ? 'dark' : 'light');
@@ -32,11 +37,29 @@ export function choiceForAppearance(appearance: Appearance): ThemeChoice {
   if (appearance === 'dark') return {theme: 'b', mode: 'dark'};
   return {theme: 'b', mode: 'light'};
 }
+export function appearanceFromCookieValue(value: string | null | undefined): Appearance | null {
+  return value === 'light' || value === 'dark' || value === 'etched' ? value : null;
+}
+/** Cookie wins. Otherwise an explicit legacy pair. Nothing stored → null (the caller uses Etched and does not persist it). */
+export function resolveAppearance(input: {cookie: string | null; theme: string | null; mode: string | null; prefersDark: boolean}): {appearance: Appearance; explicit: boolean} {
+  const cookie = appearanceFromCookieValue(input.cookie);
+  if (cookie) return {appearance: cookie, explicit: true};
+  if (input.theme == null && input.mode == null) return {appearance: DEFAULT_APPEARANCE, explicit: false};
+  if (input.theme === 'a') return {appearance: 'etched', explicit: true};
+  if (input.mode === 'dark' || (input.mode !== 'light' && input.prefersDark)) return {appearance: 'dark', explicit: true};
+  return {appearance: 'light', explicit: true};
+}
+export function snapshotFor(appearance: Appearance): string {
+  const choice = choiceForAppearance(appearance);
+  const scheme: Scheme = choice.mode === 'dark' ? 'dark' : 'light';
+  return `${choice.theme}|${choice.mode}|${scheme}`;
+}
 /** Pages a client sees: they follow the visitor's own system scheme, never a choice stored in this browser. */
 export const isClientPath = (path: string) => /^\/review\//.test(path);
-/** Parses a stored or posted preference; anything unknown becomes the default. */
+/** Parses a stored or posted preference. An empty body is the default (Etched). A present but unknown theme stays Light, so a stray value does not wipe an explicit mode. */
 export function parseChoice(raw: unknown): ThemeChoice {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  if (r.theme == null && r.mode == null) return {theme: DEFAULT_CHOICE.theme, mode: DEFAULT_CHOICE.mode};
   return {theme: normalizeTheme(r.theme), mode: normalizeMode(r.mode)};
 }
 /** Strict check for PUT /api/theme: null when the body is not a valid choice. */
@@ -45,29 +68,73 @@ export function validChoice(raw: unknown): ThemeChoice | null {
   return (r.theme === 'a' || r.theme === 'b') && (r.mode === 'light' || r.mode === 'dark' || r.mode === 'system') ? {theme: r.theme, mode: r.mode} : null;
 }
 
+// Set when a signed-in session is known, so returning owners get the workspace before first paint
+// instead of the signed-out hero. Read by the pre-paint script and by rememberSession.
+export const SESSION_HINT_KEY = 'scopeflow:signed-in';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
-// Applies the saved appearance before first paint. Owner pages never stay on "system" (that made
-// Light/Dark look like they had not applied whenever the OS scheme disagreed). Review pages still follow it.
-export const themeScript = `try{var d=document.documentElement,s=localStorage,c=/^\\/review\\//.test(location.pathname),tr=s.getItem('${THEME_KEY}'),mr=s.getItem('${MODE_KEY}'),dark=matchMedia('${DARK_QUERY}').matches,t,m;if(c){d.dataset.theme=tr==='a'?'a':'b';d.dataset.mode='system';d.dataset.scheme=dark?'dark':'light'}else{t=tr==='a'?'a':'b';if(tr==null&&mr==null){t='b';m='light'}else if(t==='a'){m='light'}else if(mr==='dark'){t='b';m='dark'}else if(mr==='light'){t='b';m='light'}else{t='b';m=dark?'dark':'light'}if(!(tr==null&&mr==null)){try{s.setItem('${THEME_KEY}',t);s.setItem('${MODE_KEY}',m)}catch(e){}}d.dataset.theme=t;d.dataset.mode=m;d.dataset.scheme=m}}catch(e){}`;
+// Applies the saved appearance before first paint. The cookie is the choice; legacy localStorage
+// is read only when the cookie is absent, and then copied into the cookie. Nothing saved stays
+// Etched and is not written. Owner pages never stay on "system". Review pages still follow the OS scheme.
+export const themeScript = `try{var d=document.documentElement,c=/^\\/review\\//.test(location.pathname),dark=matchMedia('${DARK_QUERY}').matches,cm=document.cookie.match(/(?:^|; )${APPEARANCE_COOKIE}=([^;]*)/),cv=cm?decodeURIComponent(cm[1]):'',appearance=cv==='light'||cv==='dark'||cv==='etched'?cv:'',tr=null,mr=null;try{tr=localStorage.getItem('${THEME_KEY}');mr=localStorage.getItem('${MODE_KEY}')}catch(e){}if(!appearance){if(tr==null&&mr==null)appearance='etched';else if(tr==='a')appearance='etched';else if(mr==='dark'||(mr!=='light'&&dark))appearance='dark';else appearance='light';if(!(tr==null&&mr==null))document.cookie='${APPEARANCE_COOKIE}='+appearance+'; Path=/; Max-Age=31536000; SameSite=Lax'}var theme=appearance==='etched'?'a':'b',mode=appearance==='dark'?'dark':'light';if(c){d.dataset.theme=theme;d.dataset.mode='system';d.dataset.scheme=dark?'dark':'light'}else{d.dataset.theme=theme;d.dataset.mode=mode;d.dataset.scheme=mode}}catch(e){}`;
+// Parser-blocking boot: theme, the signed-in hint, and a capture-phase listener so a click on
+// Sign in (or any /auth/ link) loads that document directly. next/script beforeInteractive only
+// queues this until the deferred framework bundle runs, which is after first paint: the marketing
+// page and the wrong theme would paint first. The layout inlines this string as a real script.
+export const bootScript = `${themeScript}try{if(localStorage.getItem('${SESSION_HINT_KEY}')==='1')document.documentElement.dataset.auth='in'}catch(e){}document.addEventListener('click',function(e){if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var t=e.target,a=t&&t.closest?t.closest('a'):null;if(!a||!a.href||(a.target&&a.target!=='_self'))return;var u;try{u=new URL(a.href,location.href)}catch(err){return}if(u.origin!==location.origin||u.pathname.indexOf('/auth/')!==0)return;e.preventDefault();location.assign(u.pathname+u.search+u.hash)},true);`;
 
 const prefersDark = () => typeof matchMedia === 'function' && matchMedia(DARK_QUERY).matches;
 const onClientPage = () => typeof location !== 'undefined' && isClientPath(location.pathname);
 
 const safeGet = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
-/** Both keys missing → '|' . Used so an account theme is applied only when this browser has not chosen. */
-export const storedStamp = () => (safeGet(THEME_KEY) ?? '') + '|' + (safeGet(MODE_KEY) ?? '');
-export function readStoredChoice(): ThemeChoice | null {
-  const theme = safeGet(THEME_KEY), mode = safeGet(MODE_KEY);
-  if (theme == null && mode == null) return null;
-  return parseChoice({theme, mode});
+export function readCookieAppearance(cookieHeader = typeof document === 'undefined' ? '' : document.cookie): Appearance | null {
+  const match = cookieHeader.match(new RegExp('(?:^|; )' + APPEARANCE_COOKIE + '=([^;]*)'));
+  if (!match) return null;
+  try { return appearanceFromCookieValue(decodeURIComponent(match[1])); } catch { return null; }
 }
+function writeAppearanceCookie(appearance: Appearance) {
+  if (typeof document === 'undefined') return;
+  const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${APPEARANCE_COOKIE}=${appearance}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+}
+/** Null when this browser has not chosen. The cookie wins over the legacy keys. */
+export function readAppearance(): Appearance | null {
+  if (typeof document === 'undefined') return null;
+  const resolved = resolveAppearance({cookie: readCookieAppearance(), theme: safeGet(THEME_KEY), mode: safeGet(MODE_KEY), prefersDark: prefersDark()});
+  return resolved.explicit ? resolved.appearance : null;
+}
+/** Changes when the saved choice changes. An account theme is applied only while this is empty. */
+export const storedStamp = () => (readCookieAppearance() ?? '') + '|' + (safeGet(THEME_KEY) ?? '') + '|' + (safeGet(MODE_KEY) ?? '');
+export function readStoredChoice(): ThemeChoice | null {
+  const appearance = readAppearance();
+  return appearance ? choiceForAppearance(appearance) : null;
+}
+let themeFrame = 0;
+function writeDataset(theme: ThemeId, mode: ModeId, scheme: Scheme) {
+  const d = document.documentElement;
+  if (d.dataset.theme === theme && d.dataset.mode === mode && d.dataset.scheme === scheme) return;
+  // Snap tokens. A colour transition during the swap is a frame of mixed themes.
+  // Only the latest change removes the class, after the new colours have painted.
+  const frame = ++themeFrame;
+  d.classList.add('theme-changing');
+  d.dataset.theme = theme;
+  d.dataset.mode = mode;
+  d.dataset.scheme = scheme;
+  const clear = () => { if (frame === themeFrame) d.classList.remove('theme-changing'); };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(clear));
+  else clear();
+}
+let applying = false;
 /** Re-applies the saved appearance after hydration. React must not own these attributes (see app/layout.tsx). */
 export function applyBoot() {
-  if (typeof document === 'undefined') return;
-  restoreSessionHint();
-  if (onClientPage()) { applyTheme(parseChoice({theme: safeGet(THEME_KEY), mode: 'system'}), {store: false}); return; }
-  const stored = readStoredChoice();
-  applyTheme(stored ? choiceForAppearance(appearanceOf(stored, prefersDark())) : DEFAULT_CHOICE, {store: stored != null});
+  if (applying || typeof document === 'undefined') return;
+  applying = true;
+  try {
+    restoreSessionHint();
+    const appearance = readAppearance();
+    const choice = choiceForAppearance(appearance ?? DEFAULT_APPEARANCE);
+    if (onClientPage()) applyTheme({...choice, mode: 'system'}, {store: false});
+    else applyTheme(choice, {store: appearance != null});
+  } finally { applying = false; }
 }
 export function restoreSessionHint() {
   if (typeof document === 'undefined') return;
@@ -77,19 +144,22 @@ export function restoreSessionHint() {
 /** Writes the choice to <html> (and this browser unless `store` is false). Client pages keep the system scheme. */
 export function applyTheme(choice: ThemeChoice, {store = true}: {store?: boolean} = {}) {
   if (typeof document === 'undefined') return;
-  const d = document.documentElement;
   if (onClientPage()) {
-    d.dataset.theme = normalizeTheme(choice.theme);
-    d.dataset.mode = 'system';
-    d.dataset.scheme = resolveScheme('system', prefersDark());
+    const next = choiceForAppearance(appearanceOf(choice, prefersDark()));
+    writeDataset(next.theme, 'system', resolveScheme('system', prefersDark()));
+    if (store) {
+      writeAppearanceCookie(appearanceOf(next));
+      try { localStorage.setItem(THEME_KEY, next.theme); localStorage.setItem(MODE_KEY, next.mode); } catch { /* storage unavailable: the choice lasts for this page */ }
+    }
     syncThemeColor();
     return;
   }
   const next = choiceForAppearance(appearanceOf(choice, prefersDark()));
-  d.dataset.theme = next.theme;
-  d.dataset.mode = next.mode;
-  d.dataset.scheme = next.mode === 'dark' ? 'dark' : 'light';
-  if (store) try { localStorage.setItem(THEME_KEY, next.theme); localStorage.setItem(MODE_KEY, next.mode); } catch { /* storage unavailable: the choice lasts for this page */ }
+  writeDataset(next.theme, next.mode, next.mode === 'dark' ? 'dark' : 'light');
+  if (store) {
+    writeAppearanceCookie(appearanceOf(next));
+    try { localStorage.setItem(THEME_KEY, next.theme); localStorage.setItem(MODE_KEY, next.mode); } catch { /* storage unavailable: the choice lasts for this page */ }
+  }
   syncThemeColor();
 }
 
@@ -115,9 +185,17 @@ export function subscribeTheme(callback: () => void) {
   window.addEventListener('storage', onStorage);
   return () => { observer.disconnect(); media?.removeEventListener('change', onMedia); window.removeEventListener('storage', onStorage); };
 }
-/** Snapshot string 'theme|mode|scheme' for useSyncExternalStore (see app/components/slots/theme-switcher.tsx). */
-export const themeSnapshot = () => { const c = readChoice(); return `${c.theme}|${c.mode}|${c.scheme}`; };
-export const serverThemeSnapshot = () => 'b|light|light';
+/** Snapshot string 'theme|mode|scheme' for useSyncExternalStore (see app/components/slots/theme-switcher.tsx).
+ * Owner pages follow the cookie (the same value the pre-paint script applied). Review pages follow the DOM, because their scheme is the visitor's. */
+export const themeSnapshot = () => {
+  if (!onClientPage()) {
+    const appearance = readAppearance();
+    if (appearance) return snapshotFor(appearance);
+  }
+  const c = readChoice();
+  return `${c.theme}|${c.mode}|${c.scheme}`;
+};
+export const serverThemeSnapshot = () => snapshotFor(DEFAULT_APPEARANCE);
 export function fromSnapshot(key: string): ThemeChoice & {scheme: Scheme} {
   const [theme, mode, scheme] = key.split('|');
   return {theme: normalizeTheme(theme), mode: normalizeMode(mode), scheme: scheme === 'dark' ? 'dark' : 'light'};
@@ -161,13 +239,14 @@ export function readableOn(color: string | null | undefined, background: string 
   return hex(toward);
 }
 
-// Set when /api/me reports a signed-in session, so returning owners get the compact workspace
-// heading before first paint instead of the signed-out hero (avoids a layout shift).
-export const SESSION_HINT_KEY = 'scopeflow:signed-in';
 export function rememberSession(signedIn: boolean) {
   if (typeof document === 'undefined') return;
   if (signedIn) document.documentElement.dataset.auth = 'in'; else delete document.documentElement.dataset.auth;
   try { if (signedIn) localStorage.setItem(SESSION_HINT_KEY, '1'); else localStorage.removeItem(SESSION_HINT_KEY); } catch { /* storage unavailable */ }
+}
+/** Drops the stored hint without uncovering the marketing page on the document that is about to unload. */
+export function clearSessionHint() {
+  try { localStorage.removeItem(SESSION_HINT_KEY); } catch { /* storage unavailable */ }
 }
 
 /**

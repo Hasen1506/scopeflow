@@ -4,11 +4,17 @@ import {Check,ChevronDown,Lock,Menu,X} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
-import {rememberSession} from '@/lib/theme';
+import {clearSessionHint, rememberSession} from '@/lib/theme';
 import {forgetDrafts} from '@/lib/draft-storage';
 /** ScopeFlow's mark: a reticle over a river (scope + flow). */
 export function Mark(){return <span className="mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><circle cx="16" cy="16" r="10.5"/><path d="M16 1.8v4.4M16 25.8v4.4M1.8 16h4.4M25.8 16h4.4"/><path d="M8.6 14.2c2.4-2 4.8-2 7.4 0s5 2 7.4 0M8.6 19c2.4-2 4.8-2 7.4 0s5 2 7.4 0" strokeWidth="1.4"/></svg></span>;}
 export function Brand({beta=true}:{beta?:boolean}){return <Link className="brand" href="/" prefetch={false} aria-label="Scopeflow home"><Mark/><span className="wordmark">Scope<em>flow</em></span>{beta&&<span className="beta">EARLY BETA</span>}</Link>;}
+/** Load the auth document directly. Client routing paints the marketing page on the way. */
+export function loadDocument(event: React.MouseEvent<HTMLAnchorElement>) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  window.location.assign(event.currentTarget.href);
+}
 /** Everything that is about the account rather than a project lives under one menu (was three top-level pages). */
 const ACCOUNT=[{href:'/account',label:'Settings',hint:'Business, branding, defaults, data'},{href:'/connect',label:'Connect',hint:'Muse, ChatGPT & API'},{href:'/plans',label:'Plans',hint:'Pricing preview'}];
 export function Header(){const path=usePathname();const [user,setUser]=useState<{email?:string}|null>(null);const inAccount=ACCOUNT.some(a=>path===a.href||path?.startsWith(a.href+'/'));
@@ -34,7 +40,7 @@ export function Header(){const path=usePathname();const [user,setUser]=useState<
  return <header className={'topbar'+(open?' menu-open':'')}><Brand/><button ref={toggle} type="button" className="menu-toggle" aria-expanded={open} aria-controls="site-menu" onClick={()=>{setOpenedOn(path);setOpen(o=>!o);}}>{open?<X size={18} aria-hidden="true"/>:<Menu size={18} aria-hidden="true"/>}<span>Menu</span></button><div className="nav-wrap" id="site-menu" ref={wrap} onClick={e=>{if(open&&(e.target as Element).closest?.('a'))setOpen(false);}}><nav className="navlinks" aria-label="Main"><Link href="/" prefetch={false} onClick={home} aria-current={path==='/'&&user?'page':undefined}>Projects</Link><Link href="/templates" prefetch={false} aria-current={path?.startsWith('/templates')?'page':undefined}>Templates</Link>
   <div className="account-wrap"><button type="button" className={'nav-menu'+(inAccount?' is-current':'')} aria-expanded={accountOpen} aria-haspopup="menu" aria-controls="account-menu" data-state={accountOpen?'open':'closed'} onClick={()=>setAccountOpen(o=>!o)}>Account<ChevronDown size={14} aria-hidden="true"/></button>{accountOpen&&<div id="account-menu" className="account-menu" role="menu">{user&&<div className="menu-who" role="presentation">Signed in as<b>{user.email}</b></div>}{ACCOUNT.map(a=><Link key={a.href} role="menuitem" href={a.href} prefetch={false} aria-current={path===a.href?'page':undefined}><span className="menu-label">{a.label}</span><span className="menu-hint">{a.hint}</span></Link>)}</div>}</div>
   {/* eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full document load after sign-out; client routing kept the session hint and showed the signed-in home */}
-  {user?<button className="help-link" onClick={async()=>{const pending:Promise<unknown>[]=[];window.dispatchEvent(new CustomEvent('scopeflow:flush',{detail:pending}));await Promise.allSettled(pending);const result=await fetch('/api/auth/sign-out',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});if(result.ok){rememberSession(false);forgetDrafts();window.location.assign('/auth/sign-in?signed_out=1');}}}>Sign out</button>:<Link href="/auth/sign-in" prefetch={false} aria-current={path?.startsWith('/auth/')?'page':undefined}>Sign in</Link>}</nav></div></header>;}
+  {user?<button className="help-link" onClick={async()=>{const pending:Promise<unknown>[]=[];window.dispatchEvent(new CustomEvent('scopeflow:flush',{detail:pending}));await Promise.allSettled(pending);const result=await fetch('/api/auth/sign-out',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});if(result.ok){clearSessionHint();forgetDrafts();window.location.assign('/auth/sign-in?signed_out=1');}}}>Sign out</button>:<Link href="/auth/sign-in" prefetch={false} onClick={loadDocument} aria-current={path?.startsWith('/auth/')?'page':undefined}>Sign in</Link>}</nav></div></header>;}
 export type ApiError=Error&{status?:number;code?:string;data?:Record<string,unknown>};
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callers read endpoint-specific JSON shapes
 export async function api(path:string,options?:RequestInit):Promise<any>{const r=await fetch(path,options);let data:Record<string,unknown>={};try{data=await r.json();}catch{/* non-JSON error page */}if(!r.ok){const error:ApiError=new Error(typeof data.error==='string'?data.error:'Request failed. Please try again.');error.status=r.status;error.code=typeof data.code==='string'?data.code:undefined;error.data=data;throw error;}return data;}
