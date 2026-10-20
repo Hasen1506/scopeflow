@@ -10,6 +10,7 @@ import {ClientNotices} from './client-notices';
 import type {Agreement,LedgerEntry,PaymentLine} from '@/lib/ledger';
 import {api,post,Skeleton} from '../ui';
 import {totals} from '@/lib/money';
+import {roundMajor} from '@/lib/minor';
 import {formatDay} from '@/lib/time';
 import type {Ws} from './state';
 import {stepState} from './step-state';
@@ -23,8 +24,12 @@ export function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUr
  if(state==='error')return <><p className="error" role="alert">Couldn’t load the payment record ({loadError}).{onRetry&&<> <button type="button" className="help-link" onClick={onRetry}>Retry</button></>}</p>{decided.length>0&&<ReceiptList decided={decided} receiptUrl={receiptUrl}/>}</>;
  if(state==='quote'||!agreement){const q=totals(c);return <><p className="quiet">Payment details are fixed when your client approves. Until then this is the quote on version {version.version}.</p><dl className="pay-grid"><div><dt>Quoted fee</dt><dd><span className="pay-fig">{formatMoney(c.fee,cur)}</span></dd></div>{q.tax_pct>0&&<div><dt>Total with {q.tax_label}</dt><dd><span className="pay-fig">{formatMoney(q.total,cur)}</span></dd></div>}{q.deposit_pct>0&&<div><dt>Deposit on signature</dt><dd><span className="pay-fig">{formatMoney(q.deposit,cur)}</span></dd></div>}</dl>{decided.length>0&&<ReceiptList decided={decided} receiptUrl={receiptUrl}/>}</>;}
  const now=totals(c,agreement.fee),signed=totals(c);
- const {lines,paid}=paymentsOf(entries.filter(e=>e.baseline_version===version.version));
- const balance=Math.max(0,Math.round((now.total-paid)*100)/100);
+ // C4/R1: money belongs to the project, so payments on an earlier (superseded) baseline still count towards
+ // what is received and due, as on the statement. An offline refund is checked by the ledger route against
+ // the current baseline only, so its ceiling stays that baseline's net paid.
+ const {lines,paid}=paymentsOf(entries);
+ const paidHere=paymentsOf(entries.filter(e=>e.baseline_version===version.version)).paid;
+ const balance=Math.max(0,roundMajor(now.total-paid,cur));
  const refundable=(l:PaymentLine)=>refundableOf(l,lines);
  const depositOpen=signed.deposit_pct>0&&paid<signed.deposit;
  return <>
@@ -37,7 +42,7 @@ export function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUr
   {c.payment_terms&&<p className="line-list section-gap"><strong>Payment terms</strong><br/>{c.payment_terms}</p>}
   {agreement.pending>0&&<p className="fine">{agreement.pending} change order{agreement.pending>1?'s':''} still awaiting the client: the agreed total changes only once they approve.</p>}
   <div className="section-gap"><div className="small-title"><h4 className="h-sub">Payments</h4><div className="pay-actions"><a className="secondary" href={`/api/scopes/${version.project_id}/statement`} download><Download size={15}/>Statement PDF</a><a className="secondary" href={`/api/scopes/${version.project_id}/dispute-pack`} download title="Every receipt, the statement, invoices, the signed record with its chain proof, timestamps and a BSA 2023 Section 63 certificate template, in one ZIP"><FolderArchive size={15}/>Dispute pack</a>{/* UX-C13: recording a payment is the main action here; the documents stay secondary. */}{!formOpen&&!archived&&<button className="primary" onClick={()=>setFormOpen(true)}><Banknote size={15}/>Record a payment</button>}{!archived&&paid>0&&!refundFor&&<button className="secondary" onClick={()=>setRefundFor('offline')}>Record a refund</button>}</div></div>
-   {refundFor&&<RefundForm projectId={version.project_id} baseline={version.version} currency={cur} line={refundFor==='offline'?null:refundFor} max={refundFor==='offline'?paid:refundable(refundFor)} onDone={()=>{setRefundFor(null);onRecorded();}} onCancel={()=>setRefundFor(null)}/>}
+   {refundFor&&<RefundForm projectId={version.project_id} baseline={version.version} currency={cur} line={refundFor==='offline'?null:refundFor} max={refundFor==='offline'?paidHere:refundable(refundFor)} onDone={()=>{setRefundFor(null);onRecorded();}} onCancel={()=>setRefundFor(null)}/>}
    {formOpen&&<PaymentForm projectId={version.project_id} baseline={version.version} currency={cur} suggested={depositOpen?Math.round((signed.deposit-paid)*100)/100:balance} balance={balance} onDone={()=>{setFormOpen(false);onRecorded();}} onCancel={()=>setFormOpen(false)}/>}
    {lines.length>0?<ul className="receipt-list payment-list">{lines.map(l=><li key={l.seq}><span><strong>{formatMoney(l.amount,cur)}</strong> · {l.method} · {formatDay(l.received)}{l.reference&&<span className="quiet"> · ref. {l.reference}</span>}{l.note&&(l.source==='owner'||l.source==='refund')&&<span className="quiet"> · {l.note}</span>}</span><span className="fine">{l.source==='razorpay'||l.source==='stripe'?<>Confirmed by {l.method}{!archived&&refundable(l)>0&&<> · <button className="help-link" onClick={()=>setRefundFor(l)}>Refund</button></>}</>:l.source==='refund'?(l.provider_refund_id?'Refunded online':'Refund recorded by you'):'Recorded by you'}</span></li>)}</ul>:!formOpen&&<p className="fine">Record money as it arrives (bank transfer, UPI, cash…). Each payment goes on the signed record your client sees, and the balance updates here and on your Projects home.</p>}
    <p className="fine">The statement PDF shows the agreed total, every payment on the record and the balance due. Send it with an invoice or a payment reminder; your client can download the same statement from their review link.</p>
@@ -52,7 +57,7 @@ export function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUr
 export function RefundForm({projectId,baseline,currency,line,max,onDone,onCancel}:{projectId:string;baseline:number;currency:string;line:PaymentLine|null;max:number;onDone:()=>void;onCancel:()=>void}){
  const [amount,setAmount]=useState(String(max)),[method,setMethod]=useState<(typeof paymentMethods)[number]>('bank_transfer'),[refunded,setRefunded]=useState(today()),[reference,setReference]=useState(''),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [requestId]=useState(()=>crypto.randomUUID());
- const value=Math.round(Number(amount)*100)/100;
+ const n=Number(amount),value=Number.isFinite(n)?roundMajor(n,currency):NaN;
  async function submit(e:React.FormEvent){e.preventDefault();if(!(value>0)||value>max+0.005){setError(`Enter an amount up to ${formatMoney(max,currency)}.`);return;}setBusy(true);setError('');try{
   if(line)await api(`/api/scopes/${projectId}/refunds`,post({payment_seq:line.seq,amount:value,note,request_id:requestId}));
   else await api(`/api/scopes/${projectId}/ledger`,post({kind:'refund',baseline_version:baseline,payload:{amount:value,method,refunded,reference,note},request_id:requestId}));
@@ -73,7 +78,7 @@ export function PaymentForm({projectId,baseline,currency,suggested,balance,onDon
  const [amount,setAmount]=useState(suggested>0?String(suggested):''),[method,setMethod]=useState<(typeof paymentMethods)[number]>('bank_transfer'),[received,setReceived]=useState(today()),[reference,setReference]=useState(''),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [requestId]=useState(()=>crypto.randomUUID());
  const value=Number(amount);
- async function record(e:React.FormEvent){e.preventDefault();if(!(value>0)){setError('Enter the amount you received.');return;}setBusy(true);setError('');try{await api(`/api/scopes/${projectId}/ledger`,post({kind:'payment_received',baseline_version:baseline,payload:{amount:Math.round(value*100)/100,method,received,reference,note},request_id:requestId}));toast.success(`${formatMoney(value,currency)} recorded.`);onDone();}catch(err){setError((err as Error).message);}finally{setBusy(false);}}
+ async function record(e:React.FormEvent){e.preventDefault();if(!(value>0)){setError('Enter the amount you received.');return;}setBusy(true);setError('');try{await api(`/api/scopes/${projectId}/ledger`,post({kind:'payment_received',baseline_version:baseline,payload:{amount:roundMajor(value,currency),method,received,reference,note},request_id:requestId}));toast.success(`${formatMoney(value,currency)} recorded.`);onDone();}catch(err){setError((err as Error).message);}finally{setBusy(false);}}
  return <form className="ledger-form" aria-label="Record a payment" onSubmit={record}>
   <div className="two-col"><label>Amount received ({currency})<input type="number" min={0.01} step="0.01" inputMode="decimal" required value={amount} onChange={e=>setAmount(e.target.value)}/>{value>balance&&balance>0&&<span className="warn-text" role="status">More than the {formatMoney(balance,currency)} still due.</span>}</label><label>Received on<input type="date" required max={today()} value={received} onChange={e=>setReceived(e.target.value)}/></label></div>
   <div className="two-col"><label>Method<select value={method} onChange={e=>setMethod(e.target.value as (typeof paymentMethods)[number])}>{paymentMethods.map(m=><option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}</select></label><label>Reference <span className="quiet">· optional</span><input maxLength={80} placeholder="e.g. UTR or cheque number" value={reference} onChange={e=>setReference(e.target.value)}/></label></div>

@@ -76,7 +76,7 @@ export function FxEditor({scope, onChange}: {scope: Scope; onChange: (fx: Fx | u
       onChange({currency, rate: d.rate, as_of: d.as_of, source: d.source});
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  const set = (patch: Partial<Fx>) => onChange({currency: target, rate: fx?.rate ?? NaN, as_of: fx?.as_of ?? new Date().toISOString().slice(0, 10), source: fx?.source ?? 'Agreed rate', ...patch});
+  const set = (patch: Partial<Fx>) => onChange({currency: target, rate: fx?.rate ?? NaN, as_of: fx?.as_of ?? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10), source: fx?.source ?? 'Agreed rate', ...patch});
   return (
     <fieldset className="items">
       <legend>Second currency <span className="quiet">· the rate is fixed when the client signs</span></legend>
