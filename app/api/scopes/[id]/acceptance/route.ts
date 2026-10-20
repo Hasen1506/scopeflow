@@ -57,11 +57,16 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!input.success) return json({error: input.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}, 400);
     const a = input.data, l = await loadLedger(id);
     if (!l.baseline) return json({error: 'Record acceptance once the client has approved the scope.', code: 'not_approved'}, 409);
-    const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
-    if ([a.delivered_on, a.accepted_on, a.objection_on, a.objection_removed_on].some(d => d && d > tomorrow)) return json({error: 'Dates cannot be in the future.', code: 'future_date'}, 400);
+    // D10: "today" in the project's own time zone (UTC when it has none), not UTC plus a day.
+    const today = new Intl.DateTimeFormat('en-CA', {timeZone: zoneOrUtc(p.row.timezone), year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
+    if ([a.delivered_on, a.accepted_on, a.objection_on, a.objection_removed_on].some(d => d && d > today)) return json({error: 'Dates cannot be in the future.', code: 'future_date'}, 400);
     await withProjectLock(id, tx => tx.unsafe('INSERT INTO scopeflow.delivery_acceptances (id,owner,project_id,milestone_id,delivered_on,accepted_on,objection_on,objection_removed_on,evidence,created) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [randomUUID(), p.auth.user, id, a.milestone_id ?? null, a.delivered_on, a.accepted_on ?? null, a.objection_on ?? null, a.objection_removed_on ?? null, a.evidence, new Date().toISOString()]));
-    if (ledgerKindReady('delivery_accepted')) await appendMoneyEntry({baseline: l.baseline, expectedHead: l.head, kind: 'delivery_accepted', payload: a, actor: 'owner'}).catch(() => null);
+    if (ledgerKindReady('delivery_accepted')) await appendMoneyEntry({baseline: l.baseline, expectedHead: l.head, kind: 'delivery_accepted', payload: a, actor: 'owner'}).catch(e => {
+      // D9: the acceptance row is saved; a failed ledger mirror must be visible, not swallowed.
+      console.error('Scopeflow delivery_accepted ledger write failed', JSON.stringify({project_id: id, error: e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200)}));
+      return null;
+    });
     return json(await view(p, id), 201);
   } catch (e) { return failure(e); }
 }

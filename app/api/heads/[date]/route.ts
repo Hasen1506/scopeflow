@@ -14,7 +14,11 @@ export async function GET(request: Request, ctx: Ctx) {
     if (!isDate(date)) return json({ error: 'Use a date like 2026-10-11.', code: 'invalid_date' }, 400);
     if (!isFinal(date)) return json({ error: 'This date has not ended yet (UTC); its digest is published the day after.', code: 'not_final' }, 409);
     if (!await allowRead('heads-ip:' + await ipKey(request), 120)) return json({ error: 'Too many requests. Try again in a minute.' }, 429);
-    const digest = (await storedDigest(date)) ?? await previewDigest(date);
+    // D5: an unpublished date is not computed for anonymous callers (a full ledger scan plus a
+    // signature per request). The operator token may still preview it.
+    const stored = await storedDigest(date);
+    if (!stored && !adminAuthorized(request)) return json({ error: 'No digest has been published for this date yet.', code: 'not_published' }, 404);
+    const digest = stored ?? await previewDigest(date);
     const project = new URL(request.url).searchParams.get('project');
     const mine = project ? digest.heads.find(h => h.p === projectKey(project)) ?? null : undefined;
     return json({ ...digest, signature_state: verifyDigest(digest), message: `scopeflow-heads-v1:${digest.date}:${digest.digest}`, ...(mine !== undefined ? { project_head: mine } : {}) }, 200, { 'Cache-Control': digest.published ? 'public, max-age=86400, immutable' : 'no-store' });

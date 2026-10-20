@@ -15,6 +15,7 @@ type OwnerNewProject={default_currency:string|null;timezone:string|null};
 export async function POST(request:Request){try{
  if(!safeOrigin(request))return json({error:'Origin not allowed.'},403);
  const auth=await ownerAuth(request);if(!auth)return json({error:'Sign in or provide a valid API token.'},401);
+ if(!auth.scopes.includes('scopes:write'))return json({error:'This credential cannot create projects.'},403);
  const user=auth.user,session=auth.via==='session';
  if(!await allowWrite('owner:'+user))return json({error:'Write limit reached. Try again in a minute.'},429);
  let raw;try{raw=await body(request);}catch{return json({error:'Provide valid JSON under 24 KB.'},400);}
