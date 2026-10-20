@@ -3,7 +3,7 @@ import Script from "next/script";
 import { Fraunces, Instrument_Sans } from "next/font/google";
 import { LazyToaster } from "./toaster";
 import { SiteFooter } from "./site-footer";
-import { SESSION_HINT_KEY, themeScript } from "@/lib/theme";
+import { bootScript } from "@/lib/theme";
 import { configuredOrigin } from "@/lib/origin";
 import { SITE_ORIGIN_FALLBACK } from "@/config/site";
 import ThemeSwitcher, { ThemeProvider } from "./components/slots/theme-switcher";
@@ -34,15 +34,15 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#F4EEE1" }, { media: "(prefers-color-scheme: dark)", color: "#11152A" }],
+  // Etched cobalt until the pre-paint script and syncThemeColor set the saved appearance.
+  themeColor: "#1F3FA8",
 };
 
-// Before first paint: applies the saved appearance (lib/theme.ts) and marks a returning signed-in
-// owner, so the workspace shows instead of the marketing page. next/script beforeInteractive injects
-// this into the initial HTML. The attributes are not set on <html> in React, or a refresh would
-// reset them and flash the wrong theme and the landing page.
-const sessionScript = `${themeScript}try{if(localStorage.getItem('${SESSION_HINT_KEY}')==='1')document.documentElement.dataset.auth='in'}catch(e){}`;
-
+// Before first paint: a parser-blocking script (not next/script). beforeInteractive only pushes
+// onto __next_s, and that queue runs after the framework bundle, which is held until after first
+// paint. The attributes are not set on <html> in React, or a refresh would reset them and flash
+// the wrong theme and the landing page. The server render assumes Etched; the script corrects a
+// saved Light or Dark choice, and a stored session hint, before the rest of the body is parsed.
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,7 +51,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        <Script id="scopeflow-boot" strategy="beforeInteractive">{sessionScript}</Script>
+        {/* Runs as the body is parsed, before the marketing page or the theme rail. */}
+        <script dangerouslySetInnerHTML={{__html: bootScript}} />
         {/* Instrument Sans starts after the first paint, so its files are not on the LCP path. */}
         <Script id="scopeflow-ui-font" strategy="afterInteractive">{`requestAnimationFrame(function(){setTimeout(function(){document.documentElement.classList.add(${JSON.stringify(fraunces.variable)},${JSON.stringify(instrument.variable)},"fonts-ready")},0)})`}</Script>
         <a className="skip-link" href="#content">Skip to content</a>

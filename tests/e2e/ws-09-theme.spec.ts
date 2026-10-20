@@ -21,12 +21,13 @@ const bodyBg = (page: Page) => page.evaluate(() => getComputedStyle(document.bod
 
 test('ws-09: Light, Dark and Etched switch, persist per account; client page follows the system', async ({page, browser, baseURL}) => {
   await signUp(page);
-  await expect(html(page)).toHaveAttribute('data-theme', 'b');
+  await expect(html(page)).toHaveAttribute('data-theme', 'a');
   await expect(html(page)).toHaveAttribute('data-mode', 'light');
   await expect(html(page)).toHaveAttribute('data-scheme', 'light');
-  expect(await bodyBg(page)).toBe('rgb(244, 238, 225)');
+  expect(await bodyBg(page)).toBe('rgb(31, 63, 168)');
 
   const switcher = page.getByRole('group', {name: 'Theme'});
+  await expect(switcher.getByRole('button', {name: 'Etched'})).toHaveAttribute('aria-pressed', 'true');
   await switcher.getByRole('button', {name: 'Etched'}).click();
   await expect(html(page)).toHaveAttribute('data-theme', 'a');
   await expect(html(page)).toHaveAttribute('data-mode', 'light');
