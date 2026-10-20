@@ -46,7 +46,8 @@ async function sendBulk(sql, {owner, project_id, event, to, message, dedupe, fro
   const rcpt = to.trim().toLowerCase();
   const [sup] = await sql`SELECT reason FROM scopeflow.mail_suppressions WHERE address = ${rcpt}`;
   if (sup) { console.error(JSON.stringify({project_id, skipped: 'suppressed', reason: sup.reason})); return false; }
-  const since = new Date(Math.floor(Date.now() / 86400_000) * 86400_000).toISOString();
+  // D8: a rolling 24 hours, not since UTC midnight (05:30 IST), so the cap cannot reset mid-morning.
+  const since = new Date(Date.now() - 86400_000).toISOString();
   const [count] = await sql`SELECT COUNT(*)::int AS n FROM scopeflow.mail_outbox WHERE owner = ${owner} AND recipient = ${rcpt} AND class <> 'auth' AND created >= ${since} AND status IN ('queued','sent','dev_log','failed')`;
   if (count.n >= PER_RECIPIENT) { console.error(JSON.stringify({project_id, skipped: 'recipient_cap'})); return false; }
   const id = crypto.randomUUID();
@@ -73,7 +74,7 @@ try {
   const rows = await sql.unsafe(`SELECT p.id, p.owner, p.client_email, p.last_sent, p.sent_version, p.reminders, v.version, v.token, v.content, v.created, b.auto_remind_days, b.business_name, b.brand_color, b.logo_hash, b.reply_to, COALESCE(oc.email_verified, false) AS verified, oc.email AS owner_email
     FROM scopeflow.projects p JOIN scopeflow.versions v ON v.project_id = p.id AND v.version = p.latest
     JOIN scopeflow.business_profiles b ON b.owner = p.owner LEFT JOIN scopeflow.owner_contacts oc ON oc.owner = p.owner
-    WHERE b.auto_remind_days IS NOT NULL AND p.archived IS NULL AND v.status = 'pending' AND v.revoked = 0 AND p.client_email IS NOT NULL${live}`);
+    WHERE b.auto_remind_days IS NOT NULL AND p.archived IS NULL AND v.status = 'pending' AND v.revoked = 0 AND p.client_email IS NOT NULL${live}${noticesOn}`);
   const now = Date.now();
   const {due: invoiceDue, certificates} = await overdueInvoices(sql, now, live + noticesOn);
   const due = rows.filter(r => autoReminderDue({last_sent: r.last_sent, sent_version: r.sent_version, reminders: r.reminders, version: r.version, created: r.created, auto_days: r.auto_remind_days}, now));
