@@ -23,6 +23,9 @@ export default function Onboarding() {
   const [mode, setMode] = useState<Mode>('freelancer');
   // U6: the server default only fills the mode until the user picks one themselves.
   const modeTouched = useRef(false);
+  // A4: a step change moves focus to the new heading so screen readers hear where they are.
+  const heading = useRef<HTMLHeadingElement>(null), firstStep = useRef(true);
+  useEffect(() => { if (firstStep.current) { firstStep.current = false; return; } heading.current?.focus(); }, [step]);
   const [country, setCountry] = useState('OTHER'), [currency, setCurrency] = useState('USD'), [timezone, setTimezone] = useState('UTC');
   const [name, setName] = useState(''), [gstin, setGstin] = useState(''), [vpa, setVpa] = useState('');
   const [udyam, setUdyam] = useState({number: '', date: '', category: ''});
@@ -54,8 +57,8 @@ export default function Onboarding() {
   }
   const stepOk = step !== 3 || ((!gstin || !!g?.ok) && (!vpa || !!link));
   return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
-    <p className="eyebrow">SET UP YOUR WORKSPACE · STEP {step} OF 3</p>
-    <h1>{step === 1 ? <>How will you <em>use ScopeFlow?</em></> : step === 2 ? <>Where do you <em>work?</em></> : <>Your business <em>details.</em></>}</h1>
+    <p className="eyebrow" aria-live="polite" aria-atomic="true">SET UP YOUR WORKSPACE · STEP {step} OF 3</p>
+    <h1 ref={heading} tabIndex={-1}>{step === 1 ? <>How will you <em>use ScopeFlow?</em></> : step === 2 ? <>Where do you <em>work?</em></> : <>Your business <em>details.</em></>}</h1>
     {signedOut && <p className="muted-box" role="status">Sign in first: <Link className="help-link" href="/auth/sign-in?return_to=%2Fonboarding">Sign in</Link></p>}
     {step === 1 && <fieldset className="section-gap"><legend>Workspace mode</legend><p className="fine">You can change it any time in Account. Every feature stays available in every mode.</p>
       {MODES.map(m => <label key={m} className="radio-row"><input type="radio" name="mode" value={m} checked={mode === m} onChange={() => { modeTouched.current = true; setMode(m); }}/> <span><strong>{MODE_LABEL[m]}</strong><span className="quiet block">{MODE_BLURB[m]}</span></span></label>)}</fieldset>}

@@ -74,6 +74,8 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   const [receipt, setReceipt] = useState<Record<string, unknown> | null>(null), [otpSession, setOtpSession] = useState('');
   const [depositNote, setDepositNote] = useState(''), [paying, setPaying] = useState(false), [returned, setReturned] = useState<'ok' | 'cancel' | null>(null);
   const [invoiceNote, setInvoiceNote] = useState(''), [payingInvoice, setPayingInvoice] = useState<number | null>(null);
+  // A6: both decision buttons share one busy pattern; `deciding` says which one shows "Saving…".
+  const [deciding, setDeciding] = useState<string | null>(null);
   const [decideError, setDecideError] = useState(''), [newer, setNewer] = useState<{version: number; url: string | null} | null>(null), [justApproved, setJustApproved] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null), noticeAsked = useRef(false);
   const outcome = useRef<HTMLHeadingElement>(null), focusOutcome = useRef(false);
@@ -142,7 +144,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
     if (!checked) { setDecideError(t('decide.errConsent')); document.getElementById('decide-consent')?.focus(); return; }
     if (decision === 'changes_requested' && !comment.trim()) { setDecideError(t('decide.errComment')); document.getElementById('decision-comment')?.focus(); return; }
     if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; }
-    setBusy(true);
+    setBusy(true); setDeciding(decision);
     try {
       // SF-15: the server checks the acknowledgement and that this is exactly the content shown.
       const content_sha256 = await sha256(JSON.stringify(scope!.content));
@@ -243,7 +245,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
             <p className="fine" id="comment-kept">{t('decide.commentKept')}</p>
             <label className="consent"><Checkbox id="decide-consent" aria-required="true" aria-invalid={(!!decideError && !checked) || undefined} checked={checked} onCheckedChange={v => { setChecked(v === true); setDecideError(e => afterConsent(e, t('decide.errConsent'), v === true)); }} />{t('decide.consent', {version: scope.version})}</label>
             {decideError && <div className="error" role="alert" id="decide-error"><p className="flush">{decideError}</p>{unavailable && <p className="flush">{resting && <span data-testid="decide-cooldown">{t(cooldown === 1 ? 'decide.retryInOne' : 'decide.retryIn', {seconds: cooldown})} </span>}<a className="help-link" href={tellSenderHref(t, scope.version, typeof location === 'undefined' ? '' : location.href, comment)} data-testid="tell-sender">{t('decide.tellSender')}</a></p>}</div>}
-            <div className="actions"><button className="primary" disabled={resting} aria-disabled={busy || resting || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={busy || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={busy || resting} aria-describedby={decideError ? 'decide-error' : undefined} onClick={() => decide('changes_requested')}>{t('decide.requestChanges')}</button></div>
+            <div className="actions"><button className="primary" disabled={resting} aria-disabled={busy || resting || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={(busy && deciding === 'approved') || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy && deciding === 'approved' ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={resting} aria-disabled={busy || resting || undefined} aria-describedby={decideError ? 'decide-error' : undefined} aria-busy={(busy && deciding === 'changes_requested') || undefined} onClick={() => { if (busy) return; void decide('changes_requested'); }}>{busy && deciding === 'changes_requested' ? t('decide.saving') : t('decide.requestChanges')}</button></div>
             {identity && !otpSession && <p className="fine" id="decide-needs-code">{t('decide.needsCode')}</p>}
           </>}
           {replaced && decideError && <p className="error" role="alert">{decideError}</p>}

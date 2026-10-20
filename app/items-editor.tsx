@@ -32,6 +32,13 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
     setMoved(`${item.title || 'Deliverable'} moved to position ${to + 1} of ${next.length}.`);
     requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-move="${item.id}:${target}"]`)?.focus());
   };
+  // A3: removing a row keeps keyboard focus in the list: on the next row's title, else the previous one, else "Add deliverable".
+  const remove = (index: number) => {
+    const next = items.filter((_, i) => i !== index);
+    onChange(next);
+    const target = next[index] ?? next[index - 1];
+    requestAnimationFrame(() => (target ? root.current?.querySelector<HTMLElement>(`[data-item-title="${target.id}"]`) : root.current?.querySelector<HTMLElement>('[data-add-item]'))?.focus());
+  };
   // R4-02: the same line totals as the client page and feeCheck (qty × unit_price when a unit price is set).
   const {total, priced: pricedCount, unpriced} = itemsTotal(items, currency);
   return (
@@ -42,11 +49,11 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
         <div className="item-row" key={item.id}>
           <div className="item-main">
             <span className="item-num" aria-hidden="true">{index + 1}</span>
-            <input aria-label={`Deliverable ${index + 1}`} placeholder="e.g. Homepage design" maxLength={200} value={item.title} onChange={e => update(index, {title: e.target.value})} />
+            <input data-item-title={item.id} aria-label={`Deliverable ${index + 1}`} placeholder="e.g. Homepage design" maxLength={200} value={item.title} onChange={e => update(index, {title: e.target.value})} />
             <div className="item-tools">
               <button type="button" className="icon" data-move={`${item.id}:up`} aria-label={`Move ${item.title || 'untitled item ' + (index + 1)} up`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button>
               <button type="button" className="icon" data-move={`${item.id}:down`} aria-label={`Move ${item.title || 'untitled item ' + (index + 1)} down`} disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} /></button>
-              <button type="button" className="icon" aria-label={`Remove ${rowName(items.map(x => x.title), index, 'untitled item')}`} onClick={() => onChange(items.filter((_, i) => i !== index))}><X size={15} /></button>
+              <button type="button" className="icon" aria-label={`Remove ${rowName(items.map(x => x.title), index, 'untitled item')}`} onClick={() => remove(index)}><X size={15} /></button>
             </div>
           </div>
           <div className="item-meta">
@@ -60,7 +67,7 @@ export function ItemsEditor({items, currency, onChange, errorRef}: {items: Item[
         </div>
       ))}
       <div className="small-title">
-        <button type="button" className="secondary" onClick={() => onChange([...items, {id: newId(), title: '', qty: 1, unit: '', price: null, acceptance: ''}])}><Plus size={16} />Add deliverable</button>
+        <button type="button" className="secondary" data-add-item="" onClick={() => onChange([...items, {id: newId(), title: '', qty: 1, unit: '', price: null, acceptance: ''}])}><Plus size={16} />Add deliverable</button>
         <span className="sr-only" role="status" aria-atomic="true">{moved}</span>
         {pricedCount > 0 && <span className="fine">Itemised total: {formatMoney(total, currency)}{unpriced ? ` (${unpriced} unpriced)` : ''}</span>}
       </div>
