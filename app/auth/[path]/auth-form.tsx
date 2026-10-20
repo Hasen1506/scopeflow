@@ -1,11 +1,11 @@
 'use client';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 import { authClient } from '@/lib/auth/client';
 import { safeReturnPath } from '@/lib/origin';
 import { forgetDrafts } from '@/lib/editor';
 import { rememberSession } from '@/lib/theme';
+import { loadDocument } from '@/app/ui';
 import { AuthProblem, AUTH_COPY, authProblem } from '@/lib/auth/problem';
 import { zoneToAdopt } from '@/lib/time';
 
@@ -28,7 +28,6 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
   /** Set after a full-page sign-out, which cannot keep an in-memory toast. */
   signedOut?: boolean;
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -50,7 +49,6 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
     const password = String(form.get('password') || '');
     // SF-03: re-check the destination on the client too; never navigate off-site.
     const destination = safeReturnPath(returnTo);
-    const callbackURL = window.location.origin + destination;
     try {
       if (mode === 'forgot-password') {
         const result = await authClient.requestPasswordReset({ email, redirectTo: window.location.origin + '/auth/reset-password' });
@@ -73,15 +71,23 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
         // both go through authProblem so the copy and the password clearing are the same.
         let result: { error?: unknown };
         try {
+          // No callbackURL. The auth client would set window.location to that URL before
+          // rememberSession runs, and the home page would paint the marketing hero.
           result = mode === 'sign-up'
-            ? await authClient.signUp.email({ email, password, name: String(form.get('name') || '').trim(), callbackURL })
-            : await authClient.signIn.email({ email, password, callbackURL });
+            ? await authClient.signUp.email({ email, password, name: String(form.get('name') || '').trim() })
+            : await authClient.signIn.email({ email, password });
         } catch (thrown) { throw authProblem(thrown, mode); }
         if (result.error) throw authProblem(result.error, mode);
         const session = await authClient.getSession();
         // LT-04/SF-11: a new account without a specific destination starts with onboarding.
         const next = mode === 'sign-up' && !explicitReturn ? '/onboarding' : destination;
-        if (session.data?.user) { rememberSession(true); await adoptBrowserZone(); router.push(next); router.refresh(); }
+        if (session.data?.user) {
+          rememberSession(true);
+          await adoptBrowserZone();
+          // Full load, after the session hint is stored, so the pre-paint script hides the marketing page.
+          window.location.assign(next);
+          return;
+        }
         else setMessage('Check your email to verify your account, then sign in.');
       }
     } catch (error) {
@@ -96,7 +102,7 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
   return <>
     <p className="eyebrow">YOUR SCOPEFLOW ACCOUNT</p><h1>{title}</h1>
     {signedOut && <p className="muted-box" role="status">Signed out.</p>}
-    {configured && currentEmail && (mode === 'sign-in' || mode === 'sign-up') && <p className="muted-box auth-current" role="status">You are signed in as <b>{currentEmail}</b>. {mode === 'sign-in' ? 'Signing in with another email signs that account out first.' : 'Creating a new account signs that account out first.'} <Link className="help-link" href={safeReturnPath(returnTo)}>Stay signed in</Link></p>}
+    {configured && currentEmail && (mode === 'sign-in' || mode === 'sign-up') && <p className="muted-box auth-current" role="status">You are signed in as <b>{currentEmail}</b>. {mode === 'sign-in' ? 'Signing in with another email signs that account out first.' : 'Creating a new account signs that account out first.'} <Link className="help-link" href={safeReturnPath(returnTo)} onClick={event => { rememberSession(true); loadDocument(event); }}>Stay signed in</Link></p>}
     {!configured ? <p className="error" role="alert">Sign-in is temporarily unavailable. Please contact support or try again later.</p> :
       <form onSubmit={submit} className="section-gap" noValidate data-attempted={attempted ? '' : undefined} aria-busy={busy}>
         {/* LT-11: each label names only its field (the hint sits outside the label); hints are tied by aria-describedby. */}
@@ -118,9 +124,9 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
     {message && <p className="muted-box" role="status">{message}</p>}
     {/* Only the ways out that make sense from this form (the sign-in page no longer links to itself). */}
     <p className="fine section-gap auth-switch">
-      {mode === 'sign-in' && <>New to Scopeflow? <Link className="help-link" href={'/auth/sign-up?return_to=' + encodeURIComponent(returnTo)}>Create an account</Link> · <Link className="help-link" href="/auth/forgot-password">Forgot password?</Link></>}
-      {mode === 'sign-up' && <>Already have an account? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)}>Sign in</Link></>}
-      {(mode === 'forgot-password' || mode === 'reset-password') && <>Remembered it? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)}>Back to sign in</Link></>}
+      {mode === 'sign-in' && <>New to Scopeflow? <Link className="help-link" href={'/auth/sign-up?return_to=' + encodeURIComponent(returnTo)} onClick={loadDocument}>Create an account</Link> · <Link className="help-link" href="/auth/forgot-password" onClick={loadDocument}>Forgot password?</Link></>}
+      {mode === 'sign-up' && <>Already have an account? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)} onClick={loadDocument}>Sign in</Link></>}
+      {(mode === 'forgot-password' || mode === 'reset-password') && <>Remembered it? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)} onClick={loadDocument}>Back to sign in</Link></>}
     </p>
   </>;
 }

@@ -23,9 +23,10 @@ const blocks = src => [...src.matchAll(/(^|\n|\})\s*([^{}\n@][^{}]*?)\s*\{([^{}]
 const props = body => Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)].map(m => [m[1], m[2].trim()]));
 const pick = sel => Object.assign({}, ...blocks(css).filter(x => x.sel === sel).map(x => props(x.body)));
 const BASE = pick(':root');
+const A_LIGHT = ':root[data-theme="a"],:root:not([data-theme])';
 const COMBOS = {
-  'B light': [], 'B dark': [':root[data-scheme="dark"]'], 'A light': [':root[data-theme="a"]'],
-  'A dark': [':root[data-theme="a"]', ':root[data-scheme="dark"]', ':root[data-theme="a"][data-scheme="dark"]'],
+  'B light': [], 'B dark': [':root[data-scheme="dark"]'], 'A light': [A_LIGHT],
+  'A dark': [A_LIGHT, ':root[data-scheme="dark"]', ':root[data-theme="a"][data-scheme="dark"]'],
 };
 const tokensFor = name => Object.assign({}, BASE, ...COMBOS[name].map(pick));
 function color(t, name, seen = new Set()) {

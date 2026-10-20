@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 
+/* shadcn's dark: styles follow the appearance, not the operating system. */
+@custom-variant dark (&:where([data-scheme="dark"], [data-scheme="dark"] *));
+
 /* =============================================================================================
    ScopeFlow design system: cobalt ink on cream survey paper, Fraunces for display and Instrument
    Sans for UI, surveyor's tick-scale rules, registration marks and the reticle mark.
@@ -86,7 +89,7 @@ ul,ol{padding-left:20px}
 input:focus-visible,textarea:focus-visible,select:focus-visible{outline-offset:0}
 
 /* ---- Forms -------------------------------------------------------------------------------- */
-input,textarea,select{width:100%;border:1px solid var(--rule-strong);border-radius:var(--r-sm);background:var(--paper);padding:11px 13px;color:var(--paper-ink);font-family:var(--font-ui);font-size:var(--fs-3);transition:border-color var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),background-color var(--dur-1) var(--ease)}
+input,textarea,select{width:100%;border:1px solid var(--rule-strong);border-radius:var(--r-sm);background:var(--paper);padding:11px 13px;color:var(--paper-ink);font-family:var(--font-ui);font-size:var(--fs-3);transition:border-color var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease)}
 /* UX-C06: one placeholder token per theme at about 4.6-4.9:1 on the input, lighter than typed text (the inks run 6.6-10:1). */
 input::placeholder,textarea::placeholder{color:var(--placeholder);opacity:1}
 input:hover:not(:disabled),textarea:hover:not(:disabled),select:hover:not(:disabled){border-color:var(--accent)}
@@ -201,7 +204,8 @@ label.label-for{margin-bottom:7px}
 .plate{position:relative;justify-self:center;width:min(100%,300px);aspect-ratio:1;display:grid;place-items:center}
 .plate img{width:100%;height:100%;object-fit:cover;display:block}
 :root .plate{background:var(--paper);border:1px solid var(--rule);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
-:root .plate img{mix-blend-mode:multiply;border-radius:var(--r-lg)}
+:root .plate img{border-radius:var(--r-lg)}
+:root[data-theme="b"]:not([data-scheme="dark"]) .plate img{mix-blend-mode:multiply}
 /* registration marks: ScopeFlow original motif */
 :root .plate::before,:root .plate::after,:root .paper::before,:root .paper::after{content:"";position:absolute;width:14px;height:14px;pointer-events:none;border-color:var(--accent);border-style:solid;opacity:.7}
 :root .plate::before,:root .paper::before{top:8px;left:8px;border-width:1px 0 0 1px}
@@ -230,7 +234,7 @@ label.label-for{margin-bottom:7px}
 .empty{padding:var(--s5) 0;color:var(--ink-2)}
 .empty-state{display:grid;grid-template-columns:96px 1fr;gap:18px;align-items:center;padding:22px 0;color:var(--ink-2)}
 .empty-state img{width:96px;height:96px;border-radius:var(--r)}
-:root .empty-state img{mix-blend-mode:multiply}
+:root[data-theme="b"]:not([data-scheme="dark"]) .empty-state img{mix-blend-mode:multiply}
 .empty-state strong{display:block;font-family:var(--font-display);font-weight:var(--fw-1);font-size:var(--fs-4);color:var(--ink);margin-bottom:4px}
 .empty-state p{font-size:var(--fs-2)}
 
@@ -504,7 +508,8 @@ label.label-for{margin-bottom:7px}
 /* A: the reference arrangement, links on cobalt above an etched plain that melts into the band */
 /* B: the survey valley printed on cream, then the cobalt band ruled with a tick scale */
 :root .site-footer{background:transparent;color:var(--on-band)}
-:root .footer-art{order:-1;mix-blend-mode:multiply;max-height:300px;object-position:center 70%;-webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 30%);mask-image:linear-gradient(to bottom,transparent 0%,#000 30%)}
+:root .footer-art{order:-1;max-height:300px;object-position:center 70%;-webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 30%);mask-image:linear-gradient(to bottom,transparent 0%,#000 30%)}
+:root[data-theme="b"]:not([data-scheme="dark"]) .footer-art{mix-blend-mode:multiply}
 :root .footer-band{background:var(--band);background-image:var(--grain);position:relative}
 :root .footer-band::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,rgba(243,235,217,.6) 0 1px,transparent 1px 10px)}
 .site-footer{display:flex;flex-direction:column}
@@ -623,7 +628,7 @@ input:user-invalid~#password-hint{color:var(--bad)}
 .vc-seal-date{font-family:var(--font-ui);font-size:var(--fs-1);font-weight:var(--fw-ui);letter-spacing:.04em;font-variant-numeric:tabular-nums;margin-top:3px}
 /* Pinned change-order slip, overlapping the card's bottom-left edge */
 .vc-slip{position:absolute;left:0;bottom:0;width:min(290px,78%);display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:13px 14px 11px;background:var(--warn-bg);color:var(--paper-ink);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);border-radius:3px;box-shadow:0 10px 22px -10px rgba(26,36,82,.45);transform:rotate(-2.5deg);font-family:var(--font-ui)}
-:root .vc-slip{background:#F7ECCF}
+:root[data-theme="b"]:not([data-scheme="dark"]) .vc-slip{background:#F7ECCF}
 .vc-pin{position:absolute;top:-6px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--paper-accent);box-shadow:inset -2px -2px 0 rgba(0,0,0,.18),0 2px 3px rgba(0,0,0,.25)}
 .vc-slip strong{font-size:var(--fs-2);font-weight:var(--fw-ui);letter-spacing:.01em}
 .vc-slip-body{grid-column:1/-1;font-size:var(--fs-2);color:inherit;font-variant-numeric:tabular-nums}
@@ -919,14 +924,16 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 /* =============================================================================================
    THEMES (WS-09 L9 / LT-18 / SF-21), ported from hark/redesign-etched (5bd6c60): tokens only.
    <html data-theme="a|b" data-mode="light|dark|system" data-scheme="light|dark"> is set before first paint by
-   lib/theme.ts (themeScript). Theme B light is the :root block above, unchanged, so the default renders
-   exactly as before. Each block below only re-points colour/shape tokens; the type scale and the two
+   lib/theme.ts (themeScript). Theme B light is the :root block above. A visitor with no saved choice
+   gets Etched: the same tokens also apply while data-theme is still missing, so the first paint is not Light.
+   Each block below only re-points colour/shape tokens; the type scale and the two
    families are shared by both themes (Etched's Garamond was not ported: see docs/ws-09.md).
    Every text/background pair is >= WCAG AA in all four combinations (tests/property/ws-09-theme.test.mjs).
    ============================================================================================= */
 
 /* ---- Theme A: Etched (cream type on grained cobalt, thin cream rules, square corners) ------- */
-:root[data-theme="a"]{
+/* :root:not([data-theme]) is the same look for the moment before the pre-paint script runs. */
+:root[data-theme="a"],:root:not([data-theme]){
   color-scheme:dark;
   --label-track:.2em;
   --bg:#1F3FA8;--surface:#1A3793;--surface-2:#152B77;--surface-3:#24459F;
@@ -992,12 +999,20 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
   --rule:rgba(31,63,168,.28);--rule-strong:#6F7796;--focus:#1F3FA8;--focus-halo:rgba(31,63,168,.22);
 }
 
+/* While the appearance is being written, colour transitions would paint a blend of the two themes. */
+html.theme-changing,html.theme-changing *{transition:none!important}
+
 /* Appearance rail: Light, Dark, Etched. Fixed beside the app; a bottom bar on a phone. */
 body{padding-left:7.25rem}
 .side-rail{position:fixed;z-index:40;top:0;left:0;bottom:0;width:7.25rem;display:flex;flex-direction:column;justify-content:flex-end;padding:16px 10px 20px;border-right:1px solid var(--rule);background:color-mix(in srgb,var(--surface) 92%,transparent)}
 .theme-switch{display:flex;flex-direction:column;gap:6px;width:100%;font-family:var(--font-ui)}
 .theme-switch button{border:1px solid var(--rule-strong);background:transparent;width:100%;min-height:44px;padding:8px 8px;border-radius:var(--r-sm);font-size:var(--fs-2);line-height:var(--lh-2);font-weight:var(--fw-3);letter-spacing:.02em;color:var(--ink-2);transition:background-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 .theme-switch button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+/* The server marks Etched pressed. The pre-paint script sets data-theme before this rail is parsed, so a saved Light or Dark choice paints as the pressed one. aria-pressed catches up at hydration. */
+html[data-theme] .theme-switch button[aria-pressed=true]{background:transparent;border-color:var(--rule-strong);color:var(--ink-2)}
+html[data-theme="b"][data-scheme="light"] .theme-switch button[aria-label="Light"],
+html[data-theme="b"][data-scheme="dark"] .theme-switch button[aria-label="Dark"],
+html[data-theme="a"][data-scheme] .theme-switch button[aria-label="Etched"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .theme-switch button:hover:not([aria-pressed=true]){color:var(--ink);background:var(--accent-soft)}
 .theme-switch .theme-name{display:inline}
 @media (max-width:900px){
