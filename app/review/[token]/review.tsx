@@ -249,10 +249,10 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
             {identity && !otpSession && <p className="fine" id="decide-needs-code">{t('decide.needsCode')}</p>}
           </>}
           {replaced && decideError && <p className="error" role="alert">{decideError}</p>}
-          <p className="fine">{t('decide.fineMoney')}</p>
+          <p className="fine">{identity ? t(identity.channel && identity.channel !== 'email' ? 'decide.fineCodePhone' : 'decide.fineCodeEmail') : t('decide.fineNoCode')} {t('decide.fineMoney')}</p>
           <DataNotice lang={lang} retentionDays={data?.retention_days ?? notice?.retention_days ?? null} dataNotice={data?.data_notice ?? null} />{/* integration: the notice endpoint's data_notice is WS-08's English summary of the retention DataNotice already states (translated) from retention_days; showing both repeated it */}
-          {/* P3: the identity fine print and the glossary fold into one disclosure; the data notice stays visible. */}
-          <details className={styles.glossary}><summary>{t('glossary.title')}</summary><p className="fine flush">{identity ? t(identity.channel && identity.channel !== 'email' ? 'decide.fineCodePhone' : 'decide.fineCodeEmail') : t('decide.fineNoCode')}</p><ul><li>{t('glossary.recordCheck')}</li><li>{t('glossary.seal')}</li><li>{t('glossary.co')}</li></ul></details>
+          {/* The identity fine print stays visible next to the money line above (LT-13 copy snapshot); the glossary stays folded. */}
+          <details className={styles.glossary}><summary>{t('glossary.title')}</summary><ul><li>{t('glossary.recordCheck')}</li><li>{t('glossary.seal')}</li><li>{t('glossary.co')}</li></ul></details>
         </section>
         {/* P3: deposit and invoices side by side when both are shown (two-col stacks on phones). */}
         <div className={deposit && ledger?.invoices?.length ? 'two-col money-cols' : undefined}>
