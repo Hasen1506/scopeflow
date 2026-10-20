@@ -93,6 +93,8 @@ export async function startCheckout(request: Request, token: string, target: Che
           await recordPaidPayment({...s.paid, event_id: null}, 'stripe_reconcile', {provider: 'stripe'});
           return json({error: 'This payment was already made. It is on the record now.', code: 'already_paid'}, 409);
         }
+        // M3: a delayed payment method is still settling on this session: never open a second checkout for it.
+        if (s.state === 'processing') return json({error: 'A payment for this is still being processed. It will show on the record once it clears.', code: 'payment_processing'}, 409);
         await database.prepare('UPDATE payments SET superseded_at=? WHERE id=?').bind(new Date().toISOString(), existing.id).run();
         generation = Number((await database.prepare('SELECT COUNT(*)::int AS n FROM payments WHERE project_id=? AND provider=? AND purpose=? AND invoice_seq IS NOT DISTINCT FROM ?').bind(row.project_id, provider, target.purpose, seq).first<{n: number}>())?.n ?? 0);
       }

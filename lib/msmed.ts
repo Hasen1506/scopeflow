@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import type {Minor} from './contracts';
+import {minorToString} from './minor';
 import {RBI_BANK_RATE} from '../config/rbi-bank-rate';
 
 // WS-03 (SF-07): MSMED Act 2006 payment terms and interest, plan §9.1 rows 1–4. Pure.
@@ -60,9 +61,11 @@ export function acceptanceDay(a: Acceptance, today: string): {day: string | null
 }
 /** Last day to pay (s.15) and the first day interest runs (s.16). `agreed_days` is the written term (at most 45). */
 export function msmedDueDates(acceptance: string, agreed_days?: number | null) {
-  const days = agreed_days ? Math.min(45, agreed_days) : 15;
+  // M9: an agreed term of 0 days (pay on acceptance) is a written term, not "none agreed".
+  const agreed = agreed_days != null;
+  const days = agreed ? Math.max(0, Math.min(45, agreed_days)) : 15;
   const pay_by = addDays(acceptance, days);
-  return {pay_by, interest_from: addDays(pay_by, 1), agreed: !!agreed_days};
+  return {pay_by, interest_from: addDays(pay_by, 1), agreed};
 }
 
 export type InterestPeriod = {from: string; to: string; days: number; opening: Minor; rates: {from: string; rate_pa: number; days: number}[]; interest: Minor; closing: Minor};
@@ -132,16 +135,20 @@ export const msmedApplies = (profile: MsmeProfile | null) => !!profile && profil
 
 /** The payment clause inserted into the terms for a micro or small supplier. */
 export function msmedClause(profile: MsmeProfile, agreed_days?: number | null) {
-  const days = agreed_days ? Math.min(45, agreed_days) : null;
+  // M9: like msmedDueDates, an agreed term of 0 days is a written term (payment on acceptance), not "none agreed".
+  const days = agreed_days != null ? Math.max(0, Math.min(45, agreed_days)) : null;
   return `The supplier is a ${profile.category} enterprise registered under the MSMED Act, 2006 (Udyam ${profile.udyam_number}). ` +
-    (days ? `Payment is due within ${days} days of the day of acceptance (or deemed acceptance) of the work.` : 'Payment is due within 15 days of the day of acceptance (or deemed acceptance) of the work.') +
+    (days === 0 ? 'Payment is due on the day of acceptance (or deemed acceptance) of the work (payment on acceptance).'
+      : days !== null ? `Payment is due within ${days} days of the day of acceptance (or deemed acceptance) of the work.`
+      : 'Payment is due within 15 days of the day of acceptance (or deemed acceptance) of the work.') +
     ' If payment is late, the buyer is liable under section 16 of the Act to pay compound interest with monthly rests at three times the Bank Rate notified by the Reserve Bank of India.';
 }
 export const MSMED_DISCLAIMER = 'Estimate — confirm with your CA.';
 
 /** The interest worksheet as CSV (one row per rate segment), for the pack and the CA. */
 export function interestCsv(r: InterestResult, currency = 'INR') {
-  const m = (v: number) => (v / (currency === 'JPY' ? 1 : 100)).toFixed(currency === 'JPY' ? 0 : 2);
+  // M8: the currency's own ISO 4217 decimals (JPY 0, INR 2, KWD 3), exact (no float division).
+  const m = (v: number) => minorToString(v, currency);
   const rows = ['period_from,period_to,days,opening_balance,rate_pa_pct,rate_days,interest_for_period,closing_balance'];
   for (const p of r.periods) p.rates.forEach((g, i) => rows.push([p.from, p.to, p.days, m(p.opening), g.rate_pa.toFixed(2), g.days, i === p.rates.length - 1 ? m(p.interest) : '', i === p.rates.length - 1 ? m(p.closing) : ''].join(',')));
   rows.push(`total,,,${m(r.principal)},,,${m(r.interest)},${m(r.total)}`);

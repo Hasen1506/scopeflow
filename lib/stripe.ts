@@ -88,11 +88,23 @@ export function stripePaidEvent(payload: unknown): StripePaid | null {
 export async function stripeSessionPaid(config: StripeConfig, sessionId: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
   return paidSession(await call<Session>(config, 'GET', `/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, null, opts), null);
 }
-/** A session's state: still payable (open), paid, or expired. Stripe is the source of truth for reuse (H8). */
+/**
+ * A session's state: still payable (open), paid, processing, or expired. Stripe is the source of truth
+ * for reuse (H8). M3: a `complete` session that is not paid yet is a delayed payment method still
+ * settling (async_payment_succeeded/failed follows): it is `processing`, never `expired`, so no second
+ * checkout is created for the same target.
+ */
 export async function stripeSessionState(config: StripeConfig, sessionId: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {
   const s = await call<Session & {status?: unknown; url?: unknown}>(config, 'GET', `/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, null, opts);
   const paid = paidSession(s, null);
-  return {paid, state: paid ? 'paid' as const : s.status === 'expired' || s.status === 'complete' ? 'expired' as const : 'open' as const, url: typeof s.url === 'string' ? s.url : null};
+  return {paid, state: sessionState(paid, s.status, s.payment_status), url: typeof s.url === 'string' ? s.url : null};
+}
+/** Pure mapping behind stripeSessionState (M3). */
+export function sessionState(paid: unknown, status: unknown, _payment_status?: unknown): 'paid' | 'processing' | 'expired' | 'open' {
+  if (paid) return 'paid';
+  // complete but unpaid (payment_status 'unpaid'): a delayed method (bank debit, voucher) is still settling.
+  if (status === 'complete') return 'processing';
+  return status === 'expired' ? 'expired' : 'open';
 }
 /** Ends a session a newer open amount replaced, so it can no longer be paid (best effort). */
 export async function expireCheckoutSession(config: StripeConfig, sessionId: string, opts: {fetchImpl?: typeof fetch; env?: Env} = {}) {

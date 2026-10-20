@@ -1,9 +1,10 @@
 import type {GstBreakdown, GstHead, Minor} from './contracts';
+import {gstFromExclusive as engineExclusive, gstFromInclusive as engineInclusive, type SupplyType} from './gst';
 
 // WS-03: GST on one invoice amount in integer minor units, by the rules of plan §9.3. Pure and
-// float-free (BigInt rationals). This is the invoice-level engine until WS-01's lib/gst.ts
-// gstFromExclusive()/gstFromInclusive() land; tests/golden/ws-03-gst.golden.json pins the figures
-// so the swap can be checked byte for byte. Needs CA review: per-head rounding and the round-off line.
+// float-free. M10: the arithmetic is WS-01's lib/gst.ts gstFromExclusive()/gstFromInclusive() (exact
+// decimal rates); tests/golden/ws-03-gst.golden.json pins the figures the swap must keep byte for byte.
+// Needs CA review: per-head rounding and the round-off line.
 //
 //   Exclusive entry (default): taxable = the amount entered; tax on top.
 //   Inclusive entry ("amount includes GST"): taxable = round(amount × 100 / (100 + rate)); the heads
@@ -15,7 +16,7 @@ import type {GstBreakdown, GstHead, Minor} from './contracts';
  * How the tax is split: same state (CGST + SGST), another state or export (IGST), or one undivided head.
  * 'none' is WS-01's name (lib/gst.ts SupplyType) for the undivided head and is accepted as 'single'.
  */
-export type SupplyType = 'intra' | 'inter' | 'export' | 'none';
+export type {SupplyType};
 export type HeadKind = SupplyType | 'single';
 /** The head a tax is printed under, WS-01's AgreementTaxHead shape: {name, label, rate, amount}. */
 export type LabeledHead = {name: GstHead['name'] | 'OTHER'; label: string; rate: number; amount: Minor};
@@ -26,12 +27,12 @@ export function labeledHeads(b: GstBreakdown, taxLabel: string): LabeledHead[] {
     : {name: h.name, label: h.name, rate: h.rate, amount: h.amount});
 }
 
-const SCALE = BigInt(100000); // rates are carried in thousandths of a percent (18 → 18000, 7.5 → 7500)
-const rateUnits = (rate: number) => {
-  const r = Math.round(rate * 1000);
-  if (!Number.isFinite(rate) || r < 0 || r > 100000) throw new Error('Tax rate must be between 0 and 100');
-  return BigInt(r);
-};
+// M10: one GST engine. The per-head arithmetic lives in lib/gst.ts (exact decimal rates, BigInt
+// half-up rounding); this module keeps the invoice-level API (HeadKind 'single', no heads at a 0% rate)
+// on top of it, so tests/golden/ws-03-gst.golden.json still pins the same figures.
+const supplyOf = (kind: HeadKind): SupplyType => kind === 'single' ? 'none' : kind;
+const assertRate = (rate: number) => { if (!Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error('Tax rate must be between 0 and 100'); };
+const assertMinor = (v: number, what: string) => { if (!Number.isSafeInteger(v)) throw new Error(`${what} must be a whole number of minor units`); };
 /** round(n / d) half away from zero, for d > 0. */
 export function divRound(n: bigint, d: bigint): bigint {
   const q = n / d, r = n % d;
@@ -40,24 +41,13 @@ export function divRound(n: bigint, d: bigint): bigint {
   if (twice >= d) return n < BigInt(0) ? q - BigInt(1) : q + BigInt(1);
   return q;
 }
-const toMinor = (v: bigint): Minor => {
-  const n = Number(v);
-  if (!Number.isSafeInteger(n)) throw new Error('Amount out of range');
-  return n;
-};
-const assertMinor = (v: number, what: string) => { if (!Number.isSafeInteger(v)) throw new Error(`${what} must be a whole number of minor units`); };
 
 /** The tax heads on a taxable value. */
 export function gstHeads(taxable: Minor, rate: number, kind: HeadKind): GstHead[] {
   assertMinor(taxable, 'Taxable value');
+  assertRate(rate);
   if (rate === 0) return [];
-  const r = rateUnits(rate), t = BigInt(taxable);
-  if (kind === 'intra') {
-    const half = toMinor(divRound(t * r, SCALE * BigInt(2)));
-    return [{name: 'CGST', rate: rate / 2, amount: half}, {name: 'SGST', rate: rate / 2, amount: half}];
-  }
-  const all = toMinor(divRound(t * r, SCALE));
-  return [{name: kind === 'single' || kind === 'none' ? 'GST' : 'IGST', rate, amount: all}];
+  return engineExclusive(taxable, rate, supplyOf(kind)).heads;
 }
 
 /** GST on top of a taxable value (exclusive entry). */
@@ -69,10 +59,9 @@ export function gstFromExclusive(taxable: Minor, rate: number, kind: HeadKind): 
 /** GST inside an amount (inclusive entry): the total stays exactly the amount entered. */
 export function gstFromInclusive(amount: Minor, rate: number, kind: HeadKind): GstBreakdown {
   assertMinor(amount, 'Amount');
+  assertRate(rate);
   if (rate === 0) return {taxable: amount, heads: [], round_off: 0, total: amount};
-  const taxable = toMinor(divRound(BigInt(amount) * SCALE, SCALE + rateUnits(rate)));
-  const heads = gstHeads(taxable, rate, kind);
-  return {taxable, heads, round_off: amount - taxable - heads.reduce((s, h) => s + h.amount, 0), total: amount};
+  return engineInclusive(amount, rate, supplyOf(kind));
 }
 
 /** Σ heads. */
