@@ -268,3 +268,13 @@ test('local double events are Razorpay-shaped and deterministic per subscription
   assert.equal(u.payment.amount_minor, 49900); assert.equal(u.owner, 'o1'); assert.equal(u.plan, 'pro');
   assert.equal(createHash('sha256').update(JSON.stringify(ev)).digest('hex'), createHash('sha256').update(JSON.stringify(B.localDoubleEvents('sub_local_0123456789abcd', 'o1', 'pro', 'month', 'INR', NOW))).digest('hex'));
 });
+
+test('billing: an old subscription\'s non-activating event never downgrades the live one', () => {
+  const live = {status: 'active', provider_subscription: 'sub_new'};
+  assert.equal(B.isStaleSubscriptionEvent(live, {subscription: 'sub_old', status: 'cancelled'}), true);
+  assert.equal(B.isStaleSubscriptionEvent(live, {subscription: 'sub_old', status: 'halted'}), true);
+  assert.equal(B.isStaleSubscriptionEvent(live, {subscription: 'sub_new', status: 'cancelled'}), false);
+  assert.equal(B.isStaleSubscriptionEvent(live, {subscription: 'sub_old', status: 'active'}), false);
+  assert.equal(B.isStaleSubscriptionEvent({status: 'pending', provider_subscription: 'cs:abc'}, {subscription: 'sub_1', status: 'pending'}), false);
+  assert.equal(B.isStaleSubscriptionEvent(null, {subscription: 'sub_1', status: 'cancelled'}), false);
+});

@@ -134,6 +134,11 @@ export function nextPlanRow(prev: (PlanRow & {interval?: string | null}) | null,
   return {plan: u.plan ?? prev?.plan ?? 'free', status, period_end: u.period_end ?? prev?.period_end ?? null, grace_until: grace, interval: u.interval ?? prev?.interval ?? null};
 }
 
+/** True when `u` is a non-activating event for a different subscription than the account's live one (pure). */
+export function isStaleSubscriptionEvent(row: {status: string; provider_subscription?: string | null} | null, u: Pick<PlanUpdate, 'subscription' | 'status'>): boolean {
+  return !!row?.provider_subscription && row.provider_subscription !== u.subscription && row.status === 'active' && u.status !== 'active';
+}
+
 // ---- ScopeFlow's own GST invoice for a subscription payment (pure) ----------------------------
 export type BillingSeller = {name: string; address: string; gstin: string | null; state: string | null; sac: string; lut: string | null};
 export function billingSeller(env: Env = process.env): BillingSeller {
@@ -245,11 +250,20 @@ export async function applyPlanUpdate(provider: BillingProvider, eventId: string
   const row = (u.owner ? await planRowFor(u.owner) : null) ?? await db.prepare('SELECT * FROM scopeflow.accounts_plans WHERE provider=? AND provider_subscription=?').bind(provider, u.subscription).first<AccountPlanRow>();
   const owner = u.owner ?? row?.owner ?? null;
   if (!owner) return {applied: false, reason: 'unknown_subscription'} as const;
+  // A non-activating event for a subscription the account has since replaced (e.g. the old plan's
+  // "cancelled" after an upgrade) must not downgrade the live subscription.
+  if (isStaleSubscriptionEvent(row, u)) return {applied: false, reason: 'other_subscription'} as const;
   const first = await db.prepare('INSERT INTO scopeflow.billing_events (provider,event_id,owner,kind,received) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING RETURNING event_id').bind(provider, eventId, owner, kind, at).first();
   if (!first) return {applied: false, reason: 'duplicate'} as const;
   const next = nextPlanRow(row, u, now);
-  await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,period_end,grace_until,provider,provider_customer,provider_subscription,interval,updated) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,period_end=excluded.period_end,grace_until=excluded.grace_until,provider=excluded.provider,provider_customer=coalesce(excluded.provider_customer,accounts_plans.provider_customer),provider_subscription=excluded.provider_subscription,interval=excluded.interval,updated=excluded.updated')
-    .bind(owner, next.plan, next.status, next.period_end, next.grace_until, provider, u.customer ?? null, u.subscription, next.interval, at).run();
+  try {
+    await db.prepare('INSERT INTO scopeflow.accounts_plans (owner,plan,status,period_end,grace_until,provider,provider_customer,provider_subscription,interval,updated) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (owner) DO UPDATE SET plan=excluded.plan,status=excluded.status,period_end=excluded.period_end,grace_until=excluded.grace_until,provider=excluded.provider,provider_customer=coalesce(excluded.provider_customer,accounts_plans.provider_customer),provider_subscription=excluded.provider_subscription,interval=excluded.interval,updated=excluded.updated')
+      .bind(owner, next.plan, next.status, next.period_end, next.grace_until, provider, u.customer ?? null, u.subscription, next.interval, at).run();
+  } catch (e) {
+    // Release the dedupe row so the provider's retry of this event is applied, not dropped as a duplicate.
+    await db.prepare('DELETE FROM scopeflow.billing_events WHERE provider=? AND event_id=?').bind(provider, eventId).run().catch(() => null);
+    throw e;
+  }
   let invoice: string | null = null;
   if (u.payment && isPlanId(next.plan)) invoice = await issueBillingInvoice(owner, provider, next.plan as PlanId, next.interval, u.payment, at);
   await auditEvent(owner, 'billing.' + kind, {plan: next.plan, status: next.status, grace_until: next.grace_until, invoice}, provider);

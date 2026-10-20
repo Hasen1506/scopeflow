@@ -179,7 +179,7 @@ export async function frozenSchedule(sql: Sql, projectId: string, version: numbe
 }
 
 // ---- H11: receipt vouchers for advances --------------------------------------------------------
-export type VoucherContext = {owner: string; projectId: string; version: number; content: Scope; entries: LedgerEntry[]; profile: Profile; project: ProjectBilling & {client_email: string | null}; agreement: AgreementMoney};
+export type VoucherContext = {owner: string; projectId: string; version: number; content: Scope; entries: LedgerEntry[]; profile: Profile; project: ProjectBilling & {client_email: string | null; timezone?: string | null}; agreement: AgreementMoney};
 /**
  * Issues a receipt voucher (or plain payment receipt) for every advance on the record that has none:
  * an online deposit, a payment recorded as a deposit/advance, or money received before the project's
@@ -202,7 +202,7 @@ export async function ensureReceiptVouchers(tx: Sql, ctx: VoucherContext, only?:
     if (amount <= 0) continue;
     await lockOwnerSeries(tx, ctx.owner, 'rv');
     const [n] = await tx.unsafe('SELECT coalesce(max(seq),0)+1 AS seq FROM scopeflow.receipt_vouchers WHERE owner=$1', [ctx.owner]);
-    const seq = Number(n.seq), today = new Date().toISOString().slice(0, 10);
+    const seq = Number(n.seq), today = todayIn(ctx.project.timezone ?? null); // the project's date (IST), not UTC
     const content = receiptVoucherContent({
       seq, issued: today, received: line.received, amount: fromMinorOf(amount, ctx.content.currency), currency: ctx.content.currency,
       seller: {name: ctx.profile.business_name, address: ctx.profile.business_address, tax_id: ctx.profile.tax_id, payment_details: ctx.profile.payment_details, state: ctx.profile.gst_state || gstinState(ctx.profile.tax_id)},

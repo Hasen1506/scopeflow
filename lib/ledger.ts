@@ -484,6 +484,13 @@ function coFieldLabel(path: (string | number)[]) {
   return path.map(p => typeof p === 'number' ? String(p + 1) : p === 'add_items' ? 'Added deliverable' : CO_FIELD[p] ?? p).join(' ');
 }
 
+/** A decimal amount with more decimals than the agreement currency has (INR/USD 2, JPY 0), or null. */
+function decimalsProblem(amount: number, currency: string): string | null {
+  const e = exponentOf(currency), scaled = amount * 10 ** e;
+  if (Math.abs(scaled - Math.round(scaled)) <= 1e-6 * Math.max(1, Math.abs(scaled))) return null;
+  return e === 0 ? `Enter a whole amount: ${currency} has no decimals.` : e === 2 ? 'Enter the amount with at most two decimals.' : `Enter the amount with at most ${e} decimals.`;
+}
+
 /** Validates a new entry against the current agreement. Returns an error message or null. */
 export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, agreement: Agreement, actor: Actor, ctx: EntryContext = {}): string | null {
   if (!entryKindEnabled(kind)) return 'This kind of entry is not enabled yet.';
@@ -523,16 +530,18 @@ export function checkEntry(kind: EntryKind, payload: unknown, baseline: Scope, a
   }
   if (kind === 'refund') {
     const r = payload as Refund;
-    if (Math.abs(r.amount * 100 - Math.round(r.amount * 100)) > 1e-6) return 'Enter the amount with at most two decimals.';
-    if (r.refunded > addDays(new Date().toISOString().slice(0, 10), 1)) return 'The date of a refund cannot be in the future.';
+    const decimals = decimalsProblem(r.amount, baseline.currency);
+    if (decimals) return decimals;
+    if (r.refunded > addDays(ctx.today ?? new Date().toISOString().slice(0, 10), 1)) return 'The date of a refund cannot be in the future.';
     if (actor === 'client') return 'Only the creator records refunds.';
     return null;
   }
   if (kind === 'payment_received') {
     const p = payload as PaymentReceived;
-    if (Math.abs(p.amount * 100 - Math.round(p.amount * 100)) > 1e-6) return 'Enter the amount with at most two decimals.';
-    // One day of slack: the creator's local date can run ahead of UTC.
-    if (p.received > addDays(new Date().toISOString().slice(0, 10), 1)) return 'The date a payment arrived cannot be in the future.';
+    const decimals = decimalsProblem(p.amount, baseline.currency);
+    if (decimals) return decimals;
+    // One day of slack: the creator's local date can run ahead of UTC (or of the project's zone).
+    if (p.received > addDays(ctx.today ?? new Date().toISOString().slice(0, 10), 1)) return 'The date a payment arrived cannot be in the future.';
     return null;
   }
   if (kind === 'revision_round') {

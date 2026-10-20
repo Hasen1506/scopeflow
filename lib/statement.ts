@@ -49,7 +49,9 @@ export function statementModel({project_id, version, content, agreement, entries
     heads = b.heads.map(h => ({name: h.name === 'GST' ? t.tax_label : h.name, rate: h.rate, amount: h.amount / e}));
     t.tax = round2(b.heads.reduce((a, h) => a + h.amount, 0) / e); t.total = round2(b.total / e);
   }
-  const {lines, paid} = paymentsOf(own);
+  // C4: money belongs to the project, not to one baseline. Payments and refunds recorded against an
+  // earlier (superseded) baseline still count toward the current agreement, as in lib/money-ledger.ts.
+  const {lines, paid} = paymentsOf(entries);
   const extra: Partial<StatementModel> = {};
   if (heads) extra.heads = heads;
   if (billing) extra.billing = billing;
