@@ -50,7 +50,23 @@ type Notice = {retention_days?: number | null; data_notice?: string | null};
 const draftKey = (token: string) => 'scopeflow:review-draft:' + token.slice(0, 16);
 
 /** Loads Razorpay Checkout once, on demand (CSP allows only checkout.razorpay.com). */
-function loadCheckout() { return new Promise<void>((resolve, reject) => { if ((window as unknown as {Razorpay?: unknown}).Razorpay) return resolve(); const s = document.createElement('script'); s.src = 'https://checkout.razorpay.com/v1/checkout.js'; s.onload = () => resolve(); s.onerror = () => reject(new Error('Razorpay Checkout could not be loaded.')); document.head.appendChild(s); }); }
+const CHECKOUT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+let checkoutLoading: Promise<void> | null = null;
+/** U3: one script tag per page: a retry reuses the pending load (or the tag already on the page) instead of adding another. */
+function loadCheckout() {
+  if ((window as unknown as {Razorpay?: unknown}).Razorpay) return Promise.resolve();
+  if (checkoutLoading) return checkoutLoading;
+  checkoutLoading = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${CHECKOUT_SRC}"]`);
+    const s = existing ?? document.createElement('script');
+    const fail = () => { checkoutLoading = null; s.remove(); reject(new Error('Razorpay Checkout could not be loaded.')); };
+    s.addEventListener('load', () => resolve(), {once: true});
+    s.addEventListener('error', fail, {once: true});
+    if (!existing) { s.src = CHECKOUT_SRC; s.async = true; document.head.appendChild(s); }
+  });
+  return checkoutLoading;
+}
+type RazorpayInstance = {open: () => void; on: (event: string, cb: (r: {error?: {description?: string}}) => void) => void};
 
 export default function Review({token, queryLang = null, acceptLang = null}: {token: string; queryLang?: Lang | null; acceptLang?: Lang | null}) {
   const [data, setData] = useState<ReviewData | null>(null), [problem, setProblem] = useState<LinkProblemState | null>(null);
@@ -92,7 +108,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
 
   // L12: the typed name and comment survive a reload, a 409 and a replaced version, on this device only.
   useEffect(() => { try { const saved = JSON.parse(localStorage.getItem(draftKey(token)) || 'null') as {name?: string; comment?: string} | null; if (saved) queueMicrotask(() => { if (typeof saved.name === 'string') setName(saved.name); if (typeof saved.comment === 'string') setComment(saved.comment); }); } catch { /* storage blocked or malformed */ } }, [token]);
-  useEffect(() => { try { if (name || comment) localStorage.setItem(draftKey(token), JSON.stringify({name, comment})); } catch { /* storage blocked */ } }, [token, name, comment]);
+  useEffect(() => { try { if (name || comment) localStorage.setItem(draftKey(token), JSON.stringify({name, comment})); else localStorage.removeItem(draftKey(token)); /* U5: a cleared draft stays cleared after a reload */ } catch { /* storage blocked */ } }, [token, name, comment]);
   // L12: when the reader comes back to the tab, re-check whether a newer version was shared meanwhile.
   useEffect(() => {
     let last = Date.now();
@@ -145,7 +161,27 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
     } finally { setBusy(false); }
   }
   /** Starts an online payment (the deposit, or an open invoice): Razorpay's widget, or a redirect to Stripe Checkout. */
-  async function pay(path: string, label: string, done: (note: string) => void) { const o = await api(path, post({})); if (o.provider === 'stripe') { try { sessionStorage.setItem('scopeflow:payment-return', token); } catch { /* the return page then explains how to come back */ } location.assign(o.url); return; } await loadCheckout(); const Razorpay = (window as unknown as {Razorpay: new (options: Record<string, unknown>) => {open: () => void}}).Razorpay; new Razorpay({key: o.key_id, order_id: o.order_id, amount: o.amount_minor, currency: o.currency, name: o.name, description: o.description, handler: () => { done(t('deposit.submitted', {label})); setTimeout(() => { void load(); }, 4000); }}).open(); }
+  // U3: the reload timer after a Razorpay payment is cleared on unmount and replaced (not stacked) by the next payment.
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (reloadTimer.current) clearTimeout(reloadTimer.current); }, []);
+  /** Resolves once the Razorpay widget settles (paid, failed or dismissed), so the button stays busy until then. */
+  async function pay(path: string, label: string, done: (note: string) => void) {
+    const o = await api(path, post({}));
+    if (o.provider === 'stripe') { try { sessionStorage.setItem('scopeflow:payment-return', token); } catch { /* the return page then explains how to come back */ } location.assign(o.url); return; }
+    await loadCheckout();
+    const Razorpay = (window as unknown as {Razorpay: new (options: Record<string, unknown>) => RazorpayInstance}).Razorpay;
+    await new Promise<void>(resolve => {
+      let settled = false;
+      const finish = (note: string) => { if (settled) return; settled = true; done(note); resolve(); };
+      const rzp = new Razorpay({key: o.key_id, order_id: o.order_id, amount: o.amount_minor, currency: o.currency, name: o.name, description: o.description,
+        handler: () => { finish(t('deposit.submitted', {label})); if (reloadTimer.current) clearTimeout(reloadTimer.current); reloadTimer.current = setTimeout(() => { reloadTimer.current = null; void load(); }, 4000); },
+        // U3: closing the widget without paying says so instead of leaving the page silent.
+        modal: {ondismiss: () => finish(t('deposit.returnCancel'))}});
+      // U3: a declined or failed payment shows the provider's reason (the widget stays open so the client can retry there).
+      rzp.on('payment.failed', r => { done(r?.error?.description || t('deposit.returnCancel')); });
+      rzp.open();
+    });
+  }
   async function payDeposit() { setDepositNote(''); setPaying(true); try { await pay(`/api/review/${token}/deposit`, t('deposit.title'), setDepositNote); } catch (e) { setDepositNote((e as Error).message); } finally { setPaying(false); } }
   async function payInvoice(seq: number, number: string) { setInvoiceNote(''); setPayingInvoice(seq); try { await pay(`/api/review/${token}/invoices/${seq}/pay`, number, setInvoiceNote); } catch (e) { setInvoiceNote((e as Error).message); } finally { setPayingInvoice(null); } }
   // Back from Stripe Checkout: say what happened while the webhook catches up.

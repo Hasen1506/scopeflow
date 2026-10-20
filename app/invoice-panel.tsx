@@ -54,6 +54,8 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
   // C2: what is still uninvoiced on the agreement (falls back to the balance before the API answers).
   const left = data?.invoiceable ? data.invoiceable.total : balance;
   const leftGross = data?.invoiceable ? data.invoiceable.gross_total : balance;
+  // U7: the browser stops an amount above what is left to invoice before it reaches the server.
+  const overCap = leftGross > 0 && Number(amount) > leftGross + 0.004;
   const openOf = (m: {amount?: number; total?: number; invoiced: number}) => Math.max(0, r2((m.amount ?? m.total ?? 0) - m.invoiced));
   function pick(id: string) {
     setMilestone(id); setCo('');
@@ -112,13 +114,13 @@ export function InvoicePanel({projectId, currency, balance, archived}: {projectI
         <form ref={formRef} className="ledger-form" aria-label="Create invoice" onSubmit={issue}>
           {plan.length > 0 && <label>Milestone<select value={milestone} onChange={e => pick(e.target.value)}><option value="">No milestone (any amount)</option>{plan.map(m => <option key={m.id} value={m.id} disabled={openOf(m) <= 0}>{m.title} · {formatMoney(openOf(m), currency)} to invoice</option>)}</select></label>}
           {cos.length > 0 && <label>Change order<select value={co} onChange={e => pickCo(e.target.value)}><option value="">None</option>{cos.map(c => <option key={c.seq} value={c.seq} disabled={openOf(c) <= 0}>{c.title} · {formatMoney(openOf(c), currency)} to invoice</option>)}</select></label>}
-          <div className="two-col"><label>{includesTax ? `Amount, including tax (${currency})` : `Amount before tax, the taxable value (${currency})`}<input type="number" min={0.01} step="0.01" inputMode="decimal" required value={amount} onChange={e => setAmount(e.target.value)} /><span className="fine block">Up to {formatMoney(left, currency)} with tax still to invoice.</span></label><label>Due in (days)<input type="number" min={0} max={120} step={1} required value={dueDays} onChange={e => setDueDays(e.target.value)} />{data?.net_days != null && <span className="fine block">Net {data.net_days} from the payment terms.</span>}</label></div>
+          <div className="two-col"><label>{includesTax ? `Amount, including tax (${currency})` : `Amount before tax, the taxable value (${currency})`}<input type="number" min={0.01} max={leftGross > 0 ? leftGross : undefined} step="0.01" inputMode="decimal" required value={amount} aria-invalid={overCap || undefined} aria-describedby={overCap ? 'invoice-amount-err' : undefined} onChange={e => setAmount(e.target.value)} />{overCap ? <span id="invoice-amount-err" className="error-text">At most {formatMoney(leftGross, currency)} is left to invoice on this agreement.</span> : <span className="fine block">Up to {formatMoney(left, currency)} with tax still to invoice.</span>}</label><label>Due in (days)<input type="number" min={0} max={120} step={1} required value={dueDays} onChange={e => setDueDays(e.target.value)} />{data?.net_days != null && <span className="fine block">Net {data.net_days} from the payment terms.</span>}</label></div>
           <label className="consent"><input type="checkbox" checked={includesTax} onChange={e => setIncludesTax(e.target.checked)} /> The amount includes GST</label>
           <label>Description <span className="quiet">· optional</span><input maxLength={200} placeholder={milestone ? 'Milestone payment for the approved scope' : 'Balance for the approved scope'} value={description} onChange={e => setDescription(e.target.value)} /></label>
           <TdsField value={tds} onChange={setTds} label="TDS on this invoice" />
           <p className="consequence">Invoices are numbered in order and cannot be edited or deleted once issued; cancel one with a credit note. Your business details from Settings are printed as the seller{pos ? `; place of supply ${stateName(pos)}` : ''}.</p>
           {error && <p className="error" role="alert">{error}{needsProfile && <> <Link className="help-link" href="/account#h-business">Add business details</Link></>}</p>}
-          <div className="actions"><button type="submit" className="primary" disabled={busy}>{busy ? 'Issuing…' : 'Issue invoice'}</button><button type="button" className="secondary" disabled={busy} onClick={closeForm}>Cancel</button></div>
+          <div className="actions"><button type="submit" className="primary" disabled={busy || overCap}>{busy ? 'Issuing…' : 'Issue invoice'}</button><button type="button" className="secondary" disabled={busy} onClick={closeForm}>Cancel</button></div>
         </form>
       )}
       {invoices && invoices.length > 0
