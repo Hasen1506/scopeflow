@@ -80,6 +80,10 @@ services:
         sync: false
       - key: SCOPEFLOW_SES_REGION
         sync: false
+      # Optional: token for the SES/SNS bounce webhook (<APP_URL>/api/mail/events/ses?token=...), kept
+      # separate from SCOPEFLOW_MAIL_WEBHOOK_SECRET because it travels in the URL (review S11).
+      - key: SCOPEFLOW_SES_WEBHOOK_TOKEN
+        generateValue: true
       # Optional: SMS / WhatsApp one-time codes (MSG91 needs a DLT-registered template in India).
       - key: MSG91_AUTH_KEY
         sync: false

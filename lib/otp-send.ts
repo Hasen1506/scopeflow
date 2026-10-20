@@ -3,7 +3,7 @@ import {MailError, brandEmail} from './mail';
 import {brandForProject} from './brand-server';
 import {publicUrl} from './origin';
 import {OTP_MAX_ATTEMPTS, OTP_TTL_MS, OtpDeliveryError, OtpUnavailable, codeHash, deliverCode, generateCode, normalizeCode, otpEmail, type OtpChannel} from './otp';
-import {otpSendLimit, recordOtpSpend, type OtpAction} from './otp-server';
+import {claimOtpSlot, otpSendLimit, recordOtpSpend, type OtpAction} from './otp-server';
 import {maskAddress} from './evidence';
 
 // One-time code send and verify, shared by the client review link (decision, change orders) and
@@ -14,11 +14,13 @@ import {maskAddress} from './evidence';
 export type CodeTarget = {versionId: string; projectId: string; version: number; owner: string; title: string; action: OtpAction; target: string | null};
 
 export async function sendCode(request: Request, t: CodeTarget, channel: OtpChannel, destination: string) {
-  const limit = await otpSendLimit({versionId: t.versionId, destination, owner: t.owner, channel, cosignRole: t.action === 'cosign' ? t.target : null});
+  const who = {versionId: t.versionId, destination, owner: t.owner, channel, cosignRole: t.action === 'cosign' ? t.target : null};
+  const limit = await otpSendLimit(who);
   if (!limit.ok) return json({error: limit.error, code: limit.code, retry_after: limit.retry_after}, 429, {'Retry-After': String(limit.retry_after)});
   const now = Date.now(), id = crypto.randomUUID(), code = generateCode();
-  await db().prepare('INSERT INTO review_otps (id,version_id,email,channel,code_hash,expires,created,action,target) VALUES (?,?,?,?,?,?,?,?,?)')
-    .bind(id, t.versionId, destination, channel, await codeHash(id, code), new Date(now + OTP_TTL_MS).toISOString(), new Date(now).toISOString(), t.action, t.target).run();
+  // S7: the slot is claimed atomically under advisory locks; a parallel send that got there first wins.
+  const claimed = await claimOtpSlot({...who, counts: limit.counts!}, {id, codeHash: await codeHash(id, code), expires: new Date(now + OTP_TTL_MS).toISOString(), created: new Date(now).toISOString(), action: t.action, target: t.target});
+  if (!claimed) return json({error: 'A code was sent a moment ago. Use it, or wait before asking for another.', code: 'otp_cooldown', retry_after: 30}, 429, {'Retry-After': '30'});
   try {
     const brand = await brandForProject(t.projectId);
     const otpMessage = otpEmail({code, title: t.title, version: t.version});

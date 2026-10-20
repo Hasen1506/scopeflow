@@ -34,8 +34,13 @@ export async function POST(request: Request, ctx: Ctx) {
       if (!basicPasswordValid(request.headers.get('authorization'), secret)) return json({error: 'Unauthorized.'}, 401, {'WWW-Authenticate': 'Basic realm="scopeflow-mail-events"'});
       event = parsePostmark(data);
     } else {
-      if (!secret) return json({error: 'Mail webhooks are not configured (SCOPEFLOW_MAIL_WEBHOOK_SECRET).'}, 503);
-      if (!tokenValid(new URL(request.url).searchParams.get('token'), secret)) return json({error: 'Unauthorized.'}, 401);
+      // S11: SES/SNS uses its own token (it travels in the URL query, so it lands in access logs);
+      // a leaked SES URL then no longer opens the Postmark webhook. Falling back to
+      // SCOPEFLOW_MAIL_WEBHOOK_SECRET is DEPRECATED and kept only so existing SNS subscriptions keep
+      // working until SCOPEFLOW_SES_WEBHOOK_TOKEN is set and the subscription URL is updated.
+      const sesToken = process.env.SCOPEFLOW_SES_WEBHOOK_TOKEN?.trim() || secret;
+      if (!sesToken) return json({error: 'SES webhooks are not configured (SCOPEFLOW_SES_WEBHOOK_TOKEN).'}, 503);
+      if (!tokenValid(new URL(request.url).searchParams.get('token'), sesToken)) return json({error: 'Unauthorized.'}, 401);
       const envelope = data as SnsEnvelope;
       const topic = process.env.SCOPEFLOW_SES_SNS_TOPIC_ARN?.trim();
       if (topic && envelope.TopicArn !== topic) return json({error: 'Unknown topic.'}, 403);

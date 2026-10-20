@@ -5,7 +5,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fc} from '../support/property.mjs';
 
-const {safeOrigin, safeReturnPath} = await import('../../lib/origin.ts');
+const {safeOrigin, safeReturnPath, publicOrigin} = await import('../../lib/origin.ts');
 const APP = 'https://scopeflow.example';
 process.env.APP_URL = APP;
 
@@ -62,4 +62,12 @@ test('sign-in return paths never leave the site', () => {
     assert.equal(new URL(out, 'https://scopeflow.example').origin, 'https://scopeflow.example');
     assert.ok(!out.startsWith('/auth/') && !out.startsWith('/api/auth/'));
   }), {numRuns: 300});
+});
+
+// Review S12: in production without APP_URL a spoofed X-Forwarded-Host must never reach emailed links.
+test('S12: public links refuse to use forwarded headers in production without APP_URL', () => {
+  const spoofed = new Request('http://0.0.0.0:10000/api/x', {headers: {'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'https'}});
+  assert.throws(() => publicOrigin(spoofed, {NODE_ENV: 'production'}), e => e.name === 'Unavailable' && e.dep === 'public_origin');
+  assert.equal(publicOrigin(spoofed, {NODE_ENV: 'development'}), 'https://evil.example', 'outside production the request origin is still used');
+  assert.equal(publicOrigin(spoofed, {NODE_ENV: 'production', APP_URL: APP}), APP);
 });

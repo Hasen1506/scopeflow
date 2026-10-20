@@ -289,12 +289,17 @@ export async function exchange(request: Request, form: URLSearchParams) {
     // usable by the client it was issued to.
     if (row.client_id !== client.id) return oauthError('invalid_client', 'This authorization code was issued to a different client.', 401);
     const family = row.family ?? 'legacy-' + codeHash.slice(0, 32);
-    // Single use: the first exchange claims the code. A replay revokes every token it produced.
-    const claimed = await db().prepare('UPDATE oauth_codes SET used=? WHERE hash=? AND used IS NULL RETURNING hash').bind(now, codeHash).first();
-    if (!claimed) { await revokeFamily(family, 'code_replay'); return oauthError('invalid_grant', 'This authorization code was already used; the tokens issued for it have been revoked.'); }
+    const replay = () => revokeFamily(family, 'code_replay').then(() => oauthError('invalid_grant', 'This authorization code was already used; the tokens issued for it have been revoked.'));
+    // A code that was already exchanged is a replay: every token it produced is revoked.
+    if (row.used) return await replay();
+    // S8: validate expiry, redirect_uri and PKCE before claiming, so a failed attempt by someone
+    // without the verifier cannot burn the legitimate client's code.
     if (row.expires < now) return oauthError('invalid_grant', 'The authorization code is invalid or expired.');
     if (form.get('redirect_uri') !== row.redirect_uri) return oauthError('invalid_grant', 'redirect_uri does not match the authorization request.');
     if (await pkce(verifier) !== row.challenge) return oauthError('invalid_grant', 'PKCE verification failed.');
+    // Single use: the first valid exchange claims the code; losing the race is a replay.
+    const claimed = await db().prepare('UPDATE oauth_codes SET used=? WHERE hash=? AND used IS NULL RETURNING hash').bind(now, codeHash).first();
+    if (!claimed) return await replay();
     return oauthJson(await issueTokens(client.id, row.owner, row.scope, row.resource, family));
   }
   if (grant === 'refresh_token') {

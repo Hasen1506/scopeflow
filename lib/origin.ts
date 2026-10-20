@@ -5,6 +5,8 @@
 // hostname. Comparing the browser's Origin header with it made every same-origin
 // POST fail with "Origin not allowed." and produced https://0.0.0.0:PORT review links.
 
+import {Unavailable} from './errors';
+
 const HOST = /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$/;
 
 function first(value: string | null) {
@@ -76,9 +78,21 @@ export function safeOrigin(request: Request) {
   return origin === appOrigin(request) || origin === requestOrigin(request);
 }
 
-/** Absolute public URL for a path on this app. */
+/**
+ * S12: the origin for links that leave the request (emails, OTP messages, invites). In production
+ * without APP_URL the only source would be X-Forwarded-Host/Host, which a caller can spoof, so no
+ * public URL is built there (503 'public_origin'). Outside production the request origin is used.
+ */
+export function publicOrigin(request: Request, env: Record<string, string | undefined> = process.env) {
+  const configured = configuredOrigin(env);
+  if (configured) return appOrigin(request);
+  if (env.NODE_ENV === 'production') throw new Unavailable('public_origin', 'APP_URL is not set on this server, so links cannot be built. Set APP_URL to the public origin.');
+  return requestOrigin(request);
+}
+
+/** Absolute public URL for a path on this app (S12: refuses in production without APP_URL). */
 export function publicUrl(request: Request, path: string) {
-  return new URL(path, appOrigin(request) + '/').href;
+  return new URL(path, publicOrigin(request) + '/').href;
 }
 
 /**

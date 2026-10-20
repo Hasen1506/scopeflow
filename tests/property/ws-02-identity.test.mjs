@@ -156,6 +156,10 @@ test('M15 cooldown schedule and daily limits', () => {
   assert.equal(sixth.ok, false); assert.equal(sixth.code, 'otp_send_limit'); assert.equal(sixth.retry_after, 19 * 3600);
   assert.equal(O.otpSendAllowed({...base, version: [], destination: Array.from({length: 10}, (_, i) => now - (i + 1) * h)}).code, 'otp_destination_limit');
   assert.equal(O.otpSendAllowed({...base, version: [], spent: 196, cost: 5}).code, 'otp_budget');
+  // Review S6: the 10/day per-address limit is per owner (the caller passes only this owner's sends);
+  // across owners a higher cap still stops one address being spammed.
+  assert.equal(O.otpSendAllowed({...base, version: [], destination: [], destinationGlobal: Array.from({length: O.OTP_DAILY_PER_DESTINATION}, (_, i) => now - (i + 1) * h)}).ok, true, 'another owner\'s sends do not lock this owner out');
+  assert.equal(O.otpSendAllowed({...base, version: [], destination: [], destinationGlobal: Array.from({length: O.OTP_DAILY_PER_DESTINATION_GLOBAL}, (_, i) => now - (i + 1) * 60_000)}).code, 'otp_destination_limit');
   assert.equal(O.otpDailyBudget({SCOPEFLOW_OTP_DAILY_BUDGET: '50'}), 50); assert.equal(O.otpDailyBudget({}), 200);
   assert.equal(O.preferredChannel({email: 'a@b.c', phone: '+911234567890', available: ['email', 'sms', 'whatsapp']}), 'whatsapp');
   assert.equal(O.preferredChannel({email: 'a@b.c', phone: '+911234567890', available: ['email', 'sms']}), 'email');

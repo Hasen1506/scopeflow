@@ -4,7 +4,8 @@ import {createHmac, timingSafeEqual} from 'node:crypto';
 // shared suppression list. Pure: signature checks and payload parsing, unit tested.
 //   resend    Svix-signed (RESEND_WEBHOOK_SECRET, "whsec_…"): email.bounced, email.complained
 //   postmark  basic auth with SCOPEFLOW_MAIL_WEBHOOK_SECRET as the password: Bounce, SpamComplaint
-//   ses       SNS HTTPS subscription with ?token=SCOPEFLOW_MAIL_WEBHOOK_SECRET (and the topic ARN
+//   ses       SNS HTTPS subscription with ?token=SCOPEFLOW_SES_WEBHOOK_TOKEN (S11; the deprecated fallback
+//             is SCOPEFLOW_MAIL_WEBHOOK_SECRET) (and the topic ARN
 //             in SCOPEFLOW_SES_SNS_TOPIC_ARN when set): Bounce (Permanent), Complaint
 
 export type MailEvent = {id: string; reason: 'hard_bounce' | 'complaint'; addresses: string[]};

@@ -163,13 +163,17 @@ const cookie = await fresh('brand');
   ok(/^scope-[0-9a-f]{24}@in\.scopeflow\.test$/.test(address), address);
   eq((await call(P, {method: 'PATCH', cookie, body: {inbound: 'on'}})).data.project.inbound_address, address, '"on" keeps an existing address');
   const post = (body, auth = 'Bearer ' + process.env.SCOPEFLOW_INBOUND_SECRET) => call('/api/inbound/email', {method: 'POST', body, headers: auth ? {Authorization: auth} : {}});
-  const mail = {FromFull: {Email: ownerEmail}, ToFull: [{Email: address}], OriginalRecipient: address, Subject: 'Fwd: hosting', TextBody: 'See below\n\n---------- Forwarded message ---------\nFrom: Ada <ada@acme.co>\nSubject: hosting\n\nCould you also set up website hosting on your server for us?', MessageID: 'msg-' + randomUUID()};
+  const mail = {FromFull: {Email: ownerEmail}, ToFull: [{Email: address}], OriginalRecipient: address, Subject: 'Fwd: hosting', TextBody: 'See below\n\n---------- Forwarded message ---------\nFrom: Ada <ada@acme.co>\nSubject: hosting\n\nCould you also set up website hosting on your server for us?', MessageID: 'msg-' + randomUUID(), Headers: [{Name: 'Authentication-Results', Value: 'mx.scopeflow.test; spf=pass smtp.mailfrom=studio.test; dkim=pass header.d=studio.test'}]};
   eq((await post(mail, null)).status, 401);
   eq((await post(mail, 'Bearer wrong')).status, 401);
   eq((await post(mail, 'Basic ' + Buffer.from('postmark:' + process.env.SCOPEFLOW_INBOUND_SECRET).toString('base64'))).status, 201);
   eq((await post(mail)).data.duplicate, true, 'the same MessageID is stored once');
   eq((await post({...mail, ToFull: [{Email: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test'}], OriginalRecipient: 'scope-' + '0'.repeat(24) + '@in.scopeflow.test', MessageID: 'x-' + randomUUID()})).data, {accepted: false, reason: 'unknown_address'});
   eq((await post({to: address})).status, 400);
+  // S1: an allowed sender with no SPF/DKIM verdict from the provider is held, not trusted.
+  const {Headers: _auth, ...unverified} = mail;
+  const held = await post({...unverified, MessageID: 'noauth-' + randomUUID()});
+  eq([held.status, held.data.accepted, held.data.detail], [200, false, 'auth_unknown']);
   const list = await call(P + '/inbound', {cookie});
   eq(list.data.messages.length, 1);
   const m = list.data.messages[0];
