@@ -13,6 +13,12 @@ export const GST_STATES: Record<string, string> = {
   '36': 'Telangana', '37': 'Andhra Pradesh', '38': 'Ladakh', '97': 'Other Territory', '96': 'Outside India (export)',
 };
 export const EXPORT_STATE = '96';
+/**
+ * M11: GSTIN prefixes GSTN still issues that are not a selectable state for place of supply:
+ * 25 (Daman and Diu, before its merger into 26), 28 (Andhra Pradesh, before reorganisation into 37)
+ * and 99 (Centre Jurisdiction). A GSTIN with one of them is valid; its state is not inferred from it.
+ */
+export const GSTIN_EXTRA_PREFIXES: Record<string, string> = {'25': 'Daman and Diu', '28': 'Andhra Pradesh (old)', '99': 'Centre Jurisdiction'};
 export const stateCodes = Object.keys(GST_STATES) as [string, ...string[]];
 export const stateName = (code: string) => GST_STATES[code] ?? '';
 
@@ -20,7 +26,7 @@ const GSTIN_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 /** GSTIN format and check digit (the mod-36 algorithm GSTN publishes). */
 export function validGstin(gstin: string) {
   const g = gstin.trim().toUpperCase();
-  if (!/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(g) || !GST_STATES[g.slice(0, 2)]) return false;
+  if (!/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(g) || !(GST_STATES[g.slice(0, 2)] || GSTIN_EXTRA_PREFIXES[g.slice(0, 2)])) return false;
   let sum = 0;
   for (let i = 0; i < 14; i++) {
     const p = GSTIN_CHARS.indexOf(g[i]) * (i % 2 ? 2 : 1);

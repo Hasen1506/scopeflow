@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {GstBreakdown, Minor} from './contracts';
+import type {GstBreakdown, GstHead, Minor} from './contracts';
 import {PdfDocument, textWidth, wrap, type Font} from './pdf';
 import {formatMoney} from './currency';
 import {formatDay} from './time';
@@ -42,7 +42,9 @@ export const invoiceRate = (c: InvoiceContent) => c.tax?.pct ?? 0;
  * live total is `live`. A full credit takes exactly the invoice's remaining taxable value and heads, so
  * the two cancel to the paisa; a partial credit is split at the invoice's rate. Pure.
  */
-export function creditNoteContent(input: {seq: number; issued: string; reason: string; invoice_seq: number; invoice: InvoiceContent; live: Minor; live_taxable: Minor; amount: Minor | null}): CreditNoteContent {
+export function creditNoteContent(input: {seq: number; issued: string; reason: string; invoice_seq: number; invoice: InvoiceContent; live: Minor; live_taxable: Minor; amount: Minor | null;
+  /** M5: the invoice's remaining tax heads (its heads less those of earlier credit notes), reversed exactly on a full credit. */
+  live_heads?: GstHead[]}): CreditNoteContent {
   const c = input.invoice;
   const number = creditNoteNumber(input.seq);
   const problem = invoiceNumberProblem(number);
@@ -50,7 +52,11 @@ export function creditNoteContent(input: {seq: number; issued: string; reason: s
   const full = input.amount === null || input.amount >= input.live;
   let breakdown: GstBreakdown;
   if (full) {
-    const b = gstFromInclusive(input.live, invoiceRate(c), invoiceKind(c));
+    // M5: reverse the invoice's own heads to the paisa instead of recomputing them from the live total:
+    // the heads the caller passes, or the invoice snapshot's heads when nothing was credited on it yet.
+    const untouched = c.breakdown && input.live === c.breakdown.total && input.live_taxable === c.breakdown.taxable;
+    const heads = input.live_heads ?? (untouched ? c.breakdown!.heads : null);
+    const b = heads ? {taxable: input.live_taxable, heads: heads.map(h => ({...h})), round_off: 0, total: input.live} : gstFromInclusive(input.live, invoiceRate(c), invoiceKind(c));
     breakdown = {...b, taxable: input.live_taxable, round_off: input.live - input.live_taxable - taxOf(b)};
   } else breakdown = gstFromInclusive(input.amount!, invoiceRate(c), invoiceKind(c));
   const total = c.breakdown?.total ?? toMinorOf(c.total, c.currency);
