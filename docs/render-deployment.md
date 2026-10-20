@@ -1,5 +1,7 @@
 # Deploy Scopeflow to Render with Neon
 
+The web service stays on this page. The four cron jobs run from GitHub Actions ([CRON-ACTIONS.md](CRON-ACTIONS.md)).
+
 Scopeflow now runs as a Node 24 / Next.js web service. Neon PostgreSQL stores
 projects, immutable versions, review links, API tokens, request counters, and
 ledger entries. Neon Auth handles accounts, password hashing, email signup,

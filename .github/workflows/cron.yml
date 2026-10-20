@@ -1,7 +1,8 @@
-# H3 (gap audit): scheduled jobs without Render cron services.
+# Manual HTTP calls. The timer moved to cron-retention.yml, cron-reminders.yml,
+# cron-reconcile.yml, and cron-check-models.yml, which run `node scripts/cron.mjs`.
+# Those files are the schedule. Run this workflow from the Actions tab only when
+# you need the HTTP forms below and the script workflows are not the runner yet.
 #
-# Render's free plan has no cron jobs, so GitHub Actions calls the app's existing job endpoints on
-# https://scope-flow.tech once a day (and on demand from the Actions tab):
 #   POST /api/notify/drain                 queued client notices + outbox retries   SCOPEFLOW_CRON_SECRET
 #   POST /api/payments/razorpay/reconcile  payments whose webhook was lost          SCOPEFLOW_CRON_SECRET
 #   POST /api/heads/<yesterday UTC>        signed ledger-head digest                operator token (*)
@@ -14,14 +15,11 @@
 # same value as the Render web service's SCOPEFLOW_CRON_SECRET (at least 16 characters). Without it
 # this workflow does nothing and passes, with a notice.
 #
-# Not covered here (they run against the database, not over HTTP): client-data retention
-# (scripts/redact-expired.mjs) and automatic reminders (scripts/send-reminders.mjs). They still need a
-# Render cron service (render.yaml) or another runner with DATABASE_URL.
+# Retention and reminders run from cron-retention.yml and cron-reminders.yml
+# (`node scripts/cron.mjs`), which have DATABASE_URL. This workflow does not.
 name: Scheduled jobs
 
 on:
-  schedule:
-    - cron: "30 20 * * *" # 20:30 UTC = 02:00 IST
   workflow_dispatch:
 
 permissions:

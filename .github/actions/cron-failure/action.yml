@@ -1,0 +1,29 @@
+name: Report cron failure
+description: POST a short failure notice to SCOPEFLOW_ERROR_WEBHOOK when that secret is set.
+inputs:
+  webhook:
+    description: SCOPEFLOW_ERROR_WEBHOOK value. Empty skips the notice.
+    required: true
+  job:
+    description: Cron group name (retention, reminders, reconcile, check-models).
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        WEBHOOK: ${{ inputs.webhook }}
+        JOB: ${{ inputs.job }}
+      run: |
+        set -u
+        if [ -z "${WEBHOOK}" ]; then
+          echo "SCOPEFLOW_ERROR_WEBHOOK is not set; no notification sent."
+          exit 0
+        fi
+        id="gha-${JOB}-${GITHUB_RUN_ID}"
+        message="${JOB} cron workflow failed (run ${GITHUB_RUN_ID})."
+        at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        payload="$(jq -n --arg id "$id" --arg message "$message" --arg at "$at" '{source:"scopeflow", id:$id, message:$message, at:$at}')"
+        curl --fail-with-body --silent --show-error --max-time 15 \
+          -X POST -H 'Content-Type: application/json' \
+          --data "$payload" "$WEBHOOK"

@@ -36,20 +36,10 @@ test('web service: no migrations at boot, migrations once per deploy as the owne
 });
 
 // @covers H15 M31 OP-03
-test('four separate cron services, each through the recording cron runner', () => {
-  assert.equal(crons.length, 4);
-  const jobs = crons.map(c => c.startCommand);
-  for (const job of ['retention', 'reminders', 'reconcile', 'check-models']) assert.ok(jobs.some(cmd => new RegExp(`^node scripts/cron\\.mjs\\b.*\\b${job}\\b`).test(cmd)), job);
-  for (const c of crons) {
-    assert.doesNotMatch(c.startCommand, /&&/, `${c.name}: no all-or-nothing chain`);
-    assert.notEqual(c.plan, 'free');
-    assert.match(c.schedule ?? '', /^\S+ \S+ \S+ \S+ \S+$/);
-    for (const key of ['DATABASE_URL', 'APP_URL', 'SCOPEFLOW_CRON_SECRET']) assert.ok(key in c.env, `${c.name} has ${key}`);
-  }
-  // Reconcile does not depend on mail: its service runs nothing else and needs no mail settings.
-  const reconcile = crons.find(c => /\breconcile\b/.test(c.startCommand));
-  assert.equal(reconcile.startCommand, 'node scripts/cron.mjs reconcile');
-  assert.ok(!('RESEND_API_KEY' in reconcile.env));
+test('render.yaml keeps the web service and defines no cron services', () => {
+  assert.equal(crons.length, 0);
+  assert.equal(web.plan, 'starter');
+  assert.doesNotMatch(read('render.yaml'), /type: cron/);
 });
 
 // @covers H16 OP-01
@@ -57,7 +47,6 @@ test('APP_URL is set in the dashboard, never hard-coded to the onrender host', (
   const text = read('render.yaml');
   assert.doesNotMatch(text, /value:\s*https?:\/\/[^\s]*onrender\.com/);
   assert.match(web.env.APP_URL, /sync:\s*false/);
-  for (const c of crons) assert.match(c.env.APP_URL, /fromService/);
 });
 
 // @covers L10
@@ -71,6 +60,5 @@ test('build fits a small instance: no hard-coded cpus, capped heap in CI and on 
   assert.match(read('.github/workflows/ci.yml'), /npm run typecheck[\s\S]*npm run build:capped/);
   assert.match(web.buildCommand, /build:capped/);
   assert.match(web.buildCommand, /npm prune --omit=dev/);
-  for (const c of crons) assert.match(c.buildCommand, /--omit=dev/);
   assert.match(read('.github/workflows/ci.yml'), /npm run build:capped/);
 });

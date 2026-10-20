@@ -1,0 +1,52 @@
+# Every 6 hours. Same clock as render.yaml scopeflow-reconcile. No mail settings.
+# GitHub runs this schedule only after the file is on the default branch, may start
+# it late, and disables it after 60 days without repository activity.
+# https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
+# Catch up with workflow_dispatch. This file does not ping the app to keep it awake.
+name: Cron reconcile
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scopeflow-cron-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      APP_URL: https://scope-flow.tech
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SCOPEFLOW_CRON_SECRET: ${{ secrets.SCOPEFLOW_CRON_SECRET }}
+      SCOPEFLOW_ADMIN_TOKEN: ${{ secrets.SCOPEFLOW_ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: gate
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "run=skip" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Cron not enabled::Add repository secret DATABASE_URL (the app role). Until then the Render cron service scopeflow-reconcile keeps this clock."
+          else
+            echo "run=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v5
+        if: steps.gate.outputs.run == 'yes'
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - if: steps.gate.outputs.run == 'yes'
+        run: npm ci --omit=dev --ignore-scripts
+      - if: steps.gate.outputs.run == 'yes'
+        run: node scripts/cron.mjs reconcile
+      - if: failure()
+        uses: ./.github/actions/cron-failure
+        with:
+          webhook: ${{ secrets.SCOPEFLOW_ERROR_WEBHOOK }}
+          job: reconcile

@@ -69,9 +69,10 @@ test('H1: no route reads a raw body unbounded; proxy buffering is capped at 1 MB
 });
 
 // ---- H3 -----------------------------------------------------------------------------------------------------
-test('H3: the scheduled-jobs workflow calls every HTTP job endpoint and no-ops without the secret', () => {
+test('H3: the manual HTTP workflow calls every job endpoint and no-ops without the secret', () => {
   const wf = read('.github/workflows/cron.yml');
-  assert.match(wf, /schedule:\s*\n\s*- cron: "30 20 \* \* \*"/);
+  assert.doesNotMatch(wf, /\n\s*schedule:/);
+  assert.match(read('.github/workflows/cron-retention.yml'), /cron: "30 20 \* \* \*"/);
   assert.match(wf, /workflow_dispatch:/);
   assert.match(wf, /secrets\.SCOPEFLOW_CRON_SECRET/);
   assert.match(wf, /if \[ -z "\$\{CRON_SECRET:-\}" \]; then[\s\S]*?::notice[\s\S]*?exit 0/);

@@ -4,8 +4,10 @@
 // Each job runs in its own child process, so one job throwing (for example reminders when mail is
 // misconfigured) never stops the next one (for example reconcile). Every run is recorded in
 // scopeflow.cron_runs (start, end, status, exit code, the last lines of output), which
-// /api/readiness turns into "last run / stale / failed" per job. Render runs one cron service per
-// job group (render.yaml); every job is idempotent, so a retry or an overlap is harmless.
+// /api/readiness turns into "last run / stale / failed" per job. GitHub Actions runs one workflow per
+// job group (.github/workflows/cron-*.yml).
+// Every job is idempotent, so a retry or an overlap is harmless.
+// `--dry-run` prints each job and exits without a database connection.
 // Exits non-zero when any job failed, after all of them ran.
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -70,8 +72,19 @@ export async function runJobs(names, {scripts = {}, env = process.env, sql = nul
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const names = process.argv.slice(2);
-  if (!names.length) { console.error(`Usage: node scripts/cron.mjs <job> [...]; jobs: ${Object.keys(JOBS).join(', ')}`); process.exit(2); }
+  const args = process.argv.slice(2);
+  const dry = args.includes('--dry-run');
+  const names = args.filter(name => name !== '--dry-run');
+  if (!names.length) { console.error(`Usage: node scripts/cron.mjs [--dry-run] <job> [...]; jobs: ${Object.keys(JOBS).join(', ')}`); process.exit(2); }
+  if (dry) {
+    let bad = false;
+    for (const name of names) {
+      const argv = JOBS[name];
+      if (!argv) { console.error('unknown job ' + name); bad = true; continue; }
+      console.log(JSON.stringify({cron: name, dry_run: true, script: path.basename(argv[0]), args: argv.slice(1)}));
+    }
+    process.exit(bad ? 2 : 0);
+  }
   const results = await runJobs(names);
   process.exit(results.every(r => r.status === 'ok') ? 0 : 1);
 }
