@@ -267,6 +267,9 @@ test('SF-07: acceptance, 15/45-day due dates, warnings', () => {
   assert.deepEqual(MS.acceptanceDay({delivered_on: '2026-09-01', objection_on: '2026-09-10', objection_removed_on: '2026-09-20'}, '2026-10-01'), {day: '2026-09-20', basis: 'objection_removed'});
   assert.deepEqual(MS.msmedDueDates('2026-09-01'), {pay_by: '2026-09-16', interest_from: '2026-09-17', agreed: false});
   assert.deepEqual(MS.msmedDueDates('2026-09-01', 60), {pay_by: '2026-10-16', interest_from: '2026-10-17', agreed: true}); // capped at 45
+  // M9: an agreed term of 0 days (pay on acceptance) is kept, not replaced by the 15-day default.
+  assert.deepEqual(MS.msmedDueDates('2026-09-01', 0), {pay_by: '2026-09-01', interest_from: '2026-09-02', agreed: true});
+  assert.deepEqual(MS.msmedDueDates('2026-09-01', null), {pay_by: '2026-09-16', interest_from: '2026-09-17', agreed: false});
   const micro = {udyam_number: 'UDYAM-TN-02-0012345', registered_on: '2026-06-01', category: 'micro'};
   assert.deepEqual(MS.msmedWarnings({profile: micro, contract_date: '2026-07-01T10:00:00Z'}), []);
   const late = MS.msmedWarnings({profile: {...micro, registered_on: '2026-08-01'}, contract_date: '2026-07-01T10:00:00Z'});

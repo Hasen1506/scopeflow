@@ -1,5 +1,5 @@
 // PR F: Razorpay deposit scaffold. Pure (no server, no network): configuration, minor units,
-// deposit amount, order creation through a stubbed fetch, webhook and checkout signature
+// order creation through a stubbed fetch, webhook and checkout signature
 // verification, and parsing of paid events. Also checks the new ledger kind.
 import '../support/fc-setup.mjs';
 import {test} from 'node:test';
@@ -24,25 +24,13 @@ test('payments are off without keys, with a reason; webhook secret is separate',
   assert.equal(rz.webhookSecret({RAZORPAY_WEBHOOK_SECRET: '  '}), null);
 });
 
-test('amounts: minor units per currency; deposit from the fee (and tax when present)', () => {
+test('amounts: minor units per currency', () => {
   assert.equal(rz.toMinorUnits(1234.56, 'INR'), 123456);
   assert.equal(rz.toMinorUnits(1800, 'JPY'), 1800);
   assert.equal(rz.fromMinorUnits(123456, 'INR'), 1234.56);
-  assert.equal(rz.depositAmount({fee: 100000, deposit_pct: 30}), 30000);
-  assert.equal(rz.depositAmount({fee: 1000, deposit_pct: 50, tax_pct: 18}), 590);
-  assert.equal(rz.depositAmount({fee: 1000}), 0);
+  // M7: depositAmount() (currency-blind, no production caller) was removed; the deposit comes from agreementTotals.
+  assert.equal('depositAmount' in rz, false);
   fc.assert(fc.property(fc.integer({min: 0, max: 10_000_000_00}), minor => assert.equal(rz.toMinorUnits(rz.fromMinorUnits(minor, 'INR'), 'INR'), minor)));
-});
-
-test('deposit charged equals the deposit on the signed scope paper (one source: money.totals)', async () => {
-  const {totals} = await import('../../lib/money.ts');
-  // A fee where the old formula (rounding only once, on the unrounded tax-inclusive total) charged a cent more.
-  assert.equal(totals({fee: 97246.8, tax_pct: 18, deposit_pct: 79}).deposit, 90653.46);
-  assert.equal(rz.depositAmount({fee: 97246.8, tax_pct: 18, deposit_pct: 79}), 90653.46);
-  fc.assert(fc.property(fc.integer({min: 0, max: 1_000_000_00}).map(c => c / 100), fc.constantFrom(0, 5, 7.5, 8.25, 12, 18, 28), fc.integer({min: 0, max: 100}), (fee, tax_pct, deposit_pct) => {
-    const paper = totals({fee, tax_pct, deposit_pct}).deposit;
-    assert.equal(rz.depositAmount({fee, tax_pct, deposit_pct}), deposit_pct > 0 ? paper : 0);
-  }), {numRuns: 2000});
 });
 
 test('order creation: POST /v1/orders with basic auth, paise and notes', async () => {
