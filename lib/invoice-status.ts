@@ -65,6 +65,8 @@ export type InvoiceAlloc = {
   /** What the client still has to pay in cash (excludes the TDS part they deduct); what reminders chase. */
   net_open: number;
   status: InvoiceAllocStatus; overdue: boolean; days_overdue: number;
+  /** N4: the payment (ledger seq and date) whose money completed the invoice's cash part, when it is fully covered. */
+  settled_by?: {seq: number; date: string};
 };
 export type Allocation = {
   invoices: InvoiceAlloc[];
@@ -85,15 +87,27 @@ export function allocate(input: {payments: AllocPayment[]; invoices: AllocInvoic
   // 1. Advances cover their receipt vouchers.
   const rvCovered = new Map<number, number>();
   let pool = 0;
+  // N4: the free pool as ordered chunks (one per payment), so an invoice can name the payment that settled it.
+  // The chunks always add up to `pool`; they never change any amount below.
+  const chunks: {seq: number; date: string; amount: number}[] = [];
   for (const p of [...input.payments].sort((a, b) => a.seq - b.seq)) {
     if (p.amount <= 0) continue;
     const rv = rvs.find(r => r.payment_seq === p.seq);
-    if (rv) { const c = Math.min(rv.total, p.amount); rvCovered.set(rv.seq, (rvCovered.get(rv.seq) ?? 0) + c); pool += p.amount - c; }
-    else pool += p.amount;
+    let free = p.amount;
+    if (rv) { const c = Math.min(rv.total, p.amount); rvCovered.set(rv.seq, (rvCovered.get(rv.seq) ?? 0) + c); free = p.amount - c; }
+    pool += free;
+    if (free > 0) chunks.push({seq: p.seq, date: p.date, amount: free});
   }
+  const takeLast = (n: number) => { while (n > 0 && chunks.length) { const c = chunks[chunks.length - 1], t = Math.min(c.amount, n); c.amount -= t; n -= t; if (!c.amount) chunks.pop(); } };
+  /** Consumes `n` from the oldest chunks; returns the payment whose money was used last (null when nothing was taken). */
+  const takeFirst = (n: number): {seq: number; date: string} | null => {
+    let last: {seq: number; date: string} | null = null;
+    while (n > 0 && chunks.length) { const c = chunks[0], t = Math.min(c.amount, n); c.amount -= t; n -= t; last = {seq: c.seq, date: c.date}; if (!c.amount) chunks.shift(); }
+    return last;
+  };
   // 3. Refunds come out of the latest allocations: the free pool first (its last use), then receipt vouchers newest first.
   let refund = refunded;
-  const fromPool = Math.min(pool, refund); pool -= fromPool; refund -= fromPool;
+  const fromPool = Math.min(pool, refund); pool -= fromPool; refund -= fromPool; takeLast(fromPool);
   for (const rv of [...rvs].sort((a, b) => b.seq - a.seq)) {
     if (refund <= 0) break;
     const c = rvCovered.get(rv.seq) ?? 0, take = Math.min(c, refund);
@@ -103,7 +117,7 @@ export function allocate(input: {payments: AllocPayment[]; invoices: AllocInvoic
   const sorted = [...input.invoices].sort((a, b) => (a.issued < b.issued ? -1 : a.issued > b.issued ? 1 : a.seq - b.seq));
   const legacyBefore = sorted.find(i => i.paid_before !== undefined)?.paid_before ?? 0;
   const excluded = Math.min(pool, Math.max(0, legacyBefore));
-  pool -= excluded;
+  pool -= excluded; takeFirst(excluded);
   // 2. FIFO: cash parts first, then TDS parts. 4. TDS credits.
   const credits = new Map<number, number>();
   for (const c of input.tdsCredits ?? []) credits.set(c.invoice_seq, (credits.get(c.invoice_seq) ?? 0) + c.amount);
@@ -111,11 +125,15 @@ export function allocate(input: {payments: AllocPayment[]; invoices: AllocInvoic
     const live = Math.max(0, i.total - i.credited);
     const tds = live > 0 ? Math.min(i.tds, live) : 0;
     const tds_credited = Math.min(tds, credits.get(i.seq) ?? 0);
-    return {i, live, tds, tds_credited, covered: 0};
+    return {i, live, tds, tds_credited, covered: 0, settled_by: null as {seq: number; date: string} | null};
   });
-  for (const s of state) { const want = Math.max(0, s.live - s.tds); const c = Math.min(want, pool); s.covered += c; pool -= c; }
-  for (const s of state) { const want = Math.max(0, s.live - s.covered - s.tds_credited); const c = Math.min(want, pool); s.covered += c; pool -= c; }
-  const invoices = state.map(({i, live, tds, tds_credited, covered}): InvoiceAlloc => {
+  for (const s of state) {
+    const want = Math.max(0, s.live - s.tds); const c = Math.min(want, pool); s.covered += c; pool -= c;
+    const last = takeFirst(c);
+    if (want > 0 && c === want && last) s.settled_by = last;
+  }
+  for (const s of state) { const want = Math.max(0, s.live - s.covered - s.tds_credited); const c = Math.min(want, pool); s.covered += c; pool -= c; takeFirst(c); }
+  const invoices = state.map(({i, live, tds, tds_credited, covered, settled_by}): InvoiceAlloc => {
     const open = Math.max(0, live - covered - tds_credited);
     const net_open = Math.max(0, live - tds - covered);
     let status: InvoiceAllocStatus;
@@ -125,7 +143,7 @@ export function allocate(input: {payments: AllocPayment[]; invoices: AllocInvoic
     else status = covered > 0 ? 'part' : 'open';
     const days = daysBetween(i.due, input.today);
     const overdue = net_open > 0 && days > 0;
-    return {seq: i.seq, live, covered, tds_expected: tds, tds_credited, open, net_open, status, overdue, days_overdue: overdue ? days : 0};
+    return {seq: i.seq, live, covered, tds_expected: tds, tds_credited, open, net_open, status, overdue, days_overdue: overdue ? days : 0, ...(net_open === 0 && settled_by ? {settled_by} : {})};
   });
   const rvOut = rvs.map(r => ({seq: r.seq, covered: rvCovered.get(r.seq) ?? 0}));
   const applied = invoices.reduce((s, i) => s + i.covered, 0) + rvOut.reduce((s, r) => s + r.covered, 0);

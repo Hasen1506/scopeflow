@@ -33,7 +33,7 @@ export function invoicingJson(s: InvoicingState, entries: Parameters<typeof tdsC
     tax: s.agreement ? {rate: s.agreement.rate, label: s.agreement.label, kind: s.agreement.kind} : null,
     receipt_vouchers: s.docs.vouchers.map(v => ({seq: v.seq, number: v.number, kind: v.content.kind, amount: M(s, v.amount), received: v.content.received, issued: v.issued.slice(0, 10), ledger_seq: v.ledger_seq, adjusted: !unadjustedAdvances(s.docs).some(a => a.seq === v.seq)})),
     credit_notes: s.docs.credits.map(c => ({seq: c.seq, number: c.number, invoice_seq: c.invoice_seq, invoice_number: c.content.invoice.number, amount: M(s, c.amount), full: c.content.full, reason: c.content.reason, issued: c.issued.slice(0, 10)})),
-    tds: {terms: s.terms.tds, banner: TDS_BANNER, table: TDS_TABLE, pending: tdsCertificatesPending(s.views, entries, s.today), credits: s.docs.tdsCredits.map(c => ({...c, amount: M(s, c.amount)}))},
+    tds: {terms: s.terms.tds, banner: TDS_BANNER, table: TDS_TABLE, pending: tdsCertificatesPending(s.views, entries, s.today, s.alloc), credits: s.docs.tdsCredits.map(c => ({...c, amount: M(s, c.amount)}))},
     msmed: {...msmedSummary({profile: s.msme, contract_date, acceptances: s.docs.acceptances, terms: s.terms, views: s.views, currency: s.currency, today: s.today}), disclaimer: MSMED_DISCLAIMER},
   };
 }

@@ -2,7 +2,8 @@ import {brandForProject} from './brand-server';
 import {pdfBrand} from './brand';
 import {db, json} from './server';
 import {publicUrl} from './origin';
-import {paymentsOf, sha256} from './ledger';
+import {paymentsOf, sha256, type LedgerEntry} from './ledger';
+import {agreementMoney, loadProfile, readSql} from './invoice-server';
 import {anchorOf, loadLedger} from './ledger-server';
 import {anchorMessage, publicSigningKey, verifyRecordDetailed, type SignatureCheck} from './signing';
 import {chipWording, evidenceWording, sealStatus, maskAddress} from './evidence';
@@ -129,12 +130,27 @@ export async function verifyAnchor(projectId: string, version: number, anchor: s
   };
 }
 
-/** PDF statement of account for a project's approved agreement, or a JSON error when nothing is approved yet. */
+/**
+ * N5: the statement's tax-head kind for a project, worked out as the invoices do (agreementMoney):
+ * undefined for a single head, else 'intra' (CGST+SGST) or 'inter' (IGST). Never blocks the statement.
+ */
+async function statementKind(projectId: string, content: Scope, entries: LedgerEntry[], version: number) {
+  try {
+    const p = await db().prepare('SELECT owner,client_gstin,client_state,client_address FROM projects WHERE id=?').bind(projectId).first<{owner: string; client_gstin: string | null; client_state: string | null; client_address: string | null}>();
+    if (!p) return undefined;
+    const {profile} = await loadProfile(readSql(), p.owner);
+    const {kind} = agreementMoney(content, entries, version, profile, p);
+    return kind !== 'single' ? kind : undefined;
+  } catch { return undefined; }
+}
+
 export async function statementResponse(request: Request, projectId: string, {version, timezone}: {version?: number; timezone?: string | null} = {}) {
   await ensurePdfFonts();
   const l = await loadLedger(projectId, {forClient: true});
   if (!l.baseline || !l.content || !l.agreement) return json({error: 'There is no approved agreement yet, so there is no statement.', code: 'not_approved'}, 409);
   if (version !== undefined && version !== l.baseline.version) return json({error: 'This link is for a version that is not the current agreement.', code: 'superseded'}, 409);
-  const model = statementModel({project_id: projectId, version: l.baseline.version, content: l.content, agreement: l.agreement, entries: l.entries, time_zone: receiptTimeZone(request, timezone), generated: new Date().toISOString()});
+  // N5: the same tax heads as the invoices (CGST+SGST or IGST), from the owner's profile and the project's billing details.
+  const kind = await statementKind(projectId, l.content, l.entries, l.baseline.version);
+  const model = statementModel({project_id: projectId, version: l.baseline.version, content: l.content, agreement: l.agreement, entries: l.entries, time_zone: receiptTimeZone(request, timezone), generated: new Date().toISOString(), kind});
   return pdfResponse(renderStatementPdf(model, pdfBrand(await brandForProject(projectId))), `scopeflow-statement-${projectId.slice(0, 12)}-v${l.baseline.version}.pdf`);
 }

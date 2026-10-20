@@ -254,10 +254,13 @@ export function msmedSummary(p: {profile: MsmeProfile | null; contract_date: str
 }
 
 /** H19: invoices paid net of TDS whose certificate is past due (for the owner's quarterly reminder). */
-export function tdsCertificatesPending(views: InvoiceView[], entries: LedgerEntry[], today: string) {
+export function tdsCertificatesPending(views: InvoiceView[], entries: LedgerEntry[], today: string, alloc?: Allocation) {
   const lines = moneyLines(entries).filter(l => l.amount > 0);
+  // N4: "paid on" is the date of the payment that settled the invoice's cash part (from the allocation);
+  // the last payment on or after the issue date is only the fallback for callers without an allocation.
+  const settled = new Map((alloc?.invoices ?? []).filter(a => a.settled_by).map(a => [a.seq, a.settled_by!.date]));
   return views.filter(v => v.status === 'paid_net_of_tds').map(v => {
-    const paidOn = lines.filter(l => l.received >= v.issued).at(-1)?.received ?? v.issued;
+    const paidOn = settled.get(v.seq) ?? lines.filter(l => l.received >= v.issued).at(-1)?.received ?? v.issued;
     return {seq: v.seq, number: v.number, amount: v.tds ? v.tds.amount - v.tds.credited : 0, quarter: tdsQuarter(paidOn), certificate_due: certificateDueFor(paidOn), overdue: today > certificateDueFor(paidOn)};
   }).filter(x => x.amount > 0);
 }

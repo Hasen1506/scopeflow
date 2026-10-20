@@ -289,3 +289,24 @@ test('profile: the invoice prefix rule is exported for WS-08 and matches the iss
     assert.equal(I.invoicePrefixProblem(prefix) === null, atIssue, prefix);
   }
 });
+
+// N4: the allocation names the payment that settled each invoice's cash part (TDS "paid on").
+test('allocate: settled_by is the payment that completed each invoice, not the latest payment', () => {
+  const a = S.allocate({
+    payments: [{seq: 1, amount: 90000, date: '2026-06-20'}, {seq: 2, amount: 90000, date: '2026-07-10'}],
+    invoices: [
+      {seq: 1, issued: '2026-06-01', due: '2026-06-15', total: 100000, credited: 0, tds: 10000},
+      {seq: 2, issued: '2026-06-05', due: '2026-06-20', total: 100000, credited: 0, tds: 10000},
+    ],
+    today: '2026-10-20',
+  });
+  assert.deepEqual(a.invoices.map(i => i.status), ['paid_net_of_tds', 'paid_net_of_tds']);
+  assert.deepEqual(a.invoices.map(i => i.settled_by), [{seq: 1, date: '2026-06-20'}, {seq: 2, date: '2026-07-10'}]);
+  // Amounts are unchanged by the bookkeeping; a part-paid invoice names no settling payment.
+  const part = S.allocate({payments: [{seq: 1, amount: 50000, date: '2026-06-20'}], invoices: [{seq: 1, issued: '2026-06-01', due: '2026-06-15', total: 100000, credited: 0, tds: 10000}], today: '2026-10-20'});
+  assert.equal(part.invoices[0].covered, 50000);
+  assert.equal(part.invoices[0].settled_by, undefined);
+  // A refund takes from the latest payment first, so the settling payment moves to the one that still covers it.
+  const refunded = S.allocate({payments: [{seq: 1, amount: 90000, date: '2026-06-20'}, {seq: 2, amount: 30000, date: '2026-07-01'}, {seq: 3, amount: -30000, date: '2026-07-02'}], invoices: [{seq: 1, issued: '2026-06-01', due: '2026-06-15', total: 100000, credited: 0, tds: 10000}], today: '2026-10-20'});
+  assert.deepEqual(refunded.invoices[0].settled_by, {seq: 1, date: '2026-06-20'});
+});
