@@ -17,21 +17,23 @@ const {STAGE_LABEL} = await import('../../lib/stage.ts');
 const {label} = await import('../../lib/scope.ts');
 const read = rel => readFileSync(new URL('../../' + rel, import.meta.url), 'utf8');
 
-test('R3-03: plan cards list only enforced limits; shared features are said once; unbuilt ones are coming soon', () => {
+test('R3-03: plan cards list enforced limits and gated features; shared features are said once', () => {
   const cards = P.planCards('INR', n => '₹' + n);
   for (const c of cards) {
     const l = P.PLANS[c.id].limits;
-    assert.deepEqual(c.lines, [P.projectCapLine(l), `${l.versions} versions per project`, `${l.ledger_entries.toLocaleString('en-IN')} record entries per project`], c.id);
-    // Nothing every plan has is sold as a plan difference.
+    assert.deepEqual(c.lines, [P.projectCapLine(l), P.clientLine(l.clients), P.seatLine(l.seats), `${l.versions} versions per project`, `${l.ledger_entries.toLocaleString('en-IN')} record entries per project`, ...P.PLANS[c.id].features], c.id);
     for (const f of P.ALL_PLANS_INCLUDE) assert.ok(!c.lines.includes(f), `${c.id} repeats "${f}"`);
+    assert.deepEqual(c.soon, [], c.id);
   }
-  // No plan feature is gated today, so no shown plan claims one.
-  for (const id of ['free', 'pro', 'agency']) assert.deepEqual([...P.PLANS[id].features], [], id);
-  const agency = cards.find(c => c.id === 'agency');
-  assert.ok(agency.soon.some(s => /seats/i.test(s)) && agency.soon.some(s => /team activity/i.test(s)));
-  assert.doesNotMatch(agency.blurb, /team|seat|role/i);
-  assert.equal(P.PLANS.agency.seats, 1, 'one seat until team seats exist');
-  assert.ok(P.ALL_PLANS_INCLUDE.some(f => /API/.test(f)) && P.ALL_PLANS_INCLUDE.some(f => /Invoices/.test(f)));
+  assert.deepEqual([...P.PLANS.free.features], []);
+  assert.ok(P.PLANS.pro.features.some(f => /AI drafting/.test(f)) && P.PLANS.pro.features.some(f => /API token/.test(f)));
+  assert.ok(P.PLANS.agency.features.some(f => /Shared rate card/.test(f)) && P.PLANS.agency.features.some(f => /Team activity/.test(f)));
+  assert.equal(P.PLANS.agency.seats, 5);
+  assert.equal(P.allows('free', 'api'), false);
+  assert.equal(P.allows('pro', 'team'), false);
+  assert.equal(P.allows('agency', 'team'), true);
+  assert.ok(P.ALL_PLANS_INCLUDE.some(f => /Invoices/.test(f)) && P.ALL_PLANS_INCLUDE.some(f => /certificate/i.test(f)));
+  assert.ok(!P.ALL_PLANS_INCLUDE.some(f => /API/.test(f)));
   const page = read('app/plans/page.tsx'), up = read('app/plans/upgrade.tsx');
   assert.match(page, /All plans include/);
   assert.match(up, /Coming soon · not included yet/);

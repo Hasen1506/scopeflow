@@ -16,7 +16,7 @@ export function loadDocument(event: React.MouseEvent<HTMLAnchorElement>) {
   window.location.assign(event.currentTarget.href);
 }
 /** Everything that is about the account rather than a project lives under one menu (was three top-level pages). */
-const ACCOUNT=[{href:'/account',label:'Settings',hint:'Business, branding, defaults, data'},{href:'/connect',label:'Connect',hint:'Muse, ChatGPT & API'},{href:'/plans',label:'Plans',hint:'Pricing preview'}];
+const ACCOUNT=[{href:'/account',label:'Settings',hint:'Business, branding, defaults, data'},{href:'/account/team',label:'Team',hint:'Seats, shared rate card'},{href:'/connect',label:'Connect',hint:'AI assistants and API'},{href:'/plans',label:'Plans',hint:'Free, Freelancer, Studio'}];
 export function Header(){const path=usePathname();const [user,setUser]=useState<{email?:string}|null>(null);const inAccount=ACCOUNT.some(a=>path===a.href||path?.startsWith(a.href+'/'));
  // Session is read from the auth endpoint so the landing page does not download the auth SDK.
  useEffect(()=>{let live=true;fetch('/api/auth/get-session',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(data=>{if(!live)return;const next=data?.user??null;setUser(next);if(next)rememberSession(true);}).catch(()=>{});return()=>{live=false;};},[]);

@@ -1,0 +1,27 @@
+// Approval certificate PDF. Local server only. The one-time code stays off.
+import assert from 'node:assert/strict';
+import {signIn, ack} from './support/local.mjs';
+const base = process.env.SCOPEFLOW_TEST_URL || 'http://localhost:5173';
+assert.equal(new URL(base).hostname, 'localhost');
+let passed = 0;
+const ok = (v, m) => { assert.ok(v, m); passed++; };
+const eq = (a, b, m) => { assert.equal(a, b, m); passed++; };
+const cookie = await signIn(base, `cert-${Date.now()}@example.test`);
+const scope = {title: 'Certificate fixture', client: 'North Studio', deliverables: 'One page', exclusions: 'Print', fee: 100, currency: 'USD', revisions: 1, due: '', notes: 'Disposable.'};
+const created = await fetch(base + '/api/scopes', {method: 'POST', headers: {Cookie: cookie, Origin: base, 'Content-Type': 'application/json'}, body: JSON.stringify(scope)});
+eq(created.status, 201);
+const saved = await created.json();
+const id = saved.scope.project_id, token = saved.scope.token;
+eq((await fetch(base + '/api/scopes/' + id + '/certificate?version=1')).status, 401);
+const pending = await fetch(base + '/api/scopes/' + id + '/certificate?version=1', {headers: {Cookie: cookie}});
+eq(pending.status, 409);
+const decision = await fetch(base + '/api/review/' + token, {method: 'POST', headers: {'Content-Type': 'application/json', 'User-Agent': 'CertificateBrowser/1.0'}, body: JSON.stringify(await ack(base, token, {decision: 'approved', signer: 'Certificate Reviewer', comment: 'Agreed', version: 1}))});
+eq(decision.status, 200, await decision.clone().text());
+const pdf = await fetch(base + '/api/scopes/' + id + '/certificate?version=1', {headers: {Cookie: cookie}});
+eq(pdf.status, 200);
+ok((pdf.headers.get('content-type') || '').includes('application/pdf'));
+const text = Buffer.from(await pdf.arrayBuffer()).toString('latin1');
+ok(text.startsWith('%PDF-'));
+for (const s of ['APPROVAL CERTIFICATE', 'Certificate Reviewer', 'Content hash', 'IP address', 'Browser', 'Seal', 'No one-time code was required', 'CertificateBrowser/1.0']) ok(text.includes(s), s);
+ok(!text.includes('DocuSign') || text.includes('not an Aadhaar'));
+console.log(JSON.stringify({passed, certificate: true}));

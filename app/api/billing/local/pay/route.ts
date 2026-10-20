@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const row = await planRowFor(auth.user);
     if (!row || row.provider_subscription !== p.data.subscription || !isPlanId(row.plan)) return json({error: 'This test checkout is not yours or has finished.'}, 404);
     const results = [];
-    for (const event of localDoubleEvents(p.data.subscription, auth.user, row.plan, row.interval === 'year' ? 'year' : 'month', p.data.currency, Date.now())) {
+    for (const event of localDoubleEvents(p.data.subscription, auth.user, row.plan, row.interval === 'year' ? 'year' : 'month', p.data.currency, Date.now(), row.founding === true)) {
       results.push(await applyPlanUpdate('razorpay', `local:${p.data.subscription}:${event.event}`, event.event, razorpayEventToUpdate(event)!));
     }
     return json({paid: true, results});

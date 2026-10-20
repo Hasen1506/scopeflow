@@ -24,7 +24,7 @@ const asm = await json(await fetch(base + '/.well-known/oauth-authorization-serv
 eq(asm.issuer, base); ok(asm.code_challenge_methods_supported.includes('S256')); eq(asm.authorization_response_iss_parameter_supported, true);
 ok(asm.registration_endpoint && asm.token_endpoint && asm.authorization_endpoint);
 const tools = await json(await rpc('tools/list', {}));
-ok(tools.result.tools.filter(t => !['lint_scope', 'list_scope_templates'].includes(t.name)).every(t => t.securitySchemes[0].type === 'oauth2'), 'oauth2 security schemes');
+ok(tools.result.tools.filter(t => !['lint_scope', 'list_scope_templates', 'draft_scope'].includes(t.name)).every(t => t.securitySchemes[0].type === 'oauth2'), 'oauth2 security schemes');
 
 // Dynamic client registration (public client, PKCE).
 const redirect = 'https://chatgpt.com/connector_platform_oauth_redirect';

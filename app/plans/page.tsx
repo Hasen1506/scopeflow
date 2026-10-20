@@ -2,8 +2,8 @@ import type {Metadata} from 'next';
 import Link from 'next/link';
 import {Header} from '../ui';
 import {NextStep} from '../workflow';
-import {ALL_PLANS_INCLUDE, activePlan, defaultPlanNote, planCards} from '@/lib/plans';
-import {billingStatus} from '@/lib/billing';
+import {ALL_PLANS_INCLUDE, FOUNDING_DEADLINE, FOUNDING_SEATS, activePlan, defaultPlanNote, planCards} from '@/lib/plans';
+import {billingStatus, foundingOfferOpen} from '@/lib/billing';
 import {formatMoney} from '@/lib/currency';
 import {getUser} from '@/lib/auth/server';
 import Upgrade from './upgrade';
@@ -30,9 +30,10 @@ async function operatorView() {
 
 export default async function Plans({searchParams}: Props){
  const q = await searchParams, currency = q.currency?.toUpperCase() === 'USD' ? 'USD' : 'INR';
- // #26: whole prices without paise/cents (₹499, not ₹499.00).
+ // Whole prices without paise or cents (₹799, not ₹799.00).
  const money = (n: number) => { const s = formatMoney(n, currency); return Number.isInteger(n) ? s.replace(/[.,]00(?=\D*$)/, '') : s; };
- const cards = planCards(currency, money), billing = billingStatus();
+ const showFounding = await foundingOfferOpen();
+ const cards = planCards(currency, money, ['free', 'pro', 'agency'], showFounding), billing = billingStatus();
  const beta = defaultPlanNote(activePlan(), cards.map(c => c.id));
  const operator = !billing.enabled && await operatorView();
  const chosen = cards.some(c => c.id === q.plan) ? q.plan : undefined;
@@ -47,9 +48,9 @@ export default async function Plans({searchParams}: Props){
    <Link className={currency === 'USD' ? 'primary' : 'secondary'} href="/plans?currency=USD" aria-current={currency === 'USD' ? 'page' : undefined}>US dollars</Link>
   </nav>
   {beta && <section className="muted-box section-gap" aria-labelledby="h-beta" data-testid="beta-note"><h2 id="h-beta" className="h-sub">{beta.title}</h2><p>{beta.body}</p></section>}
+  {showFounding && <section className="muted-box section-gap" aria-labelledby="h-founding" data-testid="founding-offer"><h2 id="h-founding" className="h-sub">Founding members</h2><p>The first {FOUNDING_SEATS} paid Freelancer or Studio subscriptions started by 30 June 2027 pay the founding price on the card. It stays for 24 months while that subscription is active. Cancelling ends the founding price; a later subscription pays the list price. The deadline is {FOUNDING_DEADLINE.slice(0, 10)}.</p></section>}
   <Upgrade currency={currency} enabled={billing.enabled} localDouble={billing.local_double} cards={cards} chosen={chosen} betaName={beta ? activePlan().name : undefined}/>
-  {/* R3-03: no feature is gated by plan, so the shared features are said once; the cards list only the limits that differ. */}
-  <section className="section-gap" aria-labelledby="h-all-plans" data-testid="all-plans-include"><h2 id="h-all-plans" className="h-sub">All plans include</h2><ul className="bullets">{ALL_PLANS_INCLUDE.map(f => <li key={f}>{f}</li>)}</ul><p className="fine">Plans differ only in the limits on each card.</p></section>
+  <section className="section-gap" aria-labelledby="h-all-plans" data-testid="all-plans-include"><h2 id="h-all-plans" className="h-sub">All plans include</h2><ul className="bullets">{ALL_PLANS_INCLUDE.map(f => <li key={f}>{f}</li>)}</ul><p className="fine">The cards list the limits and the features that differ. <Link className="help-link" href="/account/team">Studio seats, the shared rate card and team activity</Link> are on Studio.</p></section>
   <p className="fine section-gap">Deposits you ask a client for are separate from your plan: they go straight to your own payment account. See the <Link className="help-link" href="/terms">terms</Link>.</p>
   <p className="fine section-gap"><Link className="help-link" href="/">Back to projects</Link></p>
  </main></>;
