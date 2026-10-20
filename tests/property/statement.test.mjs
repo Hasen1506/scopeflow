@@ -58,3 +58,17 @@ test('PDF: deterministic, states the figures, payment terms and the record finge
   const paid = latin1(renderStatementPdf(model(await ledger([{amount: 1180}]))));
   assert.ok(paid.includes('Paid in full.'));
 });
+
+test('C4: payments recorded against a superseded baseline still count on the current statement', async () => {
+  const v1 = await approve(base, {version: 1});
+  const v2 = await approve({...base, fee: 2000}, {version: 2});
+  const entries = [];
+  entries.push(await append(entries, v1, 'payment_received', {amount: 500, method: 'upi', received: '2026-10-01', reference: '', note: ''}, 'owner', tick(1)));
+  entries.push(await append(entries, v2, 'payment_received', {amount: 100, method: 'upi', received: '2026-10-02', reference: '', note: ''}, 'owner', tick(2)));
+  const content = {...base, fee: 2000};
+  const agreement = L.computeAgreement(content, 2, entries.filter(e => e.baseline_version === 2));
+  const m = statementModel({project_id: 'p1', version: 2, content, agreement, entries, time_zone: 'Asia/Kolkata', generated: tick(0)});
+  assert.equal(m.paid, 600);
+  assert.equal(m.balance, 2360 - 600);
+  assert.equal(m.entries, 1); // the fingerprint summary still covers this baseline's own entries
+});

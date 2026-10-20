@@ -30,3 +30,12 @@ test('version diffs show client-input dates the same way', () => {
   const lines = semanticDiff(before, after).map(c => describeChange(c, 'USD'));
   assert.ok(lines.includes('Client now provides: Brand assets by 20 Oct 2026'), lines.join(' | '));
 });
+
+// N3: dispute packs date "prepared on" in the project's zone (default Asia/Kolkata), not UTC.
+test('packDate: the dispute pack date is the project-zone date, defaulting to IST', async () => {
+  const {packDate} = await import('../../lib/dispute.ts');
+  assert.equal(packDate('2026-10-19T20:00:00.000Z'), '2026-10-20'); // 01:30 IST
+  assert.equal(packDate('2026-10-19T20:00:00.000Z', 'UTC'), '2026-10-19');
+  assert.equal(packDate('2026-10-19T20:00:00.000Z', 'America/New_York'), '2026-10-19');
+  assert.equal(packDate('2026-10-19T20:00:00.000Z', 'Not/AZone'), '2026-10-20');
+});

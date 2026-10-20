@@ -48,3 +48,14 @@ test('describeEntry: readable money, method and day', () => {
   assert.equal(L.describeEntry({seq: 5, kind: 'payment_received', payload: {...good, method: 'cash', reference: ''}}, 'INR'), 'Payment received: ₹300.00 in cash on 1 Oct 2026');
   assert.equal(L.describeEntry({seq: 4, kind: 'revision_round', payload: {feedback_date: '2026-10-08', note: ''}}, 'INR'), 'Revision round received 8 Oct 2026');
 });
+
+test('checkEntry: decimals follow the agreement currency (JPY has none); the project date bounds the future', () => {
+  const jpy = {...base, currency: 'JPY'};
+  const a = L.computeAgreement(jpy, 1, []);
+  assert.equal(L.checkEntry('payment_received', {...good, amount: 300}, jpy, a, 'owner'), null);
+  assert.match(L.checkEntry('payment_received', {...good, amount: 300.5}, jpy, a, 'owner'), /whole amount/);
+  assert.match(L.checkEntry('refund', {amount: 1.5, method: 'upi', refunded: '2026-10-01', reference: '', note: ''}, jpy, a, 'owner'), /whole amount/);
+  const inr = L.computeAgreement(base, 1, []);
+  assert.match(L.checkEntry('payment_received', {...good, received: '2026-10-12'}, base, inr, 'owner', {today: '2026-10-10'}), /future/);
+  assert.equal(L.checkEntry('payment_received', {...good, received: '2026-10-11'}, base, inr, 'owner', {today: '2026-10-10'}), null);
+});

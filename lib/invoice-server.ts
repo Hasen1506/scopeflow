@@ -179,7 +179,7 @@ export async function frozenSchedule(sql: Sql, projectId: string, version: numbe
 }
 
 // ---- H11: receipt vouchers for advances --------------------------------------------------------
-export type VoucherContext = {owner: string; projectId: string; version: number; content: Scope; entries: LedgerEntry[]; profile: Profile; project: ProjectBilling & {client_email: string | null}; agreement: AgreementMoney};
+export type VoucherContext = {owner: string; projectId: string; version: number; content: Scope; entries: LedgerEntry[]; profile: Profile; project: ProjectBilling & {client_email: string | null; timezone?: string | null}; agreement: AgreementMoney};
 /**
  * Issues a receipt voucher (or plain payment receipt) for every advance on the record that has none:
  * an online deposit, a payment recorded as a deposit/advance, or money received before the project's
@@ -202,7 +202,7 @@ export async function ensureReceiptVouchers(tx: Sql, ctx: VoucherContext, only?:
     if (amount <= 0) continue;
     await lockOwnerSeries(tx, ctx.owner, 'rv');
     const [n] = await tx.unsafe('SELECT coalesce(max(seq),0)+1 AS seq FROM scopeflow.receipt_vouchers WHERE owner=$1', [ctx.owner]);
-    const seq = Number(n.seq), today = new Date().toISOString().slice(0, 10);
+    const seq = Number(n.seq), today = todayIn(ctx.project.timezone ?? null); // the project's date (IST), not UTC
     const content = receiptVoucherContent({
       seq, issued: today, received: line.received, amount: fromMinorOf(amount, ctx.content.currency), currency: ctx.content.currency,
       seller: {name: ctx.profile.business_name, address: ctx.profile.business_address, tax_id: ctx.profile.tax_id, payment_details: ctx.profile.payment_details, state: ctx.profile.gst_state || gstinState(ctx.profile.tax_id)},
@@ -254,10 +254,13 @@ export function msmedSummary(p: {profile: MsmeProfile | null; contract_date: str
 }
 
 /** H19: invoices paid net of TDS whose certificate is past due (for the owner's quarterly reminder). */
-export function tdsCertificatesPending(views: InvoiceView[], entries: LedgerEntry[], today: string) {
+export function tdsCertificatesPending(views: InvoiceView[], entries: LedgerEntry[], today: string, alloc?: Allocation) {
   const lines = moneyLines(entries).filter(l => l.amount > 0);
+  // N4: "paid on" is the date of the payment that settled the invoice's cash part (from the allocation);
+  // the last payment on or after the issue date is only the fallback for callers without an allocation.
+  const settled = new Map((alloc?.invoices ?? []).filter(a => a.settled_by).map(a => [a.seq, a.settled_by!.date]));
   return views.filter(v => v.status === 'paid_net_of_tds').map(v => {
-    const paidOn = lines.filter(l => l.received >= v.issued).at(-1)?.received ?? v.issued;
+    const paidOn = settled.get(v.seq) ?? lines.filter(l => l.received >= v.issued).at(-1)?.received ?? v.issued;
     return {seq: v.seq, number: v.number, amount: v.tds ? v.tds.amount - v.tds.credited : 0, quarter: tdsQuarter(paidOn), certificate_due: certificateDueFor(paidOn), overdue: today > certificateDueFor(paidOn)};
   }).filter(x => x.amount > 0);
 }

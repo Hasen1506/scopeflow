@@ -1,5 +1,16 @@
 import {PdfDocument, wrap, type Font} from './pdf';
-import {stamp} from './time';
+import {stamp, validTimeZone} from './time';
+
+/**
+ * N3: the calendar date (YYYY-MM-DD) of an ISO timestamp in the project's time zone, falling back to
+ * Asia/Kolkata, so a pack generated 00:00-05:30 IST is not dated the previous (UTC) day. Pure.
+ */
+export function packDate(iso: string, timezone?: string | null): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  const zone = validTimeZone(timezone) ? timezone : 'Asia/Kolkata';
+  return new Intl.DateTimeFormat('en-CA', {timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit'}).format(d);
+}
 
 // Dispute pack: everything needed to prove a project's record outside Scopeflow, in one ZIP. This
 // file renders the Bharatiya Sakshya Adhiniyam, 2023 Section 63 certificate as a pre-filled
@@ -96,13 +107,15 @@ export type SamadhaanModel = {
   invoices: {number: string; issued: string; amount: string; received: string; outstanding: string; interest: string}[];
   totals: {outstanding: string; interest: string; claimed: string};
   warnings: string[]; generated: string;
+  /** N3: the project's IANA zone, for the "prepared on" date (default Asia/Kolkata). */
+  timezone?: string | null;
 };
 /** The MSME Samadhaan application fields, filled from the record (check them against the live portal form before filing). */
 export function samadhaanFieldSheet(m: SamadhaanModel) {
   const f = (k: string, v: string | number | null | undefined) => `${k.padEnd(44)} ${v === null || v === undefined || v === '' ? '(not on the record: fill in)' : v}`;
   return [
     'MSME SAMADHAAN: DELAYED PAYMENT APPLICATION, FIELD SHEET',
-    `Pre-filled by Scopeflow on ${m.generated.slice(0, 10)} from the records of project ${m.project.id}. Estimate — confirm with your CA.`,
+    `Pre-filled by Scopeflow on ${packDate(m.generated, m.timezone)} from the records of project ${m.project.id}. Estimate — confirm with your CA.`,
     'Portal: https://samadhaan.msme.gov.in (file under MSMED Act 2006, s.18). Check every field against the live form.',
     '',
     'A. SUPPLIER (MSE UNIT)',
@@ -138,17 +151,19 @@ export type ConsumerModel = {
   payments: {date: string; amount: string; method: string; reference: string}[];
   inspections: {date: string; what: string}[];
   photos: number; generated: string;
+  /** N3: the project's IANA zone, for the "prepared on" date (default Asia/Kolkata). */
+  timezone?: string | null;
 };
 /** Plain-language summary for a homeowner's complaint (Consumer Protection Act 2019, e-Daakhil). */
 export function consumerSummary(m: ConsumerModel) {
   return [
-    `What was agreed: ${m.vendor} agreed to "${m.title}" for ${m.homeowner}${m.agreed_on ? ` on ${m.agreed_on.slice(0, 10)}` : ''}, for a total of ${m.currency_total}.`,
+    `What was agreed: ${m.vendor} agreed to "${m.title}" for ${m.homeowner}${m.agreed_on ? ` on ${packDate(m.agreed_on, m.timezone)}` : ''}, for a total of ${m.currency_total}.`,
     `What was paid: ${m.paid} (${m.payments.length} stage payment${m.payments.length === 1 ? '' : 's'}, each listed with its UTR or reference in payments.csv). Still due under the agreement: ${m.balance}.`,
     m.change_orders.length ? `Changes: ${m.change_orders.map(c => `${c.title} (${c.status}, ${c.amount})`).join('; ')}.` : 'Changes: none were agreed.',
     m.inspections.length ? `Inspections and sign-offs: ${m.inspections.map(i => `${i.date} ${i.what}`).join('; ')}.` : 'Inspections and sign-offs: none are on the record.',
     m.photos ? `Site photos: ${m.photos} in photos/.` : 'Site photos: none are on the record; add your own photos when you file.',
     'How to use this pack: file the complaint online at https://edaakhil.nic.in (the District Commission hears claims up to ₹50 lakh). Attach the files listed in MANIFEST.txt. This summary is not legal advice.',
-    `Prepared by Scopeflow on ${m.generated.slice(0, 10)}.`,
+    `Prepared by Scopeflow on ${packDate(m.generated, m.timezone)}.`,
   ].join('\n\n') + '\n';
 }
 /** The consumer pack's files, in order (golden-tested). `photos` site photos, when the record has any. */

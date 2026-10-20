@@ -347,8 +347,13 @@ test('ledger: entry hashes, verifyChain, computeAgreement (+ LT-14 deliverables)
     const tampered = entries.length ? entries.map((e, n) => (n === pick % entries.length ? {...e, created: tick(99999)} : e)) : entries;
     for (const list of [entries, tampered, entries.slice(1)]) assert.deepEqual(await N.ledger.verifyChain(list, {1: b.anchor}), await O.ledger.verifyChain(list, {1: b.anchor}));
     const a = N.ledger.computeAgreement(content, 1, entries), o = O.ledger.computeAgreement(content, 1, entries);
-    const {deliverables, ...rest} = a; // LT-14 (docs/ws-05.md): the derived deliverables-in-force line is new
-    assert.deepEqual(rest, o);
+    const {deliverables, goodwill_value, goodwill_hours, ...rest} = a; // LT-14 (docs/ws-05.md): the derived deliverables-in-force line is new
+    // N1 (PR #59): goodwill totals are now rounded (value to the currency's decimals, hours to 2 dp)
+    // instead of the raw float sum; that rounding is the only documented difference.
+    const {goodwill_value: oldValue, goodwill_hours: oldHours, ...oldRest} = o;
+    assert.deepEqual(rest, oldRest);
+    assert.equal(goodwill_value, minor.roundMajor(oldValue, content.currency));
+    assert.equal(goodwill_hours, Math.round(oldHours * 100) / 100);
     assert.equal(deliverables, a.items.map(i => N.scope.itemLine(i) + (i.source === 'baseline' ? '' : ` [CO-${i.source}]`)).join('\n'));
     const pa = N.ledger.paymentsOf(entries), po = O.ledger.paymentsOf(entries);
     assert.deepEqual(pa, po);
