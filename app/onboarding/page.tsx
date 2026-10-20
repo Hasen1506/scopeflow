@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import QRCode from 'qrcode';
 import {Header, api} from '../ui';
 import {currencyList} from '@/lib/currency';
@@ -21,6 +21,11 @@ export default function Onboarding() {
   const router = useRouter();
   const [step, setStep] = useState(1), [busy, setBusy] = useState(false), [error, setError] = useState(''), [signedOut, setSignedOut] = useState(false);
   const [mode, setMode] = useState<Mode>('freelancer');
+  // U6: the server default only fills the mode until the user picks one themselves.
+  const modeTouched = useRef(false);
+  // A4: a step change moves focus to the new heading so screen readers hear where they are.
+  const heading = useRef<HTMLHeadingElement>(null), firstStep = useRef(true);
+  useEffect(() => { if (firstStep.current) { firstStep.current = false; return; } heading.current?.focus(); }, [step]);
   const [country, setCountry] = useState('OTHER'), [currency, setCurrency] = useState('USD'), [timezone, setTimezone] = useState('UTC');
   const [name, setName] = useState(''), [gstin, setGstin] = useState(''), [vpa, setVpa] = useState('');
   const [udyam, setUdyam] = useState({number: '', date: '', category: ''});
@@ -29,7 +34,7 @@ export default function Onboarding() {
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone, c = countryFromLocale(navigator.language, tz), d = countryDefaults(c);
     queueMicrotask(() => { setCountry(c); setCurrency(d.currency); setTimezone(c === 'OTHER' && tz ? tz : d.timezone); });
-    api('/api/me').then(m => { if (!m.signedIn) setSignedOut(true); else if (m.defaults?.mode) setMode(m.defaults.mode); }, () => {});
+    api('/api/me').then(m => { if (!m.signedIn) setSignedOut(true); else if (m.defaults?.mode && !modeTouched.current) setMode(m.defaults.mode); }, () => {});
   }, []);
   const india = country === 'IN';
   const g = gstin ? checkGstin(gstin) : null;
@@ -52,11 +57,11 @@ export default function Onboarding() {
   }
   const stepOk = step !== 3 || ((!gstin || !!g?.ok) && (!vpa || !!link));
   return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
-    <p className="eyebrow">SET UP YOUR WORKSPACE · STEP {step} OF 3</p>
-    <h1>{step === 1 ? <>How will you <em>use ScopeFlow?</em></> : step === 2 ? <>Where do you <em>work?</em></> : <>Your business <em>details.</em></>}</h1>
+    <p className="eyebrow" aria-live="polite" aria-atomic="true">SET UP YOUR WORKSPACE · STEP {step} OF 3</p>
+    <h1 ref={heading} tabIndex={-1}>{step === 1 ? <>How will you <em>use ScopeFlow?</em></> : step === 2 ? <>Where do you <em>work?</em></> : <>Your business <em>details.</em></>}</h1>
     {signedOut && <p className="muted-box" role="status">Sign in first: <Link className="help-link" href="/auth/sign-in?return_to=%2Fonboarding">Sign in</Link></p>}
     {step === 1 && <fieldset className="section-gap"><legend>Workspace mode</legend><p className="fine">You can change it any time in Account. Every feature stays available in every mode.</p>
-      {MODES.map(m => <label key={m} className="radio-row"><input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)}/> <span><strong>{MODE_LABEL[m]}</strong><span className="quiet block">{MODE_BLURB[m]}</span></span></label>)}</fieldset>}
+      {MODES.map(m => <label key={m} className="radio-row"><input type="radio" name="mode" value={m} checked={mode === m} onChange={() => { modeTouched.current = true; setMode(m); }}/> <span><strong>{MODE_LABEL[m]}</strong><span className="quiet block">{MODE_BLURB[m]}</span></span></label>)}</fieldset>}
     {step === 2 && <div>
       <label>Country<select value={country} onChange={e => pickCountry(e.target.value)}>{COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></label>
       <label>Currency for new scopes<select value={currency} onChange={e => setCurrency(e.target.value)}>{currencyList.map(c => <option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></label>

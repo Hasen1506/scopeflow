@@ -31,6 +31,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  // P4: the refresh button shows that it is working.
+  const [refreshing, setRefreshing] = useState(false);
   const [roundNote, setRoundNote] = useState('');
   const pendingWrite = useRef<{signature:string;id:string}|null>(null);
   // LT-08: withdrawals in flight (optimistic: the CO shows as withdrawn at once; a second click is ignored).
@@ -129,7 +131,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
           {view.chain.intact
             ? <span className="chain ok" title={`Chain head ${view.chain.head}`}><ShieldCheck size={14} />{view.chain.count} {view.chain.count === 1 ? 'entry' : 'entries'} · {view.chain.head.slice(0, 8)}</span>
             : <span className="chain bad"><ShieldAlert size={14} />Record check failed at entry {view.chain.at}</span>}
-          <button className="icon" aria-label="Refresh ledger" onClick={load}><RefreshCw size={14} /></button>
+          <button className="icon" aria-label="Refresh ledger" disabled={refreshing} aria-busy={refreshing || undefined} onClick={async () => { setRefreshing(true); try { await load(); } finally { setRefreshing(false); } }}><RefreshCw size={14} className={refreshing ? 'spin' : undefined} /></button>
         </span>}
       </div>
       {!view.open && <p className="muted-box">{view.reason}</p>}
@@ -156,7 +158,7 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
           )}
           {a.pending > 0 && <p className="fine">{a.pending} change order{a.pending > 1 ? 's' : ''} awaiting the client{reviewUrl ? ' on ' : '.'}{reviewUrl && <a className="help-link" href={reviewUrl} target="_blank" rel="noreferrer">their review link</a>}</p>}
           {base.engagement === 'retainer' && base.retainer && <RetainerPanel projectId={projectId} items={a.items} onChanged={load} />}
-          <ScopeCheck projectId={projectId} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => { if (a.bank) { setRoundNote(note); openForm('revision_round'); } else void submit('revision_round', {feedback_date: today(), note}); }} />
+          <ScopeCheck projectId={projectId} busy={busy} onDraft={co => openForm('change_order', co)} onLogRound={note => { /* U1: a revision round is a permanent signed entry: always open the form to review it first */ setRoundNote(note); void openForm('revision_round'); }} />
           <div className="actions section-gap" ref={toolbar}>
             <button type="button" className={toggle('change_order')} aria-pressed={form === 'change_order'} disabled={busy} onClick={() => openForm('change_order')}><FilePlus2 size={16} />Change order</button>
             <button type="button" className={toggle('revision_round')} aria-pressed={form === 'revision_round'} disabled={busy} onClick={() => openForm('revision_round')}><RotateCcw size={16} />Revision round</button>
@@ -165,8 +167,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
           </div>
           <div ref={formArea}>
             {form === 'change_order' && <ChangeOrderForm key={JSON.stringify(coSeed)} seed={coSeed} agreement={a} scope={base} projectId={projectId} busy={busy} error={error} onInvalid={setError} onDirty={setDirty} onSubmit={(p, id) => submit('change_order', p, id)} onCancel={closeForm} />}
-            {form === 'revision_round' && <RoundForm key={roundNote} busy={busy} error={error} used={a.revisions_used} allowed={a.revisions_allowed} bank={a.bank} currency={cur} seedNote={roundNote} onSubmit={p => submit('revision_round', p)} onCancel={closeForm} />}
-            {form === 'client_input' && <InputForm busy={busy} error={error} inputs={(base.client_inputs ?? []).filter(i => !a.delays.some(d => d.input_id === i.id))} onSubmit={p => submit('client_input', p)} onCancel={closeForm} />}
+            {form === 'revision_round' && <RoundForm key={roundNote} busy={busy} error={error} used={a.revisions_used} allowed={a.revisions_allowed} bank={a.bank} currency={cur} seedNote={roundNote} onDirty={setDirty} onSubmit={p => submit('revision_round', p)} onCancel={closeForm} />}
+            {form === 'client_input' && <InputForm busy={busy} error={error} inputs={(base.client_inputs ?? []).filter(i => !a.delays.some(d => d.input_id === i.id))} onDirty={setDirty} onSubmit={p => submit('client_input', p)} onCancel={closeForm} />}
             {form === 'goodwill' && <GoodwillForm busy={busy} error={error} currency={cur} onDirty={setDirty} onSubmit={p => submit('goodwill', p)} onCancel={closeForm} />}
           </div>
         </>
@@ -188,8 +190,8 @@ export function LedgerPanel({projectId, reviewUrl, timeZone = null, onView, onLo
                 </div>
                 <span className="fine">Entry {e.seq} · {formatInZone(e.created, timeZone)} · {e.actor === 'client' ? 'client' : e.actor === 'system' ? 'Scopeflow (Razorpay)' : 'you'}{stale || !view.baseline ? ` · on version ${e.baseline_version}` : ''}</span>
                 {co?.status === 'proposed' && <span className="actions">
-                  <button className="link-button" disabled={busy} onClick={() => openForm('change_order', {title: co.title, reason: co.reason, request_quote: co.request_quote, add_items: co.add_items, remove_item_ids: co.remove_item_ids, fee_delta: co.fee_delta, days_delta: co.days_delta, revisions_delta: co.revisions_delta, ...(co.bank_delta ? {bank_delta: co.bank_delta} : {}), revises: co.seq})}>Revise</button>
-                  <button className="link-button" disabled={withdrawing.includes(co.seq)} onClick={async () => { if (await confirm({title: `Withdraw CO-${co.seq}?`, body: co.title, consequence: 'The client will no longer be able to approve it. The withdrawal stays on the signed record.', confirmLabel: `Withdraw CO-${co.seq}`, cancelLabel: 'Keep it', danger: true})) void withdraw(co.seq); }}>Withdraw</button>
+                  <button className="link-button" disabled={busy} onClick={() => openForm('change_order', {title: co.title, reason: co.reason, request_quote: co.request_quote, add_items: co.add_items, remove_item_ids: co.remove_item_ids, fee_delta: co.fee_delta, days_delta: co.days_delta, revisions_delta: co.revisions_delta, ...(co.bank_delta ? {bank_delta: co.bank_delta} : {}), revises: co.seq})}>Revise<span className="sr-only"> CO-{co.seq}</span></button>
+                  <button className="link-button" disabled={withdrawing.includes(co.seq)} onClick={async () => { if (await confirm({title: `Withdraw CO-${co.seq}?`, body: co.title, consequence: 'The client will no longer be able to approve it. The withdrawal stays on the signed record.', confirmLabel: `Withdraw CO-${co.seq}`, cancelLabel: 'Keep it', danger: true})) void withdraw(co.seq); }}>Withdraw<span className="sr-only"> CO-{co.seq}</span></button>
                 </span>}
               </li>
             );
@@ -266,10 +268,14 @@ function ChangeOrderForm({seed, agreement, scope, projectId, busy, error, onInva
   );
 }
 
-function RoundForm({busy, error, used, allowed, bank, currency, seedNote, onSubmit, onCancel}: {busy: boolean; error: string; used: number; allowed: number; bank: Agreement['bank']; currency: string; seedNote: string; onSubmit: (p: unknown) => Promise<boolean>; onCancel: () => void}) {
-  const [date, setDate] = useState(today());
+function RoundForm({busy, error, used, allowed, bank, currency, seedNote, onDirty, onSubmit, onCancel}: {busy: boolean; error: string; used: number; allowed: number; bank: Agreement['bank']; currency: string; seedNote: string; onDirty: (dirty: boolean) => void; onSubmit: (p: unknown) => Promise<boolean>; onCancel: () => void}) {
+  const [initialDate] = useState(today);
+  const [date, setDate] = useState(initialDate);
   const [note, setNote] = useState(seedNote);
   const [spent, setSpent] = useState('');
+  // U2: typed input is guarded by the "discard?" dialog like the other forms.
+  const typed = date !== initialDate || note !== seedNote || !!spent;
+  useEffect(() => { onDirty(typed); }, [typed, onDirty]);
   return (
     <form className="ledger-form" onSubmit={e => { e.preventDefault(); void onSubmit({feedback_date: date, note, ...(bank ? {used: Number(spent) || 0} : {})}); }}>
       {bank
@@ -283,11 +289,16 @@ function RoundForm({busy, error, used, allowed, bank, currency, seedNote, onSubm
   );
 }
 
-function InputForm({busy, error, inputs, onSubmit, onCancel}: {busy: boolean; error: string; inputs: {id: string; title: string; due: string}[]; onSubmit: (p: unknown) => Promise<boolean>; onCancel: () => void}) {
-  const [id, setId] = useState(inputs[0]?.id ?? '');
-  const [date, setDate] = useState(today());
+function InputForm({busy, error, inputs, onDirty, onSubmit, onCancel}: {busy: boolean; error: string; inputs: {id: string; title: string; due: string}[]; onDirty: (dirty: boolean) => void; onSubmit: (p: unknown) => Promise<boolean>; onCancel: () => void}) {
+  const [initialId] = useState(inputs[0]?.id ?? '');
+  const [initialDate] = useState(today);
+  const [id, setId] = useState(initialId);
+  const [date, setDate] = useState(initialDate);
   const [shift, setShift] = useState(true);
   const [note, setNote] = useState('');
+  // U2: typed input is guarded by the "discard?" dialog like the other forms.
+  const typed = id !== initialId || date !== initialDate || !shift || !!note;
+  useEffect(() => { onDirty(typed); }, [typed, onDirty]);
   const chosen = inputs.find(i => i.id === id);
   const late = chosen?.due && date > chosen.due ? Math.round((Date.parse(date) - Date.parse(chosen.due)) / 86400000) : 0;
   if (!inputs.length) return <p className="fine">Every client input has been recorded.</p>;

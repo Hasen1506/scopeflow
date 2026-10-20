@@ -50,7 +50,23 @@ type Notice = {retention_days?: number | null; data_notice?: string | null};
 const draftKey = (token: string) => 'scopeflow:review-draft:' + token.slice(0, 16);
 
 /** Loads Razorpay Checkout once, on demand (CSP allows only checkout.razorpay.com). */
-function loadCheckout() { return new Promise<void>((resolve, reject) => { if ((window as unknown as {Razorpay?: unknown}).Razorpay) return resolve(); const s = document.createElement('script'); s.src = 'https://checkout.razorpay.com/v1/checkout.js'; s.onload = () => resolve(); s.onerror = () => reject(new Error('Razorpay Checkout could not be loaded.')); document.head.appendChild(s); }); }
+const CHECKOUT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+let checkoutLoading: Promise<void> | null = null;
+/** U3: one script tag per page: a retry reuses the pending load (or the tag already on the page) instead of adding another. */
+function loadCheckout() {
+  if ((window as unknown as {Razorpay?: unknown}).Razorpay) return Promise.resolve();
+  if (checkoutLoading) return checkoutLoading;
+  checkoutLoading = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${CHECKOUT_SRC}"]`);
+    const s = existing ?? document.createElement('script');
+    const fail = () => { checkoutLoading = null; s.remove(); reject(new Error('Razorpay Checkout could not be loaded.')); };
+    s.addEventListener('load', () => resolve(), {once: true});
+    s.addEventListener('error', fail, {once: true});
+    if (!existing) { s.src = CHECKOUT_SRC; s.async = true; document.head.appendChild(s); }
+  });
+  return checkoutLoading;
+}
+type RazorpayInstance = {open: () => void; on: (event: string, cb: (r: {error?: {description?: string}}) => void) => void};
 
 export default function Review({token, queryLang = null, acceptLang = null}: {token: string; queryLang?: Lang | null; acceptLang?: Lang | null}) {
   const [data, setData] = useState<ReviewData | null>(null), [problem, setProblem] = useState<LinkProblemState | null>(null);
@@ -58,6 +74,8 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
   const [receipt, setReceipt] = useState<Record<string, unknown> | null>(null), [otpSession, setOtpSession] = useState('');
   const [depositNote, setDepositNote] = useState(''), [paying, setPaying] = useState(false), [returned, setReturned] = useState<'ok' | 'cancel' | null>(null);
   const [invoiceNote, setInvoiceNote] = useState(''), [payingInvoice, setPayingInvoice] = useState<number | null>(null);
+  // A6: both decision buttons share one busy pattern; `deciding` says which one shows "Saving…".
+  const [deciding, setDeciding] = useState<string | null>(null);
   const [decideError, setDecideError] = useState(''), [newer, setNewer] = useState<{version: number; url: string | null} | null>(null), [justApproved, setJustApproved] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null), noticeAsked = useRef(false);
   const outcome = useRef<HTMLHeadingElement>(null), focusOutcome = useRef(false);
@@ -92,7 +110,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
 
   // L12: the typed name and comment survive a reload, a 409 and a replaced version, on this device only.
   useEffect(() => { try { const saved = JSON.parse(localStorage.getItem(draftKey(token)) || 'null') as {name?: string; comment?: string} | null; if (saved) queueMicrotask(() => { if (typeof saved.name === 'string') setName(saved.name); if (typeof saved.comment === 'string') setComment(saved.comment); }); } catch { /* storage blocked or malformed */ } }, [token]);
-  useEffect(() => { try { if (name || comment) localStorage.setItem(draftKey(token), JSON.stringify({name, comment})); } catch { /* storage blocked */ } }, [token, name, comment]);
+  useEffect(() => { try { if (name || comment) localStorage.setItem(draftKey(token), JSON.stringify({name, comment})); else localStorage.removeItem(draftKey(token)); /* U5: a cleared draft stays cleared after a reload */ } catch { /* storage blocked */ } }, [token, name, comment]);
   // L12: when the reader comes back to the tab, re-check whether a newer version was shared meanwhile.
   useEffect(() => {
     let last = Date.now();
@@ -126,7 +144,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
     if (!checked) { setDecideError(t('decide.errConsent')); document.getElementById('decide-consent')?.focus(); return; }
     if (decision === 'changes_requested' && !comment.trim()) { setDecideError(t('decide.errComment')); document.getElementById('decision-comment')?.focus(); return; }
     if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; }
-    setBusy(true);
+    setBusy(true); setDeciding(decision);
     try {
       // SF-15: the server checks the acknowledgement and that this is exactly the content shown.
       const content_sha256 = await sha256(JSON.stringify(scope!.content));
@@ -145,7 +163,27 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
     } finally { setBusy(false); }
   }
   /** Starts an online payment (the deposit, or an open invoice): Razorpay's widget, or a redirect to Stripe Checkout. */
-  async function pay(path: string, label: string, done: (note: string) => void) { const o = await api(path, post({})); if (o.provider === 'stripe') { try { sessionStorage.setItem('scopeflow:payment-return', token); } catch { /* the return page then explains how to come back */ } location.assign(o.url); return; } await loadCheckout(); const Razorpay = (window as unknown as {Razorpay: new (options: Record<string, unknown>) => {open: () => void}}).Razorpay; new Razorpay({key: o.key_id, order_id: o.order_id, amount: o.amount_minor, currency: o.currency, name: o.name, description: o.description, handler: () => { done(t('deposit.submitted', {label})); setTimeout(() => { void load(); }, 4000); }}).open(); }
+  // U3: the reload timer after a Razorpay payment is cleared on unmount and replaced (not stacked) by the next payment.
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (reloadTimer.current) clearTimeout(reloadTimer.current); }, []);
+  /** Resolves once the Razorpay widget settles (paid, failed or dismissed), so the button stays busy until then. */
+  async function pay(path: string, label: string, done: (note: string) => void) {
+    const o = await api(path, post({}));
+    if (o.provider === 'stripe') { try { sessionStorage.setItem('scopeflow:payment-return', token); } catch { /* the return page then explains how to come back */ } location.assign(o.url); return; }
+    await loadCheckout();
+    const Razorpay = (window as unknown as {Razorpay: new (options: Record<string, unknown>) => RazorpayInstance}).Razorpay;
+    await new Promise<void>(resolve => {
+      let settled = false;
+      const finish = (note: string) => { if (settled) return; settled = true; done(note); resolve(); };
+      const rzp = new Razorpay({key: o.key_id, order_id: o.order_id, amount: o.amount_minor, currency: o.currency, name: o.name, description: o.description,
+        handler: () => { finish(t('deposit.submitted', {label})); if (reloadTimer.current) clearTimeout(reloadTimer.current); reloadTimer.current = setTimeout(() => { reloadTimer.current = null; void load(); }, 4000); },
+        // U3: closing the widget without paying says so instead of leaving the page silent.
+        modal: {ondismiss: () => finish(t('deposit.returnCancel'))}});
+      // U3: a declined or failed payment shows the provider's reason (the widget stays open so the client can retry there).
+      rzp.on('payment.failed', r => { done(r?.error?.description || t('deposit.returnCancel')); });
+      rzp.open();
+    });
+  }
   async function payDeposit() { setDepositNote(''); setPaying(true); try { await pay(`/api/review/${token}/deposit`, t('deposit.title'), setDepositNote); } catch (e) { setDepositNote((e as Error).message); } finally { setPaying(false); } }
   async function payInvoice(seq: number, number: string) { setInvoiceNote(''); setPayingInvoice(seq); try { await pay(`/api/review/${token}/invoices/${seq}/pay`, number, setInvoiceNote); } catch (e) { setInvoiceNote((e as Error).message); } finally { setPayingInvoice(null); } }
   // Back from Stripe Checkout: say what happened while the webhook catches up.
@@ -207,14 +245,17 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
             <p className="fine" id="comment-kept">{t('decide.commentKept')}</p>
             <label className="consent"><Checkbox id="decide-consent" aria-required="true" aria-invalid={(!!decideError && !checked) || undefined} checked={checked} onCheckedChange={v => { setChecked(v === true); setDecideError(e => afterConsent(e, t('decide.errConsent'), v === true)); }} />{t('decide.consent', {version: scope.version})}</label>
             {decideError && <div className="error" role="alert" id="decide-error"><p className="flush">{decideError}</p>{unavailable && <p className="flush">{resting && <span data-testid="decide-cooldown">{t(cooldown === 1 ? 'decide.retryInOne' : 'decide.retryIn', {seconds: cooldown})} </span>}<a className="help-link" href={tellSenderHref(t, scope.version, typeof location === 'undefined' ? '' : location.href, comment)} data-testid="tell-sender">{t('decide.tellSender')}</a></p>}</div>}
-            <div className="actions"><button className="primary" disabled={resting} aria-disabled={busy || resting || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={busy || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={busy || resting} aria-describedby={decideError ? 'decide-error' : undefined} onClick={() => decide('changes_requested')}>{t('decide.requestChanges')}</button></div>
+            <div className="actions"><button className="primary" disabled={resting} aria-disabled={busy || resting || (!!identity && !otpSession) || undefined} aria-describedby={[identity && !otpSession ? 'decide-needs-code' : '', decideError ? 'decide-error' : ''].filter(Boolean).join(' ') || undefined} aria-busy={(busy && deciding === 'approved') || undefined} onClick={() => { if (busy) return; if (identity && !otpSession) { setDecideError(t(identity.channel && identity.channel !== 'email' ? 'decide.errCodePhone' : 'decide.errCodeEmail')); return; } void decide('approved'); }}>{busy && deciding === 'approved' ? t('decide.saving') : t('decide.approve')}</button><button className="secondary" disabled={resting} aria-disabled={busy || resting || undefined} aria-describedby={decideError ? 'decide-error' : undefined} aria-busy={(busy && deciding === 'changes_requested') || undefined} onClick={() => { if (busy) return; void decide('changes_requested'); }}>{busy && deciding === 'changes_requested' ? t('decide.saving') : t('decide.requestChanges')}</button></div>
             {identity && !otpSession && <p className="fine" id="decide-needs-code">{t('decide.needsCode')}</p>}
           </>}
           {replaced && decideError && <p className="error" role="alert">{decideError}</p>}
           <p className="fine">{identity ? t(identity.channel && identity.channel !== 'email' ? 'decide.fineCodePhone' : 'decide.fineCodeEmail') : t('decide.fineNoCode')} {t('decide.fineMoney')}</p>
           <DataNotice lang={lang} retentionDays={data?.retention_days ?? notice?.retention_days ?? null} dataNotice={data?.data_notice ?? null} />{/* integration: the notice endpoint's data_notice is WS-08's English summary of the retention DataNotice already states (translated) from retention_days; showing both repeated it */}
+          {/* The identity fine print stays visible next to the money line above (LT-13 copy snapshot); the glossary stays folded. */}
           <details className={styles.glossary}><summary>{t('glossary.title')}</summary><ul><li>{t('glossary.recordCheck')}</li><li>{t('glossary.seal')}</li><li>{t('glossary.co')}</li></ul></details>
         </section>
+        {/* P3: deposit and invoices side by side when both are shown (two-col stacks on phones). */}
+        <div className={deposit && ledger?.invoices?.length ? 'two-col money-cols' : undefined}>
         {deposit && <section className="editor no-print deposit-box" id="pay-deposit" tabIndex={-1} aria-labelledby="h-deposit"><h2 id="h-deposit">{t('deposit.title')}</h2>
           {deposit.paid ? <p className="chain ok" role="status">{t('deposit.received', {amount: formatMoney(deposit.paid.amount, deposit.paid.currency)})}{deposit.paid.paid_on ? t('deposit.receivedOn', {date: formatDay(deposit.paid.paid_on)}) : deposit.paid.paid_at ? t('deposit.receivedOn', {date: formatInZone(deposit.paid.paid_at, timeZone)}) : ''}</p>
             : recordedPaid >= deposit.amount ? <p className="chain ok" role="status">{t('deposit.covered', {amount: formatMoney(recordedPaid, deposit.currency)})}</p>
@@ -226,6 +267,7 @@ export default function Review({token, queryLang = null, acceptLang = null}: {to
           <ul className="receipt-list payment-list">{ledger.invoices.map(i => <li key={i.seq}><span><strong>{i.number}</strong> · {formatMoney(i.amount, i.currency)} · {t('invoices.due', {date: formatDay(i.due)})} · <span className={i.overdue ? 'warn-text' : i.status === 'paid' ? 'ok-text' : ''}>{i.status === 'paid' ? t('invoices.paid') : i.overdue ? t('invoices.overdue') : i.status === 'part' ? t('invoices.partOpen', {amount: formatMoney(i.open, i.currency)}) : t('invoices.open')}</span>{(i as InvoiceShown).tds?.net_receivable !== undefined && <> · <span data-testid="invoice-net-tds">{t('invoices.netTds', {amount: formatMoney((i as InvoiceShown).tds?.net_receivable ?? 0, i.currency)})}</span></>}</span>
             <span className="pay-actions">{!ro.readonly && !payFilled && i.open > 0 && ledger.online_payments && <button className="secondary" disabled={payingInvoice !== null} aria-busy={payingInvoice === i.seq || undefined} onClick={() => void payInvoice(i.seq, i.number)}>{payingInvoice === i.seq ? t('deposit.opening') : t('invoices.pay', {amount: formatMoney(i.open, i.currency)})}<span className="sr-only">{t('invoices.payFor', {number: i.number})}</span></button>}<a className="help-link" href={`/api/review/${token}/invoices/${i.seq}`} download>{t('invoices.pdf')}<span className="sr-only">{t('invoices.pdfOf', {number: i.number})}</span></a></span></li>)}</ul>
           <p className="fine" role="status" aria-live="polite">{invoiceNote}</p><p className="fine">{t('invoices.note')}</p></section>}
+        </div>
         {/* WS-04 PayBlock: one mount; it lists every open target itself (deposit, invoices, balance) and preselects the most urgent. */}
         {!ro.readonly && scope.status === 'approved' && <SlotOr name="pay-block" onFilled={setPayFilled}><PayBlock token={token} {...(depositDue ? {purpose: 'deposit' as const} : openInvoice ? {purpose: 'invoice' as const, seq: openInvoice.seq} : {})} onPaid={load} /></SlotOr>}
         {!ro.readonly && cosign && scope.version === scope.latest && <Countersign token={token} content={scope.content} version={scope.version} state={cosign} timeZone={timeZone} identity={identity} otpSession={otpSession} onOtpVerified={setOtpSession} onSigned={load} />}
