@@ -3,6 +3,7 @@ import {parseCosigners, type Cosigner} from './cosign';
 import {diffBaseVersion, type VersionHistory} from './diff';
 import {readonlyReason, type ReadonlyReason} from './identity';
 import {notify} from './notify';
+import {publicOrigin} from './origin';
 
 // Review-link state (owner: WS-02): which version a token opens, whether it is read-only (H4),
 // per-version expiry (H5), when a version was first sent (H2, C5 contact lock), and the
@@ -99,7 +100,10 @@ export async function invitesFor(projectId: string, version: number) {
 /** H1: once approved, each role with an address gets its own link (WS-06 delivers through notify()). */
 export async function inviteCosigners(request: Request, projectId: string, version: number, owner: string, title: string) {
   const invites = await invitesFor(projectId, version);
-  const origin = (process.env.APP_URL || new URL(request.url).origin).replace(/\/$/, '');
+  // S4: request.url is the bind address (http://0.0.0.0:PORT) behind Render's proxy; use the public
+  // origin (APP_URL, or the forwarded origin outside production; S12 refuses in production without APP_URL).
+  let origin: string;
+  try { origin = publicOrigin(request).replace(/\/$/, ''); } catch (e) { console.error('Countersign invites not sent:', (e as Error).message); return; }
   for (const i of invites) {
     const to = i.email ?? i.phone;
     if (!to) continue;

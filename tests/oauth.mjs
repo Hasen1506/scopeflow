@@ -58,7 +58,9 @@ eq(callback.origin + callback.pathname, redirect); eq(callback.searchParams.get(
 const code = callback.searchParams.get('code'); ok(code);
 
 const token = body => fetch(asm.token_endpoint, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams(body)});
-eq((await token({grant_type: 'authorization_code', code, code_verifier: randomBytes(32).toString('base64url'), redirect_uri: redirect, client_id: client.client_id, resource: base + '/mcp'})).status, 400); // wrong verifier burns the code
+eq((await token({grant_type: 'authorization_code', code, code_verifier: randomBytes(32).toString('base64url'), redirect_uri: redirect, client_id: client.client_id, resource: base + '/mcp'})).status, 400); // wrong verifier is refused
+// Review S8: a failed attempt (wrong verifier) no longer burns the code; the real client can still exchange it.
+eq((await token({grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirect, client_id: client.client_id, resource: base + '/mcp'})).status, 200);
 const approve2 = await fetch(base + '/api/oauth/authorize', {method: 'POST', redirect: 'manual', headers: {Cookie: cookie, Origin: base, 'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({...params, decision: 'approve'})});
 const code2 = new URL(approve2.headers.get('location')).searchParams.get('code');
 const issued = await token({grant_type: 'authorization_code', code: code2, code_verifier: verifier, redirect_uri: redirect, client_id: client.client_id, resource: base + '/mcp'});

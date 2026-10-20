@@ -13,6 +13,8 @@ import {db, hash} from '@/lib/server';
 import {Conflict, ValidationError} from '@/lib/errors';
 
 export const IDEMPOTENCY_TTL_MS = 24 * 3600_000;
+/** S10: a key still "in progress" after this long belongs to a request that crashed; it may be reclaimed. */
+export const IDEMPOTENCY_STALE_MS = 60_000;
 const KEY = /^[A-Za-z0-9_.:-]{8,200}$/;
 
 /** The Idempotency-Key header, null when absent; throws ValidationError when it is malformed. */
@@ -37,6 +39,10 @@ export async function withIdempotency(request: Request, scope: string, fingerpri
   const fresh = new Date(now.getTime() - IDEMPOTENCY_TTL_MS).toISOString();
   // Expired keys may be reused.
   await db().prepare('DELETE FROM scopeflow.idempotency_keys WHERE scope=? AND key=? AND created < ?').bind(scope, key, fresh).run();
+  // S10: a claim that never got an answer (the process died mid-request) is cleared after 60 s
+  // instead of answering 409 for the whole TTL.
+  const stale = new Date(now.getTime() - IDEMPOTENCY_STALE_MS).toISOString();
+  await db().prepare('DELETE FROM scopeflow.idempotency_keys WHERE scope=? AND key=? AND status IS NULL AND created < ?').bind(scope, key, stale).run();
   const claimed = await db().prepare('INSERT INTO scopeflow.idempotency_keys (scope,key,fingerprint,created) VALUES (?,?,?,?) ON CONFLICT (scope,key) DO NOTHING RETURNING key').bind(scope, key, print, now.toISOString()).first();
   if (!claimed) {
     const row = await db().prepare('SELECT fingerprint,status,body,created FROM scopeflow.idempotency_keys WHERE scope=? AND key=?').bind(scope, key).first<Stored>();

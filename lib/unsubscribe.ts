@@ -6,8 +6,14 @@ import {createHmac, timingSafeEqual} from 'node:crypto';
 // bulk mail (reminders) only; codes, review links and change-order notices still arrive.
 
 type Env = Record<string, string | undefined>;
+// S3: no fallback to an empty key (anyone could forge tokens) or to the auth cookie secret (one
+// secret, two jobs). Without a dedicated or signing secret, unsubscribe links cannot be made or checked.
+export class UnsubscribeUnconfigured extends Error {
+  constructor() { super('Unsubscribe links need SCOPEFLOW_MAIL_UNSUBSCRIBE_SECRET or SCOPEFLOW_SIGNING_SECRET.'); this.name = 'UnsubscribeUnconfigured'; }
+}
 function key(env: Env) {
-  const secret = env.SCOPEFLOW_MAIL_UNSUBSCRIBE_SECRET?.trim() || env.SCOPEFLOW_SIGNING_SECRET?.trim() || env.NEON_AUTH_COOKIE_SECRET?.trim() || '';
+  const secret = env.SCOPEFLOW_MAIL_UNSUBSCRIBE_SECRET?.trim() || env.SCOPEFLOW_SIGNING_SECRET?.trim();
+  if (!secret) throw new UnsubscribeUnconfigured();
   return createHmac('sha256', 'scopeflow-unsubscribe-v1').update(secret).digest();
 }
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64url');
@@ -22,7 +28,9 @@ export function verifyUnsubscribe(token: string | null | undefined, env: Env = p
   let address = '';
   try { address = Buffer.from(enc, 'base64url').toString('utf8'); } catch { return null; }
   if (!address.includes('@') || address.length > 254) return null;
-  const expected = Buffer.from(unsubscribeToken(address, env).split('.')[1]), given = Buffer.from(mac);
+  let expected: Buffer;
+  try { expected = Buffer.from(unsubscribeToken(address, env).split('.')[1]); } catch (e) { if (e instanceof UnsubscribeUnconfigured) return null; throw e; }
+  const given = Buffer.from(mac);
   return expected.length === given.length && timingSafeEqual(expected, given) ? address : null;
 }
 export const unsubscribeUrl = (address: string, origin: string, env: Env = process.env) => `${origin.replace(/\/+$/, '')}/api/mail/unsubscribe?t=${unsubscribeToken(address, env)}`;

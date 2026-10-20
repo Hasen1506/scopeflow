@@ -48,6 +48,9 @@ async function senderOf(owner: string) {
   // M19: "<Business> via ScopeFlow" only once the owner's own address is verified.
   return {seller, fromName: verified && seller ? seller : null, replyTo: profile?.reply_to || (verified ? contact!.email : null), ownerEmail: contact?.email ?? null, brand};
 }
+// S5: the localhost fallback is for local development only. In production without APP_URL no mail
+// with links is rendered at all (deliverNotify reports it as failed/misconfigured).
+export const notifyOriginMissing = (env: Record<string, string | undefined> = process.env) => env.NODE_ENV === 'production' && !configuredOrigin(env);
 const origin = () => configuredOrigin() ?? 'http://localhost:5173';
 const str = (v: unknown, max = 400) => typeof v === 'string' ? v.slice(0, max) : typeof v === 'number' ? String(v) : '';
 
@@ -119,6 +122,7 @@ export async function deliverNotify(event: NotifyEvent, payload: NotifyPayload =
   const owner = project?.owner ?? payload.owner ?? null;
   if (!owner) return {event, delivered: false, channel: 'log', status: 'skipped', reason: 'no_owner'};
   if (project && OPTIONAL_CLIENT_EVENTS.includes(event) && project.notify_client === false) return {event, delivered: false, channel: 'log', status: 'skipped', reason: 'notify_client_off'};
+  if (notifyOriginMissing()) { console.error('[scopeflow:notify] APP_URL is not set in production; not sending', event); return {event, delivered: false, channel: 'log', status: 'failed', reason: 'misconfigured'}; }
   const sender = await senderOf(owner);
   const r = await render(event, payload, project, sender);
   if ('skip' in r) return {event, delivered: false, channel: 'log', status: 'skipped', reason: r.skip};

@@ -144,6 +144,11 @@ test('M19: unsubscribe links are signed per address', () => {
   }));
   assert.equal(unsub.verifyUnsubscribe('garbage', env), null);
   assert.equal(unsub.verifyUnsubscribe(unsub.unsubscribeToken('a@b.co', env), {SCOPEFLOW_SIGNING_SECRET: 'another-secret-that-is-long-enough-0123'}), null);
+  // S3: no empty-key or cookie-secret fallback: without a secret, nothing is signed and nothing verifies.
+  assert.throws(() => unsub.unsubscribeToken('a@b.co', {NEON_AUTH_COOKIE_SECRET: 'cookie-secret-that-is-long-enough-0123'}), unsub.UnsubscribeUnconfigured);
+  assert.throws(() => unsub.unsubscribeToken('a@b.co', {}), unsub.UnsubscribeUnconfigured);
+  assert.equal(unsub.verifyUnsubscribe(unsub.unsubscribeToken('a@b.co', env), {}), null);
+  assert.equal(unsub.verifyUnsubscribe(unsub.unsubscribeToken('a@b.co', env), {SCOPEFLOW_MAIL_UNSUBSCRIBE_SECRET: 'dedicated-unsubscribe-secret-0123456789', SCOPEFLOW_SIGNING_SECRET: TEST_SECRET}), null, 'the dedicated secret wins');
 });
 
 // @covers SF-19

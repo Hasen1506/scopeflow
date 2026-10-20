@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 // only when the owner asks, so unsolicited mail never spends model calls) and stored for the owner.
 // Unknown addresses are accepted and dropped (200), so the provider does not retry them.
 // WS-06 (L7): the project is chosen by the envelope recipient only; a sender outside the project's
-// allow-list, or mail that fails SPF/DKIM/DMARC, is quarantined (200 {accepted: false, reason:
+// allow-list, mail that fails SPF/DKIM/DMARC, or mail with no SPF/DKIM pass (S1: auth_unknown), is quarantined (200 {accepted: false, reason:
 // 'quarantined'}) and never reaches the radar inbox until the owner releases it.
 const MAX = 256 * 1024;
 export async function POST(request: Request) {
@@ -38,11 +38,15 @@ export async function POST(request: Request) {
     }
     const auth = authOutcome(mail.auth);
     const allowed = (await projectAllowList(project.id)).includes(mail.from);
-    if (auth === 'fail' || !allowed) {
+    // S1: the allow-list compares the From header, which the sender controls, so it only means
+    // something when the provider vouches for the sender. Anything short of an SPF/DKIM pass
+    // (including no verdict at all, 'unknown') is quarantined for the owner to release.
+    const reason = auth === 'fail' ? 'auth_failed' : !allowed ? 'unknown_sender' : auth !== 'pass' ? 'auth_unknown' : null;
+    if (reason) {
       const id = crypto.randomUUID();
       await db().prepare('INSERT INTO scopeflow.inbound_quarantine (id,project_id,message_id,received,sender,subject,body,reason,auth) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING')
-        .bind(id, project.id, mail.messageId, new Date().toISOString(), mail.from.slice(0, 254) || null, mail.subject || null, message, auth === 'fail' ? 'auth_failed' : 'unknown_sender', JSON.stringify(mail.auth)).run();
-      return json({accepted: false, reason: 'quarantined', detail: auth === 'fail' ? 'auth_failed' : 'unknown_sender', id});
+        .bind(id, project.id, mail.messageId, new Date().toISOString(), mail.from.slice(0, 254) || null, mail.subject || null, message, reason, JSON.stringify(mail.auth)).run();
+      return json({accepted: false, reason: 'quarantined', detail: reason, id});
     }
     const id = await storeInboundMessage(project.id, {messageId: mail.messageId, sender: mail.from, subject: mail.subject, body: message});
     return json({accepted: true, id}, 201);

@@ -45,16 +45,40 @@ export async function otpEvidence(versionId: string, session: string | undefined
   return r.ok ? r.evidence : null;
 }
 
-/** M15: may a code for this version go to `destination` now? */
-export async function otpSendLimit(o: {versionId: string; destination: string; owner: string; channel: 'email' | 'sms' | 'whatsapp'; cosignRole?: string | null}): Promise<OtpLimit> {
+type SendLimitInput = {versionId: string; destination: string; owner: string; channel: 'email' | 'sms' | 'whatsapp'; cosignRole?: string | null};
+// The client's codes and each countersigning role's codes are limited separately.
+const versionWhere = (cosignRole?: string | null) => cosignRole ? "version_id=? AND action='cosign' AND target=?" : "version_id=? AND action<>'cosign'";
+const versionArgs = (o: SendLimitInput) => o.cosignRole ? [o.versionId, o.cosignRole] : [o.versionId];
+// S6: the per-address limit counts only this owner's projects; a higher cap applies across owners.
+const OWNER_DESTINATION = 'email=? AND version_id IN (SELECT v.id FROM versions v JOIN projects p ON p.id=v.project_id WHERE p.owner=?)';
+/** S7: advisory lock keys that serialize the limit check and the insert for one version / one address. */
+export const otpSendLockKeys = (o: {versionId: string; destination: string}) => [`scopeflow:otp-version:${o.versionId}`, `scopeflow:otp-destination:${o.destination.toLowerCase()}`] as const;
+
+/** M15: may a code for this version go to `destination` now? `counts` are what the check saw (S7 re-checks them at insert). */
+export async function otpSendLimit(o: SendLimitInput): Promise<OtpLimit & {counts?: {version: number; destination: number; since: string}}> {
   const now = Date.now(), since = new Date(now - OTP_WINDOW_MS).toISOString();
-  // The client's codes and each countersigning role's codes are limited separately.
-  const version = o.cosignRole
-    ? await db().prepare("SELECT created FROM review_otps WHERE version_id=? AND action='cosign' AND target=? AND created > ? ORDER BY created").bind(o.versionId, o.cosignRole, since).all<{created: string}>()
-    : await db().prepare("SELECT created FROM review_otps WHERE version_id=? AND action<>'cosign' AND created > ? ORDER BY created").bind(o.versionId, since).all<{created: string}>();
-  const destination = await db().prepare('SELECT created FROM review_otps WHERE email=? AND created > ? ORDER BY created').bind(o.destination, since).all<{created: string}>();
+  const version = await db().prepare(`SELECT created FROM review_otps WHERE ${versionWhere(o.cosignRole)} AND created > ? ORDER BY created`).bind(...versionArgs(o), since).all<{created: string}>();
+  const destination = await db().prepare(`SELECT created FROM review_otps WHERE ${OWNER_DESTINATION} AND created > ? ORDER BY created`).bind(o.destination, o.owner, since).all<{created: string}>();
+  const global = await db().prepare('SELECT created FROM review_otps WHERE email=? AND created > ? ORDER BY created').bind(o.destination, since).all<{created: string}>();
   const spent = await otpSpendToday(o.owner);
-  return otpSendAllowed({now, version: version.results.map(r => Date.parse(r.created)), destination: destination.results.map(r => Date.parse(r.created)), spent: spent.units, cost: OTP_UNIT_COST[o.channel], budget: otpDailyBudget()});
+  const verdict = otpSendAllowed({now, version: version.results.map(r => Date.parse(r.created)), destination: destination.results.map(r => Date.parse(r.created)), destinationGlobal: global.results.map(r => Date.parse(r.created)), spent: spent.units, cost: OTP_UNIT_COST[o.channel], budget: otpDailyBudget()});
+  return verdict.ok ? {...verdict, counts: {version: version.results.length, destination: global.results.length, since}} : verdict;
+}
+
+/**
+ * S7: insert the code row only if no other send for this version or address landed since the limit
+ * check. Runs in one transaction that first takes both advisory locks (version, then address, so
+ * the order is the same everywhere), so parallel sends cannot all pass the limits. Null = lost the race.
+ */
+export async function claimOtpSlot(o: SendLimitInput & {counts: {version: number; destination: number; since: string}}, row: {id: string; codeHash: string; expires: string; created: string; action: OtpAction; target: string | null}) {
+  const [versionKey, destinationKey] = otpSendLockKeys(o);
+  const insert = db().prepare(`INSERT INTO review_otps (id,version_id,email,channel,code_hash,expires,created,action,target)
+    SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM review_otps WHERE ${versionWhere(o.cosignRole)} AND created > ?) = ?
+      AND (SELECT COUNT(*) FROM review_otps WHERE email=? AND created > ?) = ? RETURNING id`)
+    .bind(row.id, o.versionId, o.destination, o.channel, row.codeHash, row.expires, row.created, row.action, row.target, ...versionArgs(o), o.counts.since, o.counts.version, o.destination, o.counts.since, o.counts.destination);
+  const lock = db().prepare('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))').bind(destinationKey);
+  const [, inserted] = await db().batch<{id: string}>([lock, insert], {lock: versionKey});
+  return inserted.results[0]?.id ?? null;
 }
 
 /** M15: meter one code sent (owner-private; the destination is stored only as a hash). */
