@@ -1,8 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {json, body, safeOrigin, allowWrite, allowRead, failure} from '@/lib/server';
-import {loadLedger} from '@/lib/ledger-server';
-import {appendMoneyEntry} from '@/lib/ledger-hooks';
+import {appendEntry, loadLedger} from '@/lib/ledger-server';
 import {projectFor} from '@/lib/invoice-api';
 import {invoicingState, ledgerKindReady, msmedSummary, withProjectLock} from '@/lib/invoice-server';
 import {MSMED_DISCLAIMER} from '@/lib/msmed';
@@ -63,7 +62,13 @@ export async function POST(request: Request, ctx: Ctx) {
     if ([a.delivered_on, a.accepted_on, a.objection_on, a.objection_removed_on].some(d => d && d > today)) return json({error: 'Dates cannot be in the future.', code: 'future_date'}, 400);
     await withProjectLock(id, tx => tx.unsafe('INSERT INTO scopeflow.delivery_acceptances (id,owner,project_id,milestone_id,delivered_on,accepted_on,objection_on,objection_removed_on,evidence,created) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [randomUUID(), p.auth.user, id, a.milestone_id ?? null, a.delivered_on, a.accepted_on ?? null, a.objection_on ?? null, a.objection_removed_on ?? null, a.evidence, new Date().toISOString()]));
-    if (ledgerKindReady('delivery_accepted')) await appendMoneyEntry({baseline: l.baseline, expectedHead: l.head, kind: 'delivery_accepted', payload: a, actor: 'owner'}).catch(e => {
+    // The signed ledger records the acceptance itself: the written acceptance day, or the day an objection was
+    // removed. A delivery still within its objection window, or under objection, has nothing to record yet; a
+    // deemed acceptance is Scopeflow's to record (actor system), never the owner's. Not a money entry, so it goes
+    // through appendEntry (appendMoneyEntry refuses non-money kinds), in the ledger's own payload shape.
+    const acceptedOn = a.accepted_on ?? (a.objection_on ? a.objection_removed_on : null) ?? null;
+    if (acceptedOn && ledgerKindReady('delivery_accepted')) await appendEntry({baseline: l.baseline, expectedHead: l.head, kind: 'delivery_accepted', actor: 'owner',
+      payload: {accepted: acceptedOn, deemed: false, item_ids: [], evidence: a.evidence.slice(0, 500), note: `Delivered on ${a.delivered_on}${a.milestone_id ? `; milestone ${a.milestone_id}` : ''}${a.objection_on ? `; objection on ${a.objection_on}, removed on ${acceptedOn}` : ''}.`}}).catch(e => {
       // D9: the acceptance row is saved; a failed ledger mirror must be visible, not swallowed.
       console.error('Scopeflow delivery_accepted ledger write failed', JSON.stringify({project_id: id, error: e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200)}));
       return null;

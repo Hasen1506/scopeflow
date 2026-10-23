@@ -209,6 +209,15 @@ async function changeOrder(x, fee_delta, title = 'Extra pack size') {
   ok(/^Interest under MSMED s\.16: ₹[\d,]+\.\d\d \(estimate — confirm with your CA\)$/.test(s.invoices[0]?.text ?? ''), JSON.stringify(s));
   ok(s.interest_total > 0, 'interest accrues');
   eq((await call(`${x.P}/acceptance`, {method: 'POST', cookie: x.cookie, body: {delivered_on: '2099-01-01'}})).data.code, 'future_date');
+  // Regression (audit): a recorded acceptance is mirrored to the signed ledger as a delivery_accepted entry in the
+  // ledger's own shape (it used to go through the money-only writer and always failed, so none ever landed).
+  const accepted = async () => (await call(`${x.P}/ledger`, {cookie: x.cookie})).data.entries.filter(e => e.kind === 'delivery_accepted').map(e => ({actor: e.actor, payload: e.payload}));
+  eq(await accepted(), [{actor: 'owner', payload: {accepted: daysAgo(60), deemed: false, item_ids: [], evidence: 'Email from the client accepting the final files', note: `Delivered on ${daysAgo(62)}.`}}]);
+  eq((await call(`${x.P}/acceptance`, {method: 'POST', cookie: x.cookie, body: {delivered_on: daysAgo(3), objection_on: daysAgo(2), objection_removed_on: daysAgo(1), milestone_id: 'm1'}})).status, 201);
+  eq((await accepted())[1], {actor: 'owner', payload: {accepted: daysAgo(1), deemed: false, item_ids: [], evidence: '', note: `Delivered on ${daysAgo(3)}; milestone m1; objection on ${daysAgo(2)}, removed on ${daysAgo(1)}.`}});
+  // Delivered but not yet accepted (inside the objection window): nothing new on the ledger.
+  eq((await call(`${x.P}/acceptance`, {method: 'POST', cookie: x.cookie, body: {delivered_on: today()}})).status, 201);
+  eq((await accepted()).length, 2);
   // Registration after the agreement: the pack warns.
   const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
   eq((await call(terms, {method: 'PUT', cookie: x.cookie, body: {msme_profile: {udyam_number: 'UDYAM-TN-02-0012345', registered_on: tomorrow, category: 'micro'}}})).status, 200);
