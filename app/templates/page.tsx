@@ -33,7 +33,7 @@ export default function Templates() {
   const packs = starters.filter(t => t.pack), general = starters.filter(t => !t.pack);
   const templateLink = (t: TemplateView) => <Link className="secondary" href={`/?template=${encodeURIComponent(t.id)}`} aria-label={`Use template ${t.name}`}>Use template</Link>;
   const starterCard = (t: TemplateView) => <li key={t.id}>
-    <div><strong>{t.name}</strong> <span className="quiet">· {t.pack ?? 'Starter'} · {t.content.items?.length ?? 0} deliverables{t.content.engagement === 'retainer' ? ' · monthly retainer' : ''}{t.content.milestones?.length ? ` · ${t.content.milestones.length} payment stages` : ''}{t.modes?.includes(mode) ? ` · suggested for ${MODE_LABEL[mode].toLowerCase()}` : ''}</span></div>
+    <div><strong>{t.name}</strong> <span className="quiet"><span className="sep">· </span>{t.pack ?? 'Starter'} · {t.content.items?.length ?? 0} deliverables{t.content.engagement === 'retainer' ? ' · monthly retainer' : ''}{t.content.milestones?.length ? ` · ${t.content.milestones.length} payment stages` : ''}{t.modes?.includes(mode) ? ` · suggested for ${MODE_LABEL[mode].toLowerCase()}` : ''}</span></div>
     {t.tags.length > 0 && <p className="fine">{t.tags.join(' · ')}</p>}
     {t.rate_card?.length ? <p className="fine">Rate card: {t.rate_card.map(r => `${r.title} (per ${r.unit})`).join(', ')}</p> : null}
     <div className="actions">{templateLink(t)}</div>
@@ -72,10 +72,10 @@ export default function Templates() {
     </section>}
     {list !== null && <section className="editor section-gap" aria-labelledby="starter-templates">
       <h2 id="starter-templates">Starters and vertical packs</h2>
-      <div className="actions" role="group" aria-label="Suggested for">{MODES.map(m => <button key={m} className={mode === m ? 'primary' : 'secondary'} aria-pressed={mode === m} onClick={() => setMode(m)}>{MODE_LABEL[m]}</button>)}</div>
+      <div className="actions starter-modes" role="group" aria-label="Suggested for">{MODES.map(m => <button key={m} className={mode === m ? 'primary' : 'secondary'} aria-pressed={mode === m} onClick={() => setMode(m)}>{MODE_LABEL[m]}</button>)}</div>
       <p className="fine">Every starter works in every mode; the mode only puts its suggestions first.</p>
-      {packs.length > 0 && <><h3 className="section-gap">Vertical packs</h3><ul className="receipt-list template-admin">{packs.map(starterCard)}</ul></>}
-      {general.length > 0 && <><h3 className="section-gap">General starters</h3><ul className="receipt-list template-admin">{general.map(starterCard)}</ul></>}
+      {packs.length > 0 && <><h3 className="section-gap">Vertical packs</h3><ul className="receipt-list template-admin starter-grid">{packs.map(starterCard)}</ul></>}
+      {general.length > 0 && <><h3 className="section-gap">General starters</h3><ul className="receipt-list template-admin starter-grid">{general.map(starterCard)}</ul></>}
     </section>}
   </main></>;
 }

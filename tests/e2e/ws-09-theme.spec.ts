@@ -1,6 +1,6 @@
 import {test, expect, type Page} from '@playwright/test';
 
-// WS-09 L9 / LT-18 / SF-21 in a real browser: switch theme A <-> B and dark mode from the header; the
+// WS-09 L9 / LT-18 / SF-21 in a real browser: pick any of the four colour squares (theme A/B, light/dark) in the header; the
 // choice survives a reload and follows the account to a browser with nothing stored; the client page
 // follows the visitor's prefers-color-scheme whatever this browser stored. Own fictional owner; localhost only.
 // @covers L9 LT-18 SF-21
@@ -26,12 +26,16 @@ test('ws-09: theme A/B and dark mode switch, persist per account; client page fo
   await expect(html(page)).toHaveAttribute('data-scheme', 'light');
   expect(await bodyBg(page)).toBe('rgb(244, 238, 225)');
 
-  const switcher = page.getByRole('group', {name: 'Theme'});
-  await switcher.getByRole('button', {name: /Theme A/}).click();
+  const switcher = page.getByRole('group', {name: 'Colours'});
+  await expect(switcher.getByRole('button')).toHaveCount(4);
+  // Before any choice the square matching the device scheme is marked.
+  await expect(switcher.getByRole('button', {name: 'Original, light'})).toHaveAttribute('aria-pressed', 'true');
+  await switcher.getByRole('button', {name: 'Etched, light'}).click();
   await expect(html(page)).toHaveAttribute('data-theme', 'a');
-  await expect(switcher.getByRole('button', {name: /Theme A/})).toHaveAttribute('aria-pressed', 'true');
+  await expect(switcher.getByRole('button', {name: 'Etched, light'})).toHaveAttribute('aria-pressed', 'true');
+  await expect(switcher.getByRole('button', {name: 'Original, light'})).toHaveAttribute('aria-pressed', 'false');
   expect(await bodyBg(page)).toBe('rgb(31, 63, 168)');
-  await switcher.getByLabel('Colour mode').selectOption('dark');
+  await switcher.getByRole('button', {name: 'Etched, dark'}).click();
   await expect(html(page)).toHaveAttribute('data-scheme', 'dark');
   expect(await bodyBg(page)).toBe('rgb(15, 29, 85)');
   await expect.poll(async () => (await (await page.request.get('/api/theme')).json())).toMatchObject({signedIn: true, theme: 'a', mode: 'dark'});
@@ -48,11 +52,15 @@ test('ws-09: theme A/B and dark mode switch, persist per account; client page fo
   await expect(html(page)).toHaveAttribute('data-mode', 'dark');
 
   // Back to B, dark: B's own dark palette.
-  await switcher.getByRole('button', {name: /Theme B/}).click();
+  await switcher.getByRole('button', {name: 'Original, dark'}).click();
   await expect(html(page)).toHaveAttribute('data-theme', 'b');
+  await expect(html(page)).toHaveAttribute('data-mode', 'dark');
   expect(await bodyBg(page)).toBe('rgb(17, 21, 42)');
-  // System mode follows the emulated scheme.
-  await switcher.getByLabel('Colour mode').selectOption('system');
+  // With no explicit choice (system mode) the page follows the emulated scheme.
+  await page.request.put('/api/theme', {headers: {Origin: baseURL!}, data: {theme: 'b', mode: 'system'}});
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await expect(html(page)).toHaveAttribute('data-mode', 'system', {timeout: 10_000});
   await page.emulateMedia({colorScheme: 'light'});
   await expect(html(page)).toHaveAttribute('data-scheme', 'light');
   await page.emulateMedia({colorScheme: 'dark'});

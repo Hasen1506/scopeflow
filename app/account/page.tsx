@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import {Header,Skeleton,api} from '../ui';
 import {ContactLink} from '../contact';
 import {NextStep} from '../workflow';
+import {SectionNav} from '../components/section-nav';
 import {stateCodes, stateName} from '@/lib/gst';
 import {checkGstin, looksLikeGstin} from '@/lib/gstin';
 import {isValidVpa, upiLink, VPA_MESSAGE} from '@/lib/vpa';
@@ -66,6 +67,7 @@ export default function Account(){
   {checking?<div className="account-loading"><Skeleton cards={3} lines={4} label="Loading your settings…"/></div>:<>
   {signedOut?<NextStep title="Sign in to manage your data" actions={<Link className="primary" href="/auth/sign-in?return_to=%2Faccount">Sign in</Link>}>Retention, your email wording and deletion are per account.</NextStep>:<NextStep title={me&&!me.onboarded?'Finish setting up your workspace':'Set your details once'} actions={<>{me&&!me.onboarded&&<Link className="primary" href="/onboarding">Set up</Link>}<Link className="secondary" href="/">Back to projects</Link></>}>Your email wording, business details for invoices and the defaults below apply to every new scope.</NextStep>}
   {me&&<p className="fine" aria-label="Plan and mode"><Link className="help-link" href="/plans">Plan: <strong data-testid="plan-badge">{me.plan.name}</strong></Link> · Mode: <strong>{MODE_LABEL[mode]}</strong> · <Link className="help-link" href="/account/features">All features</Link></p>}
+  {me&&<SectionNav refreshKey={`${mode}|${!!settings}|${signedOut}`}/>}
   {me&&<section aria-labelledby="h-mode"><h2 id="h-mode">Workspace mode</h2><p className="fine">A mode changes the defaults, the order of sections and the wording. It never hides a feature: everything stays under <Link className="help-link" href="/account/features">All features</Link>. A project can keep its own mode.</p>
    <fieldset><legend className="sr-only">Workspace mode</legend>{MODES.map(m=><label key={m} className="radio-row"><input type="radio" name="mode" value={m} checked={mode===m} disabled={busy} onChange={()=>void saveMode(m)}/> <strong>{MODE_LABEL[m]}</strong> <span className="quiet">· {MODE_BLURB[m]}</span></label>)}</fieldset>
    {modeNote&&<p role="status" className="fine">{modeNote}</p>}{modeError&&<p role="alert" className="error-text">Couldn’t change the mode: {modeError}</p>}
@@ -98,7 +100,7 @@ export default function Account(){
    <h2 id="h-reminders">Automatic reminders</h2><p className="fine">Scopeflow can email your client a short reminder when a scope has waited this long without a decision. It uses the same rules as the Send a reminder button: at most one email a day and three reminders per version. Only projects with a client email get them.{!mailOn&&' Email delivery is not set up on this server yet, so nothing is sent until it is.'}</p>
    <label>Remind clients automatically<select value={profile.auto_remind_days??''} onChange={e=>setP('auto_remind_days',e.target.value===''?null:Number(e.target.value) as Profile['auto_remind_days'])}><option value="">Off: I send reminders myself</option>{[3,5,7,14].map(d=><option key={d} value={d}>After {d} days without a decision</option>)}</select></label>
    <div className="actions section-gap"><button className="primary" disabled={busy||!!profileBlock} aria-describedby={profileBlock?'profile-block':undefined} onClick={saveProfile}>{busy?'Saving…':'Save business details'}</button>{profileNote&&<p role="status" className="fine flush">{profileNote}</p>}{profileBlock&&<p id="profile-block" className="fine save-reason">{profileBlock}</p>}</div>{profileError&&<p className="error" role="alert">Couldn’t save business details: {profileError}</p>}</section>}
-  {profile&&<section aria-labelledby="h-payments"><h2 id="h-payments">Payments</h2><p className="fine">Where your clients pay you. ScopeFlow never holds your clients’ money.</p><PaymentSettings/></section>}
+  {profile&&<section aria-labelledby="h-payments"><h2 id="h-payments">Payments</h2><PaymentSettings/></section>}
   {profile&&<BrandSettings/>}
   {me&&<AnalyticsToggle/>}
   {me&&<section aria-labelledby="h-audit"><h2 id="h-audit">Audit export</h2><p className="fine">A signed file with every decision, ledger entry, countersignature, contact change, review-link open and admin event in a date range, with each project’s head hash, retention and legal-hold state. Each decision links to its public check. Only the account admin can download it.</p>
@@ -108,7 +110,7 @@ export default function Account(){
   <h2 id="h-data">Your records</h2>
   <p>Export any project with every version and ledger entry from its page (<strong>Project settings → Export project JSON</strong>). The export includes private scope content and review links; store it securely.</p>
   <p>Review links are revoked or replaced from the project’s <strong>Approval</strong> step. Revoking blocks access and new decisions; earlier decisions stay in your private history.</p>
-  <h2>API access</h2><p>Tokens expire after 30 days. Revoking your token disconnects every integration using it. Create one from <Link className="help-link" href="/connect">Connect</Link>.</p>
+  <h2 id="h-api">API access</h2><p>Tokens expire after 30 days. Revoking your token disconnects every integration using it. Create one from <Link className="help-link" href="/connect">Connect</Link>.</p>
   <button className="secondary section-gap" disabled={busy||!summary} aria-describedby={gate?'gate-key':undefined} onClick={async()=>{setBusy(true);setKeyError('');setKeyNote('');try{await api('/api/key',{method:'DELETE'});setKeyNote('API token revoked.');}catch(e){setKeyError((e as Error).message);}finally{setBusy(false);}}}>Revoke API token</button>{gate&&<p id="gate-key" className="fine">{gate} {signedOut&&<Link className="help-link" href="/auth/sign-in?return_to=%2Faccount">Sign in</Link>}</p>}{keyNote&&<p role="status" className="fine">{keyNote}</p>}{keyError&&<p className="error" role="alert">Couldn’t revoke the token: {keyError}</p>}
   <div className="danger-zone section-gap"><h2 id="h-delete">Delete your Scopeflow data</h2>
   <p>Removes your business details, settings, templates, drafts, unsent versions, API tokens and every project that never got a client decision, payment or invoice.</p>
@@ -118,7 +120,7 @@ export default function Account(){
   <button className="secondary danger section-gap" disabled={busy||!summary} aria-describedby={gate?'gate-delete':undefined} onClick={()=>{setConfirmation('');setError('');setConfirmOpen(true);}}>Delete all Scopeflow data</button>{gate&&<p id="gate-delete" className="fine">{gate} {signedOut&&<Link className="help-link" href="/auth/sign-in?return_to=%2Faccount">Sign in</Link>}</p>}
   {message&&<p role="status">{message}</p>}{error&&!confirmOpen&&<p className="error" role="alert">{error}</p>}
   </div>
-  <h2>Corrections and help</h2><p>For a correction to a recorded reviewer name or help with access, contact Scopeflow support through <ContactLink/>.</p>
+  <h2 id="h-help">Corrections and help</h2><p>For a correction to a recorded reviewer name or help with access, contact Scopeflow support through <ContactLink/>.</p>
  </section></main>
  <Dialog open={confirmOpen} onOpenChange={open=>{if(!busy){setConfirmOpen(open);setConfirmation('');}}}>
   <DialogContent showCloseButton={!busy} onEscapeKeyDown={e=>{if(busy)e.preventDefault();}} onPointerDownOutside={e=>{if(busy)e.preventDefault();}}>
