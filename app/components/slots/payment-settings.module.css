@@ -2,7 +2,10 @@
 .card { border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface); padding: 1rem 1.25rem; display: grid; gap: .75rem; }
 .card h3 { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); }
 .row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
-.row label { display: grid; gap: .25rem; font-size: var(--fs-2); line-height: var(--lh-2); min-width: 12rem; }
+.row label { display: grid; gap: .25rem; font-size: var(--fs-2); line-height: var(--lh-2); min-width: 12rem; margin: 0; }
+/* The button and the checkbox line up with the bottom of the inputs (labels carry no outer margin here). */
+.row > button { min-height: 48px; }
+.row > label:has(> input[type=checkbox]) { display: flex; align-items: center; gap: .5rem; min-width: 0; min-height: 48px; }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
 .item { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; border-top: 1px solid var(--rule); padding-top: .5rem; font-size: var(--fs-2); line-height: var(--lh-2); }
 .mono { font-family: var(--font-ui); color: var(--ink-2); word-break: break-all; }

@@ -1,9 +1,10 @@
 'use client';
 // Slot: ThemeSwitcher. Owner: WS-09 (implements it). Mounted by: WS-09 (the header in app/ui.tsx).
-// Theme A/B switch plus colour mode (system / light / dark), and the ThemeProvider that keeps the
-// choice in step with the signed-in account. State and DOM helpers live in lib/theme.ts.
-import {useEffect, useSyncExternalStore, type ReactNode} from 'react';
-import {THEMES, MODES, applyTheme, fromSnapshot, isClientPath, parseChoice, serverThemeSnapshot, subscribeTheme, syncThemeColor, themeSnapshot, type ModeId, type ThemeChoice, type ThemeId} from '@/lib/theme';
+// Four colour squares (each theme in light and dark), and the ThemeProvider that keeps the choice in step
+// with the signed-in account. Until the owner picks one, the page follows the device's light or dark setting
+// and the matching square is marked. State and DOM helpers live in lib/theme.ts.
+import {useEffect, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
+import {SWATCHES, applyTheme, fromSnapshot, isClientPath, parseChoice, serverThemeSnapshot, subscribeTheme, syncThemeColor, themeSnapshot, type ThemeChoice} from '@/lib/theme';
 
 export function useTheme() {
   return fromSnapshot(useSyncExternalStore(subscribeTheme, themeSnapshot, serverThemeSnapshot));
@@ -44,20 +45,17 @@ export function ThemeProvider({children}: {children?: ReactNode}) {
 
 export type ThemeSwitcherProps = {className?: string};
 
-/** Small persistent switch: theme A/B and colour mode. */
+/** Small persistent switch: one square per look, filled with that look's background and ink. */
 export default function ThemeSwitcher({className = ''}: ThemeSwitcherProps) {
-  const {theme, mode} = useTheme();
-  const set = (next: Partial<ThemeChoice>) => { void saveChoice({theme, mode, ...next}); };
+  const {theme, scheme} = useTheme();
   return (
-    <div className={`theme-switch ${className}`.trim()} role="group" aria-label="Theme">
-      {THEMES.map(t => (
-        <button key={t.id} type="button" aria-pressed={theme === t.id} title={`Theme ${t.id.toUpperCase()}: ${t.name}`} aria-label={`Theme ${t.id.toUpperCase()}, ${t.name}`} onClick={() => set({theme: t.id as ThemeId})}>
-          <span className="theme-letter" aria-hidden="true">{t.id.toUpperCase()}</span><span className="theme-name" aria-hidden="true">{t.id === 'a' ? 'Etched' : 'Original'}</span>
+    <div className={`theme-switch ${className}`.trim()} role="group" aria-label="Colours">
+      {SWATCHES.map(s => (
+        <button key={s.name} type="button" className="swatch" aria-pressed={theme === s.theme && scheme === s.scheme} aria-label={s.name} title={s.name}
+          style={{'--sw-bg': s.bg, '--sw-ink': s.ink} as CSSProperties} onClick={() => { void saveChoice({theme: s.theme, mode: s.scheme}); }}>
+          <span aria-hidden="true"/>
         </button>
       ))}
-      <select aria-label="Colour mode" value={mode} onChange={e => set({mode: e.target.value as ModeId})}>
-        {MODES.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-      </select>
     </div>
   );
 }

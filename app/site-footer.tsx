@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- decorative art is pre-optimised WebP with fixed dimensions; next/image adds nothing here */
 import Link from 'next/link';
-import {useRouter} from 'next/navigation';
+import {usePathname, useRouter} from 'next/navigation';
 import {useState, type FormEvent} from 'react';
 import {ArrowRight} from 'lucide-react';
 import {Brand} from './ui';
@@ -30,7 +30,12 @@ function ReceiptCheck() {
   );
 }
 
+// Pages a client opens from a link (review, countersign, pay): no owner navigation (workspace, plans,
+// settings, API) and no beta label, only help for reviewers, the receipt check and the legal links.
+const CLIENT_PAGE = /^\/(review|cosign|pay)\//;
+
 export function SiteFooter() {
+  const client = CLIENT_PAGE.test(usePathname() || '');
   return (
     <footer className="site-footer no-print">
       <div className="footer-band">
@@ -39,13 +44,13 @@ export function SiteFooter() {
             <Brand beta={false} />
             <p className="tagline">Scopes your clients can read, approve, and hold you to.</p>
           </div>
-          <nav className="footer-col" aria-label="Product">
+          {!client && <nav className="footer-col" aria-label="Product">
             <h2>Product</h2>
             <ul><li><Link href="/">Workspace</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li><li><Link href="/account">Settings</Link></li></ul>
-          </nav>
+          </nav>}
           <nav className="footer-col" aria-label="Help">
             <h2>Help</h2>
-            <ul><li><Link href="/support">Support</Link></li><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><a href="/api/openapi">OpenAPI</a></li></ul>
+            <ul>{client ? <><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><Link href="/support">Support</Link></li></> : <><li><Link href="/support">Support</Link></li><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><a href="/api/openapi">OpenAPI</a></li></>}</ul>
           </nav>
           <div className="footer-col">
             <h2>Check a receipt</h2>
@@ -54,7 +59,7 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="footer-legal">
-          <span>Scopeflow · Early beta</span>
+          {!client && <span>Scopeflow · Early beta</span>}
           <nav aria-label="Legal"><Link href="/about">About</Link><Link href="/contact">Contact</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/refund">Refunds</Link></nav>
         </div>
       </div>

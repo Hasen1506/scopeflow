@@ -974,12 +974,12 @@ h2[tabindex="-1"]:focus-visible{outline:2px solid var(--ring, currentColor);outl
 }
 
 /* ---- Theme switch (header) ----------------------------------------------------------------- */
-.theme-switch{display:inline-flex;align-items:center;border:1px solid var(--rule-strong);border-radius:var(--r-pill);padding:2px;gap:2px;font-family:var(--font-ui)}
-.theme-switch button{border:0;background:transparent;min-width:30px;height:28px;padding:0 9px;border-radius:var(--r-pill);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-3);letter-spacing:.06em;color:var(--ink-2);transition:background-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
-.theme-switch button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
-.theme-switch button:hover:not([aria-pressed=true]){color:var(--ink);background:var(--accent-soft)}
-.theme-switch select{width:auto;height:28px;padding:0 26px 0 10px;margin-top:0;border:0;border-radius:var(--r-pill);background-color:transparent;background-position:calc(100% - 12px) 52%,calc(100% - 7px) 52%;color:var(--ink-2);font-size:var(--fs-1);line-height:var(--lh-1)}
-.theme-switch select:hover:not(:disabled){color:var(--ink)}
+.theme-switch{display:inline-flex;align-items:center;gap:6px;padding:0;border:0}
+.theme-switch .swatch{position:relative;display:inline-grid;place-items:center;width:28px;height:28px;min-width:0;padding:0;border:0;border-radius:6px;background:transparent;cursor:pointer}
+.theme-switch .swatch>span{display:block;width:20px;height:20px;border-radius:4px;background:linear-gradient(135deg,var(--sw-bg) 0 55%,var(--sw-ink) 55% 100%);box-shadow:inset 0 0 0 1px rgba(127,127,127,.55);transition:transform var(--dur-1) var(--ease)}
+.theme-switch .swatch:hover>span{transform:scale(1.08)}
+.theme-switch .swatch[aria-pressed=true]{box-shadow:0 0 0 2px var(--accent)}
+@media (pointer:coarse){.theme-switch{gap:4px}.theme-switch .swatch{width:40px;height:40px}.theme-switch .swatch>span{width:24px;height:24px}}
 @media (max-width:900px){.theme-switch{order:2;margin-left:auto}}
 @media print{.theme-switch{display:none}}
 
@@ -1080,10 +1080,6 @@ main#content:focus{outline:none}
 .account-loading{min-height:60vh}
 /* UX-C39: why Save business details is unavailable, next to the button. */
 .actions .save-reason{margin:0;flex-basis:100%}
-/* UX-C31: wide headers name the themes; narrow ones keep the letters (names stay in the accessible label). */
-.theme-switch .theme-name{display:none}
-@media (min-width:1101px){.theme-switch .theme-letter{display:none}.theme-switch .theme-name{display:inline}}
-@media (max-width:720px){.topbar.menu-open .theme-switch .theme-letter{display:none}.topbar.menu-open .theme-switch .theme-name{display:inline}}
 /* UX-C66: the agreement chips explain themselves where they are shown. */
 .chip-help{margin-top:var(--s2);font-size:var(--fs-2)}
 .chip-help summary{cursor:pointer;color:var(--ink-2);font-family:var(--font-ui)}
@@ -1103,3 +1099,30 @@ main#content:focus{outline:none}
 .start-options .start-strip{margin-top:var(--s3)}
 .money-cols{align-items:start}
 .money-cols>.editor{margin-top:0;min-width:0}
+/* Project settings fold (audit): one closed disclosure under the steps, so the project page stays short. */
+.settings-fold>summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:10px;row-gap:2px;position:relative;padding-right:28px;margin:0}
+.settings-fold>summary::-webkit-details-marker{display:none}
+.settings-fold>summary::after{content:"";position:absolute;right:4px;top:50%;width:8px;height:8px;margin-top:-6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);transition:transform var(--dur-2) var(--ease)}
+.settings-fold[open]>summary::after{transform:rotate(225deg)}
+.settings-fold>summary .quiet{font-family:var(--font-ui);font-size:var(--fs-2)}
+.settings-fold[open]>summary{margin-bottom:var(--s4)}
+/* Settings "Jump to" links (audit): the account page has a dozen sections. */
+.section-nav{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:var(--s4) 0 var(--s2);padding:var(--s3) 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);font-family:var(--font-ui);font-size:var(--fs-2)}
+.section-nav[hidden]{display:none}
+.section-nav-label{font-size:var(--fs-1);letter-spacing:var(--label-track);text-transform:uppercase;color:var(--ink-2)}
+.section-nav ul{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.section-nav a{display:inline-block;padding:4px 10px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);color:var(--ink);text-decoration:none;line-height:var(--lh-2)}
+.section-nav a:hover{background:var(--accent-soft);border-color:var(--accent)}
+.policy h2[id]{scroll-margin-top:var(--s5)}
+/* Templates (audit): starters as a grid of cards, the name on its own line, "Use template" at the bottom. */
+.starter-modes{margin-top:var(--s3)}
+.template-admin.starter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:var(--s3)}
+.template-admin.starter-grid li{display:flex;flex-direction:column;gap:6px;padding:var(--s4);border:1px solid var(--rule);border-radius:var(--r);background:var(--paper)}
+.template-admin.starter-grid li>*+*{margin-top:0}
+.template-admin.starter-grid li>div:first-child strong{display:block;font-size:var(--fs-3);line-height:var(--lh-3)}
+.template-admin.starter-grid li .sep{display:none}
+.template-admin.starter-grid li>.actions{margin-top:auto;padding-top:var(--s2)}
+/* Editor (audit): the template chips get the full width of the start strip and wrap, instead of a narrow column. */
+.start-options .start-strip>div:first-child{grid-column:1/-1}
+/* Payments page (audit): room between the heading and the panel. */
+.payments-page>h1{margin-bottom:var(--s4)}

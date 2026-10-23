@@ -192,6 +192,9 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await expect(ledger.getByText('2 entries')).toBeVisible();
 
   // --- Archive / delete rules: a project with client evidence is archive-only -----------
+  // Project settings are folded by default; open them (a no-op when already open).
+  const openSettings = async () => { const fold = page.locator('.settings-fold'); if (!await fold.evaluate(e => (e as HTMLDetailsElement).open)) await fold.locator(':scope > summary').click(); };
+  await openSettings();
   await expect(page.getByRole('button', {name: 'Delete project'})).toHaveCount(0);
   await expect(page.getByText('can be archived but not deleted')).toBeVisible();
   const refused = await page.request.delete(`/api/scopes/${projectId}`, {data: {confirmation: 'DELETE'}, headers: {Origin: baseURL!}});
@@ -246,6 +249,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   expect(closingLink).not.toContain('Replace');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await slowLinkClose.evaluate(e => (e as Element).remove());
+  await openSettings();
   await page.getByRole('button', {name: 'Delete project'}).click();
   const confirmDelete = page.getByRole('dialog');
   await expect(confirmDelete.getByRole('button', {name: 'Delete project'})).toBeDisabled();
@@ -258,6 +262,7 @@ test('golden flow: owner composes and versions a scope, client signs, change ord
   await page.getByRole('tab', {name: /Projects/}).click();
   await page.getByRole('button', {name: /Brand identity for Northwind/}).click();
   await expect(page.locator('.small-title').filter({hasText: 'Saved version 1'})).toBeVisible();
+  await openSettings();
   const download = page.waitForEvent('download');
   await page.getByRole('button', {name: 'Export project JSON'}).click();
   const file = await (await download).path();

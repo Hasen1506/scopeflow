@@ -20,6 +20,13 @@ export const MODES: {id: ModeId; name: string}[] = [
   {id: 'light', name: 'Light'},
   {id: 'dark', name: 'Dark'},
 ];
+/** The four looks offered in the header as colour squares: each theme in its light and dark scheme (swatch = page background and ink). */
+export const SWATCHES: {theme: ThemeId; scheme: Scheme; name: string; bg: string; ink: string}[] = [
+  {theme: 'b', scheme: 'light', name: 'Original, light', bg: '#F4EEE1', ink: '#1F3FA8'},
+  {theme: 'b', scheme: 'dark', name: 'Original, dark', bg: '#11152A', ink: '#9FB3F5'},
+  {theme: 'a', scheme: 'light', name: 'Etched, light', bg: '#1F3FA8', ink: '#F3EBD9'},
+  {theme: 'a', scheme: 'dark', name: 'Etched, dark', bg: '#0F1D55', ink: '#F3EBD9'},
+];
 export const DEFAULT_CHOICE: ThemeChoice = {theme: 'b', mode: 'system'};
 export const normalizeTheme = (value: unknown): ThemeId => (value === 'a' ? 'a' : 'b');
 export const normalizeMode = (value: unknown): ModeId => (value === 'light' || value === 'dark' ? value : 'system');
