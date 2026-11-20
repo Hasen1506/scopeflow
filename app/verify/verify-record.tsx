@@ -1,9 +1,10 @@
 'use client';
 import {useEffect, useState} from 'react';
 import {useSearchParams} from 'next/navigation';
-import {ShieldAlert, ShieldCheck} from 'lucide-react';
+import {Fingerprint, ShieldAlert, ShieldCheck} from 'lucide-react';
 import {label} from '@/lib/scope';
 import {chipWording, parseReceiptInput, sealStatus} from '@/lib/evidence';
+import {verifySealedEvidenceRecord, type VerifySealResult} from '@/lib/evidence-seal';
 import {api} from '@/app/ui';
 
 type Result = {
@@ -29,6 +30,18 @@ export function VerifyRecord() {
   const [p, setP] = useState(q.get('p') ?? ''), [v, setV] = useState(q.get('v') ?? ''), [a, setA] = useState(q.get('a') ?? '');
   const [result, setResult] = useState<Result | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState(''), [receiptError, setReceiptError] = useState('');
+  const [evidenceText, setEvidenceText] = useState('');
+  const [evidenceVerdict, setEvidenceVerdict] = useState<VerifySealResult | null>(null);
+  const [checkingEvidence, setCheckingEvidence] = useState(false);
+
+  async function checkSealedEvidence() {
+    setCheckingEvidence(true);
+    try {
+      setEvidenceVerdict(await verifySealedEvidenceRecord(evidenceText));
+    } finally {
+      setCheckingEvidence(false);
+    }
+  }
   async function check(project = p, version = v, anchor = a) {
     setError(''); setResult(null); setBusy(true);
     try { setResult(await api(`/api/verify?p=${encodeURIComponent(project.trim())}&v=${encodeURIComponent(version.trim())}&a=${encodeURIComponent(anchor.trim().toLowerCase())}`)); }
@@ -48,14 +61,14 @@ export function VerifyRecord() {
   const good = status === 'dedicated' || status === 'legacy_key';
   const d = result?.details;
   const why = missing(p, v, a);
-  return (
+  return (<>
     <section className="editor">
       <p className="eyebrow">RECEIPT CHECK</p>
-      <h1>Verify a Scopeflow receipt</h1>
+      <h1>Verify a TermsLock receipt</h1>
       <p className="quiet section-gap">Scan the QR code on a PDF receipt, use “Verify this record” on the review page, or enter the project id, version and record fingerprint printed on it.</p>
       {result && (
         <div className="muted-box" role="status" data-verdict={good ? 'valid' : 'invalid'} data-seal={status ?? 'none'}>
-          {good ? <p className="chain ok"><ShieldCheck size={16} /> {result.evidence?.chip ?? chipWording(status!)}: the stored record matches this fingerprint{status === 'legacy_key' ? ' and carries a seal from an earlier ScopeFlow key.' : ' and carries a valid ScopeFlow seal.'}</p>
+          {good ? <p className="chain ok"><ShieldCheck size={16} /> {result.evidence?.chip ?? chipWording(status!)}: the stored record matches this fingerprint{status === 'legacy_key' ? ' and carries a seal from an earlier TermsLock key.' : ' and carries a valid TermsLock seal.'}</p>
             : result.record === 'match' && status === 'unsigned' ? <p className="chain unsigned"><ShieldAlert size={16} /> {chipWording('unsigned')}: the record matches, but it was saved before sealing was on.</p>
             : result.record === 'match' && result.signature === 'unknown_key' ? <p className="chain bad"><ShieldAlert size={16} /> The record matches its fingerprint, but its seal is from a key this server no longer trusts.</p>
             : result.record === 'match' ? <p className="chain bad"><ShieldAlert size={16} /> The record matches its fingerprint but its seal does not verify. Treat this record as altered.</p>
@@ -86,5 +99,86 @@ export function VerifyRecord() {
       <div className="actions"><button className="primary" disabled={busy || !!why} aria-describedby={why ? 'verify-why' : undefined} onClick={() => check()}>{busy ? 'Checking…' : 'Verify'}</button></div>
       {why && <p className="fine" id="verify-why">{why}</p>}
     </section>
+
+    <section id="evidence-check" className="editor section-gap" aria-labelledby="evidence-check-heading">
+      <p className="eyebrow">LOCAL SHA-256 EVIDENCE CHECK · WORKS OFFLINE</p>
+      <h2 id="evidence-check-heading" className="h-sub">Verify a sealed Move-In or WhatsApp Evidence Record</h2>
+      <p className="quiet">
+        Paste any timestamped record created on the Rights &amp; Deposit Shield (including its{' '}
+        <span className="mono">SHA-256 Fingerprint:</span> line). Your browser recomputes the cryptographic hash
+        locally — even a single edited digit or word breaks the seal.
+      </p>
+      <label>
+        Sealed evidence record
+        <textarea
+          rows={6}
+          value={evidenceText}
+          onChange={e => {
+            setEvidenceText(e.target.value);
+            setEvidenceVerdict(null);
+          }}
+          placeholder="Paste the complete text from Level 3 (including Timestamp (UTC) and SHA-256 Fingerprint lines)…"
+        />
+      </label>
+      <div className="actions">
+        <button
+          type="button"
+          className="primary"
+          disabled={checkingEvidence || !evidenceText.trim()}
+          onClick={() => void checkSealedEvidence()}
+        >
+          <Fingerprint size={15} aria-hidden="true" />
+          {checkingEvidence ? 'Verifying…' : 'Verify SHA-256 integrity'}
+        </button>
+        {evidenceText && (
+          <button
+            type="button"
+            className="help-link"
+            onClick={() => {
+              setEvidenceText('');
+              setEvidenceVerdict(null);
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {evidenceVerdict && (
+        <div
+          className={`muted-box section-gap seal-verdict is-${evidenceVerdict.status}`}
+          role="status"
+          data-evidence-verdict={evidenceVerdict.status}
+        >
+          {evidenceVerdict.status === 'valid' ? (
+            <>
+              <p className="chain ok">
+                <ShieldCheck size={16} aria-hidden="true" /> Exact match — record is unchanged since it was sealed.
+              </p>
+              <p className="fine mono flush">Verified SHA-256: {evidenceVerdict.computedHash}</p>
+            </>
+          ) : evidenceVerdict.status === 'tampered' ? (
+            <>
+              <p className="chain bad">
+                <ShieldAlert size={16} aria-hidden="true" /> Record modified — fingerprint mismatch detected.
+              </p>
+              <p className="fine flush">
+                At least one character, amount, or date was altered after this record was sealed.
+              </p>
+              <dl className="verify-details">
+                <dt>Sealed fingerprint</dt>
+                <dd className="mono">{evidenceVerdict.expectedHash}</dd>
+                <dt>Recomputed hash</dt>
+                <dd className="mono">{evidenceVerdict.computedHash}</dd>
+              </dl>
+            </>
+          ) : (
+            <p className="chain bad">
+              <ShieldAlert size={16} aria-hidden="true" /> {evidenceVerdict.reason}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  </>
   );
 }

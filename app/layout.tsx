@@ -17,13 +17,13 @@ const instrument = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", 
 
 // M11 (gap audit): a canonical base and a share card for WhatsApp/LinkedIn links. No client data:
 // review pages inherit only this generic card.
-const SITE_TITLE = "Scopeflow — Client approvals, clearly";
-const SITE_DESCRIPTION = "Define deliverables, share a scope, and keep a clear history of client decisions.";
+const SITE_TITLE = "TermsLock — Lock clear terms before you pay";
+const SITE_DESCRIPTION = "Check agreement traps, confirm terms over WhatsApp, and keep tamper-proof records — even when they won’t sign a formal contract.";
 export const metadata: Metadata = {
   metadataBase: new URL(configuredOrigin() ?? SITE_ORIGIN_FALLBACK),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
-  openGraph: { type: "website", siteName: "Scopeflow", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  openGraph: { type: "website", siteName: "TermsLock", title: SITE_TITLE, description: SITE_DESCRIPTION },
   twitter: { card: "summary", title: SITE_TITLE, description: SITE_DESCRIPTION },
   icons: {
     icon: "/favicon.svg",

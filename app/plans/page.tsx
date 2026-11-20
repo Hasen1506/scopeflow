@@ -8,7 +8,7 @@ import {formatMoney} from '@/lib/currency';
 import {getUser} from '@/lib/auth/server';
 import Upgrade from './upgrade';
 
-export const metadata: Metadata = {title: 'Plans — Scopeflow'};
+export const metadata: Metadata = {title: 'Plans — TermsLock'};
 
 // L13/M13: the Plans page renders from the PLANS table (lib/plans.ts), the same table the caps are
 // enforced from. Paid plans are bought here (Razorpay Subscriptions for INR, Stripe Billing

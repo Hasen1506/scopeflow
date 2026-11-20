@@ -42,11 +42,11 @@ export function SiteFooter() {
         <div className="footer-inner">
           <div className="footer-brand">
             <Brand beta={false} />
-            <p className="tagline">Scopes your clients can read, approve, and hold you to.</p>
+            <p className="tagline">Clear agreements people actually confirm — and proof that holds up.</p>
           </div>
           {!client && <nav className="footer-col" aria-label="Product">
             <h2>Product</h2>
-            <ul><li><Link href="/">Workspace</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li><li><Link href="/account">Settings</Link></li></ul>
+            <ul><li><Link href="/">Workspace</Link></li><li><Link href="/check">Rights &amp; deposit check</Link></li><li><Link href="/templates">Templates &amp; quick-fill</Link></li><li><Link href="/msme-interest">MSME interest calculator</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li></ul>
           </nav>}
           <nav className="footer-col" aria-label="Help">
             <h2>Help</h2>
@@ -59,7 +59,7 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="footer-legal">
-          {!client && <span>Scopeflow · Early beta</span>}
+          {!client && <span>TermsLock · Early beta</span>}
           <nav aria-label="Legal"><Link href="/about">About</Link><Link href="/contact">Contact</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/refund">Refunds</Link></nav>
         </div>
       </div>

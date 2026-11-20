@@ -6,7 +6,7 @@ import {parseReceiptInput} from '@/lib/evidence';
 
 /**
  * QA-02 (WS-02): the footer receipt check. It accepts a receipt's verify link, its JSON or its
- * fingerprint, and says inline "That doesn't look like a ScopeFlow receipt" for anything else,
+ * fingerprint, and says inline "That doesn't look like a TermsLock receipt" for anything else,
  * without navigating. WS-09 replaces ReceiptCheck in app/site-footer.tsx with this component.
  */
 export function ReceiptCheckForm({id = 'receipt-check'}: {id?: string}) {

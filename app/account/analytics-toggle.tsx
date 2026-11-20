@@ -22,7 +22,7 @@ export default function AnalyticsToggle() {
     } catch (e) { setNote((e as Error).message); } finally { setBusy(false); }
   }
   return <section aria-labelledby="h-analytics"><h2 id="h-analytics">Product analytics</h2>
-    <p className="fine">ScopeFlow counts funnel steps (for example “scope sent”, “approved”) per account to improve the product. No scope content, client names or emails are recorded.</p>
+    <p className="fine">TermsLock counts funnel steps (for example “scope sent”, “approved”) per account to improve the product. No scope content, client names or emails are recorded.</p>
     <label className="radio-row"><input type="checkbox" checked={!state.opted_out} disabled={busy} onChange={e => void toggle(!e.target.checked)}/> Share product analytics from this account</label>
     {note && <p role="status" className="fine">{note}</p>}
   </section>;

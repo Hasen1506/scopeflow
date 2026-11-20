@@ -4,7 +4,7 @@
 // bank to bank), their own Razorpay (connect with Razorpay when the Technology Partner OAuth is
 // live, or their API keys meanwhile), their own Stripe, and a Route linked account when the server
 // enables Route; plus the inbox of clients' "I've paid" claims to confirm, and payment alerts.
-// ScopeFlow never holds client money: every rail here pays the freelancer directly.
+// TermsLock never holds client money: every rail here pays the freelancer directly.
 import {useCallback, useEffect, useState} from 'react';
 import {formatMoney} from '@/lib/currency';
 import {fromMinor} from '@/lib/minor';
@@ -60,7 +60,7 @@ export default function PaymentSettings({showInbox = true}: PaymentSettingsProps
   if (!data) return <p role="status">Loading payment settings…</p>;
   const active = data.accounts.filter(a => a.status === 'active');
   return <div className={styles.wrap} data-testid="payment-settings">
-    <p className={styles.fine}>Clients pay you directly: to your UPI ID or bank, or through your own Razorpay or Stripe account. ScopeFlow never holds the money.</p>
+    <p className={styles.fine}>Clients pay you directly: to your UPI ID or bank, or through your own Razorpay or Stripe account. TermsLock never holds the money.</p>
     {data.readiness.warnings.map(w => <p key={w} className={styles.warn} role="note">{w}</p>)}
     {!data.readiness.encryption && <p className={styles.warn} role="note">This server cannot store payment keys yet (encryption key missing). A UPI ID still works.</p>}
     <section className={styles.card} aria-labelledby="pa-h">

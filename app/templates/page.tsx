@@ -3,10 +3,11 @@ import Link from 'next/link';
 import {useCallback, useEffect, useState} from 'react';
 import {toast} from 'sonner';
 import {Copy, GitCompare, History, Link2, Tag} from 'lucide-react';
-import {Header, Skeleton, api, post} from '../ui';
+import {Header, api, post} from '../ui';
 import {formatMoney} from '@/lib/scope';
-import {filterTemplates, revisionDiff, type RevisionView, type TemplateView} from '@/lib/template-store';
+import {builtinTemplates, filterTemplates, revisionDiff, type RevisionView, type TemplateView} from '@/lib/template-store';
 import {MODES, type Mode} from '@/lib/mode-core'; // integration: client page uses WS-08's pure module (lib/mode.ts reads the database)
+import GuidedBuilder from '../components/guided-builder';
 
 const MODE_LABEL: Record<Mode, string> = {freelancer: 'Freelancer', agency: 'Agency', consumer: 'Home & events', enterprise: 'Enterprise'};
 
@@ -16,7 +17,7 @@ const MODE_LABEL: Record<Mode, string> = {freelancer: 'Freelancer', agency: 'Age
  * (SF-22) ordered by mode, and importing a template someone shared by link.
  */
 export default function Templates() {
-  const [list, setList] = useState<TemplateView[] | null>(null), [builtins, setBuiltins] = useState<TemplateView[]>([]), [signedIn, setSignedIn] = useState<boolean | null>(null), [error, setError] = useState(''), [filter, setFilter] = useState(''), [query, setQuery] = useState(''), [mode, setMode] = useState<Mode>('freelancer');
+  const [list, setList] = useState<TemplateView[] | null>(null), [builtins, setBuiltins] = useState<TemplateView[]>(() => builtinTemplates()), [signedIn, setSignedIn] = useState<boolean | null>(null), [error, setError] = useState(''), [filter, setFilter] = useState(''), [query, setQuery] = useState(''), [mode, setMode] = useState<Mode>('freelancer');
   const [history, setHistory] = useState<{id: string; revisions: RevisionView[]; current: RevisionView; compare: number | null} | null>(null), [importLink, setImportLink] = useState(''), [busy, setBusy] = useState(false);
   const load = useCallback(() => api('/api/templates').then(d => { const all = d.templates as TemplateView[]; setSignedIn(!!d.signed_in); setBuiltins(all.filter(t => t.builtin)); setList(all.filter(t => !t.builtin)); }, e => setError(e.message)), []);
   useEffect(() => { void load(); }, [load]);
@@ -26,28 +27,30 @@ export default function Templates() {
   const share = (t: TemplateView, on: boolean, rotate = false) => run(async () => { const r = await api(`/api/templates/${t.id}/share`, post({share: on, ...(rotate ? {rotate} : {})})); replace(r.template); toast.success(on ? (rotate ? 'New share link made; the old one stopped working.' : 'Share link ready.') : 'Sharing turned off.'); });
   const showHistory = (t: TemplateView) => run(async () => { const r = await api(`/api/templates/${t.id}/revisions`); setHistory({id: t.id, revisions: r.revisions, current: r.current, compare: null}); });
   const restore = (id: string, revision: number) => run(async () => { const r = await api(`/api/templates/${id}/revisions`, post({revision})); replace(r.template); setHistory(null); toast.success(`Revision ${revision} restored as revision ${r.template.revision}.`); });
-  const importShared = () => run(async () => { const token = importLink.trim().match(/([a-f0-9]{32})\/?$/)?.[1]; if (!token) throw new Error('Paste a Scopeflow template share link.'); const r = await api(`/api/templates/shared/${token}`, post({})); setList(l => [r.template, ...(l ?? [])]); setImportLink(''); toast.success(`Added “${r.template.name}” to your templates.`); });
+  const importShared = () => run(async () => { const token = importLink.trim().match(/([a-f0-9]{32})\/?$/)?.[1]; if (!token) throw new Error('Paste a TermsLock template share link.'); const r = await api(`/api/templates/shared/${token}`, post({})); setList(l => [r.template, ...(l ?? [])]); setImportLink(''); toast.success(`Added “${r.template.name}” to your templates.`); });
   const tags = [...new Set((list ?? []).flatMap(t => t.tags))].sort();
   const shown = filterTemplates(list ?? [], query, filter);
   const starters = filterTemplates(builtins, query).sort((a, b) => Number(!!b.modes?.includes(mode)) - Number(!!a.modes?.includes(mode)));
   const packs = starters.filter(t => t.pack), general = starters.filter(t => !t.pack);
   const templateLink = (t: TemplateView) => <Link className="secondary" href={`/?template=${encodeURIComponent(t.id)}`} aria-label={`Use template ${t.name}`}>Use template</Link>;
-  const starterCard = (t: TemplateView) => <li key={t.id}>
-    <div><strong>{t.name}</strong> <span className="quiet"><span className="sep">· </span>{t.pack ?? 'Starter'} · {t.content.items?.length ?? 0} deliverables{t.content.engagement === 'retainer' ? ' · monthly retainer' : ''}{t.content.milestones?.length ? ` · ${t.content.milestones.length} payment stages` : ''}{t.modes?.includes(mode) ? ` · suggested for ${MODE_LABEL[mode].toLowerCase()}` : ''}</span></div>
-    {t.tags.length > 0 && <p className="fine">{t.tags.join(' · ')}</p>}
-    {t.rate_card?.length ? <p className="fine">Rate card: {t.rate_card.map(r => `${r.title} (per ${r.unit})`).join(', ')}</p> : null}
-    <div className="actions">{templateLink(t)}</div>
-  </li>;
+  const starterCard = (t: TemplateView) => {
+    const suggested = !!t.modes?.includes(mode);
+    return <li key={t.id} className={suggested ? 'is-suggested' : undefined}>
+      <div><strong>{t.name}</strong> <span className="quiet"><span className="sep">· </span>{t.pack ?? 'Starter'} · {t.content.items?.length ?? 0} deliverables{t.content.engagement === 'retainer' ? ' · monthly retainer' : ''}{t.content.milestones?.length ? ` · ${t.content.milestones.length} payment stages` : ''}{suggested ? ` · suggested for ${MODE_LABEL[mode].toLowerCase()}` : ''}</span></div>
+      {t.tags.length > 0 && <p className="fine">{t.tags.join(' · ')}</p>}
+      {t.rate_card?.length ? <p className="fine">Rate card: {t.rate_card.map(r => `${r.title} (per ${r.unit})`).join(', ')}</p> : null}
+      <div className="actions">{templateLink(t)}</div>
+    </li>;
+  };
   return <><Header /><main id="content" tabIndex={-1} className="shell">
-    <div className="page-heading"><div><p className="eyebrow">TEMPLATES</p><h1>Templates</h1></div></div>
+    <div className="page-heading"><div><p className="eyebrow">TEMPLATES &amp; QUICK-FILL</p><h1>Templates</h1></div><div className="actions"><Link className="secondary" href="/check">Check a clause for traps</Link></div></div>
+    <GuidedBuilder />
     {error && <p className="error" role="alert">{error}</p>}
-    <label className="section-gap">Search templates<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, tag or trade" /></label>
-    {/* UX-C23: while the library loads, show that it is loading instead of an empty Starters list */}
-    {list === null && !error && <Skeleton cards={3} lines={1} label="Loading templates…" />}
+    <label className="section-gap">Search templates<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, tag or trade (e.g. wedding, interiors, retainer, website)" /></label>
     {signedIn === false && <p className="muted-box">Sign in to keep your own templates. <Link className="help-link" href="/auth/sign-in?return_to=%2Ftemplates">Sign in</Link></p>}
     {signedIn && <section className="editor" aria-labelledby="your-templates">
       <h2 id="your-templates">Your templates</h2>
-      <p className="quiet">Save a draft as a template from the workspace. Here you can tag templates, see, compare and restore earlier revisions, and share a template with another Scopeflow user by link. A share link shows the template, never who made it or your clients.</p>
+      <p className="quiet">Save a draft as a template from the workspace. Here you can tag templates, see, compare and restore earlier revisions, and share a template with another TermsLock user by link. A share link shows the template, never who made it or your clients.</p>
       {tags.length > 0 && <div className="actions section-gap" role="group" aria-label="Filter by tag"><button className={filter ? 'secondary' : 'primary'} onClick={() => setFilter('')} aria-pressed={!filter}>All</button>{tags.map(t => <button key={t} className={filter === t ? 'primary' : 'secondary'} aria-pressed={filter === t} onClick={() => setFilter(t)}><Tag size={13} aria-hidden="true" />{t}</button>)}</div>}
       {list && !list.length && <p className="fine section-gap">You have no templates yet. In the workspace, use <strong>Save as template</strong> on a draft.</p>}
       {list && list.length > 0 && !shown.length && <p className="fine section-gap">No templates match.</p>}
@@ -70,12 +73,13 @@ export default function Templates() {
       </li>)}</ul>
       <div className="section-gap"><h2>Add a shared template</h2><form className="tag-row" onSubmit={e => { e.preventDefault(); void importShared(); }}><label>Share link<input value={importLink} onChange={e => setImportLink(e.target.value)} placeholder="https://…/templates/shared/…" /></label><button className="primary" style={{marginBottom: 'var(--s4)'}} disabled={busy || !importLink.trim()}>Add to my templates</button></form></div>
     </section>}
-    {list !== null && <section className="editor section-gap" aria-labelledby="starter-templates">
+    <section className="editor section-gap" aria-labelledby="starter-templates">
       <h2 id="starter-templates">Starters and vertical packs</h2>
-      <div className="actions starter-modes" role="group" aria-label="Suggested for">{MODES.map(m => <button key={m} className={mode === m ? 'primary' : 'secondary'} aria-pressed={mode === m} onClick={() => setMode(m)}>{MODE_LABEL[m]}</button>)}</div>
-      <p className="fine">Every starter works in every mode; the mode only puts its suggestions first.</p>
+      <div className="actions starter-modes" role="group" aria-label="Suggested for">{MODES.map(m => <button key={m} type="button" className={mode === m ? 'primary' : 'secondary'} aria-pressed={mode === m} onClick={() => setMode(m)}>{MODE_LABEL[m]}</button>)}</div>
+      <p className="fine" aria-live="polite">Showing {starters.filter(t => t.modes?.includes(mode)).length} {MODE_LABEL[mode]} picks first ({starters.length} total). Every starter works in every mode; the mode only puts its suggestions first.</p>
+      {!starters.length && <div className="muted-box"><p className="flush">No built-in templates match “{query.trim()}”.</p><div className="actions gap-top"><button type="button" className="secondary" onClick={() => setQuery('')}>Clear search</button></div></div>}
       {packs.length > 0 && <><h3 className="section-gap">Vertical packs</h3><ul className="receipt-list template-admin starter-grid">{packs.map(starterCard)}</ul></>}
       {general.length > 0 && <><h3 className="section-gap">General starters</h3><ul className="receipt-list template-admin starter-grid">{general.map(starterCard)}</ul></>}
-    </section>}
+    </section>
   </main></>;
 }

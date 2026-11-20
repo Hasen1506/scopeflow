@@ -94,7 +94,18 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
   return <>
     <p className="eyebrow">YOUR SCOPEFLOW ACCOUNT</p><h1>{title}</h1>
     {configured && currentEmail && (mode === 'sign-in' || mode === 'sign-up') && <p className="muted-box auth-current" role="status">You are signed in as <b>{currentEmail}</b>. {mode === 'sign-in' ? 'Signing in with another email signs that account out first.' : 'Creating a new account signs that account out first.'} <Link className="help-link" href={safeReturnPath(returnTo)}>Stay signed in</Link></p>}
-    {!configured ? <p className="error" role="alert">Sign-in is temporarily unavailable. Please contact support or try again later.</p> :
+    {!configured ? <>
+      <p className="error" role="alert">Sign-in is temporarily unavailable. Please contact support or try again later.</p>
+      <div className="auth-fallback-box">
+        <p className="eyebrow flush">Use TermsLock right now — no account needed</p>
+        <p>You can still scan any lease, catering, or client clause for legal traps, generate a 3-level proof &amp; escalation packet, or draft a full agreement in your browser.</p>
+        <div className="actions">
+          <Link className="primary" href="/check">Scan a clause free</Link>
+          <Link className="secondary" href="/templates">30-sec Quick-Fill</Link>
+          <Link className="secondary" href="/?guided=1">Try editor without an account</Link>
+        </div>
+      </div>
+    </> :
       <form onSubmit={submit} className="section-gap" noValidate data-attempted={attempted ? '' : undefined} aria-busy={busy}>
         {/* LT-11: each label names only its field (the hint sits outside the label); hints are tied by aria-describedby. */}
         {mode === 'sign-up' && <><label>Your name<input name="name" autoComplete="name" required minLength={2} maxLength={120} aria-describedby="name-hint" /></label><span id="name-hint" className="field-hint">Enter at least 2 characters.</span></>}
@@ -115,7 +126,7 @@ export default function AuthForm({ mode, returnTo, token, configured, explicitRe
     {message && <p className="muted-box" role="status">{message}</p>}
     {/* Only the ways out that make sense from this form (the sign-in page no longer links to itself). */}
     <p className="fine section-gap auth-switch">
-      {mode === 'sign-in' && <>New to Scopeflow? <Link className="help-link" href={'/auth/sign-up?return_to=' + encodeURIComponent(returnTo)}>Create an account</Link> · <Link className="help-link" href="/auth/forgot-password">Forgot password?</Link></>}
+      {mode === 'sign-in' && <>New to TermsLock? <Link className="help-link" href={'/auth/sign-up?return_to=' + encodeURIComponent(returnTo)}>Create an account</Link> · <Link className="help-link" href="/auth/forgot-password">Forgot password?</Link></>}
       {mode === 'sign-up' && <>Already have an account? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)}>Sign in</Link></>}
       {(mode === 'forgot-password' || mode === 'reset-password') && <>Remembered it? <Link className="help-link" href={'/auth/sign-in?return_to=' + encodeURIComponent(returnTo)}>Back to sign in</Link></>}
     </p>

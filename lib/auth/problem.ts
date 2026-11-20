@@ -18,7 +18,7 @@ export const AUTH_COPY = {
   verifyFirst: 'Verify your email first: open the link we sent you, then sign in.',
   tooMany: 'Too many attempts. Wait a minute, then try again.',
   ourSide: 'Sign-in is having trouble on our side, so nothing was wrong with your details. Please try again in a moment.',
-  offline: 'We couldn’t reach Scopeflow. Check your connection and try again.',
+  offline: 'We couldn’t reach TermsLock. Check your connection and try again.',
   exists: 'An account with this email already exists. Sign in instead, or reset your password.',
 } as const;
 

@@ -33,7 +33,7 @@ test('C62/C24/C39/C63: account errors sit by their section; one placeholder whil
 
 test('C30: the account page is called Settings in the menu, the title and the page', () => {
   assert.match(src('app/ui.tsx'), /href:'\/account',label:'Settings'/);
-  assert.match(src('app/account/layout.tsx'), /title: 'Settings — Scopeflow'/);
+  assert.match(src('app/account/layout.tsx'), /title: 'Settings — TermsLock'/);
   assert.match(src('app/account/page.tsx'), /ACCOUNT · SETTINGS/);
   for (const f of ['app/ui.tsx', 'app/account/page.tsx', 'app/invoice-panel.tsx', 'app/site-footer.tsx', 'app/retention-settings.tsx', 'app/privacy/page.tsx']) assert.ok(!src(f).includes('Data controls'), f);
 });

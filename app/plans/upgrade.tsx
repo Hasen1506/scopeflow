@@ -5,7 +5,7 @@ import {api} from '../ui';
 import {PLANS, type PlanCard, type PlanId} from '@/lib/plans';
 type Billing = {plan: {id: string; name: string; status: string | null; until: string | null; cap: string; source: string}; checkout_pending: boolean; invoices: {id: string; number: string; amount_minor: number; currency: string; issued: string}[]};
 const RECOMMENDED: PlanId = 'pro';
-// M13: the signed-in account's plan badge, one action on every plan card, and ScopeFlow's invoices to the account.
+// M13: the signed-in account's plan badge, one action on every plan card, and TermsLock's invoices to the account.
 // Signed out, each card leads to sign-up with the plan carried along; signed in, paid cards start checkout
 // (or say "coming soon" while paid plans are not on sale yet).
 export default function Upgrade({currency, enabled, localDouble, cards, chosen, betaName}: {currency: 'INR' | 'USD'; enabled: boolean; localDouble: boolean; cards: PlanCard[]; chosen?: string;
@@ -49,6 +49,6 @@ export default function Upgrade({currency, enabled, localDouble, cards, chosen, 
         <div className="plan-action">{action(c)}</div>
       </section>)}
     </div>
-    {b && b.invoices.length > 0 && <section className="section-gap"><h3>Your ScopeFlow invoices</h3><ul className="bullets">{b.invoices.map(i => <li key={i.id}><Link className="help-link" href={`/plans/invoices/${i.id}`}>{i.number}</Link> · {i.issued.slice(0, 10)} · {(i.amount_minor / 100).toFixed(2)} {i.currency}</li>)}</ul></section>}
+    {b && b.invoices.length > 0 && <section className="section-gap"><h3>Your TermsLock invoices</h3><ul className="bullets">{b.invoices.map(i => <li key={i.id}><Link className="help-link" href={`/plans/invoices/${i.id}`}>{i.number}</Link> · {i.issued.slice(0, 10)} · {(i.amount_minor / 100).toFixed(2)} {i.currency}</li>)}</ul></section>}
   </>;
 }

@@ -42,6 +42,17 @@ function buildCpus() {
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
+  // Allow AI Studio preview and reverse-proxy dev hosts so Next.js 16 does not block /_next/static/* with 403.
+  allowedDevOrigins: [
+    "**.run.app",
+    "*.run.app",
+    "**.aistudio.google.com",
+    "*.aistudio.google.com",
+    "**.googleusercontent.com",
+    "*.googleusercontent.com",
+    "127.0.0.1",
+    "0.0.0.0",
+  ],
   // harfbuzzjs loads its WebAssembly from its own folder at runtime (PDF text shaping), so it is not bundled.
   serverExternalPackages: ["harfbuzzjs"],
   // L10: no hard-coded build parallelism. NEXT_BUILD_CPUS caps the static-generation workers on a

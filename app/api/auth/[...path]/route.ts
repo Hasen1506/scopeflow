@@ -13,6 +13,10 @@ async function handle(request: NextRequest, context: Context) {
     const handler = getAuth().handler();
     return request.method === 'GET' ? handler.GET(request, context) : handler.POST(request, context);
   } catch {
+    const segs = (await context.params).path;
+    if (request.method === 'GET' && segs.length === 1 && segs[0] === 'get-session') {
+      return Response.json(null, { status: 200 });
+    }
     return Response.json({ message: 'Sign-in is temporarily unavailable. Please try again.' }, { status: 503 });
   }
 }

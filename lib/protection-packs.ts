@@ -1,7 +1,6 @@
 import {blank, itemLine, type ClientInput, type Item, type Milestone, type Scope} from './scope';
-import type {Currency} from './currency';
 import {formatMoney} from './currency';
-import {jurisdictionById, type JurisdictionId, type ScenarioId} from './legal-shield';
+import {jurisdictionById, type JurisdictionId, type ScenarioId, type ShieldCurrency} from './legal-shield';
 
 /**
  * 30-Second Guided Quick-Fill Packs (pure, isomorphic).
@@ -182,7 +181,7 @@ function buildScope(
     title: string;
     client: string;
     fee: number;
-    currency: Currency;
+    currency: ShieldCurrency;
     due: string;
     revisions: number;
     items: Item[];
@@ -222,7 +221,7 @@ function buildScope(
 export function buildGuidedScope(inputs: GuidedInputs): {scope: Scope; whatsappRecap: string} {
   const pack = guidedPackById(inputs.packId);
   const j = jurisdictionById(inputs.jurisdiction);
-  const currency: Currency = j.currency;
+  const currency: ShieldCurrency = j.currency;
   const amount = inputs.amount > 0 ? inputs.amount : currency === 'INR' ? pack.defaultAmountINR : pack.defaultAmountUSD;
   const party = inputs.party.trim() || (pack.id === 'rental-deposit' ? 'Property Owner' : 'Counterparty');
   const subject = inputs.subject.trim() || pack.title;

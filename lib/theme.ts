@@ -1,5 +1,5 @@
 // Themes (L9 / LT-18 / SF-21). Two visual themes share every component and differ only in tokens
-// (app/globals.css): "a" = Etched (cream on grained cobalt), "b" = ScopeFlow original (default, cobalt ink
+// (app/globals.css): "a" = Etched (cream on grained cobalt), "b" = TermsLock original (default, cobalt ink
 // on cream). Each has a light and a dark scheme. The owner picks the theme and a mode (light / dark /
 // follow the system); the choice lives on <html data-theme data-mode data-scheme>, is kept in this browser
 // and, when signed in, with the account (GET/PUT /api/theme, account_settings.theme_style/theme_mode).
@@ -13,7 +13,7 @@ export type Scheme = 'light' | 'dark';
 export type ThemeChoice = {theme: ThemeId; mode: ModeId};
 export const THEMES: {id: ThemeId; name: string}[] = [
   {id: 'a', name: 'Etched'},
-  {id: 'b', name: 'ScopeFlow original'},
+  {id: 'b', name: 'TermsLock original'},
 ];
 export const MODES: {id: ModeId; name: string}[] = [
   {id: 'system', name: 'System'},

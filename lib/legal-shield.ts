@@ -1,10 +1,11 @@
-import type {Currency} from './currency';
 import {formatMoney} from './currency';
+
+export type ShieldCurrency = 'INR' | 'USD';
 
 /**
  * Jurisdiction-aware Agreement & Deposit Shield (pure, isomorphic).
  *
- * Solves Scopeflow's core real-world power-asymmetry problem: landlords, caterers, local
+ * Solves TermsLock's core real-world power-asymmetry problem: landlords, caterers, local
  * contractors, and busy enterprise buyers routinely refuse to sign a brand-new contract from an
  * app. Instead of dead-ending when the other side won't sign, this module:
  *  1. Surfaces concrete statutory baselines for India (state-aware) and US (state-aware) agreements.
@@ -12,7 +13,7 @@ import {formatMoney} from './currency';
  *  3. Generates a 3-Level Friction Ladder:
  *     - Level 1: Polite WhatsApp / SMS Soft Confirm (lowest friction; a simple "Yes/OK" reply
  *       creates an admissible written record under India BSA 2023 s.63 / US ESIGN).
- *     - Level 2: 1-Tap Scopeflow Summary Link (structured approval without needing an account).
+ *     - Level 2: 1-Tap TermsLock Summary Link (structured approval without needing an account).
  *     - Level 3: Unilateral Timestamped Evidence & Move-In/Notice Record (when they refuse to reply).
  *
  * Every legal point is practical information, not legal advice.
@@ -43,7 +44,7 @@ export type JurisdictionRule = {
   id: JurisdictionId;
   country: 'IN' | 'US';
   label: string;
-  currency: Currency;
+  currency: ShieldCurrency;
   depositCapNote: string;
   returnWindowDays: number;
   returnWindowNote: string;
@@ -738,10 +739,10 @@ export function buildEscalationLadder(input: EscalationInput): EscalationLadder 
       waHref: 'https://wa.me/?text=' + encodeURIComponent(waBody),
     },
     level2Link: {
-      title: 'Level 2 · 1-Tap Scopeflow review link (no account needed for them)',
+      title: 'Level 2 · 1-Tap TermsLock review link (no account needed for them)',
       whyItWorks:
-        'Turn this into a clean, version-locked Scopeflow agreement. They read it on their phone in 20 seconds and tap Approve — sealed with a verifiable SHA-256 fingerprint.',
-      actionLabel: 'Open pre-filled in Scopeflow editor',
+        'Turn this into a clean, version-locked TermsLock agreement. They read it on their phone in 20 seconds and tap Approve — sealed with a verifiable SHA-256 fingerprint.',
+      actionLabel: 'Open pre-filled in TermsLock editor',
     },
     level3Unilateral: {
       title: 'Level 3 · Unilateral timestamped record (if they still refuse to sign or reply)',

@@ -1,51 +1,226 @@
 'use client';
+
 import Link from 'next/link';
-import {ArrowUpRight,BadgeCheck,BellRing,FileCheck2,IndianRupee,LibraryBig,Palette,Plug,Radar,Repeat2,Scale,ShieldCheck,Sparkles} from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  BadgeCheck,
+  Building2,
+  Calculator,
+  FileCheck2,
+  Fingerprint,
+  Home,
+  MessageCircle,
+  Repeat2,
+  ShieldCheck,
+  UtensilsCrossed,
+  Zap,
+} from 'lucide-react';
 import {ReviewVignette} from './ui';
 
-// What a signed-out visitor sees at /. It holds no draft and no account data, so nothing typed in
-// the editor (by this visitor or a previous account on this browser) can show up here.
-const STEPS=[
- {title:'Write the scope',body:'Deliverables, acceptance criteria, what is excluded, fee, tax, deposit, payment terms and revision rounds. Start from a template, a brief or a blank page.'},
- {title:'Your client approves it',body:'Send one review link. The client reads the exact version, confirms it with an email or phone code when you ask for one, and approves or requests changes.'},
- {title:'Changes become change orders',body:'Every "small extra" is priced and approved as a change order against the locked version, so the agreement keeps up with the work.'},
- {title:'Invoice, get paid, keep the record',body:'Invoices, online payments and refunds land on the same signed record, ready as a statement or a dispute pack.'},
+const SCENARIO_WEDGES = [
+  {
+    icon: Home,
+    eyebrow: 'Renters & Deposits',
+    title: 'Stop arbitrary painting & deposit deductions',
+    body: 'Scan landlord clauses against India (Contract Act s.74, BSA s.63, state rent rules) and US (CA 21-day, NY 14-day, TX 30-day) law, then send a Day-1 move-in record they will actually confirm.',
+    href: '/check',
+    cta: 'Scan rental clause',
+  },
+  {
+    icon: UtensilsCrossed,
+    eyebrow: 'Weddings & Catering',
+    title: 'Lock menus, plate counts & extra-guest caps',
+    body: 'Eliminate event-day billing shocks and vague “standard buffet” swaps with a 30-second catering agreement and a 5-line WhatsApp confirm.',
+    href: '/templates',
+    cta: 'Build catering pack',
+  },
+  {
+    icon: Building2,
+    eyebrow: 'Home Interiors & Trades',
+    title: 'Fix material brands & stage-by-stage releases',
+    body: 'Keep 15% held back until snag-list handover and stop verbal “billed as actuals” surprises with priced written change orders.',
+    href: '/templates',
+    cta: 'Build renovation BOQ',
+  },
+  {
+    icon: FileCheck2,
+    eyebrow: 'Freelancers & Agencies',
+    title: 'End unlimited revisions & late-payment stalls',
+    body: 'Version-locked scopes, client approvals without accounts, change-order ledgers, GST invoices, and statutory MSME interest calculation.',
+    href: '/msme-interest',
+    cta: 'Try MSME calculator',
+  },
 ];
-const FEATURES:{icon:typeof Radar;title:string;body:string}[]=[
- {icon:FileCheck2,title:'Version-locked approvals',body:'Each saved version is fixed. Clients approve on a review link with optional email, SMS or WhatsApp codes and countersigners such as finance.'},
- {icon:BadgeCheck,title:'Signed receipts anyone can verify',body:'Decisions and ledger entries are signed and hash-chained. Receipts are PDFs with a QR code that checks them on the verify page.'},
- {icon:Repeat2,title:'Change orders and revision banks',body:'Track revision rounds, or a bank of hours or money, and record priced change orders the client approves.'},
- {icon:Radar,title:'Scope-creep radar',body:'Paste or forward a client message and see whether it is in scope, excluded or new work, across languages, before you say yes.'},
- {icon:IndianRupee,title:'GST invoices and payments',body:'Numbered tax invoices with CGST, SGST or IGST, milestones and due dates, deposits and invoices paid online through Razorpay or Stripe, and refunds.'},
- {icon:ShieldCheck,title:'Evidence that holds up',body:'Signed PDFs with trusted timestamps, a tamper-evident ledger and a dispute pack with a BSA 2023 section 63 certificate template.'},
- {icon:BellRing,title:'Reminders that follow up for you',body:'Automatic, polite reminders for unanswered scopes and overdue invoices, and a log of when the client opened the link.'},
- {icon:Sparkles,title:'AI drafting and a clarity check',body:'Draft a scope from a brief, catch vague wording with one-click rewrites, and see what clients often assume is included.'},
- {icon:Palette,title:'Your brand on everything',body:'Your logo, colour and reply-to address on the review page, PDFs and emails your clients receive.'},
- {icon:LibraryBig,title:'Templates you keep improving',body:'Save scopes as templates with tags and revision history, and share a template with a link.'},
- {icon:Plug,title:'Works with ChatGPT and your tools',body:'Connect ChatGPT through MCP, use API keys, or import drafts from Muse.'},
- {icon:Scale,title:'Your data, your rules',body:'Retention periods per project, legal holds, full export and account deletion.'},
+
+const FRICTION_LADDER = [
+  {
+    step: 'Level 1',
+    icon: MessageCircle,
+    title: 'The 10-second WhatsApp soft confirm',
+    body: 'Landlords and local caterers rarely sign a 6-page PDF from an unfamiliar app. Send a polite 5-line recap — a simple “Confirmed” reply plus your bank UTR creates admissible written proof.',
+  },
+  {
+    step: 'Level 2',
+    icon: FileCheck2,
+    title: '1-Tap version-locked review link',
+    body: 'When both sides want a proper agreement, share one clean link. Zero signup required for the other party; every change after approval becomes a priced change order.',
+  },
+  {
+    step: 'Level 3',
+    icon: Fingerprint,
+    title: 'Unilateral timestamped evidence record',
+    body: 'Even if they refuse to sign or reply, seal a SHA-256 timestamped move-in checklist, photo baseline, or formal dispute notice ready for Small Claims, Rent Court, or e-Daakhil.',
+  },
 ];
 
-export default function Landing({onTry}:{onTry:()=>void}){
- return <div className="landing">
-  <section className="hero hero-split" aria-labelledby="hero-title">
-   <div><p className="eyebrow ruled">Scopes · approvals · change orders · payments</p><h1 id="hero-title">Good work starts with a <em>clear agreement.</em></h1><p className="tagline">Define the work, get it approved on a version-locked link, and keep the next “small change” on the record.</p>
-    <div className="actions"><Link className="primary" href="/auth/sign-up?return_to=%2F">Create an account<ArrowUpRight size={17}/></Link><Link className="secondary" href="/auth/sign-in?return_to=%2F">Sign in</Link></div>
-    <p className="fine">Or <button className="help-link" onClick={onTry}>try the editor without an account</button>. Nothing is saved until you sign in.</p></div>
-   <ReviewVignette/>
-  </section>
+const PILLARS = [
+  {
+    icon: ShieldCheck,
+    title: 'Trap scanner & clarity check before you pay',
+    body: 'Catches blanket painting deductions, non-refundable forfeitures, vague “etc.” deliverables, and missing deadlines — with 1-click safe rewrites.',
+  },
+  {
+    icon: Zap,
+    title: '30-second Quick-Fill, zero blank pages',
+    body: 'Nobody enjoys drafting agreements from scratch. Answer 4 concrete questions (who, what, amount, date) and get a complete protective document immediately.',
+  },
+  {
+    icon: Repeat2,
+    title: 'Change orders that keep pace with reality',
+    body: 'Every “small extra” — extra guests, extra room, extra feature — is logged, priced, and confirmed against the original locked version.',
+  },
+  {
+    icon: BadgeCheck,
+    title: 'Tamper-evident receipts anyone can verify',
+    body: 'Approvals and ledgers carry verifiable fingerprints and QR receipt checks, plus a BSA 2023 s.63 / ESIGN evidence trail when disputes arise.',
+  },
+];
 
-  <section className="lp-section" aria-labelledby="lp-how"><p className="eyebrow ruled">How it works</p><h2 id="lp-how">From first brief to <em>final payment</em></h2>
-   <ol className="lp-steps">{STEPS.map((s,i)=><li key={s.title}><span className="step-num" aria-hidden="true">{i+1}</span><div><h3>{s.title}</h3><p>{s.body}</p></div></li>)}</ol>
-  </section>
+export default function Landing({onTry}: {onTry: () => void}) {
+  return (
+    <div className="landing">
+      <section className="hero hero-split" aria-labelledby="hero-title">
+        <div>
+          <p className="eyebrow ruled">Agreements · Deposit Shield · WhatsApp Confirms · Change Orders</p>
+          <h1 id="hero-title">
+            Clear agreements — <em>even when they won’t sign a formal contract.</em>
+          </h1>
+          <p className="tagline">
+            Protect apartment deposits, catering advances, home renovations, and client projects in 30 seconds. Check
+            unfair clauses first, then lock proof via WhatsApp soft confirm, a 1-tap review link, or a timestamped
+            evidence record.
+          </p>
+          <div className="actions">
+            <Link className="primary" href="/check">
+              Check a lease or quote
+              <ArrowRight size={17} aria-hidden="true" />
+            </Link>
+            <button type="button" className="secondary" onClick={onTry}>
+              <Zap size={16} aria-hidden="true" />
+              Try editor free
+            </button>
+            <Link className="secondary" href="/templates">
+              30-sec packs
+            </Link>
+          </div>
+          <p className="fine">
+            No account required to scan clauses or build a draft. Ready to save &amp; send live review links?{' '}
+            <Link className="help-link" href="/auth/sign-up?return_to=%2F">
+              Create a free account
+            </Link>
+            .
+          </p>
+        </div>
+        <ReviewVignette />
+      </section>
 
-  <section className="lp-section" aria-labelledby="lp-features"><p className="eyebrow ruled">Features</p><h2 id="lp-features">Everything a scope needs, <em>on one record</em></h2>
-   <ul className="lp-features">{FEATURES.map(({icon:Icon,title,body})=><li key={title} className="lp-card"><Icon size={20} aria-hidden="true"/><h3>{title}</h3><p>{body}</p></li>)}</ul>
-   <p className="fine">Online payments, SMS codes, AI and trusted timestamps are available when this server has them set up.</p>
-  </section>
+      <section className="lp-section" aria-labelledby="lp-scenarios">
+        <p className="eyebrow ruled">Built for real-world power imbalances</p>
+        <h2 id="lp-scenarios">
+          Every high-stakes agreement where verbal promises <em>cost you money</em>
+        </h2>
+        <ul className="lp-scenarios">
+          {SCENARIO_WEDGES.map(({icon: Icon, eyebrow, title, body, href, cta}) => (
+            <li key={title} className="lp-card">
+              <div className="lp-card-top">
+                <Icon size={20} aria-hidden="true" />
+                <span className="eyebrow flush">{eyebrow}</span>
+              </div>
+              <h3>{title}</h3>
+              <p>{body}</p>
+              <div className="lp-card-link">
+                <Link className="help-link" href={href}>
+                  {cta} <ArrowRight size={14} aria-hidden="true" />
+                </Link>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-  <section className="lp-cta" aria-labelledby="lp-start"><div><h2 id="lp-start">Write your next scope <em>once.</em></h2><p>Let the record do the remembering.</p></div>
-   <div className="actions"><Link className="primary" href="/auth/sign-up?return_to=%2F">Create an account<ArrowUpRight size={17}/></Link><button className="secondary" onClick={onTry}>Try the editor</button></div>
-  </section>
- </div>;
+      <section className="lp-section" aria-labelledby="lp-ladder">
+        <p className="eyebrow ruled">The “Won’t Sign” Ladder</p>
+        <h2 id="lp-ladder">
+          Meet the other side at the <em>lowest friction</em> they’ll accept
+        </h2>
+        <ol className="lp-ladder">
+          {FRICTION_LADDER.map(({step, icon: Icon, title, body}) => (
+            <li key={step} className="lp-ladder-item">
+              <div className="lp-ladder-head">
+                <span className="eyebrow flush">{step}</span>
+                <Icon size={18} aria-hidden="true" />
+              </div>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="lp-section" aria-labelledby="lp-pillars">
+        <p className="eyebrow ruled">Why TermsLock holds up</p>
+        <h2 id="lp-pillars">
+          Four safeguards, <em>on one verifiable record</em>
+        </h2>
+        <ul className="lp-pillars">
+          {PILLARS.map(({icon: Icon, title, body}) => (
+            <li key={title} className="lp-card">
+              <Icon size={20} aria-hidden="true" />
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </li>
+          ))}
+        </ul>
+        <div className="actions section-gap">
+          <Link className="secondary" href="/msme-interest">
+            <Calculator size={15} aria-hidden="true" />
+            Free MSME late-payment interest calculator
+          </Link>
+          <Link className="secondary" href="/verify">
+            <ShieldCheck size={15} aria-hidden="true" />
+            Verify a signed receipt
+          </Link>
+        </div>
+      </section>
+
+      <section className="lp-cta" aria-labelledby="lp-start">
+        <div>
+          <h2 id="lp-start">
+            Lock the terms in <em>30 seconds.</em>
+          </h2>
+          <p>Before the deposit leaves your account — or before work begins.</p>
+        </div>
+        <div className="actions">
+          <Link className="primary" href="/check">
+            Scan a clause free
+            <ArrowUpRight size={17} aria-hidden="true" />
+          </Link>
+          <button type="button" className="secondary" onClick={onTry}>
+            Open the editor
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }

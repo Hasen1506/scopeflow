@@ -1,5 +1,5 @@
 import type {Metadata} from 'next';
 
 // The page itself is a client component, so its <title> is set here.
-export const metadata: Metadata = {title: 'Checkout — Scopeflow'};
+export const metadata: Metadata = {title: 'Checkout — TermsLock'};
 export default function Layout({children}: {children: React.ReactNode}) { return children; }

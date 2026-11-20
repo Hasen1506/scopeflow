@@ -53,7 +53,7 @@ export function PaymentPanel({version,agreement,entries,onlineDeposits,receiptUr
   <ReceiptList decided={decided} receiptUrl={receiptUrl}/>
  </>;
 }
-/** A refund: through Razorpay or Stripe for an online payment (money goes back to the client's card or account), or one the creator made outside Scopeflow. Either way it goes on the signed record. */
+/** A refund: through Razorpay or Stripe for an online payment (money goes back to the client's card or account), or one the creator made outside TermsLock. Either way it goes on the signed record. */
 export function RefundForm({projectId,baseline,currency,line,max,onDone,onCancel}:{projectId:string;baseline:number;currency:string;line:PaymentLine|null;max:number;onDone:()=>void;onCancel:()=>void}){
  const [amount,setAmount]=useState(String(max)),[method,setMethod]=useState<(typeof paymentMethods)[number]>('bank_transfer'),[refunded,setRefunded]=useState(today()),[reference,setReference]=useState(''),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [requestId]=useState(()=>crypto.randomUUID());
@@ -73,7 +73,7 @@ export function RefundForm({projectId,baseline,currency,line,max,onDone,onCancel
 }
 /** Today in the viewer's own calendar (a payment that arrived this morning in Chennai is not "tomorrow"). */
 export const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-/** Records money received outside Scopeflow as a ledger entry (kind payment_received). */
+/** Records money received outside TermsLock as a ledger entry (kind payment_received). */
 export function PaymentForm({projectId,baseline,currency,suggested,balance,onDone,onCancel}:{projectId:string;baseline:number;currency:string;suggested:number;balance:number;onDone:()=>void;onCancel:()=>void}){
  const [amount,setAmount]=useState(suggested>0?String(suggested):''),[method,setMethod]=useState<(typeof paymentMethods)[number]>('bank_transfer'),[received,setReceived]=useState(today()),[reference,setReference]=useState(''),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [requestId]=useState(()=>crypto.randomUUID());

@@ -1,7 +1,7 @@
 {
-  "name": "Scopeflow",
-  "short_name": "Scopeflow",
-  "description": "Scopes, change orders and client approvals. Share a client's message to Scopeflow to check it against the agreement.",
+  "name": "TermsLock",
+  "short_name": "TermsLock",
+  "description": "Check traps before you pay, lock clear terms via WhatsApp or review links, and seal tamper-proof records.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

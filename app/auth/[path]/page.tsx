@@ -10,7 +10,7 @@ const paths = ['sign-in', 'sign-up', 'forgot-password', 'reset-password'];
 const titles: Record<string, string> = { 'sign-in': 'Sign in', 'sign-up': 'Create an account', 'forgot-password': 'Reset your password', 'reset-password': 'Choose a new password' };
 export async function generateMetadata({ params }: { params: Promise<{ path: string }> }): Promise<Metadata> {
   const { path } = await params;
-  return { title: `${titles[path] ?? 'Page not found'} — Scopeflow` };
+  return { title: `${titles[path] ?? 'Page not found'} — TermsLock` };
 }
 export default async function AuthPage({ params, searchParams }: {
   params: Promise<{ path: string }>;
