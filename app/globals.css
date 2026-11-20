@@ -172,8 +172,10 @@ label.label-for{margin-bottom:7px}
 .fine{font-size:var(--fs-2);color:var(--ink-3);margin-top:12px;font-family:var(--font-ui)}
 .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.03fr);gap:32px;align-items:start}
 .preview-col{position:sticky;top:20px}
-.two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4);align-items:end}
-.two-col>label,.three-col>label{margin:0;min-width:0}
+.two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4);align-items:end;margin-top:var(--s4)}
+.two-col>label,.three-col>label,.two-col>div>label,.three-col>div>label{margin:0;min-width:0}
+.two-col>div,.three-col>div{min-width:0}
+.two-col:has(.field-stack){align-items:start}
 .inline-field{display:flex;gap:8px;align-items:stretch}
 .inline-field input{flex:1;min-width:0}
 .trust-settings{border-top:1px solid var(--rule);padding-top:14px}
@@ -247,7 +249,7 @@ label.label-for{margin-bottom:7px}
 [data-slot=dialog-content]{background:var(--popover)!important;color:var(--ink);border:1px solid var(--rule-strong)!important;border-radius:var(--r-lg)!important;box-shadow:var(--shadow-2)!important;padding:28px!important}
 [data-slot=dialog-content] h2{font-size:var(--fs-5)}
 [data-slot=dialog-content] p[id]{color:var(--ink-2);font-size:var(--fs-2)}
-[data-slot=select-trigger]{border-color:var(--rule-strong)!important;border-radius:var(--r-sm)!important;background:var(--paper)!important;color:var(--paper-ink)!important;font-family:var(--font-ui);font-size:var(--fs-3)!important;margin-top:7px}
+[data-slot=select-trigger]{min-height:46px!important;height:46px!important;padding:11px 13px!important;line-height:var(--lh-3)!important;border-color:var(--rule-strong)!important;border-radius:var(--r-sm)!important;background:var(--paper)!important;color:var(--paper-ink)!important;font-family:var(--font-ui);font-size:var(--fs-3)!important;margin-top:7px}
 [data-slot=select-trigger]:hover{border-color:var(--accent)!important}
 [data-slot=select-content]{background:var(--popover)!important;border-color:var(--rule-strong)!important;color:var(--ink)!important;border-radius:var(--r)!important}
 [data-slot=select-item]{font-family:var(--font-ui)}
@@ -304,7 +306,7 @@ label.label-for{margin-bottom:7px}
 .template-chip{display:inline-flex;align-items:center;gap:2px}
 .template-chip .secondary{min-height:36px;padding:7px 14px;font-size:var(--fs-2)}
 .template-chip .icon{width:30px;height:30px}
-.ai-draft,.disclosure,.scope-check{margin-top:14px;border:1px solid var(--rule);border-radius:var(--r);background:var(--surface-2);transition:border-color var(--dur-1) var(--ease)}
+.ai-draft,.disclosure,.scope-check{margin-top:var(--s4);border:1px solid var(--rule);border-radius:var(--r);background:var(--surface-2);transition:border-color var(--dur-1) var(--ease)}
 .ai-draft>summary,.disclosure>summary,.scope-check>summary{cursor:pointer;font-family:var(--font-ui);font-weight:var(--fw-ui);font-size:var(--fs-2);display:flex;gap:9px;align-items:center;padding:12px 16px;list-style:none;border-radius:var(--r)}
 .ai-draft>summary::-webkit-details-marker,.disclosure>summary::-webkit-details-marker,.scope-check>summary::-webkit-details-marker{display:none}
 .ai-draft>summary::after,.disclosure>summary::after,.scope-check>summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform var(--dur-2) var(--ease)}
@@ -1062,7 +1064,7 @@ main#content:focus{outline:none}
 .ai-off-title{font-family:var(--font-ui);font-weight:var(--fw-ui);font-size:var(--fs-2);margin:0;padding:12px 0 0}
 .ai-draft.ai-off>.fine{margin-top:4px}
 /* B-3/#30: the fee's status sits beside the field, not inside its label. */
-.field-stack>.warn-text,.field-stack>.error-text{margin-top:-6px}
+.field-stack>.warn-text,.field-stack>.error-text{margin-top:6px}
 .error>p+p{margin-top:6px}
 /* UX-C49: milestone, FX and revision-bank rows fold by the width of their card, not the viewport: at 901-1200px
    the two-column editor leaves the scope card only ~380-520px, where the fixed columns overflowed. */

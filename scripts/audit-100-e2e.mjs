@@ -1224,6 +1224,71 @@ async function main() {
       };
     });
 
+    await runScenario(
+      'D9:Regressions',
+      'Set the scope: Currency, Target delivery & Tax rows align at 46px with >=12px row gaps & loaded fonts',
+      'S1',
+      async () => {
+        const p = await context.newPage();
+        await p.setViewportSize({width: 1440, height: 900});
+        await p.goto(BASE + '/', {waitUntil: 'networkidle'});
+        const tryBtn = p.getByRole('button', {name: /Try editor free/i});
+        if (await tryBtn.count()) {
+          await tryBtn.click();
+          await p.waitForTimeout(300);
+        }
+        const sum = p.locator('summary', {hasText: /Tax, deposit/i});
+        if (await sum.count()) {
+          await sum.click();
+          await p.waitForTimeout(200);
+        }
+        const res = await p.evaluate(async () => {
+          await document.fonts.ready;
+          const loaded = [...new Set(Array.from(document.fonts).filter(f => f.status === 'loaded').map(f => f.family))];
+          const rows = Array.from(document.querySelectorAll('#step-scope .two-col')).map(row => {
+            const rr = row.getBoundingClientRect();
+            const ctrls = Array.from(row.children)
+              .map(c => c.querySelector('input:not([type=checkbox]):not([type=radio]), select, button[role=combobox], textarea'))
+              .filter(Boolean)
+              .map(el => {
+                const r = el.getBoundingClientRect();
+                return {tag: el.tagName, top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height)};
+              });
+            return {top: Math.round(rr.top), bottom: Math.round(rr.bottom), ctrls};
+          });
+          // Row 0 = Project fee | Currency, Row 1 = Revision rounds | Target delivery
+          const r0 = rows[0],
+            r1 = rows[1];
+          const feeCurAligned =
+            r0 &&
+            r0.ctrls.length === 2 &&
+            Math.abs(r0.ctrls[0].top - r0.ctrls[1].top) <= 1 &&
+            Math.abs(r0.ctrls[0].bottom - r0.ctrls[1].bottom) <= 1 &&
+            r0.ctrls[0].height === 46 &&
+            r0.ctrls[1].height === 46;
+          const revDueAligned =
+            r1 &&
+            r1.ctrls.length === 2 &&
+            Math.abs(r1.ctrls[0].top - r1.ctrls[1].top) <= 1 &&
+            Math.abs(r1.ctrls[0].bottom - r1.ctrls[1].bottom) <= 1 &&
+            r1.ctrls[0].height === 46 &&
+            r1.ctrls[1].height === 46;
+          const rowGap = r0 && r1 ? r1.top - r0.bottom : 0;
+          return {
+            fontsOk: loaded.includes('Fraunces') && loaded.includes('Instrument Sans'),
+            feeCurAligned,
+            revDueAligned,
+            rowGap,
+          };
+        });
+        await p.close();
+        return {
+          pass: res.fontsOk && res.feeCurAligned && res.revDueAligned && res.rowGap >= 12,
+          detail: `fonts=${res.fontsOk}, feeCur=${res.feeCurAligned}, revDue=${res.revDueAligned}, rowGap=${res.rowGap}px`,
+        };
+      },
+    );
+
     await browser.close();
 
     // =========================================================================

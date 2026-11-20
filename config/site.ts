@@ -11,6 +11,6 @@ export const OPERATOR = 'VijeyaHasen';
 /** Public site origin for metadata, robots.txt and the sitemap: APP_URL, else the production host. */
 export const SITE_ORIGIN_FALLBACK = 'https://scope-flow.tech';
 /** Public pages listed in the sitemap (M10). Private shells and token pages are never listed. */
-export const PUBLIC_PAGES = ['/', '/plans', '/msme-interest', '/reviewer-guide', '/about', '/contact', '/support', '/privacy', '/terms', '/refund'] as const;
+export const PUBLIC_PAGES = ['/', '/check', '/plans', '/msme-interest', '/reviewer-guide', '/about', '/contact', '/support', '/privacy', '/terms', '/refund'] as const;
 /** Paths crawlers are asked to skip (M10): APIs, bearer-token pages and signed-in shells. */
 export const ROBOTS_DISALLOW = ['/api/', '/review/', '/cosign/', '/pay/', '/share', '/oauth/', '/workspace', '/account', '/onboarding', '/templates', '/connect', '/auth/', '/verify', '/payment-return', '/plans/checkout', '/plans/invoices'] as const;
