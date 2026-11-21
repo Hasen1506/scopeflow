@@ -3,21 +3,24 @@ import {db, json, ownerAuth, allowRead, failure, hash} from '@/lib/server';
 import {anchorOf} from '@/lib/ledger-server';
 import {publicSigningKey, signRecord} from '@/lib/signing';
 import {buildAuditExport, toCsv, toJsonl, type AuditRows, type ContactRow} from '@/lib/audit-export';
+import {toAuditPdf} from '@/lib/audit-export-pdf';
 import {currentMode} from '@/lib/mode';
 import {effectiveRetentionDays, fromRow, type SettingsRow} from '@/lib/settings';
 import {auditEvent} from '@/lib/billing';
-// SF-25: GET /api/audit/export?from=YYYY-MM-DD&to=YYYY-MM-DD&format=jsonl|csv. Admin-only: the
+// SF-25: GET /api/audit/export?from=YYYY-MM-DD&to=YYYY-MM-DD&format=jsonl|csv|pdf. Admin-only: the
 // account owner in a browser session (an API token or connector cannot pull the audit trail).
 // Available in every mode; Enterprise lists it first. The export itself is an admin event.
 const day = /^\d{4}-\d{2}-\d{2}$/;
-const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+const sha = (s: string | Uint8Array) => createHash('sha256').update(s).digest('hex');
 export async function GET(request: Request) {
   try {
     const auth = await ownerAuth(request);
     if (!auth) return json({error: 'Sign in to export the audit trail.'}, 401);
-    if (auth.via !== 'session') return json({error: 'The audit export is for the account admin, from the ScopeFlow website.', code: 'admin_only'}, 403);
+    if (auth.via !== 'session') return json({error: 'The audit export is for the account admin, from the TermsLock website.', code: 'admin_only'}, 403);
     if (!await allowRead('owner:' + auth.user, 20)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
-    const q = new URL(request.url).searchParams, format = q.get('format') === 'csv' ? 'csv' : 'jsonl';
+    const q = new URL(request.url).searchParams;
+    const rawFormat = q.get('format');
+    const format = rawFormat === 'csv' ? 'csv' : rawFormat === 'pdf' ? 'pdf' : 'jsonl';
     const from = q.get('from') ?? '2000-01-01', toDay = q.get('to') ?? new Date().toISOString().slice(0, 10);
     if (!day.test(from) || !day.test(toDay) || Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(toDay)) || from > toDay) return json({error: 'Use from and to as YYYY-MM-DD, from on or before to.'}, 400);
     const to = new Date(Date.parse(toDay + 'T00:00:00Z') + 86400_000).toISOString().slice(0, 10); // inclusive end day
@@ -44,7 +47,12 @@ export async function GET(request: Request) {
     const key = publicSigningKey();
     const records = buildAuditExport(rows, {owner_ref: (await hash('audit:' + owner)).slice(0, 24), from, to, generated: new Date().toISOString(), account_retention_days: effectiveRetentionDays(fromRow(settings)), mode: await currentMode(owner), key_id: key?.kid ?? null}, sha, signRecord);
     await auditEvent(owner, 'audit.exported', {from, to: toDay, format, records: records.length});
+    if (format === 'pdf') {
+      const pdf = toAuditPdf(records);
+      const digest = sha(pdf);
+      return new Response(Buffer.from(pdf), {status: 200, headers: {'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="termslock-audit-${from}-to-${toDay}.pdf"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Scopeflow-Sha256': digest, 'X-Scopeflow-Signature': signRecord('scopeflow-audit-file-v1:' + digest) ?? ''}});
+    }
     const text = format === 'csv' ? toCsv(records) : toJsonl(records), digest = sha(text);
-    return new Response(text, {status: 200, headers: {'Content-Type': format === 'csv' ? 'text/csv; charset=utf-8' : 'application/x-ndjson; charset=utf-8', 'Content-Disposition': `attachment; filename="scopeflow-audit-${from}-to-${toDay}.${format}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Scopeflow-Sha256': digest, 'X-Scopeflow-Signature': signRecord('scopeflow-audit-file-v1:' + digest) ?? ''}});
+    return new Response(text, {status: 200, headers: {'Content-Type': format === 'csv' ? 'text/csv; charset=utf-8' : 'application/x-ndjson; charset=utf-8', 'Content-Disposition': `attachment; filename="termslock-audit-${from}-to-${toDay}.${format}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Scopeflow-Sha256': digest, 'X-Scopeflow-Signature': signRecord('scopeflow-audit-file-v1:' + digest) ?? ''}});
   } catch (e) { return failure(e); }
 }

@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- decorative art is pre-optimised WebP with fixed dimensions; next/image adds nothing here */
 import {plural} from '@/lib/plural';
-import {Check,ChevronDown,FileText,Lock,Menu,X} from 'lucide-react';
+import {Check,ChevronDown,FileText,Menu,X} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
 import {DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuItem} from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
@@ -14,6 +14,7 @@ import {authClient} from '@/lib/auth/client';
 import {Scope,money,label,itemsOf,formatMoney} from '@/lib/scope';
 import {fxLine, itemPriceView, schedule, totals} from '@/lib/money';
 import {formatDay} from '@/lib/time';
+import {HeroShowcase} from './hero-showcase';
 /** TermsLock's mark: architectural lock shackle joined to a sealed terms plate with an interlocking T-keyhole monogram. */
 export function Mark(){return <span className="mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="2.5" width="27" height="27" rx="7" fill="currentColor" fillOpacity=".08" strokeWidth="1.35" strokeOpacity=".34"/><path d="M11.6 13.5V10.4a4.4 4.4 0 0 1 8.8 0v3.1" strokeWidth="2.15"/><rect x="7.75" y="13.5" width="16.5" height="12.25" rx="3" strokeWidth="1.9"/><path d="M12.25 17.5h7.5" strokeWidth="1.95"/><path d="M16 17.5v4.6" strokeWidth="1.95"/><circle cx="16" cy="17.5" r="1.25" fill="currentColor" stroke="none"/></svg></span>;}
 export function Brand({beta=true}:{beta?:boolean}){return <Link className="brand" href="/" aria-label="TermsLock home"><Mark/><span className="wordmark">Terms<em>Lock</em></span>{beta&&<span className="beta">EARLY BETA</span>}</Link>;}
@@ -45,22 +46,8 @@ export async function api(path:string,options?:RequestInit):Promise<any>{const r
 export const post=(data:unknown)=>({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 /** Etched survey-stake vignette (decorative). */
 export function Vignette({className='plate'}:{className?:string}){return <div className={className} aria-hidden="true"><img src="/art/survey-stake.webp" alt="" width={360} height={360} loading="lazy" decoding="async"/></div>;}
-/** Signed-out hero "product vignette": a miniature client review, built from the app's own tokens and chips.
- *  Illustrative only (labelled Example); exposed to assistive tech as a single described image. */
-export function ReviewVignette(){return <div className="vignette-card" role="img" aria-label="Example of a client review in TermsLock: Brand refresh for Kavya Studio, version 2 locked, three deliverables totalling ₹54,000, approved by the client, with a pending change order for two more social templates at ₹6,000.">
- <div className="vc-doc" aria-hidden="true">
-  <div className="vc-head"><span className="vc-example">Example</span><span className="vc-chip"><Lock size={11} strokeWidth={2.2}/>Version 2 · locked</span></div>
-  <p className="vc-title">Brand refresh <span className="vc-dash">—</span> <em>Kavya Studio</em></p>
-  <ul className="vc-items">
-   <li><Check size={15}/><span>Logo system</span><span className="vc-amt">₹24,000</span></li>
-   <li><Check size={15}/><span>Brand guidelines</span><span className="vc-amt">₹18,000</span></li>
-   <li><Check size={15}/><span>Social kit · 4 templates</span><span className="vc-amt">₹12,000</span></li>
-  </ul>
-  <div className="vc-total"><span>Total</span><strong>₹54,000</strong>
-   <div className="vc-seal"><span className="vc-seal-top">Approved</span> <span className="vc-seal-mid">by client</span> <span className="vc-seal-date">3 Oct 2026</span></div></div>
- </div>
- <div className="vc-slip" aria-hidden="true"><span className="vc-pin"/><strong>Change order #1</strong><span className="vc-slip-body"><span className="vc-co-what">+2 social templates, </span>+₹6,000</span><span className="vc-pending">Pending</span></div>
-</div>;}
+/** Signed-out hero interactive showcase: animated real-world TermsLock records across rental, catering, and client scopes. */
+export function ReviewVignette(){return <HeroShowcase/>;}
 export function EmptyState({title,children}:{title:string;children?:React.ReactNode}){return <div className="empty-state"><span aria-hidden="true"><img src="/art/survey-stake.webp" alt="" width={96} height={96} loading="lazy" decoding="async"/></span><div><strong>{title}</strong>{children&&<p>{children}</p>}</div></div>;}
 /** Loading placeholder with the shape of what is coming, so nothing jumps when it arrives. */
 export function Skeleton({lines=0,cards=0,label='Loading…'}:{lines?:number;cards?:number;label?:string}){return <div className="skeleton-stack" aria-busy="true"><span className="sr-only">{label}</span>{Array.from({length:cards},(_,i)=><span key={'c'+i} className="skeleton skeleton-card"/>)}{Array.from({length:lines},(_,i)=><span key={'l'+i} className="skeleton skeleton-line" style={{width:`${92-i*14}%`}}/>)}</div>;}

@@ -1016,6 +1016,33 @@ async function main() {
       return {pass: bad.length === 0, detail: `checked ${unique.length} footer links, bad=${bad.length}`};
     });
 
+    await runScenario('D7:Tools', 'Landing HeroShowcase tabs switch live scenarios with zero slip/footer overlap', 'S1', async () => {
+      await auxPage.goto(BASE + '/', {waitUntil: 'domcontentloaded'});
+      await auxPage.waitForTimeout(350);
+      await auxPage.getByRole('tab', {name: /Wedding catering/i}).click();
+      await auxPage.waitForTimeout(350);
+      const t1 = ((await auxPage.locator('.hs-title').textContent()) || '').trim();
+      await auxPage.getByRole('tab', {name: /Client scope/i}).click();
+      await auxPage.waitForTimeout(650);
+      const t2 = ((await auxPage.locator('.hs-title').textContent()) || '').trim();
+      const geo = await auxPage.evaluate(() => {
+        const foot = document.querySelector('.hs-foot')?.getBoundingClientRect();
+        const slip = document.querySelector('.hs-slip')?.getBoundingClientRect();
+        const seal = document.querySelector('.hs-seal')?.getBoundingClientRect();
+        const overlaps = (a, b) => a && b && !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+        return {slipOverFoot: overlaps(slip, foot), sealOverFoot: overlaps(seal, foot)};
+      });
+      return {
+        pass: t1.includes('Mehta Reception') && t2.includes('Website Redesign') && !geo.slipOverFoot && !geo.sealOverFoot,
+        detail: `t1="${t1}", t2="${t2}", slipOverFoot=${geo.slipOverFoot}, sealOverFoot=${geo.sealOverFoot}`,
+      };
+    });
+
+    await runScenario('D7:Tools', '/api/audit/export?format=pdf returns clean 401 when signed out (never 500)', 'S1', async () => {
+      const r = await auxPage.request.get(BASE + '/api/audit/export?format=pdf');
+      return {pass: r.status() === 401, detail: `status=${r.status()}`};
+    });
+
     // =========================================================================
     // DIMENSION 8: Adversarial Security, Performance, Unicode & Boundary (S109-S122)
     // =========================================================================
@@ -1093,7 +1120,7 @@ async function main() {
     });
 
     await runScenario('D9:Regressions', 'Signed-out Pack B -> /check -> switch to Home Interiors -> Build full agreement stays Home Interiors', 'S0', async () => {
-      regPage.once('dialog', d => d.accept());
+      regPage.once('dialog', d => d.accept().catch(() => {}));
       await regPage.goto(BASE + '/check', {waitUntil: 'domcontentloaded'});
       await regPage.waitForTimeout(300);
       await regPage.getByRole('button', {name: 'Home interiors & local contractor'}).click();
@@ -1108,7 +1135,7 @@ async function main() {
     });
 
     await runScenario('D9:Regressions', 'Signed-out previous draft -> /templates -> Use template switches cleanly without blocking', 'S0', async () => {
-      regPage.once('dialog', d => d.accept());
+      regPage.once('dialog', d => d.accept().catch(() => {}));
       await regPage.goto(BASE + '/templates', {waitUntil: 'domcontentloaded'});
       await regPage.waitForTimeout(450);
       await regPage.getByRole('link', {name: /Use template CA monthly compliance retainer/i}).click();

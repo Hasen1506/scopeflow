@@ -1260,5 +1260,43 @@ main#content:focus{outline:none}
 .auth-fallback-box{display:flex;flex-direction:column;gap:var(--s3);margin-top:var(--s4);padding:var(--s4);background:var(--surface-2);border:1px solid var(--rule);border-radius:var(--r)}
 .auth-fallback-box p{margin:0;color:var(--ink-2)}
 
-
+/* Interactive animated TermsLock Hero Showcase (replaces static Kavya Studio vignette) */
+.hero-showcase{display:flex;flex-direction:column;gap:0;padding:0;max-width:540px}
+.hs-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:4px;margin-bottom:var(--s3);background:var(--surface-2);border:1px solid var(--rule);border-radius:var(--r)}
+.hs-tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:6px 8px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--ink-2);font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-ui);white-space:nowrap;cursor:pointer;transition:background-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.hs-tab:hover{color:var(--ink)}
+.hs-tab.is-active{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.hs-doc{overflow:hidden;padding:22px 24px 34px}
+.hs-progress{position:absolute;top:0;left:0;right:0;height:3px;background:var(--paper-accent);transform-origin:left center;pointer-events:none}
+.hs-head{padding-bottom:10px;border-bottom:1px solid var(--paper-rule)}
+.hs-kicker{font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-ui);letter-spacing:var(--label-track);text-transform:uppercase;color:var(--paper-ink-2)}
+.hs-status{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1);font-weight:var(--fw-ui);color:var(--paper-accent);white-space:nowrap}
+.hs-title-block{margin:14px 0 12px}
+.hs-title{margin:0;font-family:var(--font-display);font-size:var(--fs-5);line-height:var(--lh-5);font-weight:var(--fw-1);color:var(--paper-ink)}
+.hs-subtitle{margin:4px 0 0;font-family:var(--font-ui);font-size:var(--fs-2);line-height:var(--lh-2);color:var(--paper-ink-2)}
+.hs-items li{padding:8px 0}
+.hs-total{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:var(--s4);padding-top:14px;min-height:112px}
+.hs-total-copy{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.hs-total-copy>span{font-family:var(--font-ui);font-size:var(--fs-1);font-weight:var(--fw-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--paper-ink-2)}
+.hs-seal{position:static;display:flex;width:106px;height:106px;padding:10px;gap:2px;flex-shrink:0;margin:0}
+.hs-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-top:16px;padding-top:12px;border-top:1px dashed var(--paper-rule);font-family:var(--font-ui);font-size:var(--fs-1);line-height:var(--lh-1)}
+.hs-foot-note{display:inline-flex;align-items:center;gap:5px;color:var(--paper-ink-2)}
+.hs-foot-link{display:inline-flex;align-items:center;gap:4px;color:var(--paper-accent);font-weight:var(--fw-ui);text-decoration:none}
+.hs-foot-link:hover{text-decoration:underline}
+.hs-slip{position:relative;left:auto;bottom:auto;margin:-14px 0 0 16px;width:min(388px,calc(100% - 32px));z-index:2}
+.hs-slip.is-shield{background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+:root .hs-slip.is-shield{background:var(--ok-bg)}
+.vc-pending.is-ok{color:var(--ok)}
+@media (max-width:600px){
+  .hero-showcase{max-width:none}
+  .hs-tab{flex-direction:column;gap:3px;padding:7px 4px;white-space:normal;text-align:center;line-height:var(--lh-1)}
+  .hs-doc{padding:16px 16px 26px}
+  .hs-title{font-size:var(--fs-4);line-height:var(--lh-4)}
+  .hs-total{gap:var(--s3);min-height:auto;border-top:0;padding-top:12px;margin-top:0}
+  .hs-total strong{font-size:var(--fs-4);line-height:var(--lh-4)}
+  .hs-seal{width:90px;height:90px;padding:8px;border-radius:50%}
+  .hs-slip{margin:-10px 8px 0;width:auto;white-space:normal;grid-template-columns:1fr auto}
+  .hs-slip .vc-slip-body{grid-column:1/-1;grid-row:2}
+  .hs-slip .vc-pending{grid-column:2;grid-row:1}
+}
 
