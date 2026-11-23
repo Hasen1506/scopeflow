@@ -3,52 +3,62 @@
   {
    "id": "free",
    "name": "Free",
-   "blurb": "For your first client scope.",
+   "blurb": "For renters, families, and your first client scopes.",
    "purchasable": false,
    "seats": 1,
    "price": "₹0",
    "per": null,
    "yearly": null,
+   "yearlyPrice": null,
+   "yearlyMonthlyEq": null,
    "lines": [
-    "1 active project (archived ones don’t count)",
+    "5 active projects (archived ones don’t count)",
     "25 versions per project",
-    "100 record entries per project"
+    "100 record entries per project",
+    "Up to 5 AI Advisor requests / min"
    ],
    "soon": []
   },
   {
    "id": "pro",
    "name": "Pro",
-   "blurb": "For a working freelancer or studio.",
+   "blurb": "For freelancers, consultants, and full wedding or renovation chains.",
    "purchasable": true,
    "seats": 1,
-   "price": "₹499",
+   "price": "₹299",
    "per": "month",
-   "yearly": "or ₹4,499 a year",
+   "yearly": "or ₹2,990 / year (2 months free)",
+   "yearlyPrice": "₹2,990",
+   "yearlyMonthlyEq": "₹249",
    "lines": [
-    "1,000 active projects (archived ones don’t count)",
+    "100 active projects (archived ones don’t count)",
     "200 versions per project",
-    "1,000 record entries per project"
+    "1,000 record entries per project",
+    "Up to 20 AI Advisor requests / min"
    ],
    "soon": []
   },
   {
    "id": "agency",
-   "name": "Agency",
-   "blurb": "The highest limits, for a busy studio.",
+   "name": "Studio & Agency",
+   "blurb": "High-volume limits for studios, event planners, and property managers.",
    "purchasable": true,
    "seats": 1,
-   "price": "₹1,499",
+   "price": "₹999",
    "per": "month",
-   "yearly": "or ₹13,499 a year",
+   "yearly": "or ₹9,990 / year (2 months free)",
+   "yearlyPrice": "₹9,990",
+   "yearlyMonthlyEq": "₹833",
    "lines": [
-    "5,000 active projects (archived ones don’t count)",
-    "200 versions per project",
-    "2,000 record entries per project"
+    "1,000 active projects (archived ones don’t count)",
+    "500 versions per project",
+    "2,500 record entries per project",
+    "Up to 40 AI Advisor requests / min"
    ],
    "soon": [
     "Team seats with roles (owner, manager, member, finance)",
-    "Shared rate card and team activity"
+    "Shared rate card and team activity",
+    "Verified Aadhaar eSign & stamp-duty add-on"
    ]
   }
  ],
@@ -56,52 +66,62 @@
   {
    "id": "free",
    "name": "Free",
-   "blurb": "For your first client scope.",
+   "blurb": "For renters, families, and your first client scopes.",
    "purchasable": false,
    "seats": 1,
    "price": "$0",
    "per": null,
    "yearly": null,
+   "yearlyPrice": null,
+   "yearlyMonthlyEq": null,
    "lines": [
-    "1 active project (archived ones don’t count)",
+    "5 active projects (archived ones don’t count)",
     "25 versions per project",
-    "100 record entries per project"
+    "100 record entries per project",
+    "Up to 5 AI Advisor requests / min"
    ],
    "soon": []
   },
   {
    "id": "pro",
    "name": "Pro",
-   "blurb": "For a working freelancer or studio.",
+   "blurb": "For freelancers, consultants, and full wedding or renovation chains.",
    "purchasable": true,
    "seats": 1,
-   "price": "$6",
+   "price": "$5",
    "per": "month",
-   "yearly": "or $54 a year",
+   "yearly": "or $49 / year (2 months free)",
+   "yearlyPrice": "$49",
+   "yearlyMonthlyEq": "$4",
    "lines": [
-    "1,000 active projects (archived ones don’t count)",
+    "100 active projects (archived ones don’t count)",
     "200 versions per project",
-    "1,000 record entries per project"
+    "1,000 record entries per project",
+    "Up to 20 AI Advisor requests / min"
    ],
    "soon": []
   },
   {
    "id": "agency",
-   "name": "Agency",
-   "blurb": "The highest limits, for a busy studio.",
+   "name": "Studio & Agency",
+   "blurb": "High-volume limits for studios, event planners, and property managers.",
    "purchasable": true,
    "seats": 1,
-   "price": "$18",
+   "price": "$15",
    "per": "month",
-   "yearly": "or $162 a year",
+   "yearly": "or $149 / year (2 months free)",
+   "yearlyPrice": "$149",
+   "yearlyMonthlyEq": "$12",
    "lines": [
-    "5,000 active projects (archived ones don’t count)",
-    "200 versions per project",
-    "2,000 record entries per project"
+    "1,000 active projects (archived ones don’t count)",
+    "500 versions per project",
+    "2,500 record entries per project",
+    "Up to 40 AI Advisor requests / min"
    ],
    "soon": [
     "Team seats with roles (owner, manager, member, finance)",
-    "Shared rate card and team activity"
+    "Shared rate card and team activity",
+    "Verified Aadhaar eSign & stamp-duty add-on"
    ]
   }
  ]

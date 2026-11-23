@@ -12,6 +12,19 @@ function poolSize() {
 }
 
 export function createPool(url = process.env.DATABASE_URL) {
+  if (!url && process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME) {
+    const pool = new pg.Pool({
+      host: process.env.SQL_HOST,
+      user: process.env.SQL_USER,
+      password: process.env.SQL_PASSWORD,
+      database: process.env.SQL_DB_NAME,
+      max: poolSize(),
+      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 20000,
+    });
+    pool.on('error', () => console.error('An idle PostgreSQL connection was closed; new requests will reconnect.'));
+    return pool;
+  }
   if (!url) throw new Error('DATABASE_URL is required');
   const destination = new URL(url);
   if (!['postgres:', 'postgresql:'].includes(destination.protocol)) {
@@ -35,9 +48,46 @@ export function createPool(url = process.env.DATABASE_URL) {
   return pool;
 }
 
-function executor(connection, pool) {
+function rewriteSchemaToPublic(text) {
+  // Rewrite scopeflow.<ident> -> public.<ident> ONLY outside single-quoted string literals
+  // (so set_config('scopeflow.allow_delete', ...) and GUC names remain untouched).
+  let out = '';
+  let i = 0;
+  let code = '';
+  const flush = () => {
+    if (code) {
+      out += code.replace(/\bscopeflow\./g, 'public.');
+      code = '';
+    }
+  };
+  while (i < text.length) {
+    const c = text[i];
+    if (c === "'") {
+      flush();
+      let j = i + 1;
+      while (j < text.length) {
+        if (text[j] === "'") {
+          if (text[j + 1] === "'") { j += 2; continue; }
+          j++;
+          break;
+        }
+        j++;
+      }
+      out += text.slice(i, j);
+      i = j;
+    } else {
+      code += c;
+      i++;
+    }
+  }
+  flush();
+  return out;
+}
+
+function executor(connection, pool, usePublicSchema = false) {
   async function unsafe(text, values = []) {
-    const result = await connection.query(text, values);
+    const finalSql = usePublicSchema ? rewriteSchemaToPublic(text) : text;
+    const result = await connection.query(finalSql, values);
     if (Array.isArray(result)) return result.map(item => Object.assign(item.rows, { count: item.rowCount ?? 0 }));
     return Object.assign(result.rows, { count: result.rowCount ?? 0 });
   }
@@ -48,7 +98,7 @@ function executor(connection, pool) {
     const connection = await pool.connect();
     try {
       await connection.query(mode === 'ISOLATION LEVEL REPEATABLE READ READ ONLY' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
-      const result = await callback(executor(connection, pool));
+      const result = await callback(executor(connection, pool, usePublicSchema));
       await connection.query('COMMIT');
       return result;
     } catch (error) {
@@ -58,13 +108,16 @@ function executor(connection, pool) {
   };
   return sql;
 }
+export function isCloudSqlPublicFallback(url = process.env.DATABASE_URL) {
+  return Boolean(!url && process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME);
+}
 export function createConnection(url = process.env.DATABASE_URL) {
   const pool = createPool(url);
-  return executor(pool, pool);
+  return executor(pool, pool, isCloudSqlPublicFallback(url));
 }
 const key = Symbol.for('scopeflow.postgres');
 export function getPool() {
   globalThis[key] ??= createPool();
   return globalThis[key];
 }
-export function getConnection() { return executor(getPool(), getPool()); }
+export function getConnection() { return executor(getPool(), getPool(), isCloudSqlPublicFallback()); }

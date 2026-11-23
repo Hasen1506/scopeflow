@@ -4,11 +4,18 @@ import {useEffect, useState} from 'react';
 import {Header, api} from '../../ui';
 import {NextStep} from '../../workflow';
 import {MODE_LABEL, featuresFor, type Feature, type Mode} from '@/lib/mode-core';
+import {useAuth} from '@/lib/firebase/auth-context';
 // SF-17: "All features". Every feature, in the order of the workspace's mode. A mode never
 // removes anything from this list; it only changes what comes first.
 export default function AllFeatures() {
+  const {user: fbUser, loading: authLoading} = useAuth();
   const [mode, setMode] = useState<Mode>('freelancer'), [features, setFeatures] = useState<Feature[]>(featuresFor('freelancer'));
-  useEffect(() => { api('/api/workspace/mode').then(r => { setMode(r.mode); setFeatures(r.features); }, () => {/* signed out: the default order */}); }, []);
+  useEffect(() => {
+    if (authLoading) return;
+    let live = true;
+    api('/api/workspace/mode').then(r => { if (!live) return; setMode(r.mode); setFeatures(r.features); }, () => {/* signed out: the default order */});
+    return () => { live = false; };
+  }, [authLoading, fbUser?.uid]);
   return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor">
     <p className="eyebrow">ACCOUNT · ALL FEATURES</p><h1>Everything TermsLock <em>does.</em></h1>
     <NextStep title={`${MODE_LABEL[mode]} mode`} actions={<Link className="secondary" href="/account#h-mode">Change mode</Link>}>Your mode puts the features you use most first. Every feature is listed here in every mode.</NextStep>

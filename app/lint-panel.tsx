@@ -1,6 +1,6 @@
 'use client';
-import {useMemo, useState} from 'react';
-import {AlertTriangle, Info, OctagonAlert, ShieldCheck} from 'lucide-react';
+import {useDeferredValue,useMemo,useState} from 'react';
+import {AlertTriangle,Info,OctagonAlert,ShieldCheck} from 'lucide-react';
 import {applyRewrite, lintScope} from '@/lib/lint';
 import type {Scope} from '@/lib/scope';
 import {clarityVerdict} from '@/lib/a11y';
@@ -11,7 +11,8 @@ const icons = {error: OctagonAlert, warn: AlertTriangle, info: Info};
 /** Live clarity check for the draft. Advisory only: it never blocks saving. */
 export function LintPanel({scope, onApply}: {scope: Scope; onApply?: (next: Scope) => void}) {
   const [open, setOpen] = useState(false);
-  const result = useMemo(() => lintScope(scope), [scope]);
+  const deferredScope = useDeferredValue(scope);
+  const result = useMemo(() => lintScope(deferredScope), [deferredScope]);
   const serious = result.issues.filter(i => i.severity !== 'info').length;
   const shown = open ? result.issues : result.issues.filter(i => i.severity !== 'info').slice(0, 4);
   return (

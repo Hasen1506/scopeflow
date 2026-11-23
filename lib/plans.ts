@@ -38,27 +38,29 @@ export type Plan = {
  * limits), so the Plans page lists these once as "All plans include …" instead of on one card.
  */
 export const ALL_PLANS_INCLUDE: readonly string[] = [
-  'Free client reviewing',
-  'Clear scope, revisions and decision history',
-  'Change orders, rate card and retainers',
-  'Invoices, GST tax invoices, statements and reminders',
-  'API and ChatGPT connector access',
-  'Print or export your project',
+  'Free client reviewing — no account needed for your client, landlord, or vendor',
+  'Rights & Deposit Trap Check + instant local Clarity Lint',
+  'Multi-Event & Wedding Collections Hub with vendor phone directory',
+  'WhatsApp Soft Confirm + offline SHA-256 tamper-proof evidence seals',
+  'Clear scope, revisions, change orders, rate card, and decision history',
+  'Invoices, GST tax invoices, UPI QR, statements, and payment reminders',
+  'Print-ready client PDFs and Audit Trail exports (PDF / CSV / JSONL)',
+  'API, OpenAPI 3.1, and MCP / AI assistant connector access',
 ];
 
 export const PLANS: Record<PlanId, Plan> = {
-  beta: {id: 'beta', name: 'Early beta', proposed: false, purchasable: false, seats: 1, price: {USD: 0, INR: 0, USD_year: 0, INR_year: 0}, blurb: 'Everything, free while ScopeFlow is in beta.', features: [],
-    limits: {projects: 100, versions: 100, ledger_entries: 200, writes_per_minute: 30, reads_per_minute: 240, ai_per_minute: 10, ai_careful_per_minute: 4}},
-  free: {id: 'free', name: 'Free', proposed: false, purchasable: false, seats: 1, price: {USD: 0, INR: 0, USD_year: 0, INR_year: 0}, blurb: 'For your first client scope.', features: [],
-    limits: {projects: 1, versions: 25, ledger_entries: 100, writes_per_minute: 20, reads_per_minute: 120, ai_per_minute: 3, ai_careful_per_minute: 1}},
-  // Kept as a ₹299 test arm only (plan §16.3); not offered on /plans.
-  solo: {id: 'solo', name: 'Solo', proposed: true, purchasable: false, seats: 1, price: {USD: 4, INR: 299, USD_year: 36, INR_year: 2999}, blurb: 'A lower-priced test arm.', features: [],
-    limits: {projects: 10, versions: 100, ledger_entries: 200, writes_per_minute: 30, reads_per_minute: 240, ai_per_minute: 10, ai_careful_per_minute: 4}},
-  pro: {id: 'pro', name: 'Pro', proposed: false, purchasable: true, seats: 1, price: {USD: 6, INR: 499, USD_year: 54, INR_year: 4499}, blurb: 'For a working freelancer or studio.', features: [],
-    limits: {projects: 1000, versions: 200, ledger_entries: 1000, writes_per_minute: 60, reads_per_minute: 480, ai_per_minute: 15, ai_careful_per_minute: 6}},
+  beta: {id: 'beta', name: 'Early access', proposed: false, purchasable: false, seats: 1, price: {USD: 0, INR: 0, USD_year: 0, INR_year: 0}, blurb: 'Generous limits, free while TermsLock is in early access.', features: [],
+    limits: {projects: 100, versions: 100, ledger_entries: 500, writes_per_minute: 40, reads_per_minute: 300, ai_per_minute: 15, ai_careful_per_minute: 6}},
+  free: {id: 'free', name: 'Free', proposed: false, purchasable: false, seats: 1, price: {USD: 0, INR: 0, USD_year: 0, INR_year: 0}, blurb: 'For renters, families, and your first client scopes.', features: [],
+    limits: {projects: 5, versions: 25, ledger_entries: 100, writes_per_minute: 20, reads_per_minute: 120, ai_per_minute: 5, ai_careful_per_minute: 2}},
+  // Kept for backwards compatibility with legacy plan rows; Pro is now offered at ₹299/mo.
+  solo: {id: 'solo', name: 'Solo', proposed: true, purchasable: false, seats: 1, price: {USD: 4, INR: 249, USD_year: 39, INR_year: 2490}, blurb: 'Legacy solo tier.', features: [],
+    limits: {projects: 25, versions: 100, ledger_entries: 250, writes_per_minute: 30, reads_per_minute: 240, ai_per_minute: 10, ai_careful_per_minute: 4}},
+  pro: {id: 'pro', name: 'Pro', proposed: false, purchasable: true, seats: 1, price: {USD: 5, INR: 299, USD_year: 49, INR_year: 2990}, blurb: 'For freelancers, consultants, and full wedding or renovation chains.', features: [],
+    limits: {projects: 100, versions: 200, ledger_entries: 1000, writes_per_minute: 60, reads_per_minute: 480, ai_per_minute: 20, ai_careful_per_minute: 8}},
   // R3-03: one seat until team seats exist (they are listed as coming soon, not sold).
-  agency: {id: 'agency', name: 'Agency', proposed: false, purchasable: true, seats: 1, price: {USD: 18, INR: 1499, USD_year: 162, INR_year: 13499}, blurb: 'The highest limits, for a busy studio.', features: [], soon: ['Team seats with roles (owner, manager, member, finance)', 'Shared rate card and team activity'],
-    limits: {projects: 5000, versions: 200, ledger_entries: 2000, writes_per_minute: 120, reads_per_minute: 960, ai_per_minute: 30, ai_careful_per_minute: 12}},
+  agency: {id: 'agency', name: 'Studio & Agency', proposed: false, purchasable: true, seats: 1, price: {USD: 15, INR: 999, USD_year: 149, INR_year: 9990}, blurb: 'High-volume limits for studios, event planners, and property managers.', features: [], soon: ['Team seats with roles (owner, manager, member, finance)', 'Shared rate card and team activity', 'Verified Aadhaar eSign & stamp-duty add-on'],
+    limits: {projects: 1000, versions: 500, ledger_entries: 2500, writes_per_minute: 120, reads_per_minute: 960, ai_per_minute: 40, ai_careful_per_minute: 15}},
 };
 export const PURCHASABLE: readonly PlanId[] = (Object.keys(PLANS) as PlanId[]).filter(id => PLANS[id].purchasable);
 export const isPlanId = (v: unknown): v is PlanId => typeof v === 'string' && Object.hasOwn(PLANS, v);
@@ -122,12 +124,12 @@ export function versionCapError(latest: number, l: Pick<Limits, 'versions'>): st
 export function ledgerCapError(count: number, l: Pick<Limits, 'ledger_entries'>): string | null {
   return count >= l.ledger_entries ? `Your plan supports ${l.ledger_entries} ledger entries per project.` : null;
 }
-/** "1 active project (archived ones don't count)" — the Plans page line for a cap (L13). */
+/** "5 active projects (archived ones don't count)" — the Plans page line for a cap (L13). */
 export function projectCapLine(l: Pick<Limits, 'projects'>) {
   return l.projects === 1 ? '1 active project (archived ones don’t count)' : `${l.projects.toLocaleString('en-IN')} active projects (archived ones don’t count)`;
 }
 
-export type PlanCard = {id: PlanId; name: string; blurb: string; price: string; per: string | null; yearly: string | null; lines: string[]; soon: string[]; purchasable: boolean; seats: number};
+export type PlanCard = {id: PlanId; name: string; blurb: string; price: string; per: string | null; yearly: string | null; yearlyPrice: string | null; yearlyMonthlyEq: string | null; lines: string[]; soon: string[]; purchasable: boolean; seats: number};
 /**
  * L13: what the Plans page shows for each plan, derived only from PLANS (caps, prices, seats), so
  * the copy can never disagree with what is enforced. `money` formats an amount in `currency`. Pure.
@@ -135,25 +137,33 @@ export type PlanCard = {id: PlanId; name: string; blurb: string; price: string; 
 export function planCards(currency: 'INR' | 'USD', money: (n: number) => string, ids: readonly PlanId[] = ['free', 'pro', 'agency']): PlanCard[] {
   return ids.map(id => {
     const p = PLANS[id], monthly = currency === 'INR' ? p.price.INR : p.price.USD, year = currency === 'INR' ? p.price.INR_year : p.price.USD_year;
+    const monthlyEq = year ? Math.round(year / 12) : 0;
     return {id, name: p.name, blurb: p.blurb, purchasable: p.purchasable, seats: p.seats,
-      price: money(monthly), per: monthly ? 'month' : null, yearly: year ? `or ${money(year)} a year` : null,
+      price: money(monthly), per: monthly ? 'month' : null, yearly: year ? `or ${money(year)} / year (2 months free)` : null,
+      yearlyPrice: year ? money(year) : null,
+      yearlyMonthlyEq: monthlyEq ? money(monthlyEq) : null,
       // R3-03: only what is enforced per plan (the caps in `limits`, plus any plan-gated feature). Shared
       // features are ALL_PLANS_INCLUDE; unbuilt ones (seats, team activity) are `soon`, never counted as included.
-      lines: [projectCapLine(p.limits), `${p.limits.versions} versions per project`, `${p.limits.ledger_entries.toLocaleString('en-IN')} record entries per project`, ...p.features],
+      lines: [
+        projectCapLine(p.limits),
+        `${p.limits.versions} versions per project`,
+        `${p.limits.ledger_entries.toLocaleString('en-IN')} record entries per project`,
+        `Up to ${p.limits.ai_per_minute} AI Advisor requests / min`,
+        ...p.features,
+      ],
       soon: [...(p.soon ?? [])]};
   });
 }
 
 /**
  * #7: the one story /plans tells about accounts without a subscription, in visitor words (no
- * "server", no env names). While the default is a free beta tier, it says so and explains that the
- * Free card is what applies after the beta; when the default is a card that is shown (Free), there is
- * nothing extra to say. Pure.
+ * "server", no env names). While the default is a free early-access tier, it says so and explains that
+ * the Free card is what applies after early access; when the default is a shown card (Free), nothing extra is shown.
  */
 export function defaultPlanNote(fallback: Plan, shown: readonly PlanId[] = ['free', 'pro', 'agency']): {title: string; body: string} | null {
   if (shown.includes(fallback.id)) return null;
   const l = fallback.limits, caps = `${projectCapLine(l)}, ${l.versions} versions and ${l.ledger_entries} record entries per project`;
-  if (fallback.id === 'beta') return {title: 'Free during the early beta',
-    body: `While Scopeflow is in early beta, every account gets ${caps}, free, with no subscription. The Free plan below is what an account without a paid plan gets once the beta ends; we’ll tell you before that happens.`};
+  if (fallback.id === 'beta') return {title: 'Free during early access',
+    body: `While TermsLock is in early access, every signed-in account gets ${caps}, free, with no credit card required. Once paid upgrades open, accounts without a subscription stay on the Free plan (5 active projects) — and we’ll always give clear notice first.`};
   return {title: `Included without a subscription: ${fallback.name}`, body: `Every account without a paid plan gets ${caps}.`};
 }

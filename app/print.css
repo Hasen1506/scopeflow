@@ -1,0 +1,319 @@
+/* ==========================================================================
+   TermsLock — Dedicated Print Stylesheet (Client Record-Keeping Copy)
+   Formats the active project scope, review agreement, or event vendor sheet
+   into a crisp, ink-friendly A4 document regardless of active screen theme.
+   ========================================================================== */
+
+@page {
+  size: A4 portrait;
+  margin: 16mm 18mm;
+}
+
+@media print {
+  /* Force clean black-on-white print tokens across all 4 screen themes */
+  :root,
+  html,
+  html[data-theme],
+  html[data-mode],
+  html[data-scheme],
+  body {
+    --bg: #ffffff !important;
+    --surface: #ffffff !important;
+    --surface-2: #fafafa !important;
+    --paper: #ffffff !important;
+    --ink: #111111 !important;
+    --ink-2: #333333 !important;
+    --ink-3: #555555 !important;
+    --rule: #cfcfcf !important;
+    --rule-strong: #999999 !important;
+    --accent: #111111 !important;
+    --accent-soft: #f5f5f5 !important;
+    color-scheme: light !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide all application chrome, header, navigation, sidebars, forms & floating UI */
+  .skip-link,
+  .topbar,
+  header,
+  nav,
+  aside,
+  .try-banner,
+  .page-heading,
+  .hero,
+  .ws-tabs > [role="tablist"],
+  .ws-tabs .home,
+  .project-head,
+  .ws-layout-bar,
+  .flow-col,
+  .editor:not(.agreement-view),
+  .preview-bar,
+  .save-bar,
+  .notice-dock,
+  .site-footer,
+  .advisor-fab,
+  .advisor-drawer,
+  .theme-switch,
+  .menu-toggle,
+  .boot-skeleton,
+  .no-print,
+  [data-sonner-toaster],
+  [role="dialog"],
+  [role="alertdialog"] {
+    display: none !important;
+  }
+
+  /* Expand document container to full printable area */
+  main,
+  .shell,
+  .shell-wide,
+  .review-shell,
+  .project-view,
+  .boot-guard {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  /* Ensure the project Paper prints cleanly from Split view, Full-width edit, AND Document preview */
+  .work-grid,
+  .work-grid.is-edit,
+  .work-grid.is-split,
+  .work-grid.is-preview {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .work-grid .preview-col,
+  .work-grid.is-edit .preview-col,
+  .work-grid.is-split .preview-col,
+  .work-grid.is-preview .preview-col {
+    display: block !important;
+    position: static !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Project Scope / Client Record Document (.paper) */
+  .paper {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    border: none !important;
+    outline: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    font-size: 10.5pt !important;
+    line-height: 1.5 !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .paper::before,
+  .paper::after {
+    display: none !important;
+  }
+
+  .paper-head {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: baseline !important;
+    padding-bottom: 6pt !important;
+    margin-bottom: 8pt !important;
+    border-bottom: 0.75pt solid #222222 !important;
+    font-size: 8.5pt !important;
+    letter-spacing: 0.08em !important;
+    color: #333333 !important;
+  }
+
+  .paper h2 {
+    font-size: 20pt !important;
+    line-height: 1.18 !important;
+    margin: 4pt 0 3pt !important;
+    color: #000000 !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .paper .eyebrow {
+    font-size: 8pt !important;
+    line-height: 1.3 !important;
+    letter-spacing: 0.1em !important;
+    color: #444444 !important;
+    margin-top: 12pt !important;
+    margin-bottom: 4pt !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .paper .quiet,
+  .paper .fine {
+    font-size: 9.5pt !important;
+    line-height: 1.45 !important;
+    color: #444444 !important;
+  }
+
+  .paper .rule {
+    height: 0.75pt !important;
+    background: #cccccc !important;
+    margin: 10pt 0 12pt !important;
+  }
+
+  .paper p,
+  .paper li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  .paper .deliverable {
+    padding: 6pt 0 !important;
+    border-bottom: 0.5pt solid #dddddd !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper .deliverable svg {
+    color: #111111 !important;
+  }
+
+  .paper .item-accept-line,
+  .paper .item-price-note {
+    font-size: 9pt !important;
+    color: #444444 !important;
+  }
+
+  .paper .scope-stats {
+    margin-top: 14pt !important;
+    padding: 10pt 12pt !important;
+    background: #f8f8f8 !important;
+    border: 0.75pt solid #bbbbbb !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper .scope-stats span {
+    font-size: 8.5pt !important;
+    color: #444444 !important;
+  }
+
+  .paper .scope-stats strong {
+    font-size: 14pt !important;
+    color: #000000 !important;
+  }
+
+  .paper .terms {
+    padding-top: 8pt !important;
+    border-top: 0.5pt solid #dddddd !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper .terms-line {
+    font-size: 10pt !important;
+    padding: 2pt 0 !important;
+  }
+
+  .paper .section-gap {
+    margin-top: 12pt !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper .note {
+    padding: 9pt 11pt !important;
+    background: #fafafa !important;
+    border: 0.5pt solid #cccccc !important;
+    border-left: 2.5pt solid #222222 !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper .paper-footer {
+    margin-top: 18pt !important;
+    padding-top: 8pt !important;
+    border-top: 0.75pt solid #999999 !important;
+    font-size: 8.5pt !important;
+    color: #444444 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Client review / agreement timeline record view */
+  .editor.agreement-view {
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-top: 18pt !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-size: 10pt !important;
+    line-height: 1.48 !important;
+  }
+
+  .agreement-view .no-print {
+    display: none !important;
+  }
+
+  .agreement-view .change-order,
+  .agreement-view .timeline li,
+  .verify-details {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Clean Events Hub print fallback (hides left rail, toolbars & action buttons) */
+  .events-top-actions,
+  .events-sync-strip,
+  .events-summary-actions,
+  .events-sub-rail,
+  .events-main-toolbar,
+  .events-vendor-actions,
+  .events-blueprint-panel,
+  .events-inline-form,
+  .events-vendor-edit {
+    display: none !important;
+  }
+
+  .events-workspace {
+    display: block !important;
+  }
+
+  .events-summary-card,
+  .events-kpi-grid,
+  .events-vendor-card {
+    box-shadow: none !important;
+    border-color: #bbbbbb !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a {
+    color: #111111 !important;
+    text-decoration: none !important;
+  }
+}

@@ -4,14 +4,12 @@ import Link from 'next/link';
 import {
   ArrowRight,
   ArrowUpRight,
-  BadgeCheck,
   Building2,
   Calculator,
   FileCheck2,
   Fingerprint,
   Home,
   MessageCircle,
-  Repeat2,
   ShieldCheck,
   UtensilsCrossed,
   Zap,
@@ -29,11 +27,11 @@ const SCENARIO_WEDGES = [
   },
   {
     icon: UtensilsCrossed,
-    eyebrow: 'Weddings & Catering',
-    title: 'Lock menus, plate counts & extra-guest caps',
-    body: 'Eliminate event-day billing shocks and vague “standard buffet” swaps with a 30-second catering agreement and a 5-line WhatsApp confirm.',
-    href: '/templates',
-    cta: 'Build catering pack',
+    eyebrow: 'Weddings & Events',
+    title: 'Keep every sub-event, vendor & advance locked',
+    body: 'Track Engagement, Mehendi, Haldi, Sangeet, Ceremony & Reception in one hub — with every phone number, advance paid, extra-plate cap, and 1-tap WhatsApp confirm.',
+    href: '/events',
+    cta: 'Open Event Hub',
   },
   {
     icon: Building2,
@@ -74,29 +72,6 @@ const FRICTION_LADDER = [
   },
 ];
 
-const PILLARS = [
-  {
-    icon: ShieldCheck,
-    title: 'Trap scanner & clarity check before you pay',
-    body: 'Catches blanket painting deductions, non-refundable forfeitures, vague “etc.” deliverables, and missing deadlines — with 1-click safe rewrites.',
-  },
-  {
-    icon: Zap,
-    title: '30-second Quick-Fill, zero blank pages',
-    body: 'Nobody enjoys drafting agreements from scratch. Answer 4 concrete questions (who, what, amount, date) and get a complete protective document immediately.',
-  },
-  {
-    icon: Repeat2,
-    title: 'Change orders that keep pace with reality',
-    body: 'Every “small extra” — extra guests, extra room, extra feature — is logged, priced, and confirmed against the original locked version.',
-  },
-  {
-    icon: BadgeCheck,
-    title: 'Tamper-evident receipts anyone can verify',
-    body: 'Approvals and ledgers carry verifiable fingerprints and QR receipt checks, plus a BSA 2023 s.63 / ESIGN evidence trail when disputes arise.',
-  },
-];
-
 export default function Landing({onTry}: {onTry: () => void}) {
   return (
     <div className="landing">
@@ -107,9 +82,9 @@ export default function Landing({onTry}: {onTry: () => void}) {
             Clear agreements — <em>even when they won’t sign a formal contract.</em>
           </h1>
           <p className="tagline">
-            Protect apartment deposits, catering advances, home renovations, and client projects in 30 seconds. Check
-            unfair clauses first, then lock proof via WhatsApp soft confirm, a 1-tap review link, or a timestamped
-            evidence record.
+            Protect apartment deposits, wedding vendor chains, home renovations, and client projects in 30 seconds.
+            Check unfair clauses first, then lock proof via WhatsApp soft confirm, a 1-tap review link, or a
+            timestamped evidence record.
           </p>
           <div className="actions">
             <Link className="primary" href="/check">
@@ -120,12 +95,12 @@ export default function Landing({onTry}: {onTry: () => void}) {
               <Zap size={16} aria-hidden="true" />
               Try editor free
             </button>
-            <Link className="secondary" href="/templates">
-              30-sec packs
+            <Link className="secondary" href="/events">
+              Event &amp; Marriage Hub
             </Link>
           </div>
           <p className="fine">
-            No account required to scan clauses or build a draft. Ready to save &amp; send live review links?{' '}
+            No account required to scan clauses or plan an event. Ready to sync across devices &amp; send live review links?{' '}
             <Link className="help-link" href="/auth/sign-up?return_to=%2F">
               Create a free account
             </Link>
@@ -176,22 +151,6 @@ export default function Landing({onTry}: {onTry: () => void}) {
             </li>
           ))}
         </ol>
-      </section>
-
-      <section className="lp-section" aria-labelledby="lp-pillars">
-        <p className="eyebrow ruled">Why TermsLock holds up</p>
-        <h2 id="lp-pillars">
-          Four safeguards, <em>on one verifiable record</em>
-        </h2>
-        <ul className="lp-pillars">
-          {PILLARS.map(({icon: Icon, title, body}) => (
-            <li key={title} className="lp-card">
-              <Icon size={20} aria-hidden="true" />
-              <h3>{title}</h3>
-              <p>{body}</p>
-            </li>
-          ))}
-        </ul>
         <div className="actions section-gap">
           <Link className="secondary" href="/msme-interest">
             <Calculator size={15} aria-hidden="true" />

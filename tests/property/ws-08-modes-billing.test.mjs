@@ -186,12 +186,12 @@ test('L13: Plans page cards come only from the PLANS table (snapshot)', async ()
   const money = n => '₹' + n.toLocaleString('en-IN');
   const cards = P.planCards('INR', money);
   assert.deepEqual(cards.map(c => [c.id, c.price, c.yearly, c.lines[0]]), [
-    ['free', '₹0', null, '1 active project (archived ones don’t count)'],
-    ['pro', '₹499', 'or ₹4,499 a year', '1,000 active projects (archived ones don’t count)'],
-    ['agency', '₹1,499', 'or ₹13,499 a year', '5,000 active projects (archived ones don’t count)'],
+    ['free', '₹0', null, '5 active projects (archived ones don’t count)'],
+    ['pro', '₹299', 'or ₹2,990 a year', '100 active projects (archived ones don’t count)'],
+    ['agency', '₹999', 'or ₹9,990 a year', '1,000 active projects (archived ones don’t count)'],
   ]);
   for (const c of cards) { assert.equal(c.lines[0], P.projectCapLine(P.PLANS[c.id].limits)); assert.ok(c.lines.includes(`${P.PLANS[c.id].limits.versions} versions per project`)); }
-  assert.match(P.projectCapMessage(P.PLANS.free.limits), /1 active project \(archived ones don’t count\)/);
+  assert.match(P.projectCapMessage(P.PLANS.free.limits), /5 active projects \(archived ones don’t count\)/);
   const golden = new URL('../golden/ws-08-plans.golden.json', import.meta.url);
   const {readFileSync, writeFileSync} = await import('node:fs');
   const text = JSON.stringify({INR: cards, USD: P.planCards('USD', n => '$' + n)}, null, 1) + '\n';

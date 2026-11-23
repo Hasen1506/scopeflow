@@ -23,12 +23,18 @@ const vague: Vague[] = [
   {re: /\b(reasonable|sufficient|adequate)\b/i, why: 'subjective standard', fix: 'State the measurable standard (a number, format or test).'},
   {re: /\b(including but not limited to)\b/i, why: 'open-ended inclusion', fix: 'Make the list exhaustive.', rewrite: () => 'consisting of'},
   {re: /\b(all|any) (necessary|required|other)\b/i, why: 'open-ended obligation', fix: 'Name what is needed.'},
+  {re: /\bat (?:the )?(?:landlord'?s|owner'?s|vendor'?s|contractor'?s|sole|our|their) discretion\b/i, why: 'one-sided discretion lets the other party decide deductions or timing unilaterally', fix: 'Replace discretion with written itemized bills and a fixed deadline.', rewrite: () => 'based on written itemized bills within 15 days'},
+  {re: /\bas per actuals\b/i, why: 'uncapped pass-through costs cause surprise final bills', fix: 'Cap extra charges or require written pre-approval before spending.', rewrite: () => 'only with prior written approval and itemized receipts'},
+  {re: /\bmarket rates?\b/i, why: 'undefined pricing after work starts', fix: 'Fix the exact unit rate in writing now.', rewrite: () => 'the agreed fixed unit rate listed above'},
+  {re: /\bbest efforts?\b/i, why: 'no concrete delivery commitment', fix: 'State the measurable delivery date or backup plan.', rewrite: () => 'delivery on the agreed schedule with written notice of any delay'},
+  {re: /\bpromptly\b/i, why: 'no enforceable deadline', fix: 'State an exact number of days (e.g. within 7 business days).', rewrite: () => 'within 7 business days'},
+  {re: /\bmandatory (?:1[- ]month |one[- ]month )?painting\b/i, why: 'blanket painting deduction ignores actual wall condition', fix: 'Limit deductions to actual damage beyond normal wear with itemized bills.', rewrite: () => 'itemized bills only for damage beyond normal wear and tear'},
 ];
 
 /** Where an issue's suggested rewrite applies and what it becomes. */
 export type Rewrite = {find: string; replace: string};
 
-// Adjacent work clients commonly assume is included, by project type.
+// Adjacent work or protections parties commonly assume are included, by agreement type.
 const categories: {name: string; detect: RegExp; expect: {term: RegExp; label: string}[]}[] = [
   {name: 'website', detect: /\b(website|web ?site|landing page|web ?app|wordpress|shopify|webflow|pages? implemented)\b/i, expect: [
     {term: /hosting|domain/i, label: 'hosting and domain costs'}, {term: /maintenance|support|updates/i, label: 'ongoing maintenance'},
@@ -39,6 +45,22 @@ const categories: {name: string; detect: RegExp; expect: {term: RegExp; label: s
     {term: /paid|ads?|boost|distribution/i, label: 'paid promotion'}, {term: /community|replies|engagement/i, label: 'community management'}]},
   {name: 'app', detect: /\b(mobile app|ios|android|app store|react native|flutter)\b/i, expect: [
     {term: /store|developer account/i, label: 'app store fees'}, {term: /backend|server|api/i, label: 'backend or server work'}, {term: /maintenance|support/i, label: 'post-launch support'}]},
+  {name: 'rental & deposit', detect: /\b(apartment|flat\b|move[\s-]?in|security deposit|landlord|tenant|lease|rental)\b/i, expect: [
+    {term: /refund|return.*\d+\s*days?|\d+\s*days?.*return/i, label: 'a fixed deposit refund deadline (e.g. 15 days)'},
+    {term: /itemi[sz]ed|bill|receipt|normal wear/i, label: 'itemized bills only (no blanket deductions)'},
+    {term: /photo|meter|handover|video/i, label: 'Day-1 condition photos & meter readings'}]},
+  {name: 'event & wedding catering', detect: /\b(catering|per[\s-]?plate|buffet|banquet|wedding.*food|reception dinner)\b/i, expect: [
+    {term: /buffer|extra plate|overage|additional plate/i, label: 'an extra-plate overage rate cap'},
+    {term: /cancel|reschedul|postpone/i, label: 'tiered cancellation or reschedule terms'},
+    {term: /staff|crockery|clean/i, label: 'service staff, crockery & cleanup responsibility'}]},
+  {name: 'home renovation & interiors', detect: /\b(renovation|interiors?|modular kitchen|wardrobes?|contractor|boq\b)\b/i, expect: [
+    {term: /brand|plywood|bwp|hettich|asian paints|finolex|grade|material/i, label: 'exact material brands & grades'},
+    {term: /variation|written|change order/i, label: 'written-only variation approval before extra billing'},
+    {term: /retention|snag|handover/i, label: 'a final retention holdback until snag handover'}]},
+  {name: 'event vendor (photo/decor/venue)', detect: /\b(photography|videography|candid|mandap|decor|florals|dj\b|sound system)\b/i, expect: [
+    {term: /overtime|extra hour|curfew/i, label: 'an overtime hourly cap'},
+    {term: /backup|spare|generator|power/i, label: 'backup equipment or power responsibility'},
+    {term: /cancel|reschedul/i, label: 'cancellation or date-change terms'}]},
 ];
 
 /** INR fee from which the clarity check suggests checking stamp duty. */
@@ -56,7 +78,8 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
       const hit = text.match(v.re);
       if (!hit) continue;
       if (/unlimited/i.test(hit[0])) { if (seenUnlimited) continue; seenUnlimited = true; }
-      add({rule: 'vague-language', severity: /unlimited/i.test(hit[0]) ? 'error' : 'warn', field, item_id, ...(subfield ? {subfield} : {}), message: `“${hit[0].replace(/^,?\s*/, '')}”: ${v.why}.`, fix: v.fix, ...(v.rewrite ? {rewrite: {find: hit[0], replace: v.rewrite(hit[0], s)}} : {})});
+      const isError = /unlimited|discretion|mandatory (?:1[- ]month |one[- ]month )?painting/i.test(hit[0]);
+      add({rule: 'vague-language', severity: isError ? 'error' : 'warn', field, item_id, ...(subfield ? {subfield} : {}), message: `“${hit[0].replace(/^,?\s*/, '')}”: ${v.why}.`, fix: v.fix, ...(v.rewrite ? {rewrite: {find: hit[0], replace: v.rewrite(hit[0], s)}} : {})});
     }
   };
 
@@ -67,6 +90,7 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
       add({rule: 'missing-quantity', severity: 'info', field: 'items', item_id: i.id, message: `“${i.title}” sounds plural but has quantity 1.`, fix: 'Set the exact number and a unit.'});
   });
   scanVague(s.notes, 'notes');
+  scanVague(s.exclusions, 'exclusions');
 
   const titles = items.map(i => i.title.trim().toLowerCase());
   if (new Set(titles).size !== titles.length) add({rule: 'duplicate-item', severity: 'warn', field: 'items', message: 'Two deliverables have the same name.', fix: 'Merge them or make the difference explicit.'});
@@ -93,13 +117,13 @@ export function lintScope(s: Scope, today = new Date().toISOString().slice(0, 10
   for (const c of categories) {
     if (!c.detect.test(corpus)) continue;
     const missing = c.expect.filter(e => !e.term.test(s.exclusions) && !e.term.test(s.notes) && !e.term.test(corpus));
-    if (missing.length) add({rule: 'category-exclusions', severity: 'info', field: 'exclusions', message: `For ${c.name} projects, clients often assume ${missing.map(m => m.label).join(', ')} ${missing.length > 1 ? 'are' : 'is'} included.`, fix: 'Exclude them explicitly or add them as deliverables.'});
+    if (missing.length) add({rule: 'category-exclusions', severity: 'info', field: 'exclusions', message: `For ${c.name} agreements, parties often dispute ${missing.map(m => m.label).join(', ')}.`, fix: 'State it explicitly in the terms or exclusions.'});
   }
 
   if (s.revisions === 0) add({rule: 'no-revisions', severity: 'info', field: 'revisions', message: 'No revision rounds are included; any feedback will need a change order.'});
   if (s.revisions > 5) add({rule: 'many-revisions', severity: 'info', field: 'revisions', message: `${s.revisions} revision rounds is high for a fixed fee.`});
   if (!/round|consolidat|feedback/i.test(s.notes) && s.revisions > 0) add({rule: 'round-definition', severity: 'info', field: 'notes', message: 'The terms do not say what counts as one revision round.', fix: 'For example: “One round is one consolidated list of feedback.”'});
-  if (!/pay|deposit|invoice|upfront|up-front|%|net ?\d+/i.test(s.notes)) add({rule: 'payment-terms', severity: 'info', field: 'notes', message: 'No payment terms are mentioned.', fix: 'State the deposit, milestones and invoice timing.'});
+  if (!/pay|deposit|invoice|upfront|up-front|%|net ?\d+|refund/i.test(s.notes)) add({rule: 'payment-terms', severity: 'info', field: 'notes', message: 'No payment terms are mentioned.', fix: 'State the deposit, milestones and invoice timing.'});
 
   if (s.due && s.due < today) add({rule: 'past-due', severity: 'warn', field: 'due', message: 'The delivery date is in the past.'});
   const inputs = s.client_inputs ?? [];
@@ -124,5 +148,6 @@ export function applyRewrite(s: Scope, issue: LintIssue): Scope {
     return {...s, items};
   }
   if (issue.field === 'notes') return {...s, notes: fix(s.notes)};
+  if (issue.field === 'exclusions') return {...s, exclusions: fix(s.exclusions)};
   return s;
 }

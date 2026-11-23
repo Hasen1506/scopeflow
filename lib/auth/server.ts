@@ -28,12 +28,35 @@ const memo = requestMemo<object, SessionUser | null>();
 /** Counts Neon lookups (not memo hits); read by tests through the module only. */
 export const sessionLookups = { fresh: 0, cached: 0 };
 
+const JWT_RE = /^bearer[ \t]+([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\s*$/i;
+
+async function lookupFirebaseBearer(): Promise<SessionUser | null> {
+  try {
+    const h = await headers();
+    const authHeader = h.get('authorization');
+    if (!authHeader) return null;
+    const match = JWT_RE.exec(authHeader);
+    if (!match || match[1].startsWith('sfo_')) return null;
+    const { adminAuth } = await import('@/src/lib/firebase-admin');
+    const decoded = await adminAuth.verifyIdToken(match[1]);
+    const email = decoded.email || `${decoded.uid}@termslock.local`;
+    const displayName = (decoded.name as string | undefined) || email.split('@')[0] || 'TermsLock Member';
+    return { userId: decoded.uid, email, displayName };
+  } catch {
+    return null;
+  }
+}
+
 async function lookup(mode: SessionMode): Promise<SessionUser | null> {
-  sessionLookups[mode]++;
-  // Never accept the old hosting platform's identity headers as authentication.
-  const { data, error } = await getAuth().getSession(mode === 'fresh' ? { query: { disableCookieCache: 'true' } } : undefined);
-  if (error || !data?.user) return null;
-  return { userId: data.user.id, email: data.user.email, displayName: data.user.name || data.user.email };
+  if (authConfigured()) {
+    sessionLookups[mode]++;
+    // Never accept the old hosting platform's identity headers as authentication.
+    const { data, error } = await getAuth().getSession(mode === 'fresh' ? { query: { disableCookieCache: 'true' } } : undefined);
+    if (!error && data?.user) {
+      return { userId: data.user.id, email: data.user.email, displayName: data.user.name || data.user.email };
+    }
+  }
+  return lookupFirebaseBearer();
 }
 
 /** The per-request key: Next's headers object for the current request, or null outside one. */
@@ -45,9 +68,9 @@ async function requestKey(): Promise<object | null> {
  * The signed-in user. `fresh` (the default) verifies the session with Neon, including revoked
  * sessions, and is what every state-changing path uses. `{fresh: false}` lets a read use the signed
  * session cookie cache. Either way Neon is asked at most once per request (M27).
+ * Falls back to verifying a Firebase Auth Bearer ID token when signed in with Firebase Auth.
  */
 export async function getUser({ fresh = true }: { fresh?: boolean } = {}) {
-  if (!authConfigured()) return null;
   const mode: SessionMode = fresh ? 'fresh' : 'cached';
   return memo(await requestKey(), mode, lookup);
 }

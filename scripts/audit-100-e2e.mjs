@@ -946,37 +946,32 @@ async function main() {
       return {pass: cards >= 2, detail: `planCards=${cards}`};
     });
 
-    await runScenario('D7:Tools', '/auth/sign-in handles configured toggle OR unconfigured no-dead-end fallback cleanly', 'S1', async () => {
-      await auxPage.goto(BASE + '/auth/sign-in', {waitUntil: 'domcontentloaded'});
-      await auxPage.waitForTimeout(300);
+    await runScenario('D7:Tools', '/auth/sign-in shows Continue with Google + Email/Password & working password toggle', 'S1', async () => {
+      await auxPage.goto(BASE + '/auth/sign-in', {waitUntil: 'networkidle'});
+      await auxPage.waitForTimeout(250);
+      const googleBtn = auxPage.locator('button.auth-google-btn').first();
       const pwd = auxPage.locator('input[type="password"]').first();
       const toggle = auxPage.locator('button.password-toggle').first();
+      const hasGoogle = await googleBtn.isVisible().catch(() => false);
       if ((await pwd.count()) > 0 && (await toggle.count()) > 0) {
         await pwd.fill('TestPass123!');
         await toggle.click();
-        await auxPage.waitForTimeout(100);
+        await auxPage.waitForTimeout(150);
         const shownType = await auxPage.locator('.password-field input').first().getAttribute('type');
-        return {pass: shownType === 'text', detail: `configured auth toggle type=${shownType}`};
+        return {pass: hasGoogle && shownType === 'text', detail: `googleBtn=${hasGoogle}, toggleType=${shownType}`};
       }
-      // Auth service unconfigured in preview container: verify honest alert + actionable no-account links
-      const alertVisible = await auxPage.locator('main .error[role="alert"]').isVisible();
-      const checkLink = await auxPage.locator('.auth-fallback-box a[href="/check"]').isVisible();
-      const quickLink = await auxPage.locator('.auth-fallback-box a[href="/templates"]').isVisible();
-      return {
-        pass: alertVisible && checkLink && quickLink,
-        detail: `unconfigured fallback: alert=${alertVisible}, checkLink=${checkLink}, quickLink=${quickLink}`,
-      };
+      return {pass: false, detail: `googleBtn=${hasGoogle}, missing password toggle`};
     });
 
-    await runScenario('D7:Tools', '/auth/sign-up renders consent copy (or actionable no-account fallback when unconfigured)', 'S2', async () => {
+    await runScenario('D7:Tools', '/auth/sign-up renders Continue with Google, Email form & consent copy', 'S2', async () => {
       await auxPage.goto(BASE + '/auth/sign-up', {waitUntil: 'domcontentloaded'});
       await auxPage.waitForTimeout(300);
       const h1 = (await auxPage.locator('h1').textContent()) || '';
+      const hasGoogle = await auxPage.locator('button.auth-google-btn').isVisible().catch(() => false);
       const hasConsent = (await auxPage.locator('.auth-consent').count()) > 0;
-      const hasFallback = (await auxPage.locator('.auth-fallback-box a[href="/?guided=1"]').isVisible().catch(() => false));
       return {
-        pass: h1.length > 0 && (hasConsent || hasFallback),
-        detail: `h1="${h1.trim()}", consent=${hasConsent}, fallback=${hasFallback}`,
+        pass: h1.length > 0 && hasGoogle && hasConsent,
+        detail: `h1="${h1.trim()}", google=${hasGoogle}, consent=${hasConsent}`,
       };
     });
 
@@ -1019,7 +1014,7 @@ async function main() {
     await runScenario('D7:Tools', 'Landing HeroShowcase tabs switch live scenarios with zero slip/footer overlap', 'S1', async () => {
       await auxPage.goto(BASE + '/', {waitUntil: 'domcontentloaded'});
       await auxPage.waitForTimeout(350);
-      await auxPage.getByRole('tab', {name: /Wedding catering/i}).click();
+      await auxPage.getByRole('tab', {name: /Marriage event/i}).click();
       await auxPage.waitForTimeout(350);
       const t1 = ((await auxPage.locator('.hs-title').textContent()) || '').trim();
       await auxPage.getByRole('tab', {name: /Client scope/i}).click();
@@ -1033,14 +1028,15 @@ async function main() {
         return {slipOverFoot: overlaps(slip, foot), sealOverFoot: overlaps(seal, foot)};
       });
       return {
-        pass: t1.includes('Mehta Reception') && t2.includes('Website Redesign') && !geo.slipOverFoot && !geo.sealOverFoot,
+        pass: t1.includes('Mehta–Kapoor Wedding') && t2.includes('Website Redesign') && !geo.slipOverFoot && !geo.sealOverFoot,
         detail: `t1="${t1}", t2="${t2}", slipOverFoot=${geo.slipOverFoot}, sealOverFoot=${geo.sealOverFoot}`,
       };
     });
 
-    await runScenario('D7:Tools', '/api/audit/export?format=pdf returns clean 401 when signed out (never 500)', 'S1', async () => {
-      const r = await auxPage.request.get(BASE + '/api/audit/export?format=pdf');
-      return {pass: r.status() === 401, detail: `status=${r.status()}`};
+    await runScenario('D7:Tools', '/api/audit/export?format=pdf and /api/events return clean 401 when signed out', 'S1', async () => {
+      const r1 = await auxPage.request.get(BASE + '/api/audit/export?format=pdf');
+      const r2 = await auxPage.request.get(BASE + '/api/events');
+      return {pass: r1.status() === 401 && r2.status() === 401, detail: `pdf=${r1.status()}, events=${r2.status()}`};
     });
 
     // =========================================================================
@@ -1316,6 +1312,90 @@ async function main() {
       },
     );
 
+    // =========================================================================
+    // DIMENSION 10: Marriage & Event Collections Hub + AI Advisor (S120-S125)
+    // =========================================================================
+    const evPage = await context.newPage();
+    await evPage.setViewportSize({width: 1440, height: 900});
+
+    await runScenario('D10:EventsHub', '/events loads Marriage collection with 6 sub-events & live KPI roll-ups', 'S0', async () => {
+      await evPage.goto(BASE + '/events', {waitUntil: 'domcontentloaded'});
+      await evPage.waitForTimeout(350);
+      const subCount = await evPage.locator('.events-sub-card').count();
+      const kpiCount = await evPage.locator('.events-kpi').count();
+      const text = (await evPage.locator('main').textContent()) || '';
+      return {
+        pass: subCount === 6 && kpiCount === 4 && text.includes('Mehendi') && text.includes('Reception'),
+        detail: `subEvents=${subCount}, kpis=${kpiCount}`,
+      };
+    });
+
+    await runScenario('D10:EventsHub', 'Adding a custom sub-event ("Cocktail Night") appends to the chain immediately', 'S1', async () => {
+      await evPage.getByRole('button', {name: /Add sub-event/i}).click();
+      await evPage.waitForTimeout(120);
+      await evPage.locator('.events-inline-form input[placeholder*="Cocktail Night"]').fill('Cocktail Night');
+      await evPage.getByRole('button', {name: /Save sub-event/i}).click();
+      await evPage.waitForTimeout(150);
+      const subCount = await evPage.locator('.events-sub-card').count();
+      const listText = (await evPage.locator('.events-sub-list').textContent()) || '';
+      return {
+        pass: subCount === 7 && listText.includes('Cocktail Night'),
+        detail: `subEvents=${subCount}, containsCocktail=${listText.includes('Cocktail Night')}`,
+      };
+    });
+
+    await runScenario('D10:EventsHub', 'Adding a vendor with phone & advance updates directory & WhatsApp link', 'S0', async () => {
+      await evPage.getByRole('button', {name: /Add vendor/i}).click();
+      await evPage.waitForTimeout(120);
+      await evPage.locator('.events-vendor-form input[placeholder*="Royal Spice"]').fill('Royal Band & Lighting');
+      await evPage.locator('.events-vendor-form input[placeholder*="Vikram"]').fill('Vikram Sharma');
+      await evPage.locator('.events-vendor-form input[type="tel"]').fill('+91 98111 22334');
+      await evPage.locator('.events-vendor-form input[type="number"]').nth(0).fill('85000');
+      await evPage.locator('.events-vendor-form input[type="number"]').nth(1).fill('25000');
+      await evPage.getByRole('button', {name: /Save vendor/i}).click();
+      await evPage.waitForTimeout(180);
+      await evPage.getByRole('tab', {name: /Contact & Phone Directory/i}).click();
+      await evPage.waitForTimeout(150);
+      const tableText = (await evPage.locator('table.msme-table').textContent()) || '';
+      const hasTel = (await evPage.locator('table.msme-table a[href^="tel:"]').count()) >= 1;
+      const hasWa = (await evPage.locator('table.msme-table a[href^="https://wa.me/"]').count()) >= 1;
+      await evPage.getByRole('tab', {name: /Vendors & Agreements/i}).click();
+      await evPage.waitForTimeout(120);
+      return {
+        pass: tableText.includes('Royal Band & Lighting') && tableText.includes('Vikram Sharma') && hasTel && hasWa,
+        detail: `hasVendor=${tableText.includes('Royal Band & Lighting')}, hasTel=${hasTel}, hasWa=${hasWa}`,
+      };
+    });
+
+    await runScenario('D10:EventsHub', '1-click "Full agreement" hydrates vendor fee & contact directly into TermsLock editor', 'S0', async () => {
+      await evPage.locator('.events-vendor-card button', {hasText: 'Full agreement'}).first().click();
+      await evPage.waitForTimeout(800);
+      const paperText = (await evPage.locator('.paper').textContent()) || '';
+      return {
+        pass: paperText.includes('Royal Band & Lighting') || paperText.includes('Vikram Sharma') || paperText.includes('Mehta'),
+        detail: `hydrated paper length=${paperText.length}`,
+      };
+    });
+
+    await runScenario('D10:EventsHub', 'Floating AI Advisor opens cleanly, switches personas & toggles Fast/Deep mode', 'S1', async () => {
+      await evPage.getByRole('button', {name: /Open TermsLock AI Advisor/i}).click();
+      await evPage.waitForTimeout(250);
+      const drawerVisible = await evPage.locator('.advisor-drawer').isVisible();
+      await evPage.locator('.advisor-persona-tab', {hasText: 'Rights Shield'}).click();
+      await evPage.waitForTimeout(120);
+      const activePersona = await evPage.locator('.advisor-persona-tab.is-active').textContent();
+      await evPage.locator('.advisor-speed-btn').click();
+      await evPage.waitForTimeout(100);
+      const speedLabel = (await evPage.locator('.advisor-speed-btn').textContent()) || '';
+      await evPage.getByRole('button', {name: /Close advisor/i}).click();
+      await evPage.waitForTimeout(180);
+      return {
+        pass: drawerVisible && (activePersona || '').includes('Rights Shield') && speedLabel.includes('Fast'),
+        detail: `drawer=${drawerVisible}, persona="${activePersona?.trim()}", speed="${speedLabel.trim()}"`,
+      };
+    });
+
+    await evPage.close();
     await browser.close();
 
     // =========================================================================

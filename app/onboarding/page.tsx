@@ -11,6 +11,7 @@ import {isValidVpa, upiLink, VPA_MESSAGE} from '@/lib/vpa';
 import {MODES, MODE_BLURB, MODE_LABEL, type Mode} from '@/lib/mode-core';
 import {safeReturnPath} from '@/lib/origin';
 import TimezoneSelect from '@/app/components/slots/timezone-select';
+import {useAuth} from '@/lib/firebase/auth-context';
 
 // LT-04/SF-11: first-run onboarding in three steps: (1) workspace mode, (2) country, currency and
 // time zone, (3) business details: GSTIN (optional), Udyam (optional), UPI ID. Defaults come
@@ -19,6 +20,7 @@ import TimezoneSelect from '@/app/components/slots/timezone-select';
 // for Udyam micro and small units.
 export default function Onboarding() {
   const router = useRouter();
+  const {user: fbUser, loading: authLoading} = useAuth();
   const [step, setStep] = useState(1), [busy, setBusy] = useState(false), [error, setError] = useState(''), [signedOut, setSignedOut] = useState(false);
   const [mode, setMode] = useState<Mode>('freelancer');
   // U6: the server default only fills the mode until the user picks one themselves.
@@ -34,8 +36,20 @@ export default function Onboarding() {
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone, c = countryFromLocale(navigator.language, tz), d = countryDefaults(c);
     queueMicrotask(() => { setCountry(c); setCurrency(d.currency); setTimezone(c === 'OTHER' && tz ? tz : d.timezone); });
-    api('/api/me').then(m => { if (!m.signedIn) setSignedOut(true); else if (m.defaults?.mode && !modeTouched.current) setMode(m.defaults.mode); }, () => {});
   }, []);
+  useEffect(() => {
+    if (authLoading) return;
+    let live = true;
+    api('/api/me').then(m => {
+      if (!live) return;
+      if (!m.signedIn) setSignedOut(true);
+      else {
+        setSignedOut(false);
+        if (m.defaults?.mode && !modeTouched.current) setMode(m.defaults.mode);
+      }
+    }, () => {});
+    return () => { live = false; };
+  }, [authLoading, fbUser?.uid]);
   const india = country === 'IN';
   const g = gstin ? checkGstin(gstin) : null;
   const suggestions = useMemo(() => onboardingSuggestions({country, gstin: g?.ok ? gstin : '', udyam_category: udyam.category}), [country, gstin, g?.ok, udyam.category]);

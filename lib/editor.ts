@@ -266,3 +266,119 @@ export function readDraftEmail(store: () => KV, account: string | null, now = Da
     return v.email.slice(0, 320);
   } catch { return ''; }
 }
+
+export type ScopeFieldKind = 'rental' | 'event' | 'renovation' | 'project';
+export type ScopeFieldCopy = {
+  kind: ScopeFieldKind;
+  title: string;
+  titleHint: string;
+  counterparty: string;
+  counterpartyHint: string;
+  email: string;
+  emailPlaceholder: string;
+  emailHint: string;
+  fee: string;
+  revisions: string;
+  due: string;
+  exclusions: string;
+  notes: string;
+};
+
+const RENTAL_RE = /\b(apartment|flat\b|move[\s-]?in|security deposit|landlord|tenant|lease|rental|pg\b|hostel|rent deposit)\b/i;
+const EVENT_RE = /\b(wedding|marriage|catering|mehendi|haldi|sangeet|reception|mandap|banquet|baraat|per[\s-]?plate|bridal|photographer|photography|decor|venue)\b/i;
+const RENOVATION_RE = /\b(renovation|interiors?|modular kitchen|wardrobes?|contractor|boq\b|civil work|plumbing|false ceiling|snag)\b/i;
+
+function classifyScopeKind(draft: Pick<Scope, 'title' | 'notes' | 'exclusions' | 'deliverables' | 'items'>): ScopeFieldKind {
+  const title = draft.title || '';
+  // Strongest signal: explicit title keywords win over incidental words (like "booking deposit" in catering terms).
+  if (EVENT_RE.test(title)) return 'event';
+  if (RENOVATION_RE.test(title)) return 'renovation';
+  if (RENTAL_RE.test(title)) return 'rental';
+
+  const body = [
+    draft.notes,
+    draft.exclusions,
+    draft.deliverables,
+    ...(draft.items ?? []).map(i => i.title),
+  ].join(' ');
+  if (EVENT_RE.test(body)) return 'event';
+  if (RENOVATION_RE.test(body)) return 'renovation';
+  if (RENTAL_RE.test(body)) return 'rental';
+  return 'project';
+}
+
+/** Context-aware editor wording so an apartment deposit, wedding booking, or home renovation never reads like a generic agency project. Pure, zero-API. */
+export function scopeFieldCopy(draft: Pick<Scope, 'title' | 'notes' | 'exclusions' | 'deliverables' | 'items'>): ScopeFieldCopy {
+  const kind = classifyScopeKind(draft);
+
+  if (kind === 'rental') {
+    return {
+      kind: 'rental',
+      title: 'Property / Agreement name',
+      titleHint: 'Name the flat, property, or deposit record (at least 3 characters).',
+      counterparty: 'Landlord / Owner',
+      counterpartyHint: 'Name the landlord, owner, or broker (at least 2 characters).',
+      email: 'Landlord email',
+      emailPlaceholder: 'landlord@example.com',
+      emailHint: 'Private to you; used to email the landlord and send reminders.',
+      fee: 'Security deposit / Agreed amount',
+      revisions: 'Walkthrough / Edit rounds',
+      due: 'Move-in / Handover date',
+      exclusions: 'No-deduction / Excluded terms',
+      notes: 'Deposit refund & handover terms',
+    };
+  }
+
+  if (kind === 'event') {
+    return {
+      kind: 'event',
+      title: 'Event / Vendor agreement',
+      titleHint: 'Name the event and service (at least 3 characters).',
+      counterparty: 'Vendor / Host',
+      counterpartyHint: 'Name the vendor or event host (at least 2 characters).',
+      email: 'Vendor email',
+      emailPlaceholder: 'vendor@example.com',
+      emailHint: 'Private to you; used to email the vendor and send reminders.',
+      fee: 'Agreed vendor fee',
+      revisions: 'Plan / Menu revision rounds',
+      due: 'Event / Delivery date',
+      exclusions: 'Outside this booking',
+      notes: 'Booking, overtime & cancellation terms',
+    };
+  }
+
+  if (kind === 'renovation') {
+    return {
+      kind: 'renovation',
+      title: 'Renovation / Work order',
+      titleHint: 'Name the property and work scope (at least 3 characters).',
+      counterparty: 'Contractor / Firm',
+      counterpartyHint: 'Name the contractor or interior firm (at least 2 characters).',
+      email: 'Contractor email',
+      emailPlaceholder: 'contractor@example.com',
+      emailHint: 'Private to you; used to email the contractor and send reminders.',
+      fee: 'Agreed contract value',
+      revisions: 'Design / Plan revision rounds',
+      due: 'Target handover date',
+      exclusions: 'Excluded works & materials',
+      notes: 'Material brands, snagging & stage terms',
+    };
+  }
+
+  return {
+    kind: 'project',
+    title: 'Project name',
+    titleHint: 'Give the project a name of at least 3 characters.',
+    counterparty: 'Client',
+    counterpartyHint: 'Name the client (at least 2 characters).',
+    email: 'Client email',
+    emailPlaceholder: 'client@example.com',
+    emailHint: 'Private to you; used to email your client and send reminders.',
+    fee: 'Project fee',
+    revisions: 'Revision rounds',
+    due: 'Target delivery',
+    exclusions: 'Outside this scope',
+    notes: 'Working terms',
+  };
+}
+

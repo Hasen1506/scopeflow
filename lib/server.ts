@@ -29,26 +29,32 @@ export async function ownerAuth(request:Request,{oauth=false}:{oauth?:boolean}={
  const known=internal.get(request);if(known)return known;
  const token=bearer(request);
  if(token===null)return null;
- if(token!==undefined){
-  const now=new Date().toISOString();
-  if(token.startsWith('sfo_')){
-   // OAuth access tokens are audience-bound to the MCP resource and accepted only there.
-   if(!oauth)return null;
-   const row=await db().prepare("SELECT owner,scope,family FROM oauth_tokens WHERE hash = ? AND kind='access' AND expires > ? AND resource = ?").bind(await hash(token),now,mcpResource(request)).first<{owner:string;scope:string;family:string|null}>();
-   if(!row)return null;
-   // M24: "last used" for the connected-apps list, written at most once a minute per grant.
-   if(row.family)void db().prepare('UPDATE scopeflow.oauth_grants SET last_used=? WHERE id=? AND (last_used IS NULL OR last_used < ?)').bind(now,row.family,new Date(Date.now()-60_000).toISOString()).run().catch(()=>{});
-   return {user:row.owner,via:'oauth',scopes:row.scope.split(' ').filter(Boolean)};
+  if(token!==undefined){
+   const now=new Date().toISOString();
+   if(token.startsWith('sfo_')){
+    // OAuth access tokens are audience-bound to the MCP resource and accepted only there.
+    if(!oauth)return null;
+    const row=await db().prepare("SELECT owner,scope,family FROM oauth_tokens WHERE hash = ? AND kind='access' AND expires > ? AND resource = ?").bind(await hash(token),now,mcpResource(request)).first<{owner:string;scope:string;family:string|null}>();
+    if(!row)return null;
+    // M24: "last used" for the connected-apps list, written at most once a minute per grant.
+    if(row.family)void db().prepare('UPDATE scopeflow.oauth_grants SET last_used=? WHERE id=? AND (last_used IS NULL OR last_used < ?)').bind(now,row.family,new Date(Date.now()-60_000).toISOString()).run().catch(()=>{});
+    return {user:row.owner,via:'oauth',scopes:row.scope.split(' ').filter(Boolean)};
+   }
+   // Firebase Auth browser ID tokens are 3-part RS256 JWTs; opaque TermsLock API keys never contain dots.
+   if(token.split('.').length===3){
+    const read=request.method==='GET'||request.method==='HEAD';
+    const user=(await getUser({fresh:!read}))?.userId;
+    return user?{user,via:'session',scopes:ALL_SCOPES}:null;
+   }
+   const row=await db().prepare('SELECT owner FROM api_keys WHERE hash = ? AND expires > ?').bind(await hash(token),now).first<{owner:string}>();
+   return row?{user:row.owner,via:'api_token',scopes:ALL_SCOPES}:null;
   }
-  const row=await db().prepare('SELECT owner FROM api_keys WHERE hash = ? AND expires > ?').bind(await hash(token),now).first<{owner:string}>();
-  return row?{user:row.owner,via:'api_token',scopes:ALL_SCOPES}:null;
+  // M27: reads may use Neon Auth's signed session cookie cache (60 s); state-changing requests always
+  // re-check the session with Neon so a revoked session cannot write.
+  const read=request.method==='GET'||request.method==='HEAD';
+  const user=(await getUser({fresh:!read}))?.userId;
+  return user?{user,via:'session',scopes:ALL_SCOPES}:null;
  }
- // M27: reads may use Neon Auth's signed session cookie cache (60 s); state-changing requests always
- // re-check the session with Neon so a revoked session cannot write.
- const read=request.method==='GET'||request.method==='HEAD';
- const user=(await getUser({fresh:!read}))?.userId;
- return user?{user,via:'session',scopes:ALL_SCOPES}:null;
-}
 export async function owner(request:Request){return (await ownerAuth(request))?.user??null;}
 
 /** JSON body, at most 24 KB, read through the bounded reader (H1). */

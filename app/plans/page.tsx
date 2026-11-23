@@ -30,7 +30,7 @@ async function operatorView() {
 
 export default async function Plans({searchParams}: Props){
  const q = await searchParams, currency = q.currency?.toUpperCase() === 'USD' ? 'USD' : 'INR';
- // #26: whole prices without paise/cents (₹499, not ₹499.00).
+ // #26: whole prices without paise/cents (₹299, not ₹299.00).
  const money = (n: number) => { const s = formatMoney(n, currency); return Number.isInteger(n) ? s.replace(/[.,]00(?=\D*$)/, '') : s; };
  const cards = planCards(currency, money), billing = billingStatus();
  const beta = defaultPlanNote(activePlan(), cards.map(c => c.id));
@@ -38,7 +38,7 @@ export default async function Plans({searchParams}: Props){
  const chosen = cards.some(c => c.id === q.plan) ? q.plan : undefined;
  return <><Header/><main id="content" tabIndex={-1} className="shell">
   <div className="page-heading"><div><p className="eyebrow">ACCOUNT · PLANS</p><h1>Start small.{' '}<br/><em>Keep reviewing free.</em></h1></div><p>Client reviewing is always free.{' '}<br/>{currency === 'INR' ? 'Prices include GST.' : 'Prices in US dollars.'}</p></div>
-  <NextStep title={billing.enabled ? 'Pick the plan that fits' : 'Upgrades open soon'}>{billing.enabled ? 'Upgrade any time; your projects and records stay as they are. Cancel and you keep the plan until the end of the paid period.' : <>Every feature is free during the early beta, so there is nothing to choose yet. Want a paid plan when it opens? <Link className="help-link" href="/support">Contact us</Link>.</>}</NextStep>
+  <NextStep title={billing.enabled ? 'Pick the plan that fits' : 'Upgrades open soon'}>{billing.enabled ? 'Upgrade any time; your projects and records stay as they are. Cancel and you keep the plan until the end of the paid period.' : <>Every feature is free during early access, so there is nothing to pay yet. Want a paid plan when checkout opens? <Link className="help-link" href="/support">Contact us</Link>.</>}</NextStep>
   {operator && billing.reason && <p className="muted-box" data-testid="operator-billing-note"><strong>Operator note (only you see this):</strong> {billing.reason}</p>}
   {q.checkout === 'done' && <p className="muted-box" role="status">Payment received. Your plan updates as soon as the payment provider confirms it, usually within a minute.</p>}
   {q.checkout === 'cancelled' && <p className="muted-box" role="status">Checkout cancelled. Nothing was charged.</p>}

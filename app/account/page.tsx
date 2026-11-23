@@ -19,13 +19,18 @@ import PaymentSettings from '@/app/components/slots/payment-settings';
 import AnalyticsToggle from './analytics-toggle';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {forgetDrafts} from '@/lib/editor';
+import {ACCOUNT_AUTOSAVE_DEBOUNCE_MS, shouldScheduleAutoSave, type AutoSaveStatus} from '@/lib/account-autosave';
+import {useAuth} from '@/src/lib/auth-context';
 type Summary={projects:number;versions:number};
 type Settings={context_retention_days:number|null;email_subject:string;email_body:string;default_exclusions:string;default_terms:string;draft_expiry_days:number|null};
 type Me={defaults?:{mode:Mode;timezone:string|null;onboarded:boolean;plan:{id:string;name:string;status:string|null}}};
 // LT-20: plain links and buttons only; this page never rewrites history, so Back always leaves it.
 export default function Account(){
+ const {user:fbUser,loading:authLoading}=useAuth();
  const [summary,setSummary]=useState<Summary|null>(null),[signedOut,setSignedOut]=useState(false),[checking,setChecking]=useState(true);
  const [message,setMessage]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ const [savingSettings,setSavingSettings]=useState(false),[savingProfile,setSavingProfile]=useState(false);
+ const [settingsAuto,setSettingsAuto]=useState<AutoSaveStatus>('idle'),[profileAuto,setProfileAuto]=useState<AutoSaveStatus>('idle');
  // UX-C62: each section keeps its own error, shown next to the control that failed (error is the delete dialog's).
  const [loadError,setLoadError]=useState(''),[modeError,setModeError]=useState(''),[settingsError,setSettingsError]=useState(''),[profileError,setProfileError]=useState(''),[keyError,setKeyError]=useState(''),[keyNote,setKeyNote]=useState('');
  const [confirmOpen,setConfirmOpen]=useState(false),[confirmation,setConfirmation]=useState('');
@@ -37,14 +42,60 @@ export default function Account(){
  const [audit,setAudit]=useState({from:'',to:'',format:'jsonl'});
  const [wordingDirty,setWordingDirty]=useState(false),[businessDirty,setBusinessDirty]=useState(false);
  const wordingRef=useRef<HTMLElement>(null),businessRef=useRef<HTMLElement>(null);
- useEffect(()=>{api('/api/me').then(async(m)=>{if(!m.signedIn){setSignedOut(true);return;}setMe(m.defaults??null);if(m.defaults){setMode(m.defaults.mode);setZone(m.defaults.timezone??Intl.DateTimeFormat().resolvedOptions().timeZone??'UTC');}setSummary(await api('/api/account'));try{const st=await api('/api/settings');setSettings(st.settings);setServerDefault(st.server_default_retention_days);}catch{/* settings unavailable */}try{const pr=await api('/api/profile');setProfile(pr.profile);setMailOn(!!pr.mail_configured);}catch{/* profile unavailable */}}).catch(e=>setLoadError(e.message)).finally(()=>setChecking(false));},[]);
+ const settingsTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null),profileTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const settingsSeqRef=useRef(0),profileSeqRef=useRef(0);
+ const settingsRef=useRef<Settings|null>(null),profileRef=useRef<Profile|null>(null);
+ useEffect(()=>{settingsRef.current=settings;},[settings]);
+ useEffect(()=>{profileRef.current=profile;},[profile]);
+ const fbUid=fbUser?.uid??'';
+ useEffect(()=>{
+  if(authLoading)return;
+  let live=true;
+  const load=async()=>{
+   if(!live)return;
+   setChecking(true);
+   setSignedOut(false);
+   setLoadError('');
+   try{
+    const m=await api('/api/me');
+    if(!live)return;
+    if(!m.signedIn){setSignedOut(true);return;}
+    setMe(m.defaults??null);
+    if(m.defaults){setMode(m.defaults.mode);setZone(m.defaults.timezone??Intl.DateTimeFormat().resolvedOptions().timeZone??'UTC');}
+    const [accRes,stRes,prRes]=await Promise.allSettled([api('/api/account'),api('/api/settings'),api('/api/profile')]);
+    if(!live)return;
+    if(accRes.status==='fulfilled')setSummary(accRes.value);
+    if(stRes.status==='fulfilled'){setSettings(stRes.value.settings);setServerDefault(stRes.value.server_default_retention_days);}
+    if(prRes.status==='fulfilled'){setProfile(prRes.value.profile);setMailOn(!!prRes.value.mail_configured);}
+   }catch(e){if(live)setLoadError((e as Error).message);}
+   finally{if(live)setChecking(false);}
+  };
+  queueMicrotask(()=>{void load();});
+  return()=>{live=false;};
+ },[authLoading,fbUid]);
  // LT-17: a live UPI QR preview of the VPA clients will pay.
  const vpa=profile?.upi_vpa??'',link=vpa&&isValidVpa(vpa)?upiLink({vpa,name:profile?.business_name}):null;
  useEffect(()=>{let live=true;if(!link){queueMicrotask(()=>setQr(null));return;}QRCode.toDataURL(link,{margin:1,width:168}).then(u=>{if(live)setQr(u);}).catch(()=>{if(live)setQr(null);});return()=>{live=false;};},[link]);
  const rules=modeDefaults(mode);
  const gstinCheck=profile&&profile.tax_id&&(profile.gst_state||looksLikeGstin(profile.tax_id))?checkGstin(profile.tax_id,{state:profile.gst_state&&profile.gst_state!=='96'?profile.gst_state:undefined}):null;
- async function saveProfile(){if(!profile||busy)return;setBusy(true);setProfileError('');setProfileNote('');try{const r=await api('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(profile)});setProfile(r.profile);setBusinessDirty(false);setProfileNote('Business details saved. New scopes start with these defaults.');}catch(e){setProfileError((e as Error).message);}finally{setBusy(false);}}
- const setP=<K extends keyof Profile>(k:K,v:Profile[K])=>{setBusinessDirty(true);setProfile(x=>x?{...x,[k]:v}:x);};
+ // UX-C39: say why Save business details is unavailable, next to the button.
+ const profileBlock=gstinCheck&&!gstinCheck.ok?'Fix the tax ID above to save.':vpa&&!link?'Fix the UPI ID above to save.':null;
+ const clearSettingsTimer=()=>{if(settingsTimerRef.current!==null){clearTimeout(settingsTimerRef.current);settingsTimerRef.current=null;}};
+ const clearProfileTimer=()=>{if(profileTimerRef.current!==null){clearTimeout(profileTimerRef.current);profileTimerRef.current=null;}};
+ async function saveProfile(isAuto=false){
+  const payload=profileRef.current;
+  if(!payload||savingProfile)return;
+  clearProfileTimer();
+  const seq=++profileSeqRef.current;
+  setSavingProfile(true);setProfileAuto('saving');setProfileError('');if(!isAuto)setProfileNote('');
+  try{
+   const r=await api('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+   if(seq===profileSeqRef.current){setProfile(r.profile);setBusinessDirty(false);setProfileAuto('saved');setProfileNote(isAuto?'Business details saved automatically.':'Business details saved. New scopes start with these defaults.');}
+  }catch(e){
+   if(seq===profileSeqRef.current){setProfileAuto('error');setProfileError((e as Error).message);}
+  }finally{setSavingProfile(false);}
+ }
+ const setP=<K extends keyof Profile>(k:K,v:Profile[K])=>{profileSeqRef.current++;setBusinessDirty(true);setProfileAuto('pending');setProfileNote('');setProfile(x=>x?{...x,[k]:v}:x);};
  const pctValue=(v:number|null)=>v===null?'':String(v),pctInput=(raw:string)=>raw===''?null:Math.min(100,Math.max(0,Number(raw)));
  // BUG-9: say why the controls are unavailable, right next to them.
  const gate=checking?'Checking your sign-in…':signedOut?'Sign in to use this control.':null;
@@ -54,15 +105,60 @@ export default function Account(){
   try{const r=await api('/api/account',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation})});forgetDrafts();setSummary({projects:0,versions:0});setConfirmation('');setConfirmOpen(false);setMessage('Your TermsLock data has been deleted. Unsent review links and API tokens no longer work. '+(r.message??''));}
   catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
- async function saveSettings(){if(!settings||busy)return;setBusy(true);setSettingsError('');setSettingsNote('');try{const r=await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});setSettings(r.settings);setWordingDirty(false);const n=r.redacted.versions+r.redacted.entries,x=r.expired_drafts??0;setSettingsNote('Settings saved.'+(n?` Network details on ${n} older ${n===1?'record were':'records were'} redacted.`:'')+(x?` ${x} archived draft${x===1?' was':'s were'} deleted.`:''));}catch(e){setSettingsError((e as Error).message);}finally{setBusy(false);}}
- async function saveBoth(){if(busy)return;setBusy(true);setSettingsError('');setSettingsNote('');setProfileError('');setProfileNote('');try{if(settings){const r=await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});setSettings(r.settings);setWordingDirty(false);const n=r.redacted.versions+r.redacted.entries,x=r.expired_drafts??0;setSettingsNote('Settings saved.'+(n?` Network details on ${n} older ${n===1?'record were':'records were'} redacted.`:'')+(x?` ${x} archived draft${x===1?' was':'s were'} deleted.`:''));}if(profile&&!profileBlock){const r=await api('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(profile)});setProfile(r.profile);setBusinessDirty(false);setProfileNote('Business details saved. New scopes start with these defaults.');}}catch(e){const msg=(e as Error).message;if(settings&&wordingDirty)setSettingsError(msg);else setProfileError(msg);}finally{setBusy(false);}}
- async function saveMode(next:Mode){if(busy)return;setBusy(true);setModeError('');setModeNote('');try{const r=await api('/api/workspace/mode',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:next})});setMode(r.mode);setModeNote(`${MODE_LABEL[r.mode as Mode]} mode is on. Every feature is still available under All features.`);const st=await api('/api/settings');setSettings(st.settings);setWordingDirty(false);}catch(e){setModeError((e as Error).message);}finally{setBusy(false);}}
+ async function saveSettings(isAuto=false){
+  const payload=settingsRef.current;
+  if(!payload||savingSettings)return;
+  clearSettingsTimer();
+  const seq=++settingsSeqRef.current;
+  setSavingSettings(true);setSettingsAuto('saving');setSettingsError('');if(!isAuto)setSettingsNote('');
+  try{
+   const r=await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+   if(seq===settingsSeqRef.current){
+    setSettings(r.settings);setWordingDirty(false);setSettingsAuto('saved');
+    const n=r.redacted.versions+r.redacted.entries,x=r.expired_drafts??0;
+    setSettingsNote((isAuto?'Saved automatically.':'Settings saved.')+(n?` Network details on ${n} older ${n===1?'record were':'records were'} redacted.`:'')+(x?` ${x} archived draft${x===1?' was':'s were'} deleted.`:''));
+   }
+  }catch(e){
+   if(seq===settingsSeqRef.current){setSettingsAuto('error');setSettingsError((e as Error).message);}
+  }finally{setSavingSettings(false);}
+ }
+ async function saveBoth(){
+  if(busy||savingSettings||savingProfile)return;
+  clearSettingsTimer();clearProfileTimer();
+  await Promise.all([
+   settingsRef.current?saveSettings(false):Promise.resolve(),
+   profileRef.current&&!profileBlock?saveProfile(false):Promise.resolve(),
+  ]);
+ }
+ async function saveMode(next:Mode){if(busy)return;clearSettingsTimer();setBusy(true);setModeError('');setModeNote('');try{const r=await api('/api/workspace/mode',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:next})});setMode(r.mode);setModeNote(`${MODE_LABEL[r.mode as Mode]} mode is on. Every feature is still available under All features.`);const st=await api('/api/settings');setSettings(st.settings);setWordingDirty(false);setSettingsAuto('idle');}catch(e){setModeError((e as Error).message);}finally{setBusy(false);}}
  // UX-C61: the select goes back to the saved zone if the save fails, and the error shows next to it.
  async function saveZone(z:string){const prev=zone;setZone(z);setZoneNote('');setZoneError('');try{await api('/api/workspace/account',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({timezone:z})});setZoneNote(`New projects start in ${z.replace(/_/g,' ')}.`);}catch(e){setZone(prev);setZoneError((e as Error).message);}}
- const set=<K extends keyof Settings>(k:K,v:Settings[K])=>{setWordingDirty(true);setSettings(x=>x?{...x,[k]:v}:x);};
+ const set=<K extends keyof Settings>(k:K,v:Settings[K])=>{settingsSeqRef.current++;setWordingDirty(true);setSettingsAuto('pending');setSettingsNote('');setSettings(x=>x?{...x,[k]:v}:x);};
  const retentionChoices=[30,90,180,365,730,1825,3650].filter(d=>d>=rules.retention_range[0]&&d<=rules.retention_range[1]);
- // UX-C39: say why Save business details is unavailable, next to the button.
- const profileBlock=gstinCheck&&!gstinCheck.ok?'Fix the tax ID above to save.':vpa&&!link?'Fix the UPI ID above to save.':null;
+ // Debounced 2-second auto-save for 'Your wording' (settings)
+ const saveSettingsRef=useRef(saveSettings);
+ useEffect(()=>{saveSettingsRef.current=saveSettings;});
+ useEffect(()=>{
+  clearSettingsTimer();
+  if(!shouldScheduleAutoSave({dirty:wordingDirty,hasData:!!settings,signedOut,checking}))return;
+  settingsTimerRef.current=setTimeout(()=>{
+   settingsTimerRef.current=null;
+   void saveSettingsRef.current(true);
+  },ACCOUNT_AUTOSAVE_DEBOUNCE_MS);
+  return clearSettingsTimer;
+ },[wordingDirty,settings,signedOut,checking]);
+ // Debounced 2-second auto-save for 'Business details' (profile)
+ const saveProfileRef=useRef(saveProfile);
+ useEffect(()=>{saveProfileRef.current=saveProfile;});
+ useEffect(()=>{
+  clearProfileTimer();
+  if(!shouldScheduleAutoSave({dirty:businessDirty,hasData:!!profile,signedOut,checking,blocked:!!profileBlock}))return;
+  profileTimerRef.current=setTimeout(()=>{
+   profileTimerRef.current=null;
+   void saveProfileRef.current(true);
+  },ACCOUNT_AUTOSAVE_DEBOUNCE_MS);
+  return clearProfileTimer;
+ },[businessDirty,profile,signedOut,checking,profileBlock]);
  const shortcutRef=useRef<()=>void>(() => {});
  useEffect(()=>{
   shortcutRef.current=()=>{
@@ -110,7 +206,7 @@ export default function Account(){
   {settings&&<section ref={wordingRef} aria-labelledby="h-wording"><h2 id="h-wording">Your wording</h2><p className="fine">Used instead of TermsLock’s defaults. In the email you can use {'{client}'}, {'{title}'}, {'{version}'} and {'{link}'}; the body must include {'{link}'}.</p><label>“Send for signature” subject<input maxLength={200} placeholder="Please review and approve: {title} (version {version})" value={settings.email_subject} onChange={e=>set('email_subject',e.target.value)}/></label><label>“Send for signature” message<textarea rows={5} maxLength={4000} placeholder={'Hi {client},\n\nThe scope for {title} is ready: {link}'} value={settings.email_body} onChange={e=>set('email_body',e.target.value)}/></label><label>Default “Outside this scope” text for new drafts<textarea rows={2} maxLength={3000} value={settings.default_exclusions} onChange={e=>set('default_exclusions',e.target.value)}/></label><label>Default working terms for new drafts<textarea rows={3} maxLength={3000} value={settings.default_terms} onChange={e=>set('default_terms',e.target.value)}/></label>
   <h2 id="h-retention">Client data retention</h2><p>When a client decides, TermsLock records the network address and browser it came from. Choose how long to keep them; afterwards they are replaced with “redacted”. The signed decision, its fingerprint and signature are never changed. Clients see this period on their review page.</p><label>Keep client network details<select value={settings.context_retention_days??''} onChange={e=>set('context_retention_days',e.target.value===''?null:Number(e.target.value))}>{!rules.retention_required&&<option value="">{serverDefault?`Server default (${serverDefault} days)`:'Until I delete the project'}</option>}{settings.context_retention_days!==null&&!retentionChoices.includes(settings.context_retention_days)&&<option value={settings.context_retention_days}>{settings.context_retention_days} days</option>}{retentionChoices.map(d=><option key={d} value={d}>{d} days</option>)}</select></label>{rules.retention_required&&<p className="fine">Enterprise mode requires a retention policy.</p>}<p className="fine">A project can keep its own period, or be put on legal hold so nothing on it is redacted or deleted: open the project, then <strong>Project settings → Retention</strong>.</p>
   <label>Delete archived drafts<select value={settings.draft_expiry_days??''} onChange={e=>set('draft_expiry_days',e.target.value===''?null:Number(e.target.value))}><option value="">Never: keep them until I delete them</option>{[30,90,180,365].map(d=><option key={d} value={d}>{d} days after archiving</option>)}</select></label><p className="fine">Only archived projects that never got a client decision or ledger entry are deleted, and never one on legal hold. Anything a client signed is kept.</p>
-  <div className="actions section-gap"><button className="primary" disabled={busy} aria-keyshortcuts="Control+S Meta+S" title="Ctrl+S / ⌘S" onClick={saveSettings}>{busy?'Saving…':'Save settings'}</button><span className="fine flush kbd-hint">or <span className="kbd">Ctrl</span> <span className="kbd">S</span> / <span className="kbd">⌘</span> <span className="kbd">S</span></span>{settingsNote&&<p role="status" className="fine flush">{settingsNote}</p>}</div>{settingsError&&<p className="error" role="alert">Couldn’t save settings: {settingsError}</p>}
+   <div className="actions section-gap"><button className="primary" disabled={busy||savingSettings} aria-keyshortcuts="Control+S Meta+S" title="Ctrl+S / ⌘S" onClick={()=>void saveSettings(false)}>{savingSettings?'Saving…':'Save settings'}</button><span className="fine flush kbd-hint">auto-saves 2s after typing · or <span className="kbd">Ctrl</span> <span className="kbd">S</span></span>{settingsAuto==='pending'&&!savingSettings&&<p role="status" className="fine flush">Auto-saving in 2s…</p>}{settingsAuto==='saving'&&<p role="status" className="fine flush">Auto-saving…</p>}{settingsNote&&settingsAuto!=='pending'&&settingsAuto!=='saving'&&<p role="status" className="fine flush">{settingsNote}</p>}</div>{settingsError&&<p className="error" role="alert">Couldn’t save settings: {settingsError}</p>}
   <h2 id="h-legal-hold">Legal hold</h2><p className="fine">For a dispute or a legal request, put a project on hold from <strong>Project settings → Retention</strong>{mode==='enterprise'?' (account admin)':''}. While a hold is on, nothing on it is redacted or deleted, and this account cannot be deleted.</p></section>}
   {profile&&<section ref={businessRef} aria-labelledby="h-business"><h2 id="h-business">Business details</h2><p className="fine">Printed as the seller on your invoices. Only you and the clients you send invoices to see them.</p>
    <div className="two-col"><label>Business or trading name<input maxLength={120} placeholder="e.g. Ada Studio" value={profile.business_name} onChange={e=>setP('business_name',e.target.value)}/></label><div><label htmlFor="tax-id" className="label-for">Tax ID <span className="quiet">· optional, e.g. GSTIN</span></label><input id="tax-id" maxLength={40} value={profile.tax_id} aria-invalid={gstinCheck&&!gstinCheck.ok?true:undefined} aria-describedby={gstinCheck&&!gstinCheck.ok?'tax-id-error':undefined} onChange={e=>setP('tax_id',e.target.value.toUpperCase())}/>{gstinCheck&&!gstinCheck.ok&&<span id="tax-id-error" className="error-text">{gstinCheck.message}</span>}{gstinCheck?.ok&&<span className="fine block">Valid GSTIN · {stateName(gstinCheck.state)}</span>}</div></div>
@@ -132,7 +228,7 @@ export default function Account(){
    <label>Payment terms<input maxLength={500} placeholder="e.g. Balance within 15 days of delivery" value={profile.default_payment_terms} onChange={e=>setP('default_payment_terms',e.target.value)}/></label>
    <h2 id="h-reminders">Automatic reminders</h2><p className="fine">TermsLock can email your client a short reminder when a scope has waited this long without a decision. It uses the same rules as the Send a reminder button: at most one email a day and three reminders per version. Only projects with a client email get them.{!mailOn&&' Email delivery is not set up on this server yet, so nothing is sent until it is.'}</p>
    <label>Remind clients automatically<select value={profile.auto_remind_days??''} onChange={e=>setP('auto_remind_days',e.target.value===''?null:Number(e.target.value) as Profile['auto_remind_days'])}><option value="">Off: I send reminders myself</option>{[3,5,7,14].map(d=><option key={d} value={d}>After {d} days without a decision</option>)}</select></label>
-   <div className="actions section-gap"><button className="primary" disabled={busy||!!profileBlock} aria-describedby={profileBlock?'profile-block':undefined} aria-keyshortcuts="Control+S Meta+S" title="Ctrl+S / ⌘S" onClick={saveProfile}>{busy?'Saving…':'Save business details'}</button><span className="fine flush kbd-hint">or <span className="kbd">Ctrl</span> <span className="kbd">S</span> / <span className="kbd">⌘</span> <span className="kbd">S</span></span>{profileNote&&<p role="status" className="fine flush">{profileNote}</p>}{profileBlock&&<p id="profile-block" className="fine save-reason">{profileBlock}</p>}</div>{profileError&&<p className="error" role="alert">Couldn’t save business details: {profileError}</p>}</section>}
+   <div className="actions section-gap"><button className="primary" disabled={busy||savingProfile||!!profileBlock} aria-describedby={profileBlock?'profile-block':undefined} aria-keyshortcuts="Control+S Meta+S" title="Ctrl+S / ⌘S" onClick={()=>void saveProfile(false)}>{savingProfile?'Saving…':'Save business details'}</button><span className="fine flush kbd-hint">auto-saves 2s after typing · or <span className="kbd">Ctrl</span> <span className="kbd">S</span></span>{profileAuto==='pending'&&!savingProfile&&!profileBlock&&<p role="status" className="fine flush">Auto-saving in 2s…</p>}{profileAuto==='saving'&&<p role="status" className="fine flush">Auto-saving…</p>}{profileNote&&profileAuto!=='pending'&&profileAuto!=='saving'&&<p role="status" className="fine flush">{profileNote}</p>}{profileBlock&&<p id="profile-block" className="fine save-reason">{profileBlock}</p>}</div>{profileError&&<p className="error" role="alert">Couldn’t save business details: {profileError}</p>}</section>}
   {profile&&<section aria-labelledby="h-payments"><h2 id="h-payments">Payments</h2><PaymentSettings/></section>}
   {profile&&<BrandSettings/>}
   {me&&<AnalyticsToggle/>}

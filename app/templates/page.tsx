@@ -2,11 +2,12 @@
 import Link from 'next/link';
 import {useCallback, useEffect, useState} from 'react';
 import {toast} from 'sonner';
-import {Copy, GitCompare, History, Link2, Tag} from 'lucide-react';
+import {ArrowRight, Copy, GitCompare, History, Link2, Tag} from 'lucide-react';
 import {Header, api, post} from '../ui';
 import {formatMoney} from '@/lib/scope';
 import {builtinTemplates, filterTemplates, revisionDiff, type RevisionView, type TemplateView} from '@/lib/template-store';
 import {MODES, type Mode} from '@/lib/mode-core'; // integration: client page uses WS-08's pure module (lib/mode.ts reads the database)
+import {useAuth} from '@/src/lib/auth-context';
 import GuidedBuilder from '../components/guided-builder';
 
 const MODE_LABEL: Record<Mode, string> = {freelancer: 'Freelancer', agency: 'Agency', consumer: 'Home & events', enterprise: 'Enterprise'};
@@ -17,10 +18,12 @@ const MODE_LABEL: Record<Mode, string> = {freelancer: 'Freelancer', agency: 'Age
  * (SF-22) ordered by mode, and importing a template someone shared by link.
  */
 export default function Templates() {
+  const {user: fbUser, loading: authLoading} = useAuth();
   const [list, setList] = useState<TemplateView[] | null>(null), [builtins, setBuiltins] = useState<TemplateView[]>(() => builtinTemplates()), [signedIn, setSignedIn] = useState<boolean | null>(null), [error, setError] = useState(''), [filter, setFilter] = useState(''), [query, setQuery] = useState(''), [mode, setMode] = useState<Mode>('freelancer');
   const [history, setHistory] = useState<{id: string; revisions: RevisionView[]; current: RevisionView; compare: number | null} | null>(null), [importLink, setImportLink] = useState(''), [busy, setBusy] = useState(false);
   const load = useCallback(() => api('/api/templates').then(d => { const all = d.templates as TemplateView[]; setSignedIn(!!d.signed_in); setBuiltins(all.filter(t => t.builtin)); setList(all.filter(t => !t.builtin)); }, e => setError(e.message)), []);
-  useEffect(() => { void load(); }, [load]);
+  const fbUid = fbUser?.uid ?? '';
+  useEffect(() => { if (authLoading) return; void load(); }, [authLoading, fbUid, load]);
   const replace = (t: TemplateView) => setList(l => l && l.map(x => x.id === t.id ? t : x));
   async function run(fn: () => Promise<void>) { setBusy(true); setError(''); try { await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
   const saveTags = (t: TemplateView, text: string) => run(async () => { const tags = text.split(',').map(x => x.trim()).filter(Boolean); const r = await api(`/api/templates/${t.id}`, {...post({tags}), method: 'PUT'}); replace(r.template); toast.success('Tags saved.'); });
@@ -44,6 +47,14 @@ export default function Templates() {
   };
   return <><Header /><main id="content" tabIndex={-1} className="shell">
     <div className="page-heading"><div><p className="eyebrow">TEMPLATES &amp; QUICK-FILL</p><h1>Templates</h1></div><div className="actions"><Link className="secondary" href="/check">Check a clause for traps</Link></div></div>
+    <section className="templates-hub-banner" aria-label="Marriage and multi-event collections">
+      <div className="templates-hub-copy">
+        <p className="eyebrow">MULTI-EVENT WORKSPACE</p>
+        <strong>Planning a full wedding or multi-stage project?</strong>
+        <p className="fine">Capture Engagement, Mehendi, Haldi, Sangeet, Ceremony &amp; Reception together — with every vendor&apos;s contact person, phone number, WhatsApp, advance paid, and 1-click full agreement.</p>
+      </div>
+      <Link className="primary templates-hub-cta" href="/events">Open Event Hub<ArrowRight size={15} aria-hidden="true" /></Link>
+    </section>
     <GuidedBuilder />
     {error && <p className="error" role="alert">{error}</p>}
     <label className="section-gap">Search templates<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, tag or trade (e.g. wedding, interiors, retainer, website)" /></label>

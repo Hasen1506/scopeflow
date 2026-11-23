@@ -46,11 +46,11 @@ export function SiteFooter() {
           </div>
           {!client && <nav className="footer-col" aria-label="Product">
             <h2>Product</h2>
-            <ul><li><Link href="/">Workspace</Link></li><li><Link href="/check">Rights &amp; deposit check</Link></li><li><Link href="/templates">Templates &amp; quick-fill</Link></li><li><Link href="/msme-interest">MSME interest calculator</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li></ul>
+            <ul><li><Link href="/">Workspace</Link></li><li><Link href="/events">Event &amp; wedding hub</Link></li><li><Link href="/check">Rights &amp; deposit check</Link></li><li><Link href="/templates">Templates &amp; quick-fill</Link></li><li><Link href="/msme-interest">MSME interest calculator</Link></li><li><Link href="/connect">Connect an agent</Link></li><li><Link href="/plans">Plans</Link></li></ul>
           </nav>}
           <nav className="footer-col" aria-label="Help">
             <h2>Help</h2>
-            <ul>{client ? <><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><Link href="/support">Support</Link></li></> : <><li><Link href="/support">Support</Link></li><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><a href="/api/openapi">OpenAPI</a></li></>}</ul>
+            <ul>{client ? <><li><Link href="/verify">Verify a record</Link></li><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><Link href="/support">Support</Link></li></> : <><li><Link href="/verify">Verify a sealed record</Link></li><li><Link href="/support">Support</Link></li><li><Link href="/reviewer-guide">Reviewer guide</Link></li><li><a href="/api/openapi">OpenAPI</a></li></>}</ul>
           </nav>
           <div className="footer-col">
             <h2>Check a receipt</h2>

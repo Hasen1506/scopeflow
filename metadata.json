@@ -1,0 +1,8 @@
+{
+  "name": "TermsLock",
+  "description": "Check agreement traps, organize multi-event wedding and renovation vendor chains, confirm terms over WhatsApp, and keep tamper-proof records.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

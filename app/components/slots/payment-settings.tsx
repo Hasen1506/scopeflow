@@ -6,6 +6,8 @@
 // enables Route; plus the inbox of clients' "I've paid" claims to confirm, and payment alerts.
 // TermsLock never holds client money: every rail here pays the freelancer directly.
 import {useCallback, useEffect, useState} from 'react';
+import {api} from '@/app/ui';
+import {useAuth} from '@/lib/firebase/auth-context';
 import {formatMoney} from '@/lib/currency';
 import {fromMinor} from '@/lib/minor';
 import styles from './payment-settings.module.css';
@@ -21,10 +23,7 @@ const ALERT: Record<string, string> = {excess_payment: 'A client paid more than 
 // M4 (WS-01): minor units through lib/minor.ts (ISO exponents), never Intl.
 const fmt = (minor: number, currency: string) => formatMoney(fromMinor(minor, currency), currency);
 async function call(path: string, init?: RequestInit) {
-  const r = await fetch(path, init);
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(typeof data.error === 'string' ? data.error : 'Something went wrong. Please try again.'), {status: r.status});
-  return data;
+  return api(path, init);
 }
 const send = (method: string, data?: unknown): RequestInit => ({method, headers: {'Content-Type': 'application/json'}, ...(data === undefined ? {} : {body: JSON.stringify(data)})});
 const describe = (a: Account) => {
@@ -38,6 +37,7 @@ const describe = (a: Account) => {
 };
 
 export default function PaymentSettings({showInbox = true}: PaymentSettingsProps) {
+  const {user: fbUser, loading: authLoading} = useAuth();
   const [data, setData] = useState<Accounts | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -53,9 +53,14 @@ export default function PaymentSettings({showInbox = true}: PaymentSettingsProps
       setError('');
     } catch (e) { setError((e as Error & {status?: number}).status === 401 ? 'Sign in to manage payments.' : (e as Error).message); }
   }, [showInbox]);
-  useEffect(() => { const t = setTimeout(() => { void load(); }, 0); return () => clearTimeout(t); }, [load]);
+  useEffect(() => {
+    if (authLoading) return;
+    const t = setTimeout(() => { void load(); }, 0);
+    return () => clearTimeout(t);
+  }, [load, authLoading, fbUser?.uid]);
   const act = async (fn: () => Promise<unknown>, done: string) => { setNote(''); try { await fn(); setNote(done); await load(); } catch (e) { setNote((e as Error).message); } };
 
+  if (authLoading) return <p role="status">Loading payment settings…</p>;
   if (error) return <p role="alert">{error}</p>;
   if (!data) return <p role="status">Loading payment settings…</p>;
   const active = data.accounts.filter(a => a.status === 'active');
