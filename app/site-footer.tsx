@@ -59,7 +59,7 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="footer-legal">
-          {!client && <span>TermsLock · Early beta</span>}
+          {!client && <span>TermsLock · Early access</span>}
           <nav aria-label="Legal"><Link href="/about">About</Link><Link href="/contact">Contact</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/refund">Refunds</Link></nav>
         </div>
       </div>

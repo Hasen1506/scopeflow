@@ -4,7 +4,7 @@ import {useEffect, useState} from 'react';
 import {Header, api} from '../../ui';
 import {NextStep} from '../../workflow';
 import {MODE_LABEL, featuresFor, type Feature, type Mode} from '@/lib/mode-core';
-import {useAuth} from '@/lib/firebase/auth-context';
+import {useAuth} from '@/src/lib/auth-context';
 // SF-17: "All features". Every feature, in the order of the workspace's mode. A mode never
 // removes anything from this list; it only changes what comes first.
 export default function AllFeatures() {

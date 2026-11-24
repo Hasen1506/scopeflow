@@ -10,7 +10,7 @@ export type CollectionKind =
   | 'apartment-move'
   | 'custom';
 
-export type SubEventStatus = 'planning' | 'locked' | 'completed';
+export type SubEventStatus = 'planning' | 'locked' | 'confirmed' | 'completed';
 
 export type VendorCategory =
   | 'catering'
@@ -101,7 +101,8 @@ export const VENDOR_STATUS_LABEL: Record<VendorAgreementStatus, string> = {
 
 export const SUB_EVENT_STATUS_LABEL: Record<SubEventStatus, string> = {
   planning: 'Planning',
-  locked: 'Vendors Locked',
+  locked: 'Locked',
+  confirmed: 'Confirmed',
   completed: 'Completed',
 };
 
@@ -480,7 +481,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
         timeSlot: '',
         venueName: '',
         venueAddress: '',
-        guestCount: 50,
+        guestCount: 0,
         coordinatorName: '',
         coordinatorPhone: '',
         status: 'planning',
@@ -733,7 +734,7 @@ export const subEventPayloadSchema = z.object({
   guestCount: z.number().int().min(0).max(100000).optional().default(0),
   coordinatorName: z.string().max(120).optional().default(''),
   coordinatorPhone: z.string().max(40).optional().default(''),
-  status: z.enum(['planning', 'locked', 'completed']).optional().default('planning'),
+  status: z.enum(['planning', 'locked', 'confirmed', 'completed']).optional().default('planning'),
   notes: z.string().max(1200).optional().default(''),
 });
 

@@ -158,38 +158,47 @@ async function main() {
     await setTheme(page, 'b', 'dark');
     await page.getByRole('button', { name: 'Full-width edit' }).click();
     await page.waitForTimeout(100);
-    await page.emulateMedia({ media: 'print' });
-    await page.waitForTimeout(120);
-    const m = await page.evaluate(() => {
-      const disp = (sel: string) => {
-        const el = document.querySelector(sel);
-        return el ? getComputedStyle(el).display : 'missing';
-      };
-      const paper = document.querySelector('.paper');
-      const ps = paper ? getComputedStyle(paper) : null;
-      const pr = paper ? paper.getBoundingClientRect() : null;
-      return {
-        header: disp('header'),
-        tryBanner: disp('.try-banner'),
-        projectHead: disp('.project-head'),
-        layoutBar: disp('.ws-layout-bar'),
-        flowCol: disp('.flow-col'),
-        advisorFab: disp('.advisor-fab'),
-        paperDisplay: ps?.display ?? 'missing',
-        paperBg: ps?.backgroundColor ?? '',
-        paperInk: ps?.color ?? '',
-        paperWidth: pr ? Math.round(pr.width) : 0,
-      };
-    });
-    await page.screenshot({ path: `${SHOT_DIR}/print-project-preview.png` });
-    await page.emulateMedia({ media: 'screen' });
-    await setTheme(page, 'b', 'light');
-    await page.getByRole('button', { name: 'Split view' }).click();
-    await page.waitForTimeout(100);
+    let m: Record<string, string | number> = {};
+    try {
+      await page.emulateMedia({ media: 'print' });
+      await page.waitForTimeout(120);
+      m = await page.evaluate(() => {
+        const paper = document.querySelector('.paper');
+        const ps = paper ? getComputedStyle(paper) : null;
+        const pr = paper ? paper.getBoundingClientRect() : null;
+        const delivTitle = document.querySelector('.paper .deliverable > span > span:first-child');
+        const delivInk = delivTitle ? getComputedStyle(delivTitle).color : '';
+        const headerEl = document.querySelector('header');
+        const tryEl = document.querySelector('.try-banner');
+        const headEl = document.querySelector('.project-head');
+        const barEl = document.querySelector('.ws-layout-bar');
+        const flowEl = document.querySelector('.flow-col');
+        const fabEl = document.querySelector('.advisor-fab');
+        return {
+          header: headerEl ? getComputedStyle(headerEl).display : 'missing',
+          tryBanner: tryEl ? getComputedStyle(tryEl).display : 'missing',
+          projectHead: headEl ? getComputedStyle(headEl).display : 'missing',
+          layoutBar: barEl ? getComputedStyle(barEl).display : 'missing',
+          flowCol: flowEl ? getComputedStyle(flowEl).display : 'missing',
+          advisorFab: fabEl ? getComputedStyle(fabEl).display : 'missing',
+          paperDisplay: ps?.display ?? 'missing',
+          paperBg: ps?.backgroundColor ?? '',
+          paperInk: ps?.color ?? '',
+          delivInk,
+          paperWidth: pr ? Math.round(pr.width) : 0,
+        };
+      });
+      await page.screenshot({ path: `${SHOT_DIR}/print-project-preview.png` });
+    } finally {
+      await page.emulateMedia({ media: 'screen' });
+      await setTheme(page, 'b', 'light');
+      await page.getByRole('button', { name: 'Split view' }).click();
+      await page.waitForTimeout(100);
+    }
     assert(m.header === 'none' && m.projectHead === 'none' && m.flowCol === 'none' && m.advisorFab === 'none', `Chrome visible in print: ${JSON.stringify(m)}`);
-    assert(m.paperDisplay === 'block' && m.paperWidth >= 700, `Paper hidden or narrow in print: ${JSON.stringify(m)}`);
-    assert(m.paperBg === 'rgb(255, 255, 255)' && m.paperInk === 'rgb(17, 17, 17)', `Print colors not crisp black-on-white: ${JSON.stringify(m)}`);
-    return `print paper=${m.paperWidth}px, bg=${m.paperBg}, ink=${m.paperInk}, chrome=hidden`;
+    assert(m.paperDisplay === 'block' && Number(m.paperWidth) >= 700, `Paper hidden or narrow in print: ${JSON.stringify(m)}`);
+    assert(m.paperBg === 'rgb(255, 255, 255)' && m.paperInk === 'rgb(17, 17, 17)' && m.delivInk === 'rgb(17, 17, 17)', `Print colors not crisp black-on-white: ${JSON.stringify(m)}`);
+    return `print paper=${m.paperWidth}px, bg=${m.paperBg}, ink=${m.paperInk}, deliv=${m.delivInk}, chrome=hidden`;
   });
 
   await run('A:Layout', 'Dragging/resizing Working terms textarea moves Outside this scope by 0px', async () => {
@@ -381,17 +390,19 @@ async function main() {
     return `maxDelta=${maxDelta}px`;
   });
 
-  await run('C:EventsHub', 'Custom Multi-Event Collection starts as "Event Day 1" with NO redundant "All sub-events"', async () => {
+  await run('C:EventsHub', 'Custom Multi-Event Collection starts as "Event Day 1" with zero phantom 50 guests & NO redundant "All sub-events"', async () => {
     await page.getByRole('button', { name: /New Event Collection/i }).click();
     await page.getByRole('button', { name: /Custom Multi-Event Collection/i }).click();
     await page.waitForTimeout(150);
     const body = (await page.locator('main').textContent()) || '';
     assert(body.includes('Event Day 1'), 'Expected "Event Day 1" starter');
     assert(!body.includes('Main Event / Phase 1'), 'Old "Main Event / Phase 1" still present');
+    assert(!body.includes('50 guests'), 'Phantom "50 guests" still shown on blank custom event!');
+    assert(body.includes('No vendors added yet') && !body.includes('All vendors confirmed'), 'Expected "No vendors added yet" for 0 vendors');
     const allBtnVisible = await page.getByRole('button', { name: /All sub-events/i }).isVisible().catch(() => false);
     assert(!allBtnVisible, 'Redundant "All sub-events" shown for single sub-event!');
     await page.screenshot({ path: `${SHOT_DIR}/events-single-custom.png` });
-    return 'single event clean, no redundant All sub-events';
+    return 'single event clean, 0 phantom guests, no redundant All sub-events';
   });
 
   await run('C:EventsHub', 'Editing custom collection details (Jaipur Destination Wedding) updates header live', async () => {
@@ -766,6 +777,24 @@ async function main() {
     const paper = (await page.locator('.paper').textContent()) || '';
     assert(paper.includes('12,500'), 'Formatted fee missing');
     return 'all 4 currencies switched cleanly';
+  });
+
+  await run('F:EdgeCase', 'Starting a new scope (N) while a draft is half-done parks it safely without forcing drop/finish dialog', async () => {
+    const titleInput = page.locator('#step-scope .identity-row input').first();
+    await titleInput.fill('Half-Done Terrace Renovation Draft');
+    await page.waitForTimeout(100);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.keyboard.press('n');
+    await page.waitForTimeout(150);
+    const dialogVisible = await page.getByRole('dialog').isVisible().catch(() => false);
+    assert(!dialogVisible, 'Blocking "Replace this unsaved draft?" dialog appeared instead of parking!');
+    const titleVal = await titleInput.inputValue();
+    assert(titleVal === '', `Expected fresh blank title after parking, got "${titleVal}"`);
+    const noticeTxt = (await page.locator('.notice-dock').textContent()) || '';
+    assert(/parked/i.test(noticeTxt), `Expected parked-draft notice, got "${noticeTxt}"`);
+    const storedParked = await page.evaluate(() => localStorage.getItem('termslock:parked-drafts:v1:guest') || '');
+    assert(storedParked.includes('Half-Done Terrace Renovation Draft'), 'Parked draft was not persisted to localStorage');
+    return 'previous half-done draft parked safely, fresh scope opened';
   });
 
   await run('F:EdgeCase', 'Keyboard "?" opens shortcuts modal outside inputs, Esc closes it, never hijacks typing', async () => {

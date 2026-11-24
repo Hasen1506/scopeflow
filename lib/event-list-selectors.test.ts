@@ -1,13 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildSubEventStatusCounts,
   buildSubEventTitleMap,
   buildVendorCountBySubEvent,
+  filterCollectionSubEvents,
   filterCollectionVendors,
 } from './event-list-selectors';
 import type { EventVendor, SubEvent } from './event-collections';
 
-function makeSub(id: string, title: string): SubEvent {
+function makeSub(id: string, title: string, overrides: Partial<SubEvent> = {}): SubEvent {
   return {
     id,
     collectionId: 'col_1',
@@ -22,6 +24,7 @@ function makeSub(id: string, title: string): SubEvent {
     coordinatorPhone: '',
     status: 'planning',
     notes: '',
+    ...overrides,
   };
 }
 
@@ -61,11 +64,63 @@ test('buildVendorCountBySubEvent counts specific + global (null) vendors in O(S 
   assert.equal(counts.get('s3'), 1);
 });
 
-test('filterCollectionVendors filters by selected sub-event, UTR, and sub-event title', () => {
+test('filterCollectionSubEvents filters by all/upcoming/completed and name or description', () => {
+  const subs = [
+    makeSub('s1', 'Mehendi Lawn', { status: 'completed', notes: 'Henna artists and folk music' }),
+    makeSub('s2', 'Sangeet Gala', { status: 'locked', venueName: 'Crystal Ballroom', notes: 'Live band & cocktails' }),
+    makeSub('s3', 'Reception Dinner', { status: 'confirmed', notes: 'Banquet buffet for 400 guests' }),
+  ];
+
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'all', '').map((s) => s.id),
+    ['s1', 's2', 's3'],
+  );
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'upcoming', '').map((s) => s.id),
+    ['s2', 's3'],
+  );
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'completed', '').map((s) => s.id),
+    ['s1'],
+  );
+  // Search by description/notes
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'all', 'henna').map((s) => s.id),
+    ['s1'],
+  );
+  // Combined status + text filter
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'upcoming', 'henna').map((s) => s.id),
+    [],
+  );
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'upcoming', 'ballroom').map((s) => s.id),
+    ['s2'],
+  );
+});
+
+test('buildSubEventStatusCounts aggregates Planning, Locked, Confirmed, and Completed accurately', () => {
+  const subs = [
+    makeSub('s1', 'Engagement', { status: 'completed' }),
+    makeSub('s2', 'Mehendi', { status: 'confirmed' }),
+    makeSub('s3', 'Haldi', { status: 'locked' }),
+    makeSub('s4', 'Sangeet', { status: 'locked' }),
+    makeSub('s5', 'Wedding', { status: 'planning' }),
+    makeSub('s6', 'Reception', { status: 'planning' }),
+  ];
+  assert.deepEqual(buildSubEventStatusCounts(subs), [
+    { status: 'planning', label: 'Planning', count: 2 },
+    { status: 'locked', label: 'Locked', count: 2 },
+    { status: 'confirmed', label: 'Confirmed', count: 1 },
+    { status: 'completed', label: 'Completed', count: 1 },
+  ]);
+});
+
+test('filterCollectionVendors filters by selected sub-event, UTR, deliverables, and sub-event title', () => {
   const subs = [makeSub('s1', 'Royal Sangeet'), makeSub('s2', 'Haldi Lawn')];
   const titleMap = buildSubEventTitleMap(subs);
   const vendors = [
-    makeVendor('v1', 's1', { vendorName: 'DJ Pulse', utrReference: 'UTR9988' }),
+    makeVendor('v1', 's1', { vendorName: 'DJ Pulse', utrReference: 'UTR9988', deliverables: '12-speaker line array' }),
     makeVendor('v2', 's2', { vendorName: 'Marigold Decor', utrReference: 'UTR1122' }),
     makeVendor('v3', null, { vendorName: 'LensCraft Photo', utrReference: 'UTR5544' }),
   ];
@@ -84,6 +139,13 @@ test('filterCollectionVendors filters by selected sub-event, UTR, and sub-event 
     ['v2'],
   );
 
+  // Filter by deliverables description
+  const delivMatch = filterCollectionVendors(vendors, titleMap, 'all', 'line array');
+  assert.deepEqual(
+    delivMatch.map((v) => v.id),
+    ['v1'],
+  );
+
   // Filter by linked sub-event name
   const subTitleMatch = filterCollectionVendors(vendors, titleMap, 'all', 'royal sangeet');
   assert.deepEqual(
@@ -93,7 +155,9 @@ test('filterCollectionVendors filters by selected sub-event, UTR, and sub-event 
 });
 
 test('high-volume Events Hub selectors handle 50 sub-events x 500 vendors quickly', () => {
-  const subs = Array.from({ length: 50 }, (_, i) => makeSub(`s_${i}`, `Ceremony Day ${i + 1}`));
+  const subs = Array.from({ length: 50 }, (_, i) =>
+    makeSub(`s_${i}`, `Ceremony Day ${i + 1}`, { status: i % 3 === 0 ? 'completed' : 'planning' }),
+  );
   const vendors = Array.from({ length: 500 }, (_, i) =>
     makeVendor(`v_${i}`, i % 10 === 0 ? null : `s_${i % 50}`, {
       utrReference: `UTR_HIGH_${i}`,
@@ -103,10 +167,14 @@ test('high-volume Events Hub selectors handle 50 sub-events x 500 vendors quickl
   const t0 = performance.now();
   const titleMap = buildSubEventTitleMap(subs);
   const counts = buildVendorCountBySubEvent(subs, vendors);
+  const completedSubs = filterCollectionSubEvents(subs, 'completed', '');
+  const statusBreakdown = buildSubEventStatusCounts(subs);
   const filtered = filterCollectionVendors(vendors, titleMap, 's_7', 'utr_high_7');
   const elapsedMs = performance.now() - t0;
 
   assert.equal(counts.size, 50);
+  assert.equal(completedSubs.length, 17);
+  assert.equal(statusBreakdown.find((d) => d.status === 'completed')?.count, 17);
   // 50 global vendors (i % 10 === 0) + 10 specific to s_7 (7, 57, ..., 457)
   assert.equal(counts.get('s_7'), 60);
   assert.ok(filtered.some((v) => v.id === 'v_7'));

@@ -4,7 +4,7 @@ import {useEffect,useState} from 'react';
 import {Header,api} from '../ui';
 import {sample} from '@/lib/scope';
 import {NextStep} from '../workflow';
-import {useAuth} from '@/lib/firebase/auth-context';
+import {useAuth} from '@/src/lib/auth-context';
 import styles from '../oauth/authorize/consent.module.css';
 
 // M24: one entry per grant (each time you allowed an app), with its verified or unverified domain.

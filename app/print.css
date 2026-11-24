@@ -12,11 +12,14 @@
 @media print {
   /* Force clean black-on-white print tokens across all 4 screen themes */
   :root,
+  :root[data-theme],
+  :root[data-mode],
+  :root[data-scheme],
+  :root[data-theme][data-scheme],
+  :root[data-theme][data-mode],
   html,
-  html[data-theme],
-  html[data-mode],
-  html[data-scheme],
-  body {
+  body,
+  .paper {
     --bg: #ffffff !important;
     --surface: #ffffff !important;
     --surface-2: #fafafa !important;
@@ -24,6 +27,10 @@
     --ink: #111111 !important;
     --ink-2: #333333 !important;
     --ink-3: #555555 !important;
+    --paper-ink: #111111 !important;
+    --paper-ink-2: #444444 !important;
+    --paper-rule: #cccccc !important;
+    --paper-accent: #111111 !important;
     --rule: #cfcfcf !important;
     --rule-strong: #999999 !important;
     --accent: #111111 !important;

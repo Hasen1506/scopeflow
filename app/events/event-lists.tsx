@@ -144,7 +144,8 @@ export const SubEventCard = memo(function SubEventCard({
               onChange={(e) => onUpdate(sub.id, { status: e.target.value as SubEventStatus })}
             >
               <option value="planning">Planning</option>
-              <option value="locked">Vendors Locked</option>
+              <option value="locked">Locked</option>
+              <option value="confirmed">Confirmed</option>
               <option value="completed">Completed</option>
             </select>
           </label>

@@ -11,7 +11,7 @@ import {isValidVpa, upiLink, VPA_MESSAGE} from '@/lib/vpa';
 import {MODES, MODE_BLURB, MODE_LABEL, type Mode} from '@/lib/mode-core';
 import {safeReturnPath} from '@/lib/origin';
 import TimezoneSelect from '@/app/components/slots/timezone-select';
-import {useAuth} from '@/lib/firebase/auth-context';
+import {useAuth} from '@/src/lib/auth-context';
 
 // LT-04/SF-11: first-run onboarding in three steps: (1) workspace mode, (2) country, currency and
 // time zone, (3) business details: GSTIN (optional), Udyam (optional), UPI ID. Defaults come

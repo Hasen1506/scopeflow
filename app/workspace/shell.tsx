@@ -1,5 +1,5 @@
 'use client';
-import {useDeferredValue,useEffect,useRef,useState,useSyncExternalStore} from 'react';
+import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {linkDialogCopy,decidedStatus} from '@/lib/review-link-copy';
 import Link from 'next/link';
 import {ArrowUpRight,Columns2,Eye,FileText,PanelLeft,Plus,Printer,Keyboard,X,Zap} from 'lucide-react';
@@ -27,14 +27,20 @@ const COARSE='(pointer: coarse)';
 const subscribeCoarse=(cb:()=>void)=>{const m=window.matchMedia?.(COARSE);m?.addEventListener('change',cb);return()=>m?.removeEventListener('change',cb);};
 function useCoarsePointer(){return useSyncExternalStore(subscribeCoarse,()=>!!window.matchMedia?.(COARSE).matches,()=>false);}
 
+/** Mirrors <html data-auth="in"> (set before first paint for returning signed-in owners) so signed-out try-editor renders immediately while signed-in owners never flash "Sign in". */
+const subscribeAuthHint=(cb:()=>void)=>{const obs=new MutationObserver(cb);obs.observe(document.documentElement,{attributes:true,attributeFilter:['data-auth']});return()=>obs.disconnect();};
+function useAuthHint(){return useSyncExternalStore(subscribeAuthHint,()=>document.documentElement.dataset.auth==='in',()=>false);}
+
 /** The signed-in workspace and the try-without-account editor (split from app/workspace.tsx, L8: no behaviour change). */
 export default function Workspace(){
   const coarse=useCoarsePointer();
+  const authHint=useAuthHint();
   const [layoutMode,setLayoutMode]=useState<'split'|'edit'|'preview'>('split');
-  const w=useWorkspace();const {fbUser,authLoading,confirmDialog,shortcutsOn,setShortcutsOn,cards,actionError,active,activeOv,applyGuidedScope,busy,changed,deleteText,draft,error,goHome,guidedOpen,importDraft,importError,importOpen,importText,isSample,keysOpen,linkAction,loading,manageLink,newScope,next,nextActions,notice,opening,preview,previewModalOpen,projectAction,runProjectAction,setDeleteText,setGuidedOpen,setImportOpen,setImportText,setKeysOpen,setLinkAction,setNotice,setPreviewModalOpen,setProjectAction,setTab,setTrying,setUndo,shownAction,shownLink,signedIn,stage,steps,tab,tryEditor,trying,undo,undoReplace}=w;
-  const deferredPreview=useDeferredValue(preview);
+  const w=useWorkspace();const {fbUser,authLoading,confirmDialog,shortcutsOn,setShortcutsOn,cards,actionError,active,activeOv,applyGuidedScope,busy,changed,deleteText,draft,error,goHome,guidedOpen,importDraft,importError,importOpen,importText,isSample,keysOpen,linkAction,loading,manageLink,parkAndNewScope,parkedDrafts,next,nextActions,notice,opening,preview,previewModalOpen,projectAction,runProjectAction,setDeleteText,setGuidedOpen,setImportOpen,setImportText,setKeysOpen,setLinkAction,setNotice,setPreviewModalOpen,setProjectAction,setTab,setTrying,setUndo,shownAction,shownLink,signedIn,stage,steps,tab,tryEditor,trying,undo,undoReplace}=w;
+  const totalDraftCount=(w.unsavedCard?1:0)+parkedDrafts.length;
   const hasSessionUser=signedIn||Boolean(fbUser);
   const authPending=authLoading||(Boolean(fbUser)&&loading);
+  const holdForSignedIn=loading&&(authHint||hasSessionUser||!trying);
   const wideShell=(hasSessionUser||trying)&&tab==='project'&&layoutMode==='edit';
   // Visual re-audit #6: once the deposit/schedule conflict is fixed (Clear deposit), the banner stops naming it.
   const shownError=bannerAfterFix(error,DEPOSIT_SCHEDULE_CONFLICT,hasDepositScheduleConflict(draft));
@@ -44,17 +50,17 @@ export default function Workspace(){
   const dock=useRef<HTMLDivElement>(null);
   useEffect(()=>{if(!shownError)return;const el=dock.current?.querySelector('.error');if(!el)return;const r=el.getBoundingClientRect();if(r.top<0||r.bottom>window.innerHeight)el.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});},[shownError]);
  return <><Header/><main className={'shell'+(wideShell?' shell-wide':'')} id="content" tabIndex={-1}>
-  {!hasSessionUser&&!trying?<>{(loading||authLoading)&&<div className="boot-skeleton" aria-hidden="true"><Skeleton cards={2} lines={2}/></div>}<div className={(loading||authLoading)?'boot-guard':undefined}><Landing onTry={tryEditor}/></div></>:<>
-  {!hasSessionUser&&!loading&&!authPending&&<div className="try-banner" role="note"><p><b>Trying TermsLock without an account.</b> Your draft stays in this tab only. Create an account to save it and send it for approval.</p><div className="actions"><button type="button" className="secondary" onClick={()=>setGuidedOpen(true)}><Zap size={15}/>30-sec Quick-Fill</button><Link className="primary" href="/auth/sign-up?return_to=%2F">Create an account<ArrowUpRight size={16}/></Link><Link className="secondary" href="/auth/sign-in?return_to=%2F">Sign in</Link><button className="help-link" onClick={()=>{setTrying(false);window.scrollTo({top:0});}}>Back to the overview</button></div></div>}
-  <div className="page-heading compact hero-in"><div><p className="eyebrow">Your workspace</p><h1>Scopes &amp; <em>agreements</em></h1></div><div className="actions"><button className="secondary" onClick={()=>setGuidedOpen(true)}><Zap size={15}/>30-sec Quick-Fill</button><button className="secondary kbd-hint" onClick={()=>setKeysOpen(true)} aria-label="Keyboard shortcuts" title={shortcutsOn?'Keyboard shortcuts (?)':'Keyboard shortcuts'} aria-keyshortcuts={shortcutsOn?'?':undefined}><Keyboard size={16}/></button><button className="primary" onClick={()=>void newScope()} aria-keyshortcuts={shortcutsOn?'N':undefined}><Plus size={16}/>New scope</button></div></div>
+  {!hasSessionUser&&!trying?<>{(loading||authLoading)&&authHint&&<div className="boot-skeleton" aria-hidden="true"><Skeleton cards={2} lines={2}/></div>}<div className={(loading||authLoading)&&authHint?'boot-guard':undefined}><Landing onTry={tryEditor}/></div></>:<>
+  {!hasSessionUser&&(!authHint||(!loading&&!authPending))&&<div className="try-banner" role="note"><p><b>Trying TermsLock without an account.</b> Your draft stays in this tab only. Create an account to save it and send it for approval.</p><div className="actions"><button type="button" className="secondary" onClick={()=>setGuidedOpen(true)}><Zap size={15}/>30-sec Quick-Fill</button><Link className="primary" href="/auth/sign-up?return_to=%2F">Create an account<ArrowUpRight size={16}/></Link><Link className="secondary" href="/auth/sign-in?return_to=%2F">Sign in</Link><button className="help-link" onClick={()=>{setTrying(false);window.scrollTo({top:0});}}>Back to the overview</button></div></div>}
+  <div className="page-heading compact hero-in"><div><p className="eyebrow">Your workspace</p><h1>Scopes &amp; <em>agreements</em></h1></div><div className="actions"><button className="secondary" onClick={()=>setGuidedOpen(true)}><Zap size={15}/>30-sec Quick-Fill</button><button className="secondary kbd-hint" onClick={()=>setKeysOpen(true)} aria-label="Keyboard shortcuts" title={shortcutsOn?'Keyboard shortcuts (?)':'Keyboard shortcuts'} aria-keyshortcuts={shortcutsOn?'?':undefined}><Keyboard size={16}/></button><button className="primary" onClick={()=>void parkAndNewScope()} aria-keyshortcuts={shortcutsOn?'N':undefined}><Plus size={16}/>New scope</button></div></div>
   <Tabs value={tab} onValueChange={v=>v==='home'?goHome():setTab('project')} className="ws-tabs">
-   <TabsList variant="line" aria-label="Workspace"><TabsTrigger value="home">Projects ({cards.filter(c=>c.stage!=='archived').length}){w.unsavedCard?' · 1 draft':''}</TabsTrigger><TabsTrigger value="project" className="tab-project"><span className="tab-ellipsis">{active?active.content.title:isSample?'Example scope':draft.title.trim()||'New scope'}</span></TabsTrigger></TabsList>
+   <TabsList variant="line" aria-label="Workspace"><TabsTrigger value="home">Projects ({cards.filter(c=>c.stage!=='archived').length}){totalDraftCount>0?` · ${totalDraftCount} ${totalDraftCount===1?'draft':'drafts'}`:''}</TabsTrigger><TabsTrigger value="project" className="tab-project"><span className="tab-ellipsis">{active?active.content.title:isSample?'Example scope':draft.title.trim()||'New scope'}</span></TabsTrigger></TabsList>
    <TabsContent value="home" className="home">
     {projectList(w)}
    </TabsContent>
    <TabsContent value="project" className="project-view">
-    {loading&&<div className="boot-skeleton" aria-hidden="true"><Skeleton cards={2} lines={2}/></div>}
-    <div className={loading?'boot-guard':undefined}>
+    {holdForSignedIn&&<div className="boot-skeleton" aria-hidden="true"><Skeleton cards={2} lines={2}/></div>}
+    <div className={holdForSignedIn?'boot-guard':undefined}>
     <div id="project-top" className="project-head">
      <div className="ph-title"><div><p className="eyebrow flush">{active?`${draft.client||active.content.client} · version ${active.version}`:isSample?'Example project':'New scope'}</p><h2>{(active?active.content.title:draft.title.trim())||'Untitled scope'}</h2></div><StageChip stage={stage}/></div>
      {opening?<Skeleton lines={2} label="Opening project…"/>:<StageTracker steps={steps}/>}
@@ -76,7 +82,7 @@ export default function Workspace(){
      {settingsStep(w)}
      <div className="notice-dock" ref={dock}>{shownError&&<p className="error" role="alert">{shownError}</p>}{notice&&<p className="muted-box" role="status"><span>{notice}</span><button type="button" className="dismiss" aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={14}/></button></p>}{undo&&<p className="muted-box" role="status"><span>Your previous draft was replaced. <button className="help-link" onClick={undoReplace}>Undo</button> <button className="help-link" onClick={()=>setUndo(null)}>Dismiss</button></span></p>}</div>
     </div>
-    <div className="preview-col"><div className="preview-bar no-print"><p className="eyebrow">{active&&!changed?'The locked scope':'Live draft preview'}</p><div className="actions"><button className="secondary events-compact-btn" onClick={()=>setPreviewModalOpen(true)}><Eye size={14}/>Preview client view</button><button className="secondary events-compact-btn" onClick={()=>window.print()}><Printer size={14}/>Print / PDF</button></div></div><Paper scope={computable(deferredPreview)} version={active?active.version+(changed?1:0):1} status={active&&!changed?active.status:'draft'}/><p className="fine no-print">A workflow approval record. Reviewer names are self-reported; this is not a verified electronic signature.</p></div></div>
+    <div className="preview-col"><div className="preview-bar no-print"><p className="eyebrow">{active&&!changed?'The locked scope':'Live draft preview'}</p><div className="actions"><button className="secondary events-compact-btn" onClick={()=>setPreviewModalOpen(true)}><Eye size={14}/>Preview client view</button><button className="secondary events-compact-btn" onClick={()=>window.print()}><Printer size={14}/>Print / PDF</button></div></div><Paper scope={computable(preview)} version={active?active.version+(changed?1:0):1} status={active&&!changed?active.status:'draft'}/><p className="fine no-print">A workflow approval record. Reviewer names are self-reported; this is not a verified electronic signature.</p></div></div>
     </div>
    </TabsContent>
   </Tabs></>}</main>

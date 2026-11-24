@@ -25,6 +25,7 @@ import {nextActionsFor,toTop} from './next-actions';
 import {projectActions} from './project-actions';
 import {navGuard} from '@/lib/nav-guard';
 import {GUIDED_STASH_KEY} from '@/lib/protection-packs';
+import {readParkedDrafts,removeParkedDraft,upsertParkedDraft,writeParkedDrafts,type ParkedDraft} from '@/lib/parked-drafts';
 import {useAuth} from '@/src/lib/auth-context';
 export {STALE_DAYS,EMAIL,moneyMap,type OvProject,type Overview,type Tpl,type CosignLink} from './types';
 
@@ -64,7 +65,7 @@ export function useWorkspace(){
  // edit, restored on any device, kept when signing out. `synced` is the draft text the server holds
  // (null: none, undefined: not known yet). Each write names the account it was typed in.
  const synced=useRef<string|null|undefined>(undefined),syncChain=useRef<Promise<void>>(Promise.resolve()),switching=useRef(false);
- const [draftSync,setDraftSync]=useState<'saving'|'saved'|'error'|null>(null),[keptDraft,setKeptDraft]=useState<Scope|null>(null),[syncRetry,setSyncRetry]=useState(0);
+ const [draftSync,setDraftSync]=useState<'saving'|'saved'|'error'|null>(null),[keptDraft,setKeptDraft]=useState<Scope|null>(null),[syncRetry,setSyncRetry]=useState(0),[parkedDrafts,setParkedDrafts]=useState<ParkedDraft[]>([]);
  const syncDraft=useCallback((content:Scope|null,text:string|null,keepalive=false)=>{const acct=accountRef.current;if(!acct||switching.current)return syncChain.current;
   const run=async()=>{setDraftSync('saving');try{if(text===null)await api('/api/unsaved-draft?account='+encodeURIComponent(acct),{method:'DELETE',keepalive});else await api('/api/unsaved-draft',{...post({account:acct,content}),method:'PUT',keepalive});synced.current=text;setKeptDraft(text===null?null:content);setDraftSync(text===null?null:'saved');}
    catch(e){if((e as ApiError).code==='account_changed'){switching.current=true;location.reload();return;}setDraftSync('error');setTimeout(()=>setSyncRetry(n=>n+1),10_000);}};
@@ -134,9 +135,31 @@ export function useWorkspace(){
  const [confirm,confirmDialog]=useConfirm();
  // R3-01: a draft that differs from a fresh one only in its name and client is not replaced by a template (both are kept).
  const nameOnly=()=>!active&&[blank,{...blank,...defaults}].some(b=>JSON.stringify({...draft,title:b.title,client:b.client})===JSON.stringify(b));
+ useEffect(()=>{if(account===undefined)return;queueMicrotask(()=>{setParkedDrafts(readParkedDrafts(typeof localStorage!=='undefined'?localStorage:null,account));});},[account]);
+ function persistParked(nextList:ParkedDraft[]){setParkedDrafts(nextList);writeParkedDrafts(typeof localStorage!=='undefined'?localStorage:null,accountRef.current??null,nextList);}
  // o.nameOk: the caller keeps name and client. o.keptOk: the caller leaves the draft where it is (R3-12, opening a project).
  async function canReplace(o:{nameOk?:boolean;keptOk?:boolean}={}){return !dirty||(o.nameOk&&nameOnly())||(o.keptOk&&draftKept())||await confirm({title:'Replace this unsaved draft?',body:'Your saved versions will stay in project history.',confirmLabel:'Replace draft',cancelLabel:'Keep editing'});}
  async function newScope(o:{nameOk?:boolean}={}){if(!(await canReplace(o)))return false;if(!(o.nameOk&&nameOnly()))stash();setReviseOpen(false);setLedgerView(null);creationRequest.current=null;setActive(null);setHistory([]);setClientEmail('');setSavedEmail('');setArchived(null);setFromTemplate(null);setTimeZone(null);setTrust(null);setCosigns([]);setCosignLinks([]);setLinkExpiresAt(null);setSendFallback(null);setDraft({...blank,...defaults});setIsSample(false);setLink('');setNotice('');setError('');setTrying(true);setTab('project');return true;}
+ /** Starts a fresh scope without forcing the user to drop or finish an in-progress draft: auto-parks the current unsaved draft under Projects. */
+ async function parkAndNewScope(){
+  if(active&&dirty){if(!(await canReplace()))return false;}
+  const shouldPark=!active&&!isSample&&meaningfulDraft(draft,sample,blank)&&JSON.stringify(draft)!==JSON.stringify({...blank,...defaults});
+  if(shouldPark){persistParked(upsertParkedDraft(parkedDrafts,draft,clientEmail));}
+  setReviseOpen(false);setLedgerView(null);creationRequest.current=null;setActive(null);setHistory([]);setClientEmail('');setSavedEmail('');setArchived(null);setFromTemplate(null);setTimeZone(null);setTrust(null);setCosigns([]);setCosignLinks([]);setLinkExpiresAt(null);setSendFallback(null);setDraft({...blank,...defaults});setIsSample(false);setLink('');setError('');setTrying(true);setTab('project');
+  setNotice(shouldPark?'Previous draft parked under Projects so nothing was lost. Starting a fresh scope.':'');
+  return true;
+ }
+ async function resumeParkedDraft(id:string){
+  const target=parkedDrafts.find(p=>p.id===id);if(!target)return;
+  if(active&&dirty){if(!(await canReplace()))return;}
+  let nextList=removeParkedDraft(parkedDrafts,id);
+  const shouldParkCurrent=!active&&!isSample&&meaningfulDraft(draft,sample,blank)&&JSON.stringify(draft)!==JSON.stringify({...blank,...defaults});
+  if(shouldParkCurrent){nextList=upsertParkedDraft(nextList,draft,clientEmail);}
+  persistParked(nextList);
+  setReviseOpen(false);setLedgerView(null);creationRequest.current=null;setActive(null);setHistory([]);setClientEmail(target.clientEmail);setSavedEmail('');setArchived(null);setFromTemplate(null);setTimeZone(null);setTrust(null);setCosigns([]);setCosignLinks([]);setLinkExpiresAt(null);setSendFallback(null);setDraft(target.draft);setIsSample(false);setLink('');setError('');setTrying(true);setTab('project');
+  setNotice(shouldParkCurrent?'Resumed parked draft (your other draft was parked safely under Projects).':'Resumed parked draft.');
+ }
+ function discardParkedDraft(id:string){persistParked(removeParkedDraft(parkedDrafts,id));}
  // Open /?project=<id> (links returned to MCP clients) once projects are loaded.
  const opened=useRef(false);
  useEffect(()=>{if(opened.current||!signedIn||!scopes.length)return;const id=new URLSearchParams(location.search).get('project');const match=id&&scopes.find(x=>x.project_id===id);if(!match)return;opened.current=true;queueMicrotask(()=>{void select(match);});});
@@ -199,7 +222,7 @@ export function useWorkspace(){
   if(!singleKeyShortcutAllowed({key:e.key,ctrlKey:e.ctrlKey,metaKey:e.metaKey,altKey:e.altKey,enabled:shortcutsOn,overlayOpen:!!document.querySelector('[role=dialog][data-state=open],[role=alertdialog][data-state=open],[role=menu][data-state=open]'),inField:!!target?.closest('input,textarea,select,[contenteditable="true"],[role=combobox],[role=listbox]')}))return;
   if(e.key==='/'){e.preventDefault();goHome();requestAnimationFrame(()=>setTimeout(()=>searchRef.current?.focus(),0));}
   else if(e.key==='?'){e.preventDefault();setKeysOpen(true);}
-  else if(e.key==='n'){e.preventDefault();void newScope();}
+  else if(e.key==='n'){e.preventDefault();void parkAndNewScope();}
   else if(e.key==='p'){e.preventDefault();goHome();}
   else if(tab==='project'&&/^[1-4]$/.test(e.key)){const id=['step-scope','step-approval','step-changes','step-payment'][Number(e.key)-1];const el=document.getElementById(id);if(el){e.preventDefault();toTop(id);}}
  };});
@@ -223,6 +246,6 @@ export function useWorkspace(){
  const unsavedCard=unsaved?<UnsavedCard title={draft.title} sync={draftSync} onOpen={()=>setTab('project')}/>:signedIn&&active&&keptDraft?<UnsavedCard title={keptDraft.title} sync={null} onOpen={()=>{const kept=keptDraft;void newScope().then(ok=>{if(ok){setDraft(kept);setNotice('Your unsaved draft is open again.');}});}}/>:null;
  const ins=overview?.insights;
  const cardAction=(c:Card)=>cardActionFor(c,{busy,remind,copy,select});
-  return {fbUser,authLoading,accountZone,refreshDecision,emailTouched,setEmailTouched,confirmDialog,shortcutsOn,setShortcutsOn,fieldErrs,query,setQuery,statusFilter,setStatusFilter,linkAction,setLinkAction,shownLink,draft,setDraft,scopes,history,active,signedIn,busy,loading,error,notice,setNotice,tab,setTab,link,importOpen,setImportOpen,importText,setImportText,importError,setImportError,isSample,setIsSample,undo,setUndo,supersede,setSupersede,clientEmail,setClientEmail,savedEmail,archived,sendFallback,setSendFallback,projectAction,setProjectAction,shownAction,deleteText,setDeleteText,actionError,setActionError,opening,reviseOpen,setReviseOpen,ledgerView,ledgerError,onLedgerError,coSignal,ledgerReload,setLedgerReload,insightsOpen,setInsightsOpen,previewModalOpen,setPreviewModalOpen,guidedOpen,setGuidedOpen,applyGuidedScope,onLedgerView,library,fromTemplate,tplName,setTplName,tplOpen,setTplOpen,ai,trust,setTrust,cosigns,cosignLinks,reloadProject,linkExpiresAt,otpChannels,aiQuality,setAiQuality,brief,setBrief,timeZone,trying,setTrying,draftSync,overview,loadOverview,field,undoReplace,setItems,tryEditor,newScope,duplicateDraft,select,save,startFromAgreement,copy,copyReviewLink,importDraft,manageLink,exportProject,saveEmail,remind,runProjectAction,optional,saveTimeZone,applyTemplate,saveTemplate,deleteTemplate,draftWithAi,changed,problems,fees,blockReason,keysOpen,setKeysOpen,goHome,searchRef,hasMoneyTerms,moneySummary,preview,activeOv,pendingCos,stage,steps,next,receiptUrl,calloutCopies,nextActions,cards,filtered,count,urgent,unsavedCard,ins,dueByCurrency,dueCount,waiting,cardAction,amountLine};
+  return {fbUser,authLoading,accountZone,refreshDecision,emailTouched,setEmailTouched,confirmDialog,shortcutsOn,setShortcutsOn,fieldErrs,query,setQuery,statusFilter,setStatusFilter,linkAction,setLinkAction,shownLink,draft,setDraft,scopes,history,active,signedIn,busy,loading,error,notice,setNotice,tab,setTab,link,importOpen,setImportOpen,importText,setImportText,importError,setImportError,isSample,setIsSample,undo,setUndo,supersede,setSupersede,clientEmail,setClientEmail,savedEmail,archived,sendFallback,setSendFallback,projectAction,setProjectAction,shownAction,deleteText,setDeleteText,actionError,setActionError,opening,reviseOpen,setReviseOpen,ledgerView,ledgerError,onLedgerError,coSignal,ledgerReload,setLedgerReload,insightsOpen,setInsightsOpen,previewModalOpen,setPreviewModalOpen,guidedOpen,setGuidedOpen,applyGuidedScope,onLedgerView,library,fromTemplate,tplName,setTplName,tplOpen,setTplOpen,ai,trust,setTrust,cosigns,cosignLinks,reloadProject,linkExpiresAt,otpChannels,aiQuality,setAiQuality,brief,setBrief,timeZone,trying,setTrying,draftSync,overview,loadOverview,field,undoReplace,setItems,tryEditor,newScope,parkAndNewScope,parkedDrafts,resumeParkedDraft,discardParkedDraft,duplicateDraft,select,save,startFromAgreement,copy,copyReviewLink,importDraft,manageLink,exportProject,saveEmail,remind,runProjectAction,optional,saveTimeZone,applyTemplate,saveTemplate,deleteTemplate,draftWithAi,changed,problems,fees,blockReason,keysOpen,setKeysOpen,goHome,searchRef,hasMoneyTerms,moneySummary,preview,activeOv,pendingCos,stage,steps,next,receiptUrl,calloutCopies,nextActions,cards,filtered,count,urgent,unsavedCard,ins,dueByCurrency,dueCount,waiting,cardAction,amountLine};
 }
 export type Ws=ReturnType<typeof useWorkspace>;

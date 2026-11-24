@@ -12,6 +12,7 @@ import {
   Search,
   Trash2,
   UserPlus,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/src/lib/auth-context';
 import { formatMoney } from '@/lib/currency';
@@ -35,11 +36,15 @@ import {
   type VendorCategory,
 } from '@/lib/event-collections';
 import {
+  buildSubEventStatusCounts,
   buildSubEventTitleMap,
   buildVendorCountBySubEvent,
+  filterCollectionSubEvents,
   filterCollectionVendors,
+  type SubEventStatusFilter,
 } from '@/lib/event-list-selectors';
 import { SubEventList, VendorList } from './event-lists';
+import { SubEventStatusChart } from './sub-event-status-chart';
 import { openAdvisorDrawer } from '@/app/components/advisor-chat';
 
 function loadLocalCollections(): EventCollection[] {
@@ -73,6 +78,7 @@ export default function EventsHub() {
   ]);
   const [activeId, setActiveId] = useState<string>('');
   const [selectedSubId, setSelectedSubId] = useState<string>('all');
+  const [subStatusFilter, setSubStatusFilter] = useState<SubEventStatusFilter>('all');
   const [viewMode, setViewMode] = useState<'vendors' | 'contacts'>('vendors');
   const [searchQuery, setSearchQuery] = useState('');
   const [showBlueprintPicker, setShowBlueprintPicker] = useState(false);
@@ -89,7 +95,7 @@ export default function EventsHub() {
   const [newSubDate, setNewSubDate] = useState('');
   const [newSubTime, setNewSubTime] = useState('');
   const [newSubVenue, setNewSubVenue] = useState('');
-  const [newSubGuests, setNewSubGuests] = useState('150');
+  const [newSubGuests, setNewSubGuests] = useState('');
   const [newSubCoord, setNewSubCoord] = useState('');
   const [newSubCoordPhone, setNewSubCoordPhone] = useState('');
 
@@ -286,7 +292,7 @@ export default function EventsHub() {
     setNewSubDate('');
     setNewSubTime('');
     setNewSubVenue('');
-    setNewSubGuests('150');
+    setNewSubGuests('');
     setNewSubCoord('');
     setNewSubCoordPhone('');
     setShowAddSub(false);
@@ -505,10 +511,32 @@ export default function EventsHub() {
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
+  const filteredSubEvents = useMemo(() => {
+    if (!subEvents) return [];
+    return filterCollectionSubEvents(subEvents, subStatusFilter, deferredSearchQuery);
+  }, [subEvents, subStatusFilter, deferredSearchQuery]);
+
+  const effectiveSelectedSubId = useMemo(() => {
+    if (selectedSubId === 'all') return 'all';
+    return filteredSubEvents.some((s) => s.id === selectedSubId) ? selectedSubId : 'all';
+  }, [selectedSubId, filteredSubEvents]);
+
   const filteredVendors = useMemo(() => {
     if (!vendors) return [];
-    return filterCollectionVendors(vendors, subEventTitleMap, selectedSubId, deferredSearchQuery);
-  }, [vendors, subEventTitleMap, selectedSubId, deferredSearchQuery]);
+    return filterCollectionVendors(
+      vendors,
+      subEventTitleMap,
+      effectiveSelectedSubId,
+      deferredSearchQuery,
+    );
+  }, [vendors, subEventTitleMap, effectiveSelectedSubId, deferredSearchQuery]);
+
+  const subEventStatusCounts = useMemo(
+    () => buildSubEventStatusCounts(filteredSubEvents),
+    [filteredSubEvents],
+  );
+
+  const hasActiveFilter = Boolean(searchQuery.trim()) || subStatusFilter !== 'all';
 
   if (!active || !totals) return null;
 
@@ -579,6 +607,64 @@ export default function EventsHub() {
           )}
         </div>
       </div>
+
+      {/* Unified Real-Time Search & Sub-Event Status Filter Bar */}
+      <section className="events-filter-bar" aria-label="Filter sub-events and vendors">
+        <div className="events-search-wrap events-top-search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Filter sub-events and vendors by name or description"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter sub-events & vendors by name, description, venue, or UTR…"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="events-search-clear"
+              aria-label="Clear search"
+              onClick={() => setSearchQuery('')}
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+
+        <label className="events-status-filter-wrap">
+          <span className="sr-only">Sub-event status filter</span>
+          <select
+            aria-label="Filter sub-events by status"
+            className="events-status-filter-select"
+            value={subStatusFilter}
+            onChange={(e) => setSubStatusFilter(e.target.value as SubEventStatusFilter)}
+          >
+            <option value="all">All sub-events</option>
+            <option value="upcoming">Upcoming sub-events</option>
+            <option value="completed">Completed sub-events</option>
+          </select>
+        </label>
+
+        {hasActiveFilter && (
+          <div className="events-filter-summary" role="status">
+            <span>
+              {filteredSubEvents.length} {filteredSubEvents.length === 1 ? 'sub-event' : 'sub-events'} ·{' '}
+              {filteredVendors.length} {filteredVendors.length === 1 ? 'vendor' : 'vendors'}
+            </span>
+            <button
+              type="button"
+              className="help-link"
+              onClick={() => {
+                setSearchQuery('');
+                setSubStatusFilter('all');
+                setSelectedSubId('all');
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* Blueprint Picker Drawer */}
       {showBlueprintPicker && (
@@ -756,28 +842,44 @@ export default function EventsHub() {
         </div>
         <div className="events-kpi">
           <span className="events-kpi-label">Terms Protected</span>
-          <strong className={totals.unprotectedCount === 0 ? 'is-ok' : 'is-warn'}>
+          <strong className={totals.vendorCount === 0 ? undefined : totals.unprotectedCount === 0 ? 'is-ok' : 'is-warn'}>
             {totals.confirmedCount} / {totals.vendorCount} locked
           </strong>
           <em>
-            {totals.unprotectedCount === 0
-              ? 'All vendors confirmed'
-              : `${totals.unprotectedCount} need written lock`}
+            {totals.vendorCount === 0
+              ? 'No vendors added yet'
+              : totals.unprotectedCount === 0
+                ? 'All vendors confirmed'
+                : `${totals.unprotectedCount} need written lock`}
           </em>
         </div>
         <div className="events-kpi">
           <span className="events-kpi-label">Peak Guest Count</span>
           <strong>{totals.totalGuestsPeak > 0 ? totals.totalGuestsPeak : '—'}</strong>
-          <em>Peak single event</em>
+          <em>{totals.totalGuestsPeak > 0 ? 'Peak single event' : 'Optional · set per sub-event'}</em>
         </div>
       </section>
+
+      {/* Recharts Bar Chart: Sub-Event Completion Status Breakdown */}
+      <SubEventStatusChart
+        data={subEventStatusCounts}
+        totalCount={active.subEvents.length}
+        filteredCount={filteredSubEvents.length}
+        isFiltered={hasActiveFilter}
+      />
 
       {/* Main Workspace: Sub-Event Chain + Vendor / Contacts View */}
       <div className="events-workspace">
         {/* Left Column: Customizable Sub-Event Chain */}
         <aside className="events-sub-rail" aria-label="Sub-events timeline">
           <div className="events-rail-head">
-            <h2>Sub-Events ({active.subEvents.length})</h2>
+            <h2>
+              Sub-Events (
+              {hasActiveFilter
+                ? `${filteredSubEvents.length}/${active.subEvents.length}`
+                : active.subEvents.length}
+              )
+            </h2>
             <button
               type="button"
               className="secondary events-compact-btn"
@@ -813,6 +915,7 @@ export default function EventsHub() {
                   <input
                     type="number"
                     min={0}
+                    placeholder="Optional"
                     value={newSubGuests}
                     onChange={(e) => setNewSubGuests(e.target.value)}
                   />
@@ -867,7 +970,7 @@ export default function EventsHub() {
           {active.subEvents.length > 1 && (
             <button
               type="button"
-              className={`events-sub-item${selectedSubId === 'all' ? ' is-selected' : ''}`}
+              className={`events-sub-item${effectiveSelectedSubId === 'all' ? ' is-selected' : ''}`}
               onClick={() => setSelectedSubId('all')}
             >
               <div className="events-sub-item-top">
@@ -878,16 +981,39 @@ export default function EventsHub() {
             </button>
           )}
 
-          <SubEventList
-            subEvents={active.subEvents}
-            vendorCountBySubEvent={vendorCountBySubEvent}
-            selectedSubId={selectedSubId}
-            editingSubId={editingSubId}
-            onSelect={handleSelectSub}
-            onToggleEdit={handleToggleEditSub}
-            onUpdate={updateSubEvent}
-            onRemove={removeSubEvent}
-          />
+          {filteredSubEvents.length === 0 ? (
+            <div className="events-empty-box events-sub-empty">
+              <p className="eyebrow flush">NO SUB-EVENTS MATCH</p>
+              <p className="fine">
+                {subStatusFilter === 'completed'
+                  ? 'No sub-events are marked Completed yet. Edit any sub-event to update its status.'
+                  : 'Try another search term or switch the status filter.'}
+              </p>
+              {hasActiveFilter && (
+                <button
+                  type="button"
+                  className="secondary events-compact-btn"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSubStatusFilter('all');
+                  }}
+                >
+                  Reset filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <SubEventList
+              subEvents={filteredSubEvents}
+              vendorCountBySubEvent={vendorCountBySubEvent}
+              selectedSubId={effectiveSelectedSubId}
+              editingSubId={editingSubId}
+              onSelect={handleSelectSub}
+              onToggleEdit={handleToggleEditSub}
+              onUpdate={updateSubEvent}
+              onRemove={removeSubEvent}
+            />
+          )}
         </aside>
 
         {/* Right Column: Vendors, Agreements & Unified Contact Directory */}
@@ -915,21 +1041,11 @@ export default function EventsHub() {
             </div>
 
             <div className="events-toolbar-right">
-              <div className="events-search-wrap">
-                <Search size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  aria-label="Search vendors, contacts, phone numbers, or UTR"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search vendor or UTR…"
-                />
-              </div>
               <button
                 type="button"
                 className="primary events-compact-btn"
                 onClick={() => {
-                  setNewVendorSubId(selectedSubId === 'all' ? '' : selectedSubId);
+                  setNewVendorSubId(effectiveSelectedSubId === 'all' ? '' : effectiveSelectedSubId);
                   setShowAddVendor((v) => !v);
                 }}
               >

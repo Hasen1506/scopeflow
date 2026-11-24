@@ -187,8 +187,8 @@ test('L13: Plans page cards come only from the PLANS table (snapshot)', async ()
   const cards = P.planCards('INR', money);
   assert.deepEqual(cards.map(c => [c.id, c.price, c.yearly, c.lines[0]]), [
     ['free', '₹0', null, '5 active projects (archived ones don’t count)'],
-    ['pro', '₹299', 'or ₹2,990 a year', '100 active projects (archived ones don’t count)'],
-    ['agency', '₹999', 'or ₹9,990 a year', '1,000 active projects (archived ones don’t count)'],
+    ['pro', '₹299', 'or ₹2,990 / year (2 months free)', '100 active projects (archived ones don’t count)'],
+    ['agency', '₹999', 'or ₹9,990 / year (2 months free)', '1,000 active projects (archived ones don’t count)'],
   ]);
   for (const c of cards) { assert.equal(c.lines[0], P.projectCapLine(P.PLANS[c.id].limits)); assert.ok(c.lines.includes(`${P.PLANS[c.id].limits.versions} versions per project`)); }
   assert.match(P.projectCapMessage(P.PLANS.free.limits), /5 active projects \(archived ones don’t count\)/);
@@ -265,7 +265,7 @@ test('local double events are Razorpay-shaped and deterministic per subscription
   const ev = B.localDoubleEvents('sub_local_0123456789abcd', 'o1', 'pro', 'month', 'INR', NOW);
   assert.deepEqual(ev.map(e => e.event), ['subscription.activated', 'subscription.charged']);
   const u = B.razorpayEventToUpdate(ev[1]);
-  assert.equal(u.payment.amount_minor, 49900); assert.equal(u.owner, 'o1'); assert.equal(u.plan, 'pro');
+  assert.equal(u.payment.amount_minor, 29900); assert.equal(u.owner, 'o1'); assert.equal(u.plan, 'pro');
   assert.equal(createHash('sha256').update(JSON.stringify(ev)).digest('hex'), createHash('sha256').update(JSON.stringify(B.localDoubleEvents('sub_local_0123456789abcd', 'o1', 'pro', 'month', 'INR', NOW))).digest('hex'));
 });
 

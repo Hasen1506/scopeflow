@@ -7,7 +7,7 @@
 // TermsLock never holds client money: every rail here pays the freelancer directly.
 import {useCallback, useEffect, useState} from 'react';
 import {api} from '@/app/ui';
-import {useAuth} from '@/lib/firebase/auth-context';
+import {useAuth} from '@/src/lib/auth-context';
 import {formatMoney} from '@/lib/currency';
 import {fromMinor} from '@/lib/minor';
 import styles from './payment-settings.module.css';
