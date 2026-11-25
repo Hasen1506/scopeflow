@@ -1,14 +1,14 @@
 {
-  "name": "scopeflow",
+  "name": "termslock",
   "version": "0.3.1",
   "private": true,
   "engines": {
-    "node": ">=22 <25"
+    "node": ">=20"
   },
   "scripts": {
     "install:ci": "node scripts/install-ci.mjs",
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
-    "build": "next build --webpack",
+    "build": "NODE_ENV=production next build --webpack",
     "build:capped": "SCOPEFLOW_BUILD_SKIP_TYPECHECK=1 NODE_OPTIONS=--max-old-space-size=460 next build --webpack",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",

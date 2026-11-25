@@ -1,13 +1,10 @@
-# Scopeflow early beta
+# TermsLock
 
-Client scope approvals for freelancers: immutable versions, bearer review links, client decisions, version history, account-scoped API tokens, and a staging-only WebMCP draft tool, scope templates, project search and status filters, project JSON export, review-link revocation/replacement, self-service deletion of account data, and fourteen MCP tools (twelve need your account, connected with OAuth 2.1 or an API token; the rate-card, retainer, invoice and payment tools go through the owner routes and their rules). Scopes can be reused as new drafts; unsaved work warns before replacement and browser creation retries use idempotency keys.
+Check agreement traps, organize multi-event wedding and renovation vendor chains, confirm terms over WhatsApp, and keep tamper-proof records — even when they won’t sign a formal contract.
 
-## Render and Neon
+## Stack & Deployment
 
-The app runs on Node 24 with Next.js. Neon PostgreSQL stores application data;
-Neon Auth handles signup, login, logout, and password recovery. Clients review
-scopes using their private links without creating accounts. Cloudflare and
-OpenAI Sites authentication are no longer runtime requirements.
+The app runs on Next.js with Cloud SQL (PostgreSQL) and Firebase Authentication. Clients review agreements using private links without creating accounts.
 
 See [the deployment guide](docs/render-deployment.md) for the Render Blueprint
 (Starter web service, migrations in the pre-deploy step with the owner role, four

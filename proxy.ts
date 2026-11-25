@@ -12,7 +12,7 @@ export function proxy(request: NextRequest) {
   const decision = canonicalHostDecision(host, pathname, search);
   if (decision.action === 'redirect') return NextResponse.redirect(decision.location, {status: 308, headers: NO_STORE});
   if (decision.action === 'misdirected') {
-    return NextResponse.json({error: 'This address is not Scopeflow\'s canonical host. Use ' + new URL(decision.canonical).origin + ' instead.', code: 'misdirected_request', canonical_url: decision.canonical}, {status: 421, headers: {...NO_STORE, Link: `<${decision.canonical}>; rel="canonical"`}});
+    return NextResponse.json({error: 'This address is not TermsLock\'s canonical host. Use ' + new URL(decision.canonical).origin + ' instead.', code: 'misdirected_request', canonical_url: decision.canonical}, {status: 421, headers: {...NO_STORE, Link: `<${decision.canonical}>; rel="canonical"`}});
   }
   // Malformed percent-encoding in a dynamic segment (e.g. /api/scopes/%E0 or /review/%E0)
   // makes Next.js throw a URIError while decoding route params, which surfaced as a bare

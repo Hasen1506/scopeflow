@@ -17,7 +17,6 @@ const csp = [
   "frame-src https://api.razorpay.com https://checkout.razorpay.com https://*.firebaseapp.com https://accounts.google.com",
   "object-src 'none'",
   "base-uri 'self'",
-  ...(isProduction ? ["frame-ancestors 'none'"] : []),
   // The OAuth consent form redirects to the connecting app (https, or loopback for local clients).
   "form-action 'self' https: http://localhost:* http://127.0.0.1:*",
   "manifest-src 'self'",
@@ -26,7 +25,6 @@ const csp = [
 
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
-  ...(isProduction ? [{ key: "X-Frame-Options", value: "DENY" }] : []),
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },

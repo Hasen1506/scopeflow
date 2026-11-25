@@ -241,6 +241,9 @@ export function canonicalHostDecision(host: string | null, pathname: string, sea
   const seen = hostOf(host);
   const want = new URL(canonical).host.toLowerCase();
   if (!seen || seen === want || internalHost(seen)) return {action: 'next'};
+  // Cloud Run preview and published services can serve on dynamically assigned *.run.app hosts
+  // even when APP_URL still holds an earlier dev/staging *.run.app URL.
+  if (seen.endsWith('.run.app') && want.endsWith('.run.app')) return {action: 'next'};
   if (MACHINE_PATHS.some(p => p.test(pathname))) return {action: 'next'};
   const location = canonical + pathname + search;
   if (pathname.startsWith('/api/') || pathname === '/mcp' || pathname.startsWith('/mcp/') || pathname.startsWith('/oauth/token') || pathname.startsWith('/oauth/register') || pathname.startsWith('/oauth/revoke')) return {action: 'misdirected', canonical: location};

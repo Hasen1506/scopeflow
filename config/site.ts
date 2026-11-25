@@ -9,7 +9,7 @@ export const SUPPORT_EMAIL_PENDING = 'support email coming soon';
 /** Who runs the service, as the legal pages name them. */
 export const OPERATOR = 'VijeyaHasen';
 /** Public site origin for metadata, robots.txt and the sitemap: APP_URL, else the production host. */
-export const SITE_ORIGIN_FALLBACK = 'https://scope-flow.tech';
+export const SITE_ORIGIN_FALLBACK = 'https://termslock.app';
 /** Public pages listed in the sitemap (M10). Private shells and token pages are never listed. */
 export const PUBLIC_PAGES = ['/', '/check', '/plans', '/msme-interest', '/reviewer-guide', '/about', '/contact', '/support', '/privacy', '/terms', '/refund'] as const;
 /** Paths crawlers are asked to skip (M10): APIs, bearer-token pages and signed-in shells. */
