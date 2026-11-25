@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "scopeflow",
+      "name": "termslock",
       "dependencies": {
         "@base-ui/react": "^1.7.0",
         "@google/genai": "^3.6.1",

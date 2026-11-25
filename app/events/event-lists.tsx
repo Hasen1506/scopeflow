@@ -59,7 +59,9 @@ export const SubEventCard = memo(function SubEventCard({
   const timeMeta = [sub.eventDate, sub.timeSlot].filter(Boolean).join(' · ');
 
   return (
-    <li className={`events-sub-card${isSelected ? ' is-selected' : ''}`}>
+    <li
+      className={`events-sub-card${isSelected ? ' is-selected' : ''}${isEditing ? ' md:col-span-2 lg:col-span-3' : ''}`}
+    >
       <button type="button" className="events-sub-select" onClick={() => onSelect(sub.id)}>
         <div className="events-sub-item-top">
           <span className="events-sub-num">{String(index + 1).padStart(2, '0')}.</span>
@@ -212,7 +214,7 @@ export const SubEventList = memo(function SubEventList({
   onRemove,
 }: SubEventListProps) {
   return (
-    <ul className="events-sub-list">
+    <ul className="events-sub-list grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {subEvents.map((sub, idx) => (
         <SubEventCard
           key={sub.id}
