@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   CalendarPlus,
+  Check,
+  ChevronDown,
   Cloud,
+  Download,
   HardDrive,
   Plus,
   Search,
@@ -14,6 +17,12 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/src/lib/auth-context';
 import { formatMoney } from '@/lib/currency';
 import { JURISDICTIONS, type JurisdictionId } from '@/lib/legal-shield';
@@ -21,6 +30,7 @@ import { GUIDED_STASH_KEY } from '@/lib/protection-packs';
 import {
   buildScopeFromEventVendor,
   buildVendorWhatsAppConfirm,
+  cleanLegacyPhantomGuests,
   COLLECTION_BLUEPRINTS,
   computeCollectionTotals,
   createCollectionFromBlueprint,
@@ -36,6 +46,7 @@ import {
   type VendorCategory,
 } from '@/lib/event-collections';
 import {
+  buildSubEventBudgetComparison,
   buildSubEventStatusCounts,
   buildSubEventTitleMap,
   buildVendorCountBySubEvent,
@@ -43,27 +54,40 @@ import {
   filterCollectionVendors,
   type SubEventStatusFilter,
 } from '@/lib/event-list-selectors';
+import { buildSubEventsCsv, buildSubEventsCsvFilename } from '@/lib/event-csv';
 import { SubEventList, VendorList } from './event-lists';
 import { SubEventStatusChart } from './sub-event-status-chart';
+import { SubEventBudgetChart } from './sub-event-budget-chart';
 import { openAdvisorDrawer } from '@/app/components/advisor-chat';
+import { Skeleton } from '@/app/ui';
 
-function loadLocalCollections(): EventCollection[] {
-  if (typeof window === 'undefined') return [createCollectionFromBlueprint('marriage')];
+const SUB_STATUS_FILTER_OPTIONS: { value: SubEventStatusFilter; label: string; hint: string }[] = [
+  { value: 'all', label: 'All sub-events', hint: 'Show every function or phase' },
+  { value: 'upcoming', label: 'Upcoming sub-events', hint: 'Planning, Locked & Confirmed' },
+  { value: 'completed', label: 'Completed sub-events', hint: 'Finished functions only' },
+];
+
+const CLOUD_EVENTS_CACHE_KEY = `${LOCAL_EVENTS_STORAGE_KEY}:cloud`;
+
+function readStoredCollections(key: string): EventCollection[] | null {
+  if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(LOCAL_EVENTS_STORAGE_KEY);
-    if (!raw) return [createCollectionFromBlueprint('marriage')];
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as EventCollection[];
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    if (Array.isArray(parsed)) {
+      return parsed.map((c) => cleanLegacyPhantomGuests(c));
+    }
   } catch {
     /* ignore corrupt storage */
   }
-  return [createCollectionFromBlueprint('marriage')];
+  return null;
 }
 
-function saveLocalCollections(cols: EventCollection[]) {
+function writeStoredCollections(key: string, cols: EventCollection[]) {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(LOCAL_EVENTS_STORAGE_KEY, JSON.stringify(cols));
+    window.localStorage.setItem(key, JSON.stringify(cols));
   } catch {
     /* ignore quota */
   }
@@ -73,9 +97,8 @@ export default function EventsHub() {
   const router = useRouter();
   const { user, loading: authLoading, getFreshToken } = useAuth();
 
-  const [collections, setCollections] = useState<EventCollection[]>(() => [
-    createCollectionFromBlueprint('marriage'),
-  ]);
+  // Start empty on SSR so signed-in users NEVER see a phantom "Eashwaren–Apoorva Wedding" flash.
+  const [collections, setCollections] = useState<EventCollection[]>([]);
   const [activeId, setActiveId] = useState<string>('');
   const [selectedSubId, setSelectedSubId] = useState<string>('all');
   const [subStatusFilter, setSubStatusFilter] = useState<SubEventStatusFilter>('all');
@@ -111,12 +134,24 @@ export default function EventsHub() {
   const [newVendorUtr, setNewVendorUtr] = useState('');
   const [newVendorTerms, setNewVendorTerms] = useState('');
 
-  // Pre-paint local load on mount so saved collections render on frame 1 with zero layout shift (CLS = 0)
+  // Pre-paint local load on mount: signed-in users hydrate ONLY from their cloud cache
+  // (or show a clean skeleton until Cloud SQL answers) so demo collections never flash.
   const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
   useIsoLayoutEffect(() => {
-    const local = loadLocalCollections();
-    setCollections(local);
-    setActiveId((prev) => prev || local[0]?.id || '');
+    const signedInHint = document.documentElement.dataset.auth === 'in';
+    if (signedInHint) {
+      const cachedCloud = readStoredCollections(CLOUD_EVENTS_CACHE_KEY);
+      if (cachedCloud !== null) {
+        setCollections(cachedCloud);
+        setActiveId((prev) => prev || cachedCloud[0]?.id || '');
+        setHydrated(true);
+      }
+      return;
+    }
+    const local = readStoredCollections(LOCAL_EVENTS_STORAGE_KEY);
+    const initial = local && local.length > 0 ? local : [createCollectionFromBlueprint('marriage')];
+    setCollections(initial);
+    setActiveId((prev) => prev || initial[0]?.id || '');
     setHydrated(true);
   }, []);
 
@@ -126,14 +161,23 @@ export default function EventsHub() {
     let cancelled = false;
 
     const init = async () => {
-      const local = loadLocalCollections();
       if (!user) {
-        if (!cancelled) setSyncState('local');
+        if (!cancelled) {
+          const local = readStoredCollections(LOCAL_EVENTS_STORAGE_KEY);
+          const fallback = local && local.length > 0 ? local : [createCollectionFromBlueprint('marriage')];
+          setCollections((prev) => (prev.length > 0 ? prev : fallback));
+          setActiveId((prev) => prev || fallback[0]?.id || '');
+          setSyncState('local');
+          setHydrated(true);
+        }
         return;
       }
 
       const token = await getFreshToken();
-      if (!token || cancelled) return;
+      if (!token || cancelled) {
+        if (!cancelled) setHydrated(true);
+        return;
+      }
       try {
         const res = await fetch('/api/events', {
           headers: { Authorization: `Bearer ${token}` },
@@ -142,26 +186,25 @@ export default function EventsHub() {
         const data = (await res.json()) as { collections?: EventCollection[] };
         if (cancelled) return;
 
-        if (Array.isArray(data.collections) && data.collections.length > 0) {
-          setCollections(data.collections);
-          setActiveId(data.collections[0].id);
-          setSyncState('synced');
-        } else {
-          // Seed cloud with the user's starter/local collection on first sign-in
-          const starter = local[0] ?? createCollectionFromBlueprint('marriage');
-          setCollections([starter]);
-          setActiveId(starter.id);
-          const saveRes = await fetch('/api/events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(starter),
-          });
-          setSyncState(saveRes.ok ? 'synced' : 'error');
-        }
+        const cleaned = Array.isArray(data.collections)
+          ? data.collections.map((c) => cleanLegacyPhantomGuests(c))
+          : [];
+
+        setCollections(cleaned);
+        setActiveId((prev) =>
+          prev && cleaned.some((c) => c.id === prev) ? prev : cleaned[0]?.id || '',
+        );
+        writeStoredCollections(CLOUD_EVENTS_CACHE_KEY, cleaned);
+        writeStoredCollections(LOCAL_EVENTS_STORAGE_KEY, cleaned);
+        setSyncState('synced');
       } catch {
         if (!cancelled) {
-          setCollections(local);
-          setActiveId((prev) => prev || local[0]?.id || '');
+          const cached =
+            readStoredCollections(CLOUD_EVENTS_CACHE_KEY) ??
+            readStoredCollections(LOCAL_EVENTS_STORAGE_KEY) ??
+            [];
+          setCollections(cached);
+          setActiveId((prev) => prev || cached[0]?.id || '');
           setSyncState('error');
         }
       } finally {
@@ -189,7 +232,10 @@ export default function EventsHub() {
 
   const persistCollection = useCallback(
     async (nextCollection: EventCollection, allCollections: EventCollection[]) => {
-      saveLocalCollections(allCollections);
+      writeStoredCollections(LOCAL_EVENTS_STORAGE_KEY, allCollections);
+      if (user) {
+        writeStoredCollections(CLOUD_EVENTS_CACHE_KEY, allCollections);
+      }
       if (!user) {
         setSyncState('local');
         return;
@@ -246,15 +292,17 @@ export default function EventsHub() {
   };
 
   const deleteActiveCollection = async () => {
-    if (!active || collections.length <= 1) {
+    if (!active) return;
+    if (!user && collections.length <= 1) {
       toast.info('Keep at least one event collection, or create a new one first.');
       return;
     }
     const remaining = collections.filter((c) => c.id !== active.id);
     setCollections(remaining);
-    setActiveId(remaining[0].id);
-    saveLocalCollections(remaining);
+    setActiveId(remaining[0]?.id || '');
+    writeStoredCollections(LOCAL_EVENTS_STORAGE_KEY, remaining);
     if (user) {
+      writeStoredCollections(CLOUD_EVENTS_CACHE_KEY, remaining);
       const token = await getFreshToken();
       if (token) {
         await fetch(`/api/events/${encodeURIComponent(active.id)}`, {
@@ -536,34 +584,196 @@ export default function EventsHub() {
     [filteredSubEvents],
   );
 
+  const subEventBudgetData = useMemo(
+    () => buildSubEventBudgetComparison(filteredSubEvents, vendors ?? []),
+    [filteredSubEvents, vendors],
+  );
+
   const hasActiveFilter = Boolean(searchQuery.trim()) || subStatusFilter !== 'all';
 
-  if (!active || !totals) return null;
+  const downloadSubEventsCsv = useCallback(() => {
+    const current = activeRef.current;
+    if (!current) return;
+    if (filteredSubEvents.length === 0) {
+      toast.info('No sub-events match the current filter to export.');
+      return;
+    }
+    const csv = buildSubEventsCsv(current, filteredSubEvents);
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = buildSubEventsCsvFilename(current.title);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(
+      `Downloaded ${filteredSubEvents.length} ${filteredSubEvents.length === 1 ? 'sub-event' : 'sub-events'} as CSV.`,
+    );
+  }, [filteredSubEvents]);
+
+  if (!hydrated) {
+    return (
+      <div className="events-page">
+        <div className="events-top-bar">
+          <div>
+            <p className="eyebrow">EVENT &amp; WEDDING COLLECTIONS HUB</p>
+            <h1>
+              One hub for <em>every sub-event</em> &amp; vendor lock.
+            </h1>
+          </div>
+        </div>
+        <Skeleton cards={2} lines={3} label="Loading your event collections…" />
+      </div>
+    );
+  }
+
+  if (!active || !totals) {
+    return (
+      <div className="events-page">
+        <div className="events-top-bar">
+          <div>
+            <p className="eyebrow">EVENT &amp; WEDDING COLLECTIONS HUB</p>
+            <h1>
+              One hub for <em>every sub-event</em> &amp; vendor lock.
+            </h1>
+            <p className="quiet">
+              1. Pick a blueprint or start blank → 2. Add vendors &amp; advances → 3. Lock each vendor via WhatsApp or Full Agreement.
+            </p>
+          </div>
+        </div>
+        <section className="events-blueprint-panel" aria-label="Start your first event collection">
+          <div className="events-panel-head">
+            <div>
+              <p className="eyebrow flush">START YOUR FIRST COLLECTION</p>
+              <h2>Pick a prefilled chain or start blank</h2>
+            </div>
+          </div>
+          <div className="events-blueprint-grid">
+            {COLLECTION_BLUEPRINTS.map((bp) => (
+              <button
+                key={bp.kind}
+                type="button"
+                className="events-blueprint-card"
+                onClick={() => createNewFromBlueprint(bp.kind)}
+              >
+                <span className="eyebrow flush">{bp.badge}</span>
+                <strong>{bp.name}</strong>
+                <p className="fine">{bp.description}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="events-page">
-      <div className="events-top-bar">
-        <div>
-          <p className="eyebrow">EVENT &amp; WEDDING COLLECTIONS HUB</p>
-          <h1>
-            One hub for <em>every sub-event</em> &amp; vendor lock.
-          </h1>
-          <p className="quiet">
-            Keep an entire wedding chain or renovation linked — every sub-event, contact phone, advance paid, and WhatsApp lock in one workspace.
-          </p>
+      <header className="events-top-bar">
+        <div className="events-top-head">
+          <div>
+            <p className="eyebrow">EVENT &amp; WEDDING COLLECTIONS HUB</p>
+            <h1>
+              One hub for <em>every sub-event</em> &amp; vendor lock.
+            </h1>
+            <p className="quiet">
+              Keep an entire wedding chain or renovation linked — every sub-event, contact phone, advance paid, and WhatsApp lock in one workspace.
+            </p>
+            <p className="fine flush">
+              <strong>How it works:</strong> 1. Add sub-events → 2. Add vendors &amp; advances → 3. Lock each vendor via WhatsApp Confirm or Full Agreement.
+            </p>
+          </div>
+
+          <div className="events-top-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => setShowBlueprintPicker((v) => !v)}
+            >
+              <Plus size={16} aria-hidden="true" />
+              <span>New Main Event</span>
+            </button>
+          </div>
         </div>
 
-        <div className="events-top-actions">
-          <button
-            type="button"
-            className="primary"
-            onClick={() => setShowBlueprintPicker((v) => !v)}
-          >
-            <Plus size={16} aria-hidden="true" />
-            <span>New Event Collection</span>
-          </button>
+        {/* Header Search & Status Filter */}
+        <div className="events-header-search-row" role="search" aria-label="Search sub-events by name or status">
+          <div className="events-search-wrap events-top-search">
+            <Search size={15} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search sub-events by name or status"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search sub-events by name or status (e.g. Haldi, planning, confirmed, completed)…"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="events-search-clear"
+                aria-label="Clear search"
+                onClick={() => setSearchQuery('')}
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger
+              type="button"
+              aria-label="Filter sub-events by status"
+              className="events-filter-trigger"
+            >
+              <span>
+                {SUB_STATUS_FILTER_OPTIONS.find((o) => o.value === subStatusFilter)?.label ??
+                  'All sub-events'}
+              </span>
+              <ChevronDown size={14} aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="events-status-menu">
+              {SUB_STATUS_FILTER_OPTIONS.map((opt) => {
+                const isSelected = subStatusFilter === opt.value;
+                return (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    className={`events-status-option${isSelected ? ' is-selected' : ''}`}
+                    onSelect={() => setSubStatusFilter(opt.value)}
+                  >
+                    <div className="events-status-option-copy">
+                      <span className="events-status-option-label">{opt.label}</span>
+                      <span className="events-status-option-hint">{opt.hint}</span>
+                    </div>
+                    {isSelected && <Check size={14} aria-hidden="true" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {hasActiveFilter && (
+            <div className="events-filter-summary" role="status">
+              <span>
+                {filteredSubEvents.length} {filteredSubEvents.length === 1 ? 'sub-event' : 'sub-events'} ·{' '}
+                {filteredVendors.length} {filteredVendors.length === 1 ? 'vendor' : 'vendors'}
+              </span>
+              <button
+                type="button"
+                className="help-link"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSubStatusFilter('all');
+                  setSelectedSubId('all');
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      </header>
 
       {/* Sync / Auth persistence banner */}
       <div className="events-sync-strip">
@@ -608,64 +818,6 @@ export default function EventsHub() {
         </div>
       </div>
 
-      {/* Unified Real-Time Search & Sub-Event Status Filter Bar */}
-      <section className="events-filter-bar" aria-label="Filter sub-events and vendors">
-        <div className="events-search-wrap events-top-search">
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="search"
-            aria-label="Filter sub-events and vendors by name or description"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter sub-events & vendors by name, description, venue, or UTR…"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="events-search-clear"
-              aria-label="Clear search"
-              onClick={() => setSearchQuery('')}
-            >
-              <X size={14} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-
-        <label className="events-status-filter-wrap">
-          <span className="sr-only">Sub-event status filter</span>
-          <select
-            aria-label="Filter sub-events by status"
-            className="events-status-filter-select"
-            value={subStatusFilter}
-            onChange={(e) => setSubStatusFilter(e.target.value as SubEventStatusFilter)}
-          >
-            <option value="all">All sub-events</option>
-            <option value="upcoming">Upcoming sub-events</option>
-            <option value="completed">Completed sub-events</option>
-          </select>
-        </label>
-
-        {hasActiveFilter && (
-          <div className="events-filter-summary" role="status">
-            <span>
-              {filteredSubEvents.length} {filteredSubEvents.length === 1 ? 'sub-event' : 'sub-events'} ·{' '}
-              {filteredVendors.length} {filteredVendors.length === 1 ? 'vendor' : 'vendors'}
-            </span>
-            <button
-              type="button"
-              className="help-link"
-              onClick={() => {
-                setSearchQuery('');
-                setSubStatusFilter('all');
-                setSelectedSubId('all');
-              }}
-            >
-              Reset
-            </button>
-          </div>
-        )}
-      </section>
-
       {/* Blueprint Picker Drawer */}
       {showBlueprintPicker && (
         <section className="events-blueprint-panel" aria-label="Choose an event collection blueprint">
@@ -699,10 +851,11 @@ export default function EventsHub() {
         </section>
       )}
 
-      {/* Compact Event Summary Bar + Collapsible 3x2 Details Drawer */}
-      <section className="events-summary-card" aria-label="Event collection details">
+      {/* Compact Main Event Summary Bar + Collapsible 3x2 Details Drawer */}
+      <section className="events-summary-card" aria-label="Main event details">
         <div className="events-summary-bar">
           <div className="events-summary-info">
+            <p className="eyebrow flush">MAIN EVENT</p>
             <h2>{active.title}</h2>
             <p className="events-summary-meta">
               {[
@@ -744,11 +897,11 @@ export default function EventsHub() {
           <div className="events-header-edit">
             <div className="events-header-grid">
               <label>
-                Event / Collection Name
+                Main Event Name
                 <input
                   value={active.title}
                   onChange={(e) => updateActive((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g. Mehta–Kapoor Wedding"
+                  placeholder="e.g. Eashwaren–Apoorva Wedding or 3BHK Renovation"
                 />
               </label>
               <label>
@@ -787,7 +940,7 @@ export default function EventsHub() {
                   onChange={(e) =>
                     updateActive((prev) => ({ ...prev, primaryContactName: e.target.value }))
                   }
-                  placeholder="e.g. Arvind Mehta"
+                  placeholder="e.g. Arvind Eashwaren"
                 />
               </label>
               <label>
@@ -810,7 +963,7 @@ export default function EventsHub() {
                 />
               </label>
             </div>
-            {collections.length > 1 && (
+            {(collections.length > 1 || Boolean(user)) && (
               <div className="events-header-foot">
                 <button
                   type="button"
@@ -860,34 +1013,45 @@ export default function EventsHub() {
         </div>
       </section>
 
-      {/* Recharts Bar Chart: Sub-Event Completion Status Breakdown */}
-      <SubEventStatusChart
-        data={subEventStatusCounts}
-        totalCount={active.subEvents.length}
-        filteredCount={filteredSubEvents.length}
-        isFiltered={hasActiveFilter}
-      />
-
       {/* Main Workspace: Sub-Event Chain + Vendor / Contacts View */}
       <div className="events-workspace">
         {/* Left Column: Customizable Sub-Event Chain */}
         <aside className="events-sub-rail" aria-label="Sub-events timeline">
           <div className="events-rail-head">
-            <h2>
-              Sub-Events (
-              {hasActiveFilter
-                ? `${filteredSubEvents.length}/${active.subEvents.length}`
-                : active.subEvents.length}
-              )
-            </h2>
-            <button
-              type="button"
-              className="secondary events-compact-btn"
-              onClick={() => setShowAddSub((v) => !v)}
-            >
-              <CalendarPlus size={14} aria-hidden="true" />
-              <span>Add sub-event</span>
-            </button>
+            <div>
+              <h2>
+                Sub-Events (
+                {hasActiveFilter
+                  ? `${filteredSubEvents.length}/${active.subEvents.length}`
+                  : active.subEvents.length}
+                )
+              </h2>
+              <p className="events-rail-sub">Functions or phases inside this main event</p>
+            </div>
+            <div className="events-rail-actions">
+              <button
+                type="button"
+                className="secondary events-compact-btn"
+                onClick={() => setShowAddSub((v) => !v)}
+              >
+                <CalendarPlus size={14} aria-hidden="true" />
+                <span>Add sub-event</span>
+              </button>
+              <button
+                type="button"
+                className="secondary events-compact-btn"
+                disabled={filteredSubEvents.length === 0}
+                title={
+                  hasActiveFilter
+                    ? 'Export matching sub-events to CSV'
+                    : 'Export all sub-events to CSV'
+                }
+                onClick={downloadSubEventsCsv}
+              >
+                <Download size={14} aria-hidden="true" />
+                <span>Download as CSV</span>
+              </button>
+            </div>
           </div>
 
           {showAddSub && (
@@ -1301,6 +1465,24 @@ export default function EventsHub() {
           )}
         </section>
       </div>
+
+      {/* Event Analytics Section (below main workspace): Budget vs Actual Paid + Completion Status */}
+      <section className="events-analytics-section" aria-label="Event analytics and status overview">
+        <div className="events-analytics-grid">
+          <SubEventBudgetChart
+            data={subEventBudgetData}
+            currency={active.currency}
+            totalBudget={totals.totalBudget}
+            totalPaid={totals.totalAdvancePaid}
+          />
+          <SubEventStatusChart
+            data={subEventStatusCounts}
+            totalCount={active.subEvents.length}
+            filteredCount={filteredSubEvents.length}
+            isFiltered={hasActiveFilter}
+          />
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from './index';
 import { advisorMessages, eventCollections, eventVendors, subEvents } from './schema';
+import { cleanLegacyPhantomGuests } from '@/lib/event-collections';
 
 export interface SubEventRecord {
   id: string;
@@ -75,56 +76,58 @@ export async function listUserCollections(ownerUid: string): Promise<EventCollec
       .where(eq(eventVendors.ownerUid, ownerUid))
       .orderBy(asc(eventVendors.createdAt));
 
-    return cols.map((c) => ({
-      id: c.id,
-      kind: c.kind,
-      title: c.title,
-      jurisdiction: c.jurisdiction,
-      currency: c.currency,
-      startDate: c.startDate ?? '',
-      endDate: c.endDate ?? '',
-      city: c.city ?? '',
-      primaryContactName: c.primaryContactName ?? '',
-      primaryContactPhone: c.primaryContactPhone ?? '',
-      notes: c.notes ?? '',
-      subEvents: subs
-        .filter((s) => s.collectionId === c.id)
-        .map((s) => ({
-          id: s.id,
-          collectionId: s.collectionId,
-          sortOrder: s.sortOrder,
-          title: s.title,
-          eventDate: s.eventDate ?? '',
-          timeSlot: s.timeSlot ?? '',
-          venueName: s.venueName ?? '',
-          venueAddress: s.venueAddress ?? '',
-          guestCount: s.guestCount,
-          coordinatorName: s.coordinatorName ?? '',
-          coordinatorPhone: s.coordinatorPhone ?? '',
-          status: s.status,
-          notes: s.notes ?? '',
-        })),
-      vendors: vends
-        .filter((v) => v.collectionId === c.id)
-        .map((v) => ({
-          id: v.id,
-          collectionId: v.collectionId,
-          subEventId: v.subEventId ?? null,
-          category: v.category,
-          vendorName: v.vendorName,
-          contactPerson: v.contactPerson ?? '',
-          contactPhone: v.contactPhone ?? '',
-          contactEmail: v.contactEmail ?? '',
-          whatsappNumber: v.whatsappNumber ?? '',
-          agreedFee: v.agreedFee,
-          advancePaid: v.advancePaid,
-          paymentDueDate: v.paymentDueDate ?? '',
-          utrReference: v.utrReference ?? '',
-          agreementStatus: v.agreementStatus,
-          clauseSummary: v.clauseSummary ?? '',
-          deliverables: v.deliverables ?? '',
-        })),
-    }));
+    return cols.map((c) =>
+      cleanLegacyPhantomGuests({
+        id: c.id,
+        kind: c.kind,
+        title: c.title,
+        jurisdiction: c.jurisdiction,
+        currency: c.currency,
+        startDate: c.startDate ?? '',
+        endDate: c.endDate ?? '',
+        city: c.city ?? '',
+        primaryContactName: c.primaryContactName ?? '',
+        primaryContactPhone: c.primaryContactPhone ?? '',
+        notes: c.notes ?? '',
+        subEvents: subs
+          .filter((s) => s.collectionId === c.id)
+          .map((s) => ({
+            id: s.id,
+            collectionId: s.collectionId,
+            sortOrder: s.sortOrder,
+            title: s.title,
+            eventDate: s.eventDate ?? '',
+            timeSlot: s.timeSlot ?? '',
+            venueName: s.venueName ?? '',
+            venueAddress: s.venueAddress ?? '',
+            guestCount: s.guestCount,
+            coordinatorName: s.coordinatorName ?? '',
+            coordinatorPhone: s.coordinatorPhone ?? '',
+            status: s.status,
+            notes: s.notes ?? '',
+          })),
+        vendors: vends
+          .filter((v) => v.collectionId === c.id)
+          .map((v) => ({
+            id: v.id,
+            collectionId: v.collectionId,
+            subEventId: v.subEventId ?? null,
+            category: v.category,
+            vendorName: v.vendorName,
+            contactPerson: v.contactPerson ?? '',
+            contactPhone: v.contactPhone ?? '',
+            contactEmail: v.contactEmail ?? '',
+            whatsappNumber: v.whatsappNumber ?? '',
+            agreedFee: v.agreedFee,
+            advancePaid: v.advancePaid,
+            paymentDueDate: v.paymentDueDate ?? '',
+            utrReference: v.utrReference ?? '',
+            agreementStatus: v.agreementStatus,
+            clauseSummary: v.clauseSummary ?? '',
+            deliverables: v.deliverables ?? '',
+          })),
+      }),
+    );
   } catch (error) {
     console.error('Failed to list event collections:', error);
     throw new Error('Could not load your event collections. Please try again.', { cause: error });

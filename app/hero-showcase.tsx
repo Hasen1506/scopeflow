@@ -59,7 +59,7 @@ const SCENARIOS: ShowcaseScenario[] = [
     icon: UtensilsCrossed,
     kicker: 'Wedding hub · 6 sub-events',
     badge: '4 vendors tracked',
-    title: 'Mehta–Kapoor Wedding',
+    title: 'Eashwaren–Apoorva Wedding',
     subtitle: 'Haldi · Sangeet · Ceremony · Reception',
     items: [
       {label: 'Reception catering · Vikram (+91 98801)', value: '₹3,40,000'},

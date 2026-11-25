@@ -34,13 +34,14 @@ export const SubEventStatusChart = memo(function SubEventStatusChart({
   isFiltered,
 }: SubEventStatusChartProps) {
   const chartData = data as SubEventStatusDatum[];
+  const denominator = Math.max(1, chartData.reduce((sum, d) => sum + d.count, 0));
 
   return (
     <section className="events-chart-card" aria-label="Sub-event completion status breakdown">
       <div className="events-chart-head">
         <div>
           <p className="eyebrow flush">SUB-EVENT COMPLETION STATUS</p>
-          <h2>Breakdown across Planning, Locked, Confirmed &amp; Completed</h2>
+          <h2>Progress across Planning, Locked, Confirmed &amp; Completed</h2>
         </div>
         <span className="events-chart-meta">
           {isFiltered
@@ -53,7 +54,7 @@ export const SubEventStatusChart = memo(function SubEventStatusChart({
         <ResponsiveContainer width="100%" height={200} minWidth={240}>
           <BarChart
             data={chartData}
-            margin={{ top: 10, right: 16, left: -12, bottom: 2 }}
+            margin={{ top: 10, right: 12, left: -14, bottom: 2 }}
             barCategoryGap="28%"
           >
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--rule)" />
@@ -86,7 +87,14 @@ export const SubEventStatusChart = memo(function SubEventStatusChart({
                 return [`${n} ${n === 1 ? 'sub-event' : 'sub-events'}`, 'Count'];
               }}
             />
-            <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={56} isAnimationActive={false}>
+            <Bar
+              dataKey="count"
+              radius={[5, 5, 0, 0]}
+              maxBarSize={48}
+              isAnimationActive={true}
+              animationDuration={420}
+              animationEasing="ease-out"
+            >
               {chartData.map((entry) => (
                 <Cell key={entry.status} fill={STATUS_BAR_COLOR[entry.status]} />
               ))}
@@ -96,15 +104,23 @@ export const SubEventStatusChart = memo(function SubEventStatusChart({
       </div>
 
       <dl className="events-chart-legend" aria-label="Status counts">
-        {chartData.map((item) => (
-          <div key={item.status} className="events-chart-stat">
-            <dt>
-              <span className={`events-chart-dot is-${item.status}`} aria-hidden="true" />
-              <span>{item.label}</span>
-            </dt>
-            <dd>{item.count}</dd>
-          </div>
-        ))}
+        {chartData.map((item) => {
+          const ratio = Math.min(1, Math.max(0, item.count / denominator));
+          return (
+            <div key={item.status} className="events-chart-stat">
+              <div className="events-chart-stat-row">
+                <dt>{item.label}</dt>
+                <dd>{item.count}</dd>
+              </div>
+              <div className="events-status-bar-track" aria-hidden="true">
+                <span
+                  className={`events-status-bar-fill is-${item.status}`}
+                  style={{ transform: `scaleX(${ratio})` }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </dl>
     </section>
   );

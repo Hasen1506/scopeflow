@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildScopeFromEventVendor,
   buildVendorWhatsAppConfirm,
+  cleanLegacyPhantomGuests,
   computeCollectionTotals,
   createCollectionFromBlueprint,
   eventCollectionPayloadSchema,
@@ -82,8 +83,32 @@ test('summarizeCollectionForAI includes sub-events, vendors, and balances for Ge
   const col = createCollectionFromBlueprint('marriage');
   const summary = summarizeCollectionForAI(col);
 
-  assert.match(summary, /Mehta–Kapoor Wedding/);
+  assert.match(summary, /Eashwaren–Apoorva Wedding/);
   assert.match(summary, /Sangeet & Cocktail Night/);
   assert.match(summary, /Saffron Kitchen Catering/);
   assert.match(summary, /1\/4 vendors confirmed/);
+});
+
+test('custom blank blueprint defaults guestCount to 0 and cleanLegacyPhantomGuests strips untouched legacy 50-guest rows only', () => {
+  const fresh = createCollectionFromBlueprint('custom');
+  assert.equal(fresh.subEvents[0]?.guestCount, 0);
+
+  const legacyUntouched = {
+    ...fresh,
+    subEvents: [
+      { ...fresh.subEvents[0], title: 'Event Day 1', guestCount: 50 },
+      { ...fresh.subEvents[0], id: 'sub_legacy_phase', title: 'Main Event / Phase 1', guestCount: 50 },
+    ],
+  };
+  const cleaned = cleanLegacyPhantomGuests(legacyUntouched);
+  assert.equal(cleaned.subEvents[0]?.guestCount, 0);
+  assert.equal(cleaned.subEvents[1]?.guestCount, 0);
+  assert.equal(computeCollectionTotals(cleaned).totalGuestsPeak, 0);
+
+  // If user actually customized the row (e.g. added a venue or renamed it), keep their 50 guests intact.
+  const userCustomized = {
+    ...fresh,
+    subEvents: [{ ...fresh.subEvents[0], venueName: 'Terrace Hall', guestCount: 50 }],
+  };
+  assert.equal(cleanLegacyPhantomGuests(userCustomized).subEvents[0]?.guestCount, 50);
 });

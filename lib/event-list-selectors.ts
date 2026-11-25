@@ -1,4 +1,4 @@
-import type { EventVendor, SubEvent } from './event-collections';
+import { SUB_EVENT_STATUS_LABEL, type EventVendor, type SubEvent } from './event-collections';
 
 export type SubEventStatusFilter = 'all' | 'upcoming' | 'completed';
 
@@ -66,8 +66,10 @@ export function filterCollectionSubEvents(
       out.push(s);
       continue;
     }
+    const statusLabel = SUB_EVENT_STATUS_LABEL[s.status] ?? s.status;
+    const statusGroup = s.status === 'completed' ? 'done' : 'upcoming';
     const haystack =
-      `${s.title}\0${s.notes}\0${s.venueName}\0${s.venueAddress}\0${s.timeSlot}\0${s.eventDate}\0${s.coordinatorName}\0${s.coordinatorPhone}\0${s.status}`.toLowerCase();
+      `${s.title}\0${s.notes}\0${s.venueName}\0${s.venueAddress}\0${s.timeSlot}\0${s.eventDate}\0${s.coordinatorName}\0${s.coordinatorPhone}\0${s.status}\0${statusLabel}\0${statusGroup}`.toLowerCase();
     if (haystack.includes(q)) {
       out.push(s);
     }
@@ -137,4 +139,84 @@ export function buildSubEventStatusCounts(subEvents: readonly SubEvent[]): SubEv
     { status: 'confirmed', label: 'Confirmed', count: confirmed },
     { status: 'completed', label: 'Completed', count: completed },
   ];
+}
+
+export type SubEventBudgetDatum = {
+  id: string;
+  label: string;
+  fullTitle: string;
+  agreedBudget: number;
+  actualPaid: number;
+  balanceDue: number;
+  vendorCount: number;
+};
+
+function shortSubEventLabel(title: string): string {
+  const clean = title.trim();
+  if (clean.length <= 11) return clean;
+  // Prefer crisp first word when it clearly identifies the function (e.g. Engagement, Mehendi, Haldi, Sangeet, Wedding, Reception)
+  const firstWord = clean.split(/[\s&(/–-]+/)[0]?.trim() ?? '';
+  if (firstWord.length >= 4 && firstWord.length <= 11) return firstWord;
+  return `${clean.slice(0, 10).trimEnd()}…`;
+}
+
+/**
+ * Single-pass O(S + V) aggregation of agreed budget vs. actual expenses paid
+ * across sub-events (plus a "Shared / All" bar if any vendor spans all sub-events).
+ */
+export function buildSubEventBudgetComparison(
+  subEvents: readonly SubEvent[],
+  vendors: readonly EventVendor[],
+): SubEventBudgetDatum[] {
+  const buckets = new Map<string, { budget: number; paid: number; count: number }>();
+  for (let i = 0; i < subEvents.length; i += 1) {
+    buckets.set(subEvents[i].id, { budget: 0, paid: 0, count: 0 });
+  }
+
+  let sharedBudget = 0;
+  let sharedPaid = 0;
+  let sharedCount = 0;
+
+  for (let i = 0; i < vendors.length; i += 1) {
+    const v = vendors[i];
+    const fee = Math.max(0, Number(v.agreedFee) || 0);
+    const paid = Math.max(0, Number(v.advancePaid) || 0);
+    const bucket = v.subEventId ? buckets.get(v.subEventId) : undefined;
+    if (bucket) {
+      bucket.budget += fee;
+      bucket.paid += paid;
+      bucket.count += 1;
+    } else {
+      sharedBudget += fee;
+      sharedPaid += paid;
+      sharedCount += 1;
+    }
+  }
+
+  const out: SubEventBudgetDatum[] = subEvents.map((s) => {
+    const b = buckets.get(s.id) ?? { budget: 0, paid: 0, count: 0 };
+    return {
+      id: s.id,
+      label: shortSubEventLabel(s.title),
+      fullTitle: s.title,
+      agreedBudget: b.budget,
+      actualPaid: b.paid,
+      balanceDue: Math.max(0, b.budget - b.paid),
+      vendorCount: b.count,
+    };
+  });
+
+  if (sharedCount > 0) {
+    out.push({
+      id: 'shared',
+      label: 'Shared / All',
+      fullTitle: 'Shared across all sub-events',
+      agreedBudget: sharedBudget,
+      actualPaid: sharedPaid,
+      balanceDue: Math.max(0, sharedBudget - sharedPaid),
+      vendorCount: sharedCount,
+    });
+  }
+
+  return out;
 }

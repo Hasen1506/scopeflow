@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildSubEventBudgetComparison,
   buildSubEventStatusCounts,
   buildSubEventTitleMap,
   buildVendorCountBySubEvent,
@@ -97,6 +98,19 @@ test('filterCollectionSubEvents filters by all/upcoming/completed and name or de
     filterCollectionSubEvents(subs, 'upcoming', 'ballroom').map((s) => s.id),
     ['s2'],
   );
+  // Search directly by status text
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'all', 'locked').map((s) => s.id),
+    ['s2'],
+  );
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'all', 'confirmed').map((s) => s.id),
+    ['s3'],
+  );
+  assert.deepEqual(
+    filterCollectionSubEvents(subs, 'all', 'upcoming').map((s) => s.id),
+    ['s2', 's3'],
+  );
 });
 
 test('buildSubEventStatusCounts aggregates Planning, Locked, Confirmed, and Completed accurately', () => {
@@ -179,4 +193,38 @@ test('high-volume Events Hub selectors handle 50 sub-events x 500 vendors quickl
   assert.equal(counts.get('s_7'), 60);
   assert.ok(filtered.some((v) => v.id === 'v_7'));
   assert.ok(elapsedMs < 50, `Expected high-volume selector pass < 50ms, got ${elapsedMs.toFixed(2)}ms`);
+});
+
+test('buildSubEventBudgetComparison sums agreed budget vs actual paid per sub-event and shared bucket', () => {
+  const subs = [
+    makeSub('s1', 'Haldi Morning'),
+    makeSub('s2', 'Wedding Ceremony (Muhurtham / Pheras)'),
+    makeSub('s3', 'Reception Dinner'),
+  ];
+  const vendors = [
+    makeVendor('v1', 's1', { agreedFee: 80000, advancePaid: 30000 }),
+    makeVendor('v2', 's1', { agreedFee: 20000, advancePaid: 20000 }),
+    makeVendor('v3', 's3', { agreedFee: 340000, advancePaid: 85000 }),
+    makeVendor('v4', null, { agreedFee: 185000, advancePaid: 55000 }),
+  ];
+
+  const rows = buildSubEventBudgetComparison(subs, vendors);
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows[0], {
+    id: 's1',
+    label: 'Haldi',
+    fullTitle: 'Haldi Morning',
+    agreedBudget: 100000,
+    actualPaid: 50000,
+    balanceDue: 50000,
+    vendorCount: 2,
+  });
+  assert.equal(rows[1].agreedBudget, 0);
+  assert.equal(rows[1].actualPaid, 0);
+  assert.equal(rows[2].agreedBudget, 340000);
+  assert.equal(rows[2].actualPaid, 85000);
+  assert.equal(rows[2].balanceDue, 255000);
+  assert.equal(rows[3].id, 'shared');
+  assert.equal(rows[3].agreedBudget, 185000);
+  assert.equal(rows[3].actualPaid, 55000);
 });

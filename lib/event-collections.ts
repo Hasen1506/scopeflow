@@ -124,7 +124,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
     badge: 'Most Popular · 6 Sub-Events',
     description:
       'One hub for Engagement, Mehendi, Haldi, Sangeet, Wedding Ceremony, and Reception — with every vendor phone, contact person, venue, guest count, advance paid, and WhatsApp lock tracked together.',
-    defaultTitle: 'Mehta–Kapoor Wedding',
+    defaultTitle: 'Eashwaren–Apoorva Wedding',
     defaultCity: 'Bengaluru',
     subEventPresets: [
       {
@@ -134,7 +134,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
         venueName: 'The Courtyard Lawn',
         venueAddress: 'Indiranagar, Bengaluru',
         guestCount: 150,
-        coordinatorName: 'Rohan Mehta',
+        coordinatorName: 'Rohan Eashwaren',
         coordinatorPhone: '+91 98450 11223',
         status: 'planning',
         notes: 'Ring exchange at 7:30 PM; cocktail starters start at 6:45 PM.',
@@ -146,7 +146,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
         venueName: 'Poolside Veranda',
         venueAddress: 'Indiranagar, Bengaluru',
         guestCount: 90,
-        coordinatorName: 'Neha Kapoor',
+        coordinatorName: 'Neha Apoorva',
         coordinatorPhone: '+91 98450 22334',
         status: 'planning',
         notes: 'Organic Rajasthani henna only; chilled mocktails and chaat counter.',
@@ -158,7 +158,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
         venueName: 'Garden Pavilion',
         venueAddress: 'Whitefield, Bengaluru',
         guestCount: 120,
-        coordinatorName: 'Neha Kapoor',
+        coordinatorName: 'Neha Apoorva',
         coordinatorPhone: '+91 98450 22334',
         status: 'planning',
         notes: 'Marigold backdrop + water-resistant seating covers; traditional brunch.',
@@ -170,7 +170,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
         venueName: 'Grand Ballroom',
         venueAddress: 'Whitefield, Bengaluru',
         guestCount: 250,
-        coordinatorName: 'Rohan Mehta',
+        coordinatorName: 'Rohan Eashwaren',
         coordinatorPhone: '+91 98450 11223',
         status: 'planning',
         notes: 'Sound check by 5:00 PM; DJ curfew at 11:30 PM sharp.',
@@ -182,7 +182,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
         venueName: 'Heritage Mandap Hall',
         venueAddress: 'Whitefield, Bengaluru',
         guestCount: 350,
-        coordinatorName: 'Arvind Mehta',
+        coordinatorName: 'Arvind Eashwaren',
         coordinatorPhone: '+91 98450 33445',
         status: 'planning',
         notes: 'Baraat arrival 8:30 AM; Muhurtham 10:15 AM; banana-leaf / sit-down lunch.',
@@ -194,7 +194,7 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
         venueName: 'Royal Banquet & Lawn',
         venueAddress: 'Whitefield, Bengaluru',
         guestCount: 400,
-        coordinatorName: 'Arvind Mehta',
+        coordinatorName: 'Arvind Eashwaren',
         coordinatorPhone: '+91 98450 33445',
         status: 'planning',
         notes: '14-dish buffet + 3 live counters; strict plate coupon count.',
@@ -472,11 +472,11 @@ export const COLLECTION_BLUEPRINTS: readonly CollectionBlueprint[] = [
     badge: 'Start Blank',
     description:
       'Corporate offsite, festival, family milestone, or multi-vendor project — add your own sub-events and vendors from scratch.',
-    defaultTitle: 'New Event Collection',
+    defaultTitle: 'New Main Event',
     defaultCity: '',
     subEventPresets: [
       {
-        title: 'Event Day 1',
+        title: 'Phase 1 / Day 1',
         eventDate: '',
         timeSlot: '',
         venueName: '',
@@ -542,6 +542,70 @@ export function createCollectionFromBlueprint(
     subEvents,
     vendors,
   };
+}
+
+/**
+ * Older custom ("Start Blank") collections were seeded with an untouched
+ * "Event Day 1" sub-event carrying guestCount: 50. Strip that phantom default
+ * ONLY when the starter row has never been customized by the user.
+ */
+export function cleanLegacyPhantomGuests<
+  T extends {
+    kind: string;
+    title?: string;
+    subEvents: Array<{
+      title: string;
+      guestCount: number;
+      eventDate: string;
+      timeSlot: string;
+      venueName: string;
+      venueAddress: string;
+      coordinatorName: string;
+      coordinatorPhone: string;
+      notes: string;
+    }>;
+  },
+>(col: T): T {
+  let nextCol = col;
+  if (nextCol.title === 'Mehta–Kapoor Wedding' || nextCol.title === 'Mehta-Kapoor Wedding') {
+    nextCol = {
+      ...nextCol,
+      title: 'Eashwaren–Apoorva Wedding',
+      subEvents: nextCol.subEvents.map((s) =>
+        s.coordinatorName.includes('Mehta') || s.coordinatorName.includes('Kapoor')
+          ? {
+              ...s,
+              coordinatorName: s.coordinatorName
+                .replace(/Mehta/g, 'Eashwaren')
+                .replace(/Kapoor/g, 'Apoorva'),
+            }
+          : s,
+      ),
+    };
+  }
+  if (nextCol.kind !== 'custom') return nextCol;
+  let changed = false;
+  const LEGACY_STARTER_TITLES = new Set([
+    'Event Day 1',
+    'Main Event / Phase 1',
+    'Phase 1 / Day 1',
+  ]);
+  const cleanedSubs = nextCol.subEvents.map((s) => {
+    const isUntouchedLegacyStarter =
+      s.guestCount === 50 &&
+      LEGACY_STARTER_TITLES.has(s.title.trim()) &&
+      !s.eventDate.trim() &&
+      !s.timeSlot.trim() &&
+      !s.venueName.trim() &&
+      !s.venueAddress.trim() &&
+      !s.coordinatorName.trim() &&
+      !s.coordinatorPhone.trim() &&
+      !s.notes.trim();
+    if (!isUntouchedLegacyStarter) return s;
+    changed = true;
+    return { ...s, guestCount: 0 };
+  });
+  return changed ? { ...nextCol, subEvents: cleanedSubs } : nextCol;
 }
 
 export interface CollectionTotals {

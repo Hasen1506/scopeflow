@@ -2,7 +2,13 @@
 
 import { memo, useMemo } from 'react';
 import Link from 'next/link';
-import { FileSignature, MessageCircle, Phone, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, FileSignature, MessageCircle, Phone, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatMoney } from '@/lib/currency';
 import {
   buildVendorWhatsAppConfirm,
@@ -16,6 +22,13 @@ import {
   type SubEventStatus,
   type VendorAgreementStatus,
 } from '@/lib/event-collections';
+
+const VENDOR_STATUS_HINT: Record<VendorAgreementStatus, string> = {
+  draft: 'No written confirmation yet',
+  'whatsapp-sent': 'Recap sent, awaiting reply',
+  confirmed: 'Written terms locked',
+  disputed: 'Issue flagged for follow-up',
+};
 
 export type SubEventCardProps = {
   sub: SubEvent;
@@ -99,7 +112,8 @@ export const SubEventCard = memo(function SubEventCard({
               <input
                 type="number"
                 min={0}
-                value={sub.guestCount}
+                placeholder="Optional"
+                value={sub.guestCount > 0 ? sub.guestCount : ''}
                 onChange={(e) =>
                   onUpdate(sub.id, { guestCount: Math.max(0, Number(e.target.value) || 0) })
                 }
@@ -149,10 +163,26 @@ export const SubEventCard = memo(function SubEventCard({
               <option value="completed">Completed</option>
             </select>
           </label>
-          <div className="actions">
-            <button type="button" className="secondary" onClick={() => onRemove(sub.id)}>
-              <Trash2 size={13} aria-hidden="true" /> Remove sub-event
-            </button>
+          <div className="events-edit-footer">
+            <span className="fine flush">Changes save automatically</span>
+            <div className="actions">
+              <button
+                type="button"
+                className="primary events-compact-btn"
+                onClick={() => onToggleEdit(sub.id)}
+              >
+                <Check size={14} aria-hidden="true" />
+                <span>Save &amp; close</span>
+              </button>
+              <button
+                type="button"
+                className="secondary events-compact-btn"
+                onClick={() => onRemove(sub.id)}
+              >
+                <Trash2 size={13} aria-hidden="true" />
+                <span>Remove</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -255,22 +285,36 @@ export const VendorCard = memo(function VendorCard({
           <h3>{vendor.vendorName}</h3>
         </div>
 
-        <select
-          aria-label={`Agreement status for ${vendor.vendorName}`}
-          className={`events-status-select is-${vendor.agreementStatus}`}
-          value={vendor.agreementStatus}
-          onChange={(e) =>
-            onUpdate(vendor.id, {
-              agreementStatus: e.target.value as VendorAgreementStatus,
-            })
-          }
-        >
-          {Object.entries(VENDOR_STATUS_LABEL).map(([val, lbl]) => (
-            <option key={val} value={val}>
-              {lbl}
-            </option>
-          ))}
-        </select>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            type="button"
+            aria-label={`Agreement status for ${vendor.vendorName}: ${VENDOR_STATUS_LABEL[vendor.agreementStatus]}`}
+            className={`events-status-trigger is-${vendor.agreementStatus}`}
+          >
+            <span>{VENDOR_STATUS_LABEL[vendor.agreementStatus]}</span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="events-status-menu">
+            {(Object.entries(VENDOR_STATUS_LABEL) as [VendorAgreementStatus, string][]).map(
+              ([val, lbl]) => {
+                const isSelected = vendor.agreementStatus === val;
+                return (
+                  <DropdownMenuItem
+                    key={val}
+                    className={`events-status-option${isSelected ? ' is-selected' : ''}`}
+                    onSelect={() => onUpdate(vendor.id, { agreementStatus: val })}
+                  >
+                    <div className="events-status-option-copy">
+                      <span className={`events-status-option-label is-${val}`}>{lbl}</span>
+                      <span className="events-status-option-hint">{VENDOR_STATUS_HINT[val]}</span>
+                    </div>
+                    {isSelected && <Check size={14} aria-hidden="true" />}
+                  </DropdownMenuItem>
+                );
+              },
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="events-vendor-contacts">
@@ -354,7 +398,7 @@ export const VendorCard = memo(function VendorCard({
             className="help-link"
             onClick={() => onToggleEdit(vendor.id)}
           >
-            {isEditing ? 'Close edit' : 'Edit'}
+            {isEditing ? 'Done' : 'Edit'}
           </button>
         </div>
       </div>
@@ -449,14 +493,26 @@ export const VendorCard = memo(function VendorCard({
               onChange={(e) => onUpdate(vendor.id, { clauseSummary: e.target.value })}
             />
           </label>
-          <div className="actions">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => onRemove(vendor.id)}
-            >
-              <Trash2 size={13} aria-hidden="true" /> Remove vendor
-            </button>
+          <div className="events-edit-footer">
+            <span className="fine flush">Changes save automatically</span>
+            <div className="actions">
+              <button
+                type="button"
+                className="primary events-compact-btn"
+                onClick={() => onToggleEdit(vendor.id)}
+              >
+                <Check size={14} aria-hidden="true" />
+                <span>Save &amp; close</span>
+              </button>
+              <button
+                type="button"
+                className="secondary events-compact-btn"
+                onClick={() => onRemove(vendor.id)}
+              >
+                <Trash2 size={13} aria-hidden="true" />
+                <span>Remove vendor</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
