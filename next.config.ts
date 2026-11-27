@@ -38,6 +38,11 @@ function buildCpus() {
 }
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingIncludes: {
+    "/api/**": ["./assets/fonts/**/*", "./public/termslock-logo.*"],
+    "/**": ["./assets/fonts/**/*"],
+  },
   agentRules: false,
   poweredByHeader: false,
   // Allow AI Studio preview and reverse-proxy dev hosts so Next.js 16 does not block /_next/static/* with 403.
