@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   try {
     const auth = await ownerAuth(request);
     if (!auth) return json({error: 'Sign in to export the audit trail.'}, 401);
-    if (auth.via !== 'session') return json({error: 'The audit export is for the account admin, from the TermsLock website.', code: 'admin_only'}, 403);
+    if (auth.via !== 'session') return json({error: 'The audit export is for the account admin, from the ContractLock website.', code: 'admin_only'}, 403);
     if (!await allowRead('owner:' + auth.user, 20)) return json({error: 'Too many requests. Try again in a minute.'}, 429);
     const q = new URL(request.url).searchParams;
     const rawFormat = q.get('format');

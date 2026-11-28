@@ -26,7 +26,7 @@ export async function verifyFirebaseRequest(
   try {
     const decoded = await adminAuth.verifyIdToken(token);
     const email = decoded.email || `${decoded.uid}@termslock.local`;
-    const displayName = (decoded.name as string | undefined) || email.split('@')[0] || 'TermsLock Member';
+    const displayName = (decoded.name as string | undefined) || email.split('@')[0] || 'ContractLock Member';
     if (syncUser) {
       await getOrCreateUser(decoded.uid, email, displayName);
     }

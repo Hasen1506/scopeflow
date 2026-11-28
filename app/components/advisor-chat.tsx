@@ -240,7 +240,7 @@ export default function AdvisorChat() {
       <button
         type="button"
         className="advisor-fab"
-        aria-label="Open TermsLock AI Advisor"
+        aria-label="Open ContractLock AI Advisor"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -253,7 +253,7 @@ export default function AdvisorChat() {
           <motion.aside
             className="advisor-drawer"
             role="dialog"
-            aria-label="TermsLock AI Advisor"
+            aria-label="ContractLock AI Advisor"
             initial={reduced ? { opacity: 1 } : { opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduced ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}
@@ -263,7 +263,7 @@ export default function AdvisorChat() {
               <div className="advisor-title-wrap">
                 <MessageSquareText size={18} aria-hidden="true" />
                 <div>
-                  <strong>TermsLock AI Advisor</strong>
+                  <strong>ContractLock AI Advisor</strong>
                   <span className="advisor-sub">
                     {contextSummary ? 'Linked to your active Event Hub' : activePersona.blurb}
                   </span>
@@ -347,7 +347,7 @@ export default function AdvisorChat() {
               ) : (
                 messages.map((m) => (
                   <div key={m.id} className={`advisor-msg is-${m.role}`}>
-                    <span className="advisor-msg-role">{m.role === 'user' ? 'You' : 'TermsLock Advisor'}</span>
+                    <span className="advisor-msg-role">{m.role === 'user' ? 'You' : 'ContractLock Advisor'}</span>
                     <div className="advisor-msg-body">
                       {m.role === 'assistant' ? <Markdown>{m.content}</Markdown> : <p>{m.content}</p>}
                     </div>
@@ -357,7 +357,7 @@ export default function AdvisorChat() {
 
               {busy && (
                 <div className="advisor-msg is-assistant is-thinking">
-                  <span className="advisor-msg-role">TermsLock Advisor</span>
+                  <span className="advisor-msg-role">ContractLock Advisor</span>
                   <div className="advisor-msg-body">
                     <p>Thinking through your terms…</p>
                   </div>
@@ -373,7 +373,7 @@ export default function AdvisorChat() {
 
             <form className="advisor-form" onSubmit={onSubmit}>
               <label htmlFor="advisor-input" className="sr-only">
-                Ask the TermsLock Advisor
+                Ask the ContractLock Advisor
               </label>
               <textarea
                 id="advisor-input"

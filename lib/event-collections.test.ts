@@ -65,7 +65,7 @@ test('buildVendorWhatsAppConfirm formats phone number into wa.me link with fee, 
   assert.match(message, /Please reply "Confirmed"/);
 });
 
-test('buildScopeFromEventVendor produces a valid scopeSchema document ready for TermsLock editor', () => {
+test('buildScopeFromEventVendor produces a valid scopeSchema document ready for ContractLock editor', () => {
   const col = createCollectionFromBlueprint('marriage');
   const vendor = col.vendors[0];
   const scope = buildScopeFromEventVendor(col, vendor);

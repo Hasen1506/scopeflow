@@ -15,7 +15,7 @@ const titles: Record<string, string> = {
 
 export async function generateMetadata({ params }: { params: Promise<{ path: string }> }): Promise<Metadata> {
   const { path } = await params;
-  return { title: `${titles[path] ?? 'Page not found'} — TermsLock` };
+  return { title: `${titles[path] ?? 'Page not found'} — ContractLock` };
 }
 
 export default async function AuthPage({

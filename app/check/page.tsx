@@ -2,7 +2,7 @@ import type {Metadata} from 'next';
 import ShieldClient from './shield-client';
 
 export const metadata: Metadata = {
-  title: 'Rights & Deposit Check — TermsLock',
+  title: 'Rights & Deposit Check — ContractLock',
   description:
     'Scan rental leases, catering quotes, renovation BOQs, and freelance scopes for deposit traps and unfair clauses across India and US law, then generate a low-friction WhatsApp confirm or timestamped record.',
 };

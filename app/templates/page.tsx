@@ -30,7 +30,7 @@ export default function Templates() {
   const share = (t: TemplateView, on: boolean, rotate = false) => run(async () => { const r = await api(`/api/templates/${t.id}/share`, post({share: on, ...(rotate ? {rotate} : {})})); replace(r.template); toast.success(on ? (rotate ? 'New share link made; the old one stopped working.' : 'Share link ready.') : 'Sharing turned off.'); });
   const showHistory = (t: TemplateView) => run(async () => { const r = await api(`/api/templates/${t.id}/revisions`); setHistory({id: t.id, revisions: r.revisions, current: r.current, compare: null}); });
   const restore = (id: string, revision: number) => run(async () => { const r = await api(`/api/templates/${id}/revisions`, post({revision})); replace(r.template); setHistory(null); toast.success(`Revision ${revision} restored as revision ${r.template.revision}.`); });
-  const importShared = () => run(async () => { const token = importLink.trim().match(/([a-f0-9]{32})\/?$/)?.[1]; if (!token) throw new Error('Paste a TermsLock template share link.'); const r = await api(`/api/templates/shared/${token}`, post({})); setList(l => [r.template, ...(l ?? [])]); setImportLink(''); toast.success(`Added “${r.template.name}” to your templates.`); });
+  const importShared = () => run(async () => { const token = importLink.trim().match(/([a-f0-9]{32})\/?$/)?.[1]; if (!token) throw new Error('Paste a ContractLock template share link.'); const r = await api(`/api/templates/shared/${token}`, post({})); setList(l => [r.template, ...(l ?? [])]); setImportLink(''); toast.success(`Added “${r.template.name}” to your templates.`); });
   const tags = [...new Set((list ?? []).flatMap(t => t.tags))].sort();
   const shown = filterTemplates(list ?? [], query, filter);
   const starters = filterTemplates(builtins, query).sort((a, b) => Number(!!b.modes?.includes(mode)) - Number(!!a.modes?.includes(mode)));
@@ -61,7 +61,7 @@ export default function Templates() {
     {signedIn === false && <p className="muted-box">Sign in to keep your own templates. <Link className="help-link" href="/auth/sign-in?return_to=%2Ftemplates">Sign in</Link></p>}
     {signedIn && <section className="editor" aria-labelledby="your-templates">
       <h2 id="your-templates">Your templates</h2>
-      <p className="quiet">Save a draft as a template from the workspace. Here you can tag templates, see, compare and restore earlier revisions, and share a template with another TermsLock user by link. A share link shows the template, never who made it or your clients.</p>
+      <p className="quiet">Save a draft as a template from the workspace. Here you can tag templates, see, compare and restore earlier revisions, and share a template with another ContractLock user by link. A share link shows the template, never who made it or your clients.</p>
       {tags.length > 0 && <div className="actions section-gap" role="group" aria-label="Filter by tag"><button className={filter ? 'secondary' : 'primary'} onClick={() => setFilter('')} aria-pressed={!filter}>All</button>{tags.map(t => <button key={t} className={filter === t ? 'primary' : 'secondary'} aria-pressed={filter === t} onClick={() => setFilter(t)}><Tag size={13} aria-hidden="true" />{t}</button>)}</div>}
       {list && !list.length && <p className="fine section-gap">You have no templates yet. In the workspace, use <strong>Save as template</strong> on a draft.</p>}
       {list && list.length > 0 && !shown.length && <p className="fine section-gap">No templates match.</p>}

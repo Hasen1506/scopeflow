@@ -3,7 +3,7 @@ import PaymentSettings from '../components/slots/payment-settings';
 
 // WS-04: the owner's payment accounts and the inbox of client payment claims and alerts. WS-08
 // mounts the same PaymentSettings in Account → Payments.
-export const metadata = {title: 'Payments — TermsLock', robots: {index: false, follow: false}};
+export const metadata = {title: 'Payments — ContractLock', robots: {index: false, follow: false}};
 export default function Page() {
   return <><Header/><main id="content" tabIndex={-1} className="review-shell policy"><section className="editor payments-page"><p className="eyebrow">ACCOUNT · PAYMENTS</p><h1>Get paid <em>directly.</em></h1><PaymentSettings/></section></main></>;
 }

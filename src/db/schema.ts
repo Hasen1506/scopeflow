@@ -143,7 +143,7 @@ export const advisorMessagesRelations = relations(advisorMessages, ({ one }) => 
   }),
 }));
 
-// ---- Core TermsLock workspace, account settings, business profiles & templates ----
+// ---- Core ContractLock workspace, account settings, business profiles & templates ----
 export const projects = pgTable(
   'projects',
   {

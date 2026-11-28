@@ -1,19 +1,19 @@
 // Themes (L9 / LT-18 / SF-21). Two visual themes share every component and differ only in tokens
-// (app/globals.css): "a" = Etched (cream on grained cobalt), "b" = TermsLock original (default, cobalt ink
+// (app/globals.css): "a" = Etched (cream on grained cobalt), "b" = ContractLock original (default, cobalt ink
 // on cream). Each has a light and a dark scheme. The owner picks the theme and a mode (light / dark /
 // follow the system); the choice lives on <html data-theme data-mode data-scheme>, is kept in this browser
 // and, when signed in, with the account (GET/PUT /api/theme, account_settings.theme_style/theme_mode).
 // Client pages (/review/...) always follow the visitor's system scheme, whatever is stored in this browser.
 // Pure module (no React import), so the root layout (a server component) can import the constants.
-export const THEME_KEY = 'scopeflow:theme';
-export const MODE_KEY = 'scopeflow:mode';
+export const THEME_KEY = 'termslock:theme';
+export const MODE_KEY = 'termslock:mode';
 export type ThemeId = 'a' | 'b';
 export type ModeId = 'light' | 'dark' | 'system';
 export type Scheme = 'light' | 'dark';
 export type ThemeChoice = {theme: ThemeId; mode: ModeId};
 export const THEMES: {id: ThemeId; name: string}[] = [
   {id: 'a', name: 'Etched'},
-  {id: 'b', name: 'TermsLock original'},
+  {id: 'b', name: 'ContractLock original'},
 ];
 export const MODES: {id: ModeId; name: string}[] = [
   {id: 'system', name: 'System'},
@@ -27,11 +27,11 @@ export const SWATCHES: {theme: ThemeId; scheme: Scheme; name: string; bg: string
   {theme: 'a', scheme: 'light', name: 'Etched, light', bg: '#1F3FA8', ink: '#F3EBD9'},
   {theme: 'a', scheme: 'dark', name: 'Etched, dark', bg: '#0F1D55', ink: '#F3EBD9'},
 ];
-export const DEFAULT_CHOICE: ThemeChoice = {theme: 'b', mode: 'system'};
-export const normalizeTheme = (value: unknown): ThemeId => (value === 'a' ? 'a' : 'b');
-export const normalizeMode = (value: unknown): ModeId => (value === 'light' || value === 'dark' ? value : 'system');
+export const DEFAULT_CHOICE: ThemeChoice = {theme: 'a', mode: 'dark'};
+export const normalizeTheme = (value: unknown): ThemeId => (value === 'b' ? 'b' : 'a');
+export const normalizeMode = (value: unknown): ModeId => (value === 'light' || value === 'system' ? value : 'dark');
 export const resolveScheme = (mode: ModeId, prefersDark: boolean): Scheme => (mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode);
-/** Pages a client sees: they follow the visitor's own system scheme, never a choice stored in this browser. */
+/** Pages a client sees: they always render in the default Etched dark theme, never a choice stored in this browser. */
 export const isClientPath = (path: string) => /^\/review\//.test(path);
 /** Parses a stored or posted preference; anything unknown becomes the default. */
 export function parseChoice(raw: unknown): ThemeChoice {
@@ -46,17 +46,18 @@ export function validChoice(raw: unknown): ThemeChoice | null {
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 // Applies the saved theme before first paint (inline in app/layout.tsx), so there is no flash and no shift.
-export const themeScript = `try{var d=document.documentElement,s=localStorage,c=/^\\/review\\//.test(location.pathname),t=s.getItem('${THEME_KEY}'),m=s.getItem('${MODE_KEY}');t=t==='a'?'a':'b';m=c?'system':(m==='light'||m==='dark'?m:'system');d.dataset.theme=t;d.dataset.mode=m;d.dataset.scheme=m==='system'?(matchMedia('${DARK_QUERY}').matches?'dark':'light'):m}catch(e){}`;
+export const themeScript = `try{var d=document.documentElement,s=localStorage,c=/^\\/review\\//.test(location.pathname),t=s.getItem('${THEME_KEY}'),m=s.getItem('${MODE_KEY}');t=c?'a':(t==='b'?'b':'a');m=c?'dark':(m==='light'||m==='system'?m:'dark');d.dataset.theme=t;d.dataset.mode=m;d.dataset.scheme=m==='system'?(matchMedia('${DARK_QUERY}').matches?'dark':'light'):m}catch(e){}`;
 
 const prefersDark = () => typeof matchMedia === 'function' && matchMedia(DARK_QUERY).matches;
 const onClientPage = () => typeof location !== 'undefined' && isClientPath(location.pathname);
 
-/** Writes the choice to <html> (and this browser unless `store` is false). Client pages keep the system scheme. */
+/** Writes the choice to <html> (and this browser unless `store` is false). Client pages keep the default Etched dark look. */
 export function applyTheme(choice: ThemeChoice, {store = true}: {store?: boolean} = {}) {
   if (typeof document === 'undefined') return;
   const d = document.documentElement;
-  const mode = onClientPage() ? 'system' : choice.mode;
-  d.dataset.theme = choice.theme;
+  const theme = onClientPage() ? DEFAULT_CHOICE.theme : choice.theme;
+  const mode = onClientPage() ? DEFAULT_CHOICE.mode : choice.mode;
+  d.dataset.theme = theme;
   d.dataset.mode = mode;
   d.dataset.scheme = resolveScheme(mode, prefersDark());
   if (store) try { localStorage.setItem(THEME_KEY, choice.theme); localStorage.setItem(MODE_KEY, choice.mode); } catch { /* storage unavailable: the choice lasts for this page */ }
@@ -73,7 +74,7 @@ export function syncThemeColor() {
 
 function readChoice(): ThemeChoice & {scheme: Scheme} {
   const d = document.documentElement.dataset;
-  return {theme: normalizeTheme(d.theme), mode: normalizeMode(d.mode), scheme: d.scheme === 'dark' ? 'dark' : 'light'};
+  return {theme: normalizeTheme(d.theme), mode: normalizeMode(d.mode), scheme: d.scheme === 'light' ? 'light' : 'dark'};
 }
 export function subscribeTheme(callback: () => void) {
   const observer = new MutationObserver(callback);
@@ -87,10 +88,10 @@ export function subscribeTheme(callback: () => void) {
 }
 /** Snapshot string 'theme|mode|scheme' for useSyncExternalStore (see app/components/slots/theme-switcher.tsx). */
 export const themeSnapshot = () => { const c = readChoice(); return `${c.theme}|${c.mode}|${c.scheme}`; };
-export const serverThemeSnapshot = () => 'b|system|light';
+export const serverThemeSnapshot = () => 'a|dark|dark';
 export function fromSnapshot(key: string): ThemeChoice & {scheme: Scheme} {
   const [theme, mode, scheme] = key.split('|');
-  return {theme: normalizeTheme(theme), mode: normalizeMode(mode), scheme: scheme === 'dark' ? 'dark' : 'light'};
+  return {theme: normalizeTheme(theme), mode: normalizeMode(mode), scheme: scheme === 'light' ? 'light' : 'dark'};
 }
 
 // ---- Contrast (WCAG 2.x), used by tests/property/ws-09-theme.test.mjs over the tokens in globals.css ----

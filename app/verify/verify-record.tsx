@@ -64,11 +64,11 @@ export function VerifyRecord() {
   return (<>
     <section className="editor">
       <p className="eyebrow">RECEIPT CHECK</p>
-      <h1>Verify a TermsLock receipt</h1>
+      <h1>Verify a ContractLock receipt</h1>
       <p className="quiet section-gap">Scan the QR code on a PDF receipt, use “Verify this record” on the review page, or enter the project id, version and record fingerprint printed on it.</p>
       {result && (
         <div className="muted-box" role="status" data-verdict={good ? 'valid' : 'invalid'} data-seal={status ?? 'none'}>
-          {good ? <p className="chain ok"><ShieldCheck size={16} /> {result.evidence?.chip ?? chipWording(status!)}: the stored record matches this fingerprint{status === 'legacy_key' ? ' and carries a seal from an earlier TermsLock key.' : ' and carries a valid TermsLock seal.'}</p>
+          {good ? <p className="chain ok"><ShieldCheck size={16} /> {result.evidence?.chip ?? chipWording(status!)}: the stored record matches this fingerprint{status === 'legacy_key' ? ' and carries a seal from an earlier ContractLock key.' : ' and carries a valid ContractLock seal.'}</p>
             : result.record === 'match' && status === 'unsigned' ? <p className="chain unsigned"><ShieldAlert size={16} /> {chipWording('unsigned')}: the record matches, but it was saved before sealing was on.</p>
             : result.record === 'match' && result.signature === 'unknown_key' ? <p className="chain bad"><ShieldAlert size={16} /> The record matches its fingerprint, but its seal is from a key this server no longer trusts.</p>
             : result.record === 'match' ? <p className="chain bad"><ShieldAlert size={16} /> The record matches its fingerprint but its seal does not verify. Treat this record as altered.</p>

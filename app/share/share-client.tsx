@@ -56,7 +56,7 @@ function CaptureFlow({captureId, sharedText, files, empty}: {captureId: string |
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   if (signedOut) return <SignInPrompt what={`Sign in to check this message against your agreements${files ? ` (${files} shared image${files === 1 ? '' : 's'} can’t be read yet)` : ''}.`} />;
-  if (empty || (!captureId && !sharedText)) return <section className={styles.panel}><h1>Share a client’s message</h1><p>Share a client’s message to TermsLock from WhatsApp, email or any app (install TermsLock on your phone first), or paste it into the scope-creep radar on a project.</p>{files > 0 && <p className={styles.fine}>Images can’t be read yet: share the text of the message instead.</p>}<p><Link className="secondary" href="/">Open your projects</Link></p></section>;
+  if (empty || (!captureId && !sharedText)) return <section className={styles.panel}><h1>Share a client’s message</h1><p>Share a client’s message to ContractLock from WhatsApp, email or any app (install ContractLock on your phone first), or paste it into the scope-creep radar on a project.</p>{files > 0 && <p className={styles.fine}>Images can’t be read yet: share the text of the message instead.</p>}<p><Link className="secondary" href="/">Open your projects</Link></p></section>;
   if (error) return <section className={styles.panel}><h1>Share</h1><p className="error" role="alert">{error}</p></section>;
   if (!state) return <p role="status">Checking the message…</p>;
   const {capture} = state;

@@ -196,7 +196,7 @@ test('theme preference: strict on write, forgiving on read; client pages follow 
   assert.deepEqual(T.validChoice({theme: 'a', mode: 'dark'}), {theme: 'a', mode: 'dark'});
   for (const bad of [null, {}, {theme: 'c', mode: 'dark'}, {theme: 'a', mode: 'dim'}, {theme: 'a'}]) assert.equal(T.validChoice(bad), null);
   assert.deepEqual(T.parseChoice({theme: 'x', mode: 1}), T.DEFAULT_CHOICE);
-  assert.deepEqual(T.parseChoice(null), {theme: 'b', mode: 'system'});
+  assert.deepEqual(T.parseChoice(null), {theme: 'a', mode: 'dark'});
   assert.equal(T.resolveScheme('system', true), 'dark');
   assert.equal(T.resolveScheme('system', false), 'light');
   assert.equal(T.resolveScheme('light', true), 'light');
@@ -204,5 +204,5 @@ test('theme preference: strict on write, forgiving on read; client pages follow 
   assert.ok(T.isClientPath('/review/' + 'a'.repeat(64)));
   assert.ok(!T.isClientPath('/templates'));
   assert.match(T.themeScript, /prefers-color-scheme: dark/);
-  assert.match(T.themeScript, /\^\\\/review\\\//, 'script forces the system scheme on client pages');
+  assert.match(T.themeScript, /\^\\\/review\\\//, 'script forces the default Etched dark scheme on client pages');
 });

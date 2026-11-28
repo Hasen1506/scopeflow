@@ -48,14 +48,14 @@ export function BrandSettings() {
   return (
     <section aria-labelledby="h-brand">
       <h2 id="h-brand">Branding</h2>
-      <p className="fine">Shown to your clients on the review page, on receipts, invoices and statements, and in the emails TermsLock sends for you. Your business name comes from Business details above.</p>
+      <p className="fine">Shown to your clients on the review page, on receipts, invoices and statements, and in the emails ContractLock sends for you. Your business name comes from Business details above.</p>
       <form className="ledger-form" aria-label="Branding" onSubmit={save}>
         <div className="two-col">
           <label>Accent colour
             {/* UX-C40: no colour saved shows a neutral, "Not set" swatch, and the hex field is checked as typed. */}
             <span className="color-row"><input type="color" aria-label="Pick the accent colour" className={brand.brand_color ? undefined : 'unset'} value={hexColorProblem(brand.brand_color) || !brand.brand_color ? '#888888' : brand.brand_color} onChange={e => setBrand({...brand, brand_color: e.target.value})} /><input maxLength={7} placeholder="Not set" aria-label="Accent colour (hex)" aria-invalid={!!hexColorProblem(brand.brand_color)} aria-describedby={hexColorProblem(brand.brand_color) ? 'brand-hex-err' : undefined} value={brand.brand_color} onChange={e => setBrand({...brand, brand_color: e.target.value.trim()})} />{!brand.brand_color && <span className="quiet">Not set</span>}</span>{hexColorProblem(brand.brand_color) ? <span id="brand-hex-err" className="error-text">{hexColorProblem(brand.brand_color)}</span> : shadeNote(brand.brand_color) && <span className="fine block" role="status">{shadeNote(brand.brand_color)}</span>}
           </label>
-          <label>Reply-to address <span className="quiet">· optional</span><input type="email" autoComplete="email" maxLength={254} placeholder="you@yourstudio.com" value={brand.reply_to} onChange={e => setBrand({...brand, reply_to: e.target.value})} /><span className="fine block">Client replies to TermsLock emails go here. Emails are sent as “Your business via TermsLock”.</span></label>
+          <label>Reply-to address <span className="quiet">· optional</span><input type="email" autoComplete="email" maxLength={254} placeholder="you@yourstudio.com" value={brand.reply_to} onChange={e => setBrand({...brand, reply_to: e.target.value})} /><span className="fine block">Client replies to ContractLock emails go here. Emails are sent as “Your business via ContractLock”.</span></label>
         </div>
         <label>Logo <span className="quiet">· PNG or JPEG, under 150 KB</span><input type="file" accept="image/png,image/jpeg" onChange={e => pick(e.target.files?.[0])} /></label>
         {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL preview of the file being uploaded */}

@@ -40,7 +40,7 @@ export async function ownerAuth(request:Request,{oauth=false}:{oauth?:boolean}={
     if(row.family)void db().prepare('UPDATE scopeflow.oauth_grants SET last_used=? WHERE id=? AND (last_used IS NULL OR last_used < ?)').bind(now,row.family,new Date(Date.now()-60_000).toISOString()).run().catch(()=>{});
     return {user:row.owner,via:'oauth',scopes:row.scope.split(' ').filter(Boolean)};
    }
-   // Firebase Auth browser ID tokens are 3-part RS256 JWTs; opaque TermsLock API keys never contain dots.
+   // Firebase Auth browser ID tokens are 3-part RS256 JWTs; opaque ContractLock API keys never contain dots.
    if(token.split('.').length===3){
     const read=request.method==='GET'||request.method==='HEAD';
     const user=(await getUser({fresh:!read}))?.userId;

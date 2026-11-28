@@ -5,7 +5,7 @@ import {RBI_BANK_RATE} from '@/lib/msmed';
 
 // WS-03 (SF-07): public MSMED Act s.16 interest calculator. No sign-in; nothing is stored.
 export const metadata: Metadata = {
-  title: 'MSME delayed payment interest calculator (MSMED Act s.16) · TermsLock',
+  title: 'MSME delayed payment interest calculator (MSMED Act s.16) · ContractLock',
   description: 'Estimate compound interest with monthly rests at three times the RBI Bank Rate on late payments to micro and small enterprises under sections 15 and 16 of the MSMED Act, 2006. An estimate: confirm with your CA.',
   alternates: {canonical: '/msme-interest'},
 };

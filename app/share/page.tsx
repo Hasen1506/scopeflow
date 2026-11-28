@@ -9,7 +9,7 @@ import PwaSetup from './pwa-setup';
 // prefilled change order and propose it, then share it back on WhatsApp. /share?project=<id> is the
 // project's "tell the client" view: review link, change orders and invoices with their email status
 // and a WhatsApp share each (H18, LT-03, SF-01).
-export const metadata: Metadata = {title: 'Share with TermsLock', manifest: '/manifest.webmanifest', robots: {index: false}};
+export const metadata: Metadata = {title: 'Share with ContractLock', manifest: '/manifest.webmanifest', robots: {index: false}};
 export const dynamic = 'force-dynamic';
 
 export default function SharePage() {

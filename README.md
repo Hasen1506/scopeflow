@@ -1,4 +1,4 @@
-# TermsLock
+# ContractLock
 
 Check agreement traps, organize multi-event wedding and renovation vendor chains, confirm terms over WhatsApp, and keep tamper-proof records — even when they won’t sign a formal contract.
 

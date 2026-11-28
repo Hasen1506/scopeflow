@@ -1,13 +1,13 @@
 {
-  "name": "TermsLock",
-  "short_name": "TermsLock",
-  "description": "Check traps before you pay, lock clear terms via WhatsApp or review links, and seal tamper-proof records.",
+  "name": "ContractLock",
+  "short_name": "ContractLock",
+  "description": "Check agreement traps, lock vendor & client terms via WhatsApp, and keep tamper-proof records before you pay.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F4EEE1",
-  "theme_color": "#F4EEE1",
+  "background_color": "#0F1D55",
+  "theme_color": "#0F1D55",
   "icons": [
     {"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
   ],

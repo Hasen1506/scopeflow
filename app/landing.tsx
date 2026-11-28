@@ -62,7 +62,7 @@ const STANDARD_FLOW = [
     step: 'Step 2',
     icon: Zap,
     title: 'Put the real terms in writing',
-    body: 'Enter the agreed fee, advance paid (with UTR), deliverables, and key rules. TermsLock turns it into a clean, readable summary in under 30 seconds.',
+    body: 'Enter the agreed fee, advance paid (with UTR), deliverables, and key rules. ContractLock turns it into a clean, readable summary in under 30 seconds.',
   },
   {
     step: 'Step 3',
@@ -159,7 +159,7 @@ export default function Landing({
       <section className="lp-section" aria-labelledby="lp-how">
         <p className="eyebrow ruled">The normal workflow</p>
         <h2 id="lp-how">
-          How TermsLock works in <em>3 simple steps</em>
+          How ContractLock works in <em>3 simple steps</em>
         </h2>
         <ol className="lp-ladder">
           {STANDARD_FLOW.map(({step, icon: Icon, title, body}) => (

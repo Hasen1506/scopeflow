@@ -57,7 +57,7 @@ test('terms: paid plans exist; client payments go to an account the creator owns
   assert.match(terms, /<h2>Client payments<\/h2>/);
   assert.match(terms, /the creator’s own Razorpay account/);
   assert.match(terms, /the creator’s own Stripe account/);
-  assert.match(terms, /The money settles to the creator, never to TermsLock/);
+  assert.match(terms, /The money settles to the creator, never to ContractLock/);
   assert.match(terms, /refund an online payment, in full or in part, through the same provider/);
   assert.match(terms, /only after the provider confirms it/);
   // Prices are not repeated in the terms (they had drifted from the Plans page: $9/$19 vs $4).

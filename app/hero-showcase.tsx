@@ -131,7 +131,7 @@ export function HeroShowcase() {
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={() => setPaused(false)}
     >
-      <div className="hs-tabs" role="tablist" aria-label="Example agreements protected with TermsLock">
+      <div className="hs-tabs" role="tablist" aria-label="Example agreements protected with ContractLock">
         {SCENARIOS.map((s, i) => {
           const Icon = s.icon;
           const selected = i === index;

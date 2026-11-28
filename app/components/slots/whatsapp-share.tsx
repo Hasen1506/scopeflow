@@ -2,7 +2,7 @@
 // Slot: WhatsAppShare. Owner: WS-06 (implements it). Mounted by: WS-09 (workspace: Approval step
 // next to "Copy link", the change-order list and the invoice list). LT-03, SF-01.
 // Opens the owner's own WhatsApp (wa.me) with a polite prefilled message in the client's language;
-// the owner can edit the text before sharing. TermsLock sends nothing on WhatsApp to clients.
+// the owner can edit the text before sharing. ContractLock sends nothing on WhatsApp to clients.
 import {useId, useMemo, useState} from 'react';
 import {MessageCircle} from 'lucide-react';
 import {shareMessage, waLink, type ShareKind, type ShareValues} from '@/lib/whatsapp-share';

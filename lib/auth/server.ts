@@ -40,7 +40,7 @@ async function lookupFirebaseBearer(): Promise<SessionUser | null> {
     const { adminAuth } = await import('@/src/lib/firebase-admin');
     const decoded = await adminAuth.verifyIdToken(match[1]);
     const email = decoded.email || `${decoded.uid}@termslock.local`;
-    const displayName = (decoded.name as string | undefined) || email.split('@')[0] || 'TermsLock Member';
+    const displayName = (decoded.name as string | undefined) || email.split('@')[0] || 'ContractLock Member';
     return { userId: decoded.uid, email, displayName };
   } catch {
     return null;

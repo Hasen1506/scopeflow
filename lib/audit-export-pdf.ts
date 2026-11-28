@@ -69,8 +69,8 @@ export function toAuditPdf(records: AuditRecord[]): Uint8Array {
   const rangeLabel = head ? `${head.from} to ${head.to}` : 'All dates';
   const doc = new PdfDocument({
     info: {
-      Title: `TermsLock Audit Export (${rangeLabel})`,
-      Producer: 'TermsLock',
+      Title: `ContractLock Audit Export (${rangeLabel})`,
+      Producer: 'ContractLock',
     },
   });
   const contentW = doc.width - MARGIN * 2;
@@ -84,7 +84,7 @@ export function toAuditPdf(records: AuditRecord[]): Uint8Array {
     doc.text(
       MARGIN,
       26,
-      `TermsLock audit export · ${rangeLabel} · owner ${head?.owner_ref ?? '—'} · page ${pageNum}`,
+      `ContractLock audit export · ${rangeLabel} · owner ${head?.owner_ref ?? '—'} · page ${pageNum}`,
       {size: 7.5, gray: 0.45},
     );
   };
@@ -136,7 +136,7 @@ export function toAuditPdf(records: AuditRecord[]): Uint8Array {
   doc.rect(MARGIN, y + 6, contentW, 2.5, {rgb: [0.12, 0.25, 0.66]});
   y -= 10;
 
-  writeLines('TERMSLOCK · SIGNED AUDIT EXPORT', {size: 8, font: 'bold', gray: 0.35, gap: 4});
+  writeLines('CONTRACTLOCK · SIGNED AUDIT EXPORT', {size: 8, font: 'bold', gray: 0.35, gap: 4});
   writeLines('Account Audit Trail Report', {size: 18, font: 'bold', gray: 0.05, leading: 22, gap: 6});
 
   if (head) {

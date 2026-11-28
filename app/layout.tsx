@@ -20,14 +20,73 @@ const instrument = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", 
 
 // M11 (gap audit): a canonical base and a share card for WhatsApp/LinkedIn links. No client data:
 // review pages inherit only this generic card.
-const SITE_TITLE = "TermsLock — Lock clear terms before you pay";
-const SITE_DESCRIPTION = "Check agreement traps, manage multi-event wedding & vendor chains, confirm terms over WhatsApp, and keep tamper-proof records — even when they won’t sign a formal contract.";
+const SITE_NAME = "ContractLock";
+const SITE_TITLE = "ContractLock – Lock Terms, Check Traps & WhatsApp Proof";
+const SITE_DESCRIPTION = "Check agreement traps, lock vendor & client terms via WhatsApp, manage multi-event deals, and keep tamper-proof records before you pay with ContractLock.";
+const SITE_ORIGIN = configuredOrigin() ?? SITE_ORIGIN_FALLBACK;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: SITE_NAME,
+  url: SITE_ORIGIN,
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "All",
+  description: SITE_DESCRIPTION,
+  featureList: [
+    "Agreement & deposit trap checker",
+    "WhatsApp one-tap term confirmation links",
+    "Multi-event wedding & renovation vendor chains",
+    "Tamper-proof SHA-256 & Ed25519 receipts",
+    "MSME late-payment interest calculator",
+  ],
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "INR",
+  },
+};
+
 export const metadata: Metadata = {
-  metadataBase: new URL(configuredOrigin() ?? SITE_ORIGIN_FALLBACK),
+  metadataBase: new URL(SITE_ORIGIN),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
-  openGraph: { type: "website", siteName: "TermsLock", title: SITE_TITLE, description: SITE_DESCRIPTION },
-  twitter: { card: "summary", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  applicationName: SITE_NAME,
+  keywords: [
+    "ContractLock",
+    "lock terms before you pay",
+    "WhatsApp agreement proof",
+    "vendor contract app",
+    "agreement trap checker",
+    "wedding vendor terms",
+    "scope of work confirmation",
+    "tamper-proof receipt",
+    "MSME late payment interest calculator",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    url: SITE_ORIGIN,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: SITE_TITLE,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ["/opengraph-image"],
+  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
@@ -35,7 +94,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#F4EEE1" }, { media: "(prefers-color-scheme: dark)", color: "#11152A" }],
+  themeColor: "#0F1D55",
 };
 
 // Preview/dev-only compatibility guard: when embedded inside a host iframe bridge that defines window.fetch
@@ -56,8 +115,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="b" data-mode="system" data-scheme="light" className={`${fraunces.variable} ${instrument.variable}`} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: sessionScript }} /></head>
+    <html lang="en" data-theme="a" data-mode="dark" data-scheme="dark" className={`${fraunces.variable} ${instrument.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: sessionScript }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      </head>
       <body className="antialiased"><AuthProvider><a className="skip-link" href="#content">Skip to content</a>{children}<SiteFooter /><AdvisorChat /><ThemeProvider /><Toaster position="bottom-center" duration={2600} /></AuthProvider></body>
     </html>
   );

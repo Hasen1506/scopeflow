@@ -89,7 +89,7 @@ export function AgreementView({token, scope, ledger, timeZone = 'UTC', onChanged
       <p className="eyebrow">{t('agreement.eyebrow')}</p>
       <div className="small-title"><h2>{t('agreement.title')}</h2>
         {check.state === 'ok' && check.signed && <span className="chain ok" title={check.head}><ShieldCheck size={14} />{t('chip.sealed')}</span>}
-        {/* §6.1 wording: the record is unchanged but carries no TermsLock seals (saved before sealing was on). */}
+        {/* §6.1 wording: the record is unchanged but carries no ContractLock seals (saved before sealing was on). */}
         {check.state === 'ok' && !check.signed && <span className="chain unsigned" title={check.head}><ShieldAlert size={14} />{t('chip.unsealed')}</span>}
         {check.state === 'failed' && <span className="chain bad"><ShieldAlert size={14} />{t('chip.failed')}</span>}
       </div>

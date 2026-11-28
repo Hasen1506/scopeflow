@@ -49,7 +49,7 @@ export const ALL_PLANS_INCLUDE: readonly string[] = [
 ];
 
 export const PLANS: Record<PlanId, Plan> = {
-  beta: {id: 'beta', name: 'Early access', proposed: false, purchasable: false, seats: 1, price: {USD: 0, INR: 0, USD_year: 0, INR_year: 0}, blurb: 'Generous limits, free while TermsLock is in early access.', features: [],
+  beta: {id: 'beta', name: 'Early access', proposed: false, purchasable: false, seats: 1, price: {USD: 0, INR: 0, USD_year: 0, INR_year: 0}, blurb: 'Generous limits, free while ContractLock is in early access.', features: [],
     limits: {projects: 100, versions: 100, ledger_entries: 500, writes_per_minute: 40, reads_per_minute: 300, ai_per_minute: 15, ai_careful_per_minute: 6}},
   free: {id: 'free', name: 'Free', proposed: false, purchasable: false, seats: 1, price: {USD: 0, INR: 0, USD_year: 0, INR_year: 0}, blurb: 'For renters, families, and your first client scopes.', features: [],
     limits: {projects: 5, versions: 25, ledger_entries: 100, writes_per_minute: 20, reads_per_minute: 120, ai_per_minute: 5, ai_careful_per_minute: 2}},
@@ -164,6 +164,6 @@ export function defaultPlanNote(fallback: Plan, shown: readonly PlanId[] = ['fre
   if (shown.includes(fallback.id)) return null;
   const l = fallback.limits, caps = `${projectCapLine(l)}, ${l.versions} versions and ${l.ledger_entries} record entries per project`;
   if (fallback.id === 'beta') return {title: 'Free during early access',
-    body: `While TermsLock is in early access, every signed-in account gets ${caps}, free, with no credit card required. Once paid upgrades open, accounts without a subscription stay on the Free plan (5 active projects) — and we’ll always give clear notice first.`};
+    body: `While ContractLock is in early access, every signed-in account gets ${caps}, free, with no credit card required. Once paid upgrades open, accounts without a subscription stay on the Free plan (5 active projects) — and we’ll always give clear notice first.`};
   return {title: `Included without a subscription: ${fallback.name}`, body: `Every account without a paid plan gets ${caps}.`};
 }

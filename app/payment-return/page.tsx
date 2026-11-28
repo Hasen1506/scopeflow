@@ -26,6 +26,6 @@ export default function PaymentReturn() {
     }, fallback);
   }, []);
   return <><Header /><main id="content" tabIndex={-1} className="shell" aria-busy={state === 'checking'}>
-    {state === 'checking' ? <p role="status">Returning to your scope…</p> : <section className="editor"><h1>Payment</h1><p className="section-gap">If you completed the payment, it appears on your scope’s record once the payment provider confirms it. Open your review link again from the email you received to see it.</p><p className="section-gap"><Link className="secondary" href="/">TermsLock home</Link></p></section>}
+    {state === 'checking' ? <p role="status">Returning to your scope…</p> : <section className="editor"><h1>Payment</h1><p className="section-gap">If you completed the payment, it appears on your scope’s record once the payment provider confirms it. Open your review link again from the email you received to see it.</p><p className="section-gap"><Link className="secondary" href="/">ContractLock home</Link></p></section>}
   </main></>;
 }

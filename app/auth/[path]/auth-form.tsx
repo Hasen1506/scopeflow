@@ -94,7 +94,7 @@ export default function AuthForm({
         }
         const signed = await signUpWithEmail(name, email, password);
         rememberSession(true);
-        toast.success(`Welcome to TermsLock, ${signed.displayName}`);
+        toast.success(`Welcome to ContractLock, ${signed.displayName}`);
         router.push(destination === '/' ? '/events' : destination);
         router.refresh();
       } else {
@@ -126,7 +126,7 @@ export default function AuthForm({
 
   return (
     <>
-      <p className="eyebrow">YOUR TERMSLOCK ACCOUNT</p>
+      <p className="eyebrow">YOUR CONTRACTLOCK ACCOUNT</p>
       <h1>{title}</h1>
 
       {currentEmail && (mode === 'sign-in' || mode === 'sign-up') && (
@@ -281,7 +281,7 @@ export default function AuthForm({
       <p className="fine section-gap auth-switch">
         {mode === 'sign-in' && (
           <>
-            New to TermsLock?{' '}
+            New to ContractLock?{' '}
             <Link className="help-link" href={'/auth/sign-up?return_to=' + encodeURIComponent(destination)}>
               Create an account
             </Link>{' '}

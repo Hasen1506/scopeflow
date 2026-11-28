@@ -108,7 +108,7 @@ test('H6: privacy and refund copy follow the code (closure keeps client records;
   assert.match(read('lib/retention-sql.ts'), /TOMBSTONE_RETENTION_YEARS = 8/);
   assert.match(privacy, /PostHog’s EU service under a salted hash/);
   assert.match(privacy, /WhatsApp Business Platform/);
-  assert.match(privacy, /<h2>TermsLock subscriptions<\/h2>/);
+  assert.match(privacy, /<h2>ContractLock subscriptions<\/h2>/);
   const refund = read('app/refund/page.tsx');
   assert.match(refund, /\{GRACE_DAYS\} days/);
   assert.match(refund, /renews automatically/);

@@ -4,7 +4,7 @@ import {Header} from '@/app/ui';
 import {getUser} from '@/lib/auth/server';
 import {validateAuthorize, redirectWith, clientIdentity, SCOPE_TEXT} from '@/lib/oauth';
 import styles from './consent.module.css';
-export const metadata = {title: 'Connect an app — TermsLock'};
+export const metadata = {title: 'Connect an app — ContractLock'};
 
 export const dynamic = 'force-dynamic';
 const FIELDS = ['client_id', 'redirect_uri', 'state', 'scope', 'code_challenge', 'code_challenge_method', 'response_type', 'resource'] as const;
@@ -32,7 +32,7 @@ export default async function Authorize({searchParams}: {searchParams: Promise<R
   const who = clientIdentity(params.client, params.redirect_uri);
   return <><Header/><main id="content" tabIndex={-1} className="review-shell"><section className="editor">
     <p className="eyebrow">CONNECT AN APP</p>
-    <h1>Allow {destination} to use your TermsLock account?</h1>
+    <h1>Allow {destination} to use your ContractLock account?</h1>
     <p className={styles.client} data-testid="consent-client">
       <span>App name: <strong>{params.client.name}</strong></span>{' '}
       {who.verified
